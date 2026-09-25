@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.browser.DirectoryBrowserViewModelFactory
+import com.webdav.player.ui.common.RequestNotificationPermissionEffect
 import com.webdav.player.ui.server.ServerListScreen
 import com.webdav.player.ui.server.ServerManagementViewModel
 import com.webdav.player.ui.server.ServerManagementViewModelFactory
@@ -42,6 +43,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             WebDavPlayerTheme {
+                RequestNotificationPermissionEffect()
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

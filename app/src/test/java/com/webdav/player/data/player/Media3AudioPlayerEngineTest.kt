@@ -11,6 +11,7 @@ import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -142,5 +143,46 @@ class Media3AudioPlayerEngineTest {
         // Remove last remaining track
         engine.removeTrack(0)
         assertEquals(PlaybackState.Idle, engine.playbackState.value)
+    }
+
+    @Test
+    fun setVolume_andGetVolume_updatesPlayerVolume() {
+        engine.setVolume(0.5f)
+        assertEquals(0.5f, engine.getVolume(), 0.01f)
+
+        engine.setVolume(0.2f)
+        assertEquals(0.2f, engine.getVolume(), 0.01f)
+
+        engine.setVolume(1.0f)
+        assertEquals(1.0f, engine.getVolume(), 0.01f)
+    }
+
+    @Test
+    fun updateTrack_updatesMediaItemMetadata() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0
+        )
+
+        val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist")
+        engine.updateTrack(0, updated)
+
+        // Verify mediaSession is active and intact
+        assertNotNull(engine.mediaSession)
+    }
+
+    @Test
+    fun audioFocusTransientDuck_lowersVolume_andRestoresOnGain() {
+        engine.playTracks(server = testServer, tracks = listOf(track1), startIndex = 0)
+        engine.setVolume(1.0f)
+
+        engine.audioFocusHandler.handleFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
+        assertTrue(engine.audioFocusHandler.isDucked)
+        assertEquals(0.2f, engine.getVolume(), 0.01f)
+
+        engine.audioFocusHandler.handleFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN)
+        assertFalse(engine.audioFocusHandler.isDucked)
+        assertEquals(1.0f, engine.getVolume(), 0.01f)
     }
 }

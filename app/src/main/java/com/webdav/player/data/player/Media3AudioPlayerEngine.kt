@@ -1,6 +1,8 @@
 package com.webdav.player.data.player
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -13,6 +15,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.MediaSession
+import com.webdav.player.MainActivity
+import com.webdav.player.data.service.WebDavMediaService
+import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
@@ -27,12 +33,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(UnstableApi::class)
 class Media3AudioPlayerEngine(
-    context: Context,
+    private val context: Context,
     val dataSourceFactory: WebDavDataSourceFactory = WebDavDataSourceFactory(),
     customPlayer: Player? = null,
+    customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) : AudioPlayerEngine {
 
@@ -62,6 +70,31 @@ class Media3AudioPlayerEngine(
             )
             .build()
     }
+
+    val mediaSession: MediaSession = customMediaSession ?: run {
+        val sessionActivity = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        MediaSession.Builder(context, player)
+            .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
+            .setSessionActivity(sessionActivity)
+            .setCallback(WebDavMediaSessionCallback(this))
+            .build()
+    }
+
+    val audioFocusHandler: AudioFocusHandler = AudioFocusHandler(context, this)
+
+    fun setVolume(volume: Float) {
+        player.volume = volume.coerceIn(0f, 1f)
+    }
+
+    fun getVolume(): Float = player.volume
 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -137,17 +170,20 @@ class Media3AudioPlayerEngine(
 
         val mediaItems = tracks.map { track ->
             val uri = Uri.parse(track.streamUrl(server))
+            val metaBuilder = MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+
+            track.coverThumbnailPath?.let { path ->
+                metaBuilder.setArtworkUri(Uri.fromFile(File(path)))
+            }
+
             MediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(track.id)
                 .setMimeType(track.format.mimeType)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(track.title)
-                        .setArtist(track.artist)
-                        .setAlbumTitle(track.album)
-                        .build()
-                )
+                .setMediaMetadata(metaBuilder.build())
                 .build()
         }
 
@@ -156,10 +192,14 @@ class Media3AudioPlayerEngine(
         applyPlaybackMode(_playbackMode.value)
         player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
         player.prepare()
+        audioFocusHandler.requestAudioFocus()
+        WebDavMediaService.start(context)
         player.play()
     }
 
     override fun play() {
+        audioFocusHandler.requestAudioFocus()
+        WebDavMediaService.start(context)
         player.play()
     }
 
@@ -212,7 +252,25 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    override fun updateTrack(index: Int, track: AudioTrack) {
+        if (index in 0 until player.mediaItemCount) {
+            val currentItem = player.getMediaItemAt(index)
+            val metaBuilder = currentItem.mediaMetadata.buildUpon()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+            track.coverThumbnailPath?.let { path ->
+                metaBuilder.setArtworkUri(Uri.fromFile(File(path)))
+            }
+            val updatedItem = currentItem.buildUpon()
+                .setMediaMetadata(metaBuilder.build())
+                .build()
+            player.replaceMediaItem(index, updatedItem)
+        }
+    }
+
     override fun stop() {
+        audioFocusHandler.abandonAudioFocus()
         stopPositionTicker()
         player.stop()
         _playbackState.value = PlaybackState.Idle
@@ -220,8 +278,10 @@ class Media3AudioPlayerEngine(
     }
 
     override fun release() {
+        audioFocusHandler.abandonAudioFocus()
         stopPositionTicker()
         player.removeListener(listener)
+        mediaSession.release()
         player.release()
     }
 

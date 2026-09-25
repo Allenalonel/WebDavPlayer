@@ -152,6 +152,14 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         }
     }
 
+    override fun updateTrack(index: Int, track: AudioTrack) {
+        if (index in lastTracks.indices) {
+            val mutable = lastTracks.toMutableList()
+            mutable[index] = track
+            lastTracks = mutable
+        }
+    }
+
     fun simulateTrackCompletion() {
         if (lastTracks.isEmpty()) return
         when (_playbackMode.value) {

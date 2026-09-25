@@ -100,9 +100,15 @@ class MusicPlayerAppSessionImpl(
                                     if (metadataList.isNotEmpty()) {
                                         val metaMap = metadataList.associateBy { it.remotePath }
                                         _sessionState.update { current ->
-                                            val updatedTracks = current.queue.tracks.map { track ->
+                                            val updatedTracks = current.queue.tracks.mapIndexed { index, track ->
                                                 val meta = metaMap[track.remotePath]
-                                                if (meta != null) track.withMetadata(meta) else track
+                                                if (meta != null) {
+                                                    val enriched = track.withMetadata(meta)
+                                                    playerEngine.updateTrack(index, enriched)
+                                                    enriched
+                                                } else {
+                                                    track
+                                                }
                                             }
                                             current.copy(queue = current.queue.copy(tracks = updatedTracks))
                                         }
@@ -174,8 +180,14 @@ class MusicPlayerAppSessionImpl(
                 val file = RemoteFile(name = track.title, path = track.remotePath)
                 val meta = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
                 _sessionState.update { current ->
-                    val updated = current.queue.tracks.map {
-                        if (it.id == track.id) it.withMetadata(meta) else it
+                    val updated = current.queue.tracks.mapIndexed { index, t ->
+                        if (t.id == track.id) {
+                            val enriched = t.withMetadata(meta)
+                            playerEngine.updateTrack(index, enriched)
+                            enriched
+                        } else {
+                            t
+                        }
                     }
                     current.copy(queue = current.queue.copy(tracks = updated))
                 }
