@@ -3,6 +3,7 @@ package com.webdav.player.ui.browser
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.ListDirectoryResult
+import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
@@ -265,6 +266,29 @@ class DirectoryBrowserViewModelTest {
         viewModel.togglePlayPause()
 
         assertEquals(1, fakeMusicPlayerAppSession.togglePlayPauseCount)
+    }
+
+    @Test
+    fun playerControls_dispatchToMusicPlayerAppSession() = runTest {
+        advanceUntilIdle()
+
+        viewModel.seekTo(12345L)
+        assertEquals(12345L, fakeMusicPlayerAppSession.lastSeekPosition)
+
+        viewModel.skipToNext()
+        assertEquals(1, fakeMusicPlayerAppSession.skipNextCount)
+
+        viewModel.skipToPrevious()
+        assertEquals(1, fakeMusicPlayerAppSession.skipPreviousCount)
+
+        viewModel.cyclePlaybackMode()
+        assertEquals(PlaybackMode.SINGLE_LOOP, fakeMusicPlayerAppSession.sessionState.value.playbackMode)
+
+        viewModel.playQueueIndex(3)
+        assertEquals(3, fakeMusicPlayerAppSession.lastPlayedQueueIndex)
+
+        viewModel.removeQueueTrack(2)
+        assertEquals(listOf(2), fakeMusicPlayerAppSession.removedQueueIndices)
     }
 
     private class FakeServerRepository : ServerRepository {

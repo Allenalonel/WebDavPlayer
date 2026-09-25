@@ -1,6 +1,7 @@
 package com.webdav.player.domain.session
 
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
@@ -11,7 +12,6 @@ import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.ServerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +71,12 @@ class MusicPlayerAppSessionImpl(
                         current
                     }
                 }
+            }
+        }
+
+        coroutineScope.launch {
+            playerEngine.playbackMode.collect { mode ->
+                _sessionState.update { it.copy(playbackMode = mode) }
             }
         }
     }
@@ -157,6 +163,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun seekTo(positionMs: Long) {
+        _sessionState.update { it.copy(currentPositionMs = positionMs) }
         playerEngine.seekTo(positionMs)
     }
 
@@ -172,6 +179,39 @@ class MusicPlayerAppSessionImpl(
         val queue = _sessionState.value.queue
         if (index in queue.tracks.indices) {
             playerEngine.seekToTrack(index)
+        }
+    }
+
+    override fun cyclePlaybackMode() {
+        val nextMode = _sessionState.value.playbackMode.next()
+        setPlaybackMode(nextMode)
+    }
+
+    override fun setPlaybackMode(mode: PlaybackMode) {
+        _sessionState.update { it.copy(playbackMode = mode) }
+        playerEngine.setPlaybackMode(mode)
+    }
+
+    override fun removeQueueTrack(index: Int) {
+        val currentQueue = _sessionState.value.queue
+        if (index !in currentQueue.tracks.indices) return
+
+        val updatedQueue = currentQueue.removeTrackAt(index)
+        playerEngine.removeTrack(index)
+
+        if (updatedQueue.isEmpty) {
+            _sessionState.update {
+                it.copy(
+                    queue = PlaybackQueue.EMPTY,
+                    playbackState = PlaybackState.Idle,
+                    currentPositionMs = 0L,
+                    durationMs = 0L
+                )
+            }
+        } else {
+            _sessionState.update {
+                it.copy(queue = updatedQueue)
+            }
         }
     }
 

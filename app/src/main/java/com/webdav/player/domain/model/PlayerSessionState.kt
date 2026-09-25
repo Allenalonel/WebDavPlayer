@@ -4,6 +4,7 @@ data class PlayerSessionState(
     val activeServer: WebDavServer? = null,
     val queue: PlaybackQueue = PlaybackQueue.EMPTY,
     val playbackState: PlaybackState = PlaybackState.Idle,
+    val playbackMode: PlaybackMode = PlaybackMode.LIST_LOOP,
     val currentPositionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null

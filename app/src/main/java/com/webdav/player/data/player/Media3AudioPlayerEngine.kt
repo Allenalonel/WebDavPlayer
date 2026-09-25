@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
@@ -74,6 +75,9 @@ class Media3AudioPlayerEngine(
     private val _currentTrackIndex = MutableStateFlow(-1)
     override val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
 
+    private val _playbackMode = MutableStateFlow(PlaybackMode.LIST_LOOP)
+    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
+
     private var tickerJob: Job? = null
 
     private val listener = object : Player.Listener {
@@ -118,6 +122,7 @@ class Media3AudioPlayerEngine(
 
     init {
         player.addListener(listener)
+        applyPlaybackMode(_playbackMode.value)
         updatePlaybackState()
     }
 
@@ -148,6 +153,7 @@ class Media3AudioPlayerEngine(
 
         val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
         _currentTrackIndex.value = validStartIndex
+        applyPlaybackMode(_playbackMode.value)
         player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
         player.prepare()
         player.play()
@@ -162,25 +168,47 @@ class Media3AudioPlayerEngine(
     }
 
     override fun seekTo(positionMs: Long) {
-        player.seekTo(positionMs)
-        _currentPositionMs.value = positionMs
+        val clamped = positionMs.coerceAtLeast(0L)
+        player.seekTo(clamped)
+        _currentPositionMs.value = clamped
     }
 
     override fun skipToNext() {
         if (player.hasNextMediaItem()) {
             player.seekToNextMediaItem()
+        } else if (player.mediaItemCount > 0) {
+            player.seekTo(0, 0L)
         }
     }
 
     override fun skipToPrevious() {
         if (player.hasPreviousMediaItem()) {
             player.seekToPreviousMediaItem()
+        } else if (player.mediaItemCount > 0) {
+            player.seekTo(player.mediaItemCount - 1, 0L)
         }
     }
 
     override fun seekToTrack(index: Int, positionMs: Long) {
         if (index >= 0 && index < player.mediaItemCount) {
-            player.seekTo(index, positionMs)
+            player.seekTo(index, positionMs.coerceAtLeast(0L))
+        }
+    }
+
+    override fun setPlaybackMode(mode: PlaybackMode) {
+        _playbackMode.value = mode
+        applyPlaybackMode(mode)
+    }
+
+    override fun removeTrack(index: Int) {
+        if (index in 0 until player.mediaItemCount) {
+            player.removeMediaItem(index)
+            if (player.mediaItemCount == 0) {
+                stop()
+            } else {
+                _currentTrackIndex.value = player.currentMediaItemIndex
+                updatePositionAndDuration()
+            }
         }
     }
 
@@ -195,6 +223,23 @@ class Media3AudioPlayerEngine(
         stopPositionTicker()
         player.removeListener(listener)
         player.release()
+    }
+
+    private fun applyPlaybackMode(mode: PlaybackMode) {
+        when (mode) {
+            PlaybackMode.LIST_LOOP -> {
+                player.repeatMode = Player.REPEAT_MODE_ALL
+                player.shuffleModeEnabled = false
+            }
+            PlaybackMode.SINGLE_LOOP -> {
+                player.repeatMode = Player.REPEAT_MODE_ONE
+                player.shuffleModeEnabled = false
+            }
+            PlaybackMode.SHUFFLE -> {
+                player.repeatMode = Player.REPEAT_MODE_ALL
+                player.shuffleModeEnabled = true
+            }
+        }
     }
 
     private fun updatePlaybackState() {

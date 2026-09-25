@@ -70,6 +70,30 @@ class DirectoryBrowserViewModel(
         musicPlayerAppSession?.togglePlayPause()
     }
 
+    fun seekTo(positionMs: Long) {
+        musicPlayerAppSession?.seekTo(positionMs)
+    }
+
+    fun skipToNext() {
+        musicPlayerAppSession?.skipToNext()
+    }
+
+    fun skipToPrevious() {
+        musicPlayerAppSession?.skipToPrevious()
+    }
+
+    fun cyclePlaybackMode() {
+        musicPlayerAppSession?.cyclePlaybackMode()
+    }
+
+    fun playQueueIndex(index: Int) {
+        musicPlayerAppSession?.playQueueIndex(index)
+    }
+
+    fun removeQueueTrack(index: Int) {
+        musicPlayerAppSession?.removeQueueTrack(index)
+    }
+
     fun onNavigateUp(): Boolean {
         val current = _uiState.value.currentPath
         if (current == "/" || current.isBlank()) {

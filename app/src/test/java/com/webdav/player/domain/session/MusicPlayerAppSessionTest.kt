@@ -2,10 +2,10 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
-import com.webdav.player.domain.model.RemoteFileType
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +13,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -74,6 +73,7 @@ class MusicPlayerAppSessionTest {
         assertTrue(state.isIdle)
         assertFalse(state.isPlaying)
         assertNull(state.currentTrack)
+        assertEquals(PlaybackMode.LIST_LOOP, state.playbackMode)
     }
 
     @Test
@@ -219,6 +219,7 @@ class MusicPlayerAppSessionTest {
         session.seekTo(5000L)
         advanceUntilIdle()
         assertEquals(5000L, fakeEngine.seekToPosition)
+        assertEquals(5000L, session.sessionState.value.currentPositionMs)
 
         session.skipToNext()
         advanceUntilIdle()
@@ -236,5 +237,181 @@ class MusicPlayerAppSessionTest {
         advanceUntilIdle()
         assertEquals(1, fakeEngine.stopCount)
         assertTrue(session.sessionState.value.isIdle)
+    }
+
+    @Test
+    fun cyclePlaybackMode_cyclesThroughAllModesAndNotifiesEngine() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        advanceUntilIdle()
+
+        assertEquals(PlaybackMode.LIST_LOOP, session.sessionState.value.playbackMode)
+        assertEquals(PlaybackMode.LIST_LOOP, fakeEngine._playbackMode.value)
+
+        // LIST_LOOP -> SINGLE_LOOP
+        session.cyclePlaybackMode()
+        advanceUntilIdle()
+        assertEquals(PlaybackMode.SINGLE_LOOP, session.sessionState.value.playbackMode)
+        assertEquals(PlaybackMode.SINGLE_LOOP, fakeEngine._playbackMode.value)
+
+        // SINGLE_LOOP -> SHUFFLE
+        session.cyclePlaybackMode()
+        advanceUntilIdle()
+        assertEquals(PlaybackMode.SHUFFLE, session.sessionState.value.playbackMode)
+        assertEquals(PlaybackMode.SHUFFLE, fakeEngine._playbackMode.value)
+
+        // SHUFFLE -> LIST_LOOP
+        session.cyclePlaybackMode()
+        advanceUntilIdle()
+        assertEquals(PlaybackMode.LIST_LOOP, session.sessionState.value.playbackMode)
+        assertEquals(PlaybackMode.LIST_LOOP, fakeEngine._playbackMode.value)
+    }
+
+    @Test
+    fun removeQueueTrack_removesNonActiveTrackAndKeepsCurrentTrack() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+        val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+        val track3 = RemoteFile(name = "03.mp3", path = "/03.mp3")
+        val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2, track3))
+        session.playDirectoryTrack(directory, track2) // Playing track 2 (index 1)
+        advanceUntilIdle()
+
+        assertEquals(1, session.sessionState.value.queue.currentIndex)
+        assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+
+        // Remove track 0 (track 1)
+        session.removeQueueTrack(0)
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertEquals(2, state.queue.size)
+        assertEquals(0, state.queue.currentIndex)
+        assertEquals("02.mp3", state.currentTrack?.title)
+    }
+
+    @Test
+    fun removeQueueTrack_removesActiveTrack_andAdvancesToNext() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+        val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+        val track3 = RemoteFile(name = "03.mp3", path = "/03.mp3")
+        val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2, track3))
+        session.playDirectoryTrack(directory, track2) // Playing track 2 (index 1)
+        advanceUntilIdle()
+
+        // Remove current track (index 1)
+        session.removeQueueTrack(1)
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertEquals(2, state.queue.size)
+        assertEquals(1, state.queue.currentIndex)
+        assertEquals("03.mp3", state.currentTrack?.title)
+    }
+
+    @Test
+    fun removeQueueTrack_removesOnlyTrack_stopsAndClearsQueue() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+        val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+        session.playDirectoryTrack(directory, track1)
+        advanceUntilIdle()
+
+        assertEquals(1, session.sessionState.value.queue.size)
+
+        // Remove only track
+        session.removeQueueTrack(0)
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertTrue(state.queue.isEmpty)
+        assertTrue(state.isIdle)
+        assertEquals(1, fakeEngine.stopCount)
+    }
+
+    @Test
+    fun playbackModeTransitions_listLoopWraparound() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+        val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+        val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+        session.playDirectoryTrack(directory, track2) // index 1 (last track)
+        advanceUntilIdle()
+
+        session.setPlaybackMode(PlaybackMode.LIST_LOOP)
+        advanceUntilIdle()
+
+        // Next at last track wraps to 0
+        session.skipToNext()
+        advanceUntilIdle()
+        assertEquals(0, fakeEngine._currentTrackIndex.value)
+        assertEquals(0, session.sessionState.value.queue.currentIndex)
+
+        // Simulate track completion wraps to 1 then to 0
+        fakeEngine.simulateTrackCompletion()
+        advanceUntilIdle()
+        assertEquals(1, session.sessionState.value.queue.currentIndex)
+
+        fakeEngine.simulateTrackCompletion()
+        advanceUntilIdle()
+        assertEquals(0, session.sessionState.value.queue.currentIndex)
+    }
+
+    @Test
+    fun playbackModeTransitions_singleLoopReplaysCurrentTrack() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+        val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+        val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+        session.playDirectoryTrack(directory, track1) // index 0
+        advanceUntilIdle()
+
+        session.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
+        fakeEngine.seekTo(45000L)
+        advanceUntilIdle()
+
+        assertEquals(45000L, fakeEngine._currentPositionMs.value)
+        assertEquals(0, fakeEngine._currentTrackIndex.value)
+
+        // Track completes -> replays same track from 0L
+        fakeEngine.simulateTrackCompletion()
+        advanceUntilIdle()
+
+        assertEquals(0, fakeEngine._currentTrackIndex.value)
+        assertEquals(0L, fakeEngine._currentPositionMs.value)
+        assertEquals(0, session.sessionState.value.queue.currentIndex)
+    }
+
+    @Test
+    fun playbackModeTransitions_shuffleFollowsPermutation() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+        val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+        val track3 = RemoteFile(name = "03.mp3", path = "/03.mp3")
+        val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2, track3))
+        session.playDirectoryTrack(directory, track1) // index 0
+        advanceUntilIdle()
+
+        session.setPlaybackMode(PlaybackMode.SHUFFLE)
+        fakeEngine.shufflePermutation = listOf(0, 2, 1)
+        advanceUntilIdle()
+
+        // Track completion moves 0 -> 2
+        fakeEngine.simulateTrackCompletion()
+        advanceUntilIdle()
+        assertEquals(2, fakeEngine._currentTrackIndex.value)
+        assertEquals(2, session.sessionState.value.queue.currentIndex)
+
+        // Next completion moves 2 -> 1
+        fakeEngine.simulateTrackCompletion()
+        advanceUntilIdle()
+        assertEquals(1, fakeEngine._currentTrackIndex.value)
+        assertEquals(1, session.sessionState.value.queue.currentIndex)
+
+        // Next completion wraps back to 0
+        fakeEngine.simulateTrackCompletion()
+        advanceUntilIdle()
+        assertEquals(0, fakeEngine._currentTrackIndex.value)
+        assertEquals(0, session.sessionState.value.queue.currentIndex)
     }
 }

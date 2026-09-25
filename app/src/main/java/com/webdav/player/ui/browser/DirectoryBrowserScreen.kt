@@ -1,6 +1,12 @@
 package com.webdav.player.ui.browser
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +60,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -70,6 +78,7 @@ import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
+import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.MiniPlayer
 import java.util.Locale
 
@@ -105,150 +114,182 @@ fun DirectoryBrowserScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        val titleText = if (uiState.currentPath == "/") {
-                            uiState.activeServer?.name ?: "远程目录"
+    var isFullPlayerExpanded by rememberSaveable { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            val titleText = if (uiState.currentPath == "/") {
+                                uiState.activeServer?.name ?: "远程目录"
+                            } else {
+                                uiState.currentDirectory?.name
+                                    ?: uiState.currentPath.trimEnd('/').substringAfterLast('/')
+                            }
+                            Text(
+                                text = titleText,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = uiState.currentPath,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        if (uiState.canNavigateUp) {
+                            IconButton(onClick = { viewModel.onNavigateUp() }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "返回上级"
+                                )
+                            }
                         } else {
-                            uiState.currentDirectory?.name
-                                ?: uiState.currentPath.trimEnd('/').substringAfterLast('/')
-                        }
-                        Text(
-                            text = titleText,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = uiState.currentPath,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                },
-                navigationIcon = {
-                    if (uiState.canNavigateUp) {
-                        IconButton(onClick = { viewModel.onNavigateUp() }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "返回上级"
-                            )
-                        }
-                    } else {
-                        IconButton(onClick = onNavigateToServerManagement) {
-                            Icon(
-                                imageVector = Icons.Filled.Storage,
-                                contentDescription = "服务器列表"
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.onRefresh() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新目录"
-                        )
-                    }
-                    IconButton(onClick = onNavigateToServerManagement) {
-                        Icon(
-                            imageVector = Icons.Filled.Storage,
-                            contentDescription = "管理服务器"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            )
-        },
-        bottomBar = {
-            if (playerSessionState.hasTrack) {
-                MiniPlayer(
-                    sessionState = playerSessionState,
-                    onTogglePlayPause = { viewModel.togglePlayPause() },
-                    onMiniPlayerClick = onOpenFullPlayer
-                )
-            }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            // Breadcrumb navigation bar
-            BreadcrumbBar(
-                breadcrumbs = uiState.breadcrumbs,
-                currentPath = uiState.currentPath,
-                onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) }
-            )
-
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-            // Content Area with Pull-to-Refresh
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(pullRefreshState.nestedScrollConnection)
-            ) {
-                when {
-                    uiState.activeServer == null -> {
-                        NoActiveServerState(onNavigateToServerManagement = onNavigateToServerManagement)
-                    }
-
-                    uiState.isLoading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "正在加载远程目录...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            IconButton(onClick = onNavigateToServerManagement) {
+                                Icon(
+                                    imageVector = Icons.Filled.Storage,
+                                    contentDescription = "服务器列表"
                                 )
                             }
                         }
-                    }
-
-                    uiState.errorMessage != null -> {
-                        ErrorState(
-                            message = uiState.errorMessage ?: "加载失败",
-                            onRetry = { viewModel.onRetry() },
-                            onGoBack = { viewModel.onNavigateUp() },
-                            canGoBack = uiState.canNavigateUp
-                        )
-                    }
-
-                    uiState.isEmpty -> {
-                        EmptyFolderState(onRefresh = { viewModel.onRefresh() })
-                    }
-
-                    else -> {
-                        DirectoryContentList(
-                            directories = uiState.subDirectories,
-                            files = uiState.files,
-                            onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                            onFileClicked = onFileClicked
-                        )
-                    }
-                }
-
-                PullToRefreshContainer(
-                    state = pullRefreshState,
-                    modifier = Modifier.align(Alignment.TopCenter)
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.onRefresh() }) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "刷新目录"
+                            )
+                        }
+                        IconButton(onClick = onNavigateToServerManagement) {
+                            Icon(
+                                imageVector = Icons.Filled.Storage,
+                                contentDescription = "管理服务器"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 )
+            },
+            bottomBar = {
+                if (playerSessionState.hasTrack) {
+                    MiniPlayer(
+                        sessionState = playerSessionState,
+                        onTogglePlayPause = { viewModel.togglePlayPause() },
+                        onMiniPlayerClick = {
+                            isFullPlayerExpanded = true
+                            onOpenFullPlayer()
+                        }
+                    )
+                }
             }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                // Breadcrumb navigation bar
+                BreadcrumbBar(
+                    breadcrumbs = uiState.breadcrumbs,
+                    currentPath = uiState.currentPath,
+                    onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) }
+                )
+
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                // Content Area with Pull-to-Refresh
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(pullRefreshState.nestedScrollConnection)
+                ) {
+                    when {
+                        uiState.activeServer == null -> {
+                            NoActiveServerState(onNavigateToServerManagement = onNavigateToServerManagement)
+                        }
+
+                        uiState.isLoading -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator()
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "正在加载远程目录...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        uiState.errorMessage != null -> {
+                            ErrorState(
+                                message = uiState.errorMessage ?: "加载失败",
+                                onRetry = { viewModel.onRetry() },
+                                onGoBack = { viewModel.onNavigateUp() },
+                                canGoBack = uiState.canNavigateUp
+                            )
+                        }
+
+                        uiState.isEmpty -> {
+                            EmptyFolderState(onRefresh = { viewModel.onRefresh() })
+                        }
+
+                        else -> {
+                            DirectoryContentList(
+                                directories = uiState.subDirectories,
+                                files = uiState.files,
+                                onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
+                                onFileClicked = onFileClicked
+                            )
+                        }
+                    }
+
+                    PullToRefreshContainer(
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
+            }
+        }
+
+        // Expanded Full Player View with animation
+        AnimatedVisibility(
+            visible = isFullPlayerExpanded && playerSessionState.hasTrack,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(300)
+            ) + fadeIn(animationSpec = tween(300)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(300)
+            ) + fadeOut(animationSpec = tween(300))
+        ) {
+            FullPlayerView(
+                sessionState = playerSessionState,
+                onCollapse = { isFullPlayerExpanded = false },
+                onTogglePlayPause = { viewModel.togglePlayPause() },
+                onSeek = { viewModel.seekTo(it) },
+                onSkipToNext = { viewModel.skipToNext() },
+                onSkipToPrevious = { viewModel.skipToPrevious() },
+                onCyclePlaybackMode = { viewModel.cyclePlaybackMode() },
+                onPlayQueueIndex = { viewModel.playQueueIndex(it) },
+                onRemoveQueueTrack = { viewModel.removeQueueTrack(it) }
+            )
         }
     }
 }
