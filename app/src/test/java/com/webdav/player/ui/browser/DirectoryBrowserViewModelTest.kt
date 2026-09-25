@@ -337,6 +337,28 @@ class DirectoryBrowserViewModelTest {
         assertEquals("/cache/covers/cover_1.jpg", meta?.coverThumbnailPath)
     }
 
+    @Test
+    fun onAudioTrackClicked_wmaFile_delegatesToSessionWithAudioTracks() = runTest {
+        advanceUntilIdle()
+
+        val wmaFile = RemoteFile(name = "classic.wma", path = "/Music/classic.wma", size = 5000)
+        val mp3File = RemoteFile(name = "song.mp3", path = "/Music/song.mp3", size = 4000)
+        val dir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(wmaFile, mp3File))
+        fakeDirectoryRepository.setResult("/Music/", ListDirectoryResult.Success(dir))
+
+        viewModel.onDirectoryClicked(dir)
+        advanceUntilIdle()
+
+        assertTrue(wmaFile.isAudio)
+        assertEquals(RemoteFileType.Audio(AudioFormat.WMA), wmaFile.fileType)
+
+        viewModel.onAudioTrackClicked(wmaFile)
+        advanceUntilIdle()
+
+        assertEquals(dir, fakeMusicPlayerAppSession.lastPlayDirectory)
+        assertEquals(wmaFile, fakeMusicPlayerAppSession.lastPlaySelectedFile)
+    }
+
     private class FakeServerRepository : ServerRepository {
         private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
         private val activeServerFlow = MutableStateFlow<WebDavServer?>(null)

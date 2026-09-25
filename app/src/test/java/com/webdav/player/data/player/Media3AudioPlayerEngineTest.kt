@@ -61,6 +61,15 @@ class Media3AudioPlayerEngineTest {
         size = 3000L
     )
 
+    private val trackWma = AudioTrack(
+        id = "1:/Music/04.wma",
+        serverId = 1L,
+        remotePath = "/Music/04.wma",
+        title = "04.wma",
+        format = AudioFormat.WMA,
+        size = 4000L
+    )
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
@@ -93,6 +102,20 @@ class Media3AudioPlayerEngineTest {
 
         assertEquals(1, engine.currentTrackIndex.value)
         assertEquals(testServer, engine.dataSourceFactory.getCurrentServer())
+    }
+
+    @Test
+    fun playTracks_withWmaTrack_setsWmaMimeTypeAndPrepares() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(trackWma),
+            startIndex = 0
+        )
+
+        assertEquals(0, engine.currentTrackIndex.value)
+        assertEquals(1, engine.player.mediaItemCount)
+        val mediaItem = engine.player.getMediaItemAt(0)
+        assertEquals("audio/x-ms-wma", mediaItem.localConfiguration?.mimeType)
     }
 
     @Test

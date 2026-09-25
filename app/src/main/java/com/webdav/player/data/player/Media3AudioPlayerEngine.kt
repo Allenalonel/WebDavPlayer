@@ -13,8 +13,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
 import com.webdav.player.data.service.WebDavMediaService
@@ -44,7 +47,7 @@ class Media3AudioPlayerEngine(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) : AudioPlayerEngine {
 
-    private val player: Player = customPlayer ?: run {
+    val player: Player = customPlayer ?: run {
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 /* minBufferMs = */ 15_000,
@@ -55,10 +58,20 @@ class Media3AudioPlayerEngine(
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+
+        val extractorsFactory = ExtractorsFactory {
+            arrayOf(
+                *DefaultExtractorsFactory().createExtractors(),
+                AsfExtractor()
+            )
+        }
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
             .setDataSourceFactory(dataSourceFactory)
 
-        ExoPlayer.Builder(context)
+        ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(

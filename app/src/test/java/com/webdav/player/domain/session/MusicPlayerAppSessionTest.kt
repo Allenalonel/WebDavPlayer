@@ -125,6 +125,33 @@ class MusicPlayerAppSessionTest {
     }
 
     @Test
+    fun playDirectoryTrack_withWmaFile_populatesQueueWithWmaAudioTrackAndMimeType() = runTest(testDispatcher) {
+        session.setActiveServer(testServer)
+        advanceUntilIdle()
+
+        val wmaTrack = RemoteFile(name = "01 - Classic.wma", path = "/Music/01 - Classic.wma", size = 1500)
+        val mp3Track = RemoteFile(name = "02 - Pop.mp3", path = "/Music/02 - Pop.mp3", size = 2500)
+        val directory = RemoteDirectory(
+            path = "/Music/",
+            name = "Music",
+            files = listOf(wmaTrack, mp3Track)
+        )
+
+        session.playDirectoryTrack(directory, wmaTrack)
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertEquals(2, state.queue.size)
+        assertEquals(0, state.queue.currentIndex)
+        assertEquals(AudioFormat.WMA, state.currentTrack?.format)
+        assertEquals("audio/x-ms-wma", state.currentTrack?.format?.mimeType)
+
+        assertEquals(testServer, fakeEngine.lastServer)
+        assertEquals(2, fakeEngine.lastTracks.size)
+        assertEquals(AudioFormat.WMA, fakeEngine.lastTracks[0].format)
+    }
+
+    @Test
     fun togglePlayPause_pausesWhenPlaying_andResumesWhenPaused() = runTest(testDispatcher) {
         session.setActiveServer(testServer)
         advanceUntilIdle()
