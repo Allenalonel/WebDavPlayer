@@ -56,6 +56,12 @@ class FfmpegAudioDecoder(
     }
         private set
 
+    private val wmaBridge: WmaAudioDecoderBridge? = if (codecName.startsWith("wma")) {
+        WmaAudioDecoderBridge(sampleRate, channelCount, extraData)
+    } else {
+        null
+    }
+
     init {
         setInitialInputBufferSize(initialInputBufferSize)
         if (FfmpegLibrary.isAvailable()) {
@@ -69,14 +75,14 @@ class FfmpegAudioDecoder(
 
     override fun getName(): String = "ffmpeg:$codecName"
 
-    override fun createInputBuffer(): DecoderInputBuffer {
+    public override fun createInputBuffer(): DecoderInputBuffer {
         return DecoderInputBuffer(
             DecoderInputBuffer.BUFFER_REPLACEMENT_MODE_DIRECT,
             FfmpegLibrary.getInputBufferPaddingSize()
         )
     }
 
-    override fun createOutputBuffer(): SimpleDecoderOutputBuffer {
+    public override fun createOutputBuffer(): SimpleDecoderOutputBuffer {
         return SimpleDecoderOutputBuffer { releaseOutputBuffer(it) }
     }
 
@@ -84,19 +90,22 @@ class FfmpegAudioDecoder(
         return FfmpegDecoderException("Unexpected decode error in $codecName", error)
     }
 
-    override fun decode(
+    public override fun decode(
         inputBuffer: DecoderInputBuffer,
         outputBuffer: SimpleDecoderOutputBuffer,
         reset: Boolean
     ): FfmpegDecoderException? {
-        if (reset && nativeContext != 0L) {
-            nativeContext = try {
-                ffmpegReset(nativeContext, extraData)
-            } catch (e: UnsatisfiedLinkError) {
-                0L
-            }
-            if (nativeContext == 0L) {
-                return FfmpegDecoderException("Error resetting FFmpeg decoder context.")
+        if (reset) {
+            wmaBridge?.reset()
+            if (nativeContext != 0L) {
+                nativeContext = try {
+                    ffmpegReset(nativeContext, extraData)
+                } catch (e: UnsatisfiedLinkError) {
+                    0L
+                }
+                if (nativeContext == 0L) {
+                    return FfmpegDecoderException("Error resetting FFmpeg decoder context.")
+                }
             }
         }
 
@@ -112,6 +121,20 @@ class FfmpegAudioDecoder(
 
         val inputSize = inputData.limit()
         val outputData = outputBuffer.init(inputBuffer.timeUs, outputBufferSize)
+
+        // For WMA formats, use high-fidelity decoder bridge to ensure clean 16-bit linear PCM output
+        if (codecName.startsWith("wma") && wmaBridge != null) {
+            val decodedBytes = wmaBridge.decode(inputData, outputData)
+            if (decodedBytes > 0) {
+                outputData.position(0)
+                outputData.limit(decodedBytes)
+                return null
+            } else {
+                outputBuffer.clear()
+                outputBuffer.addFlag(C.BUFFER_FLAG_DECODE_ONLY)
+                return null
+            }
+        }
 
         if (nativeContext != 0L) {
             val result = try {
