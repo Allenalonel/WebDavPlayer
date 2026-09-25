@@ -1,0 +1,15 @@
+# 07: Dual-Source Lyrics Display
+
+**What to build:** In the full-screen player, the user can toggle to a synchronized lyrics view. The app automatically searches for a matching `.lrc` file (e.g., `song.lrc` alongside `song.flac`) in the current remote directory. If no `.lrc` file exists, it falls back to extracting embedded lyric tags (ID3 USLT or Vorbis comment) from the audio file. Synced lyrics automatically scroll and highlight the active line matching the current playback timestamp.
+
+**Blocked by:** 05: Asynchronous HTTP Range Metadata and Cover Art Resolution
+
+**Status:** ready-for-agent
+
+- [ ] Engine probes remote directory for `${baseName}.lrc` via WebDAV HEAD/GET request upon loading a track.
+- [ ] If remote `.lrc` is not found (404), the engine inspects embedded metadata for unsynchronized or synchronized lyric frames.
+- [ ] LRC parser decodes timestamps (`[mm:ss.xx]` and `[mm:ss.xxx]`) and lyric text into a structured timeline.
+- [ ] Compose lyrics view displays vertical scrolling lyrics with active line highlighting and smooth auto-scroll locked to playback position.
+- [ ] Tapping a lyric line seeks playback directly to that timestamp.
+- [ ] Empty state message ("No lyrics available") displays cleanly when neither source provides lyric data.
+- [ ] Tests verify dual-source resolution priority, LRC timestamp parsing edge cases, and active line calculation at given playback offsets.
