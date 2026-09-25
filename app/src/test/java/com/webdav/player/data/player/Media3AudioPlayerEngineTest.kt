@@ -193,6 +193,26 @@ class Media3AudioPlayerEngineTest {
 
         // Verify mediaSession is active and intact
         assertNotNull(engine.mediaSession)
+        val item = engine.player.getMediaItemAt(0)
+        assertEquals("Updated Song Title", item.mediaMetadata.title?.toString())
+        assertEquals("Updated Artist", item.mediaMetadata.artist?.toString())
+    }
+
+    @Test
+    fun updateTrack_withIdenticalMetadata_doesNotTriggerUnnecessaryUpdates() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0
+        )
+
+        // Calling updateTrack with the exact same track should be a no-op
+        val initialItem = engine.player.getMediaItemAt(0)
+        engine.updateTrack(0, track1)
+        val afterItem = engine.player.getMediaItemAt(0)
+
+        // Verifies no exception and player state remains stable
+        assertEquals(initialItem.mediaMetadata.title, afterItem.mediaMetadata.title)
     }
 
     @Test

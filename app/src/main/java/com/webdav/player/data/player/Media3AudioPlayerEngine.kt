@@ -79,7 +79,7 @@ class Media3AudioPlayerEngine(
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .setUsage(C.USAGE_MEDIA)
                     .build(),
-                /* handleAudioFocus = */ true
+                /* handleAudioFocus = */ false // Audio focus is exclusively managed by audioFocusHandler
             )
             .build()
     }
@@ -268,12 +268,26 @@ class Media3AudioPlayerEngine(
     override fun updateTrack(index: Int, track: AudioTrack) {
         if (index in 0 until player.mediaItemCount) {
             val currentItem = player.getMediaItemAt(index)
-            val metaBuilder = currentItem.mediaMetadata.buildUpon()
+            val currentMeta = currentItem.mediaMetadata
+
+            val newArtworkUri = track.coverThumbnailPath?.let { Uri.fromFile(File(it)) }
+            val sameTitle = currentMeta.title?.toString() == track.title
+            val sameArtist = (currentMeta.artist?.toString() ?: "") == (track.artist ?: "")
+            val sameAlbum = (currentMeta.albumTitle?.toString() ?: "") == (track.album ?: "")
+            val sameArtwork = currentMeta.artworkUri == newArtworkUri
+
+            if (sameTitle && sameArtist && sameAlbum && sameArtwork) {
+                return // Metadata identical; bypass replaceMediaItem to prevent player re-buffering & notification churn
+            }
+
+            val metaBuilder = currentMeta.buildUpon()
                 .setTitle(track.title)
                 .setArtist(track.artist)
                 .setAlbumTitle(track.album)
-            track.coverThumbnailPath?.let { path ->
-                metaBuilder.setArtworkUri(Uri.fromFile(File(path)))
+            if (newArtworkUri != null) {
+                metaBuilder.setArtworkUri(newArtworkUri)
+            } else if (currentMeta.artworkUri != null) {
+                metaBuilder.setArtworkUri(null)
             }
             val updatedItem = currentItem.buildUpon()
                 .setMediaMetadata(metaBuilder.build())

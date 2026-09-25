@@ -500,6 +500,74 @@ class MusicPlayerAppSessionTest {
     }
 
     @Test
+    fun metadataResolution_onlyUpdatesTracksWhoseMetadataActuallyChanged() = runTest(testDispatcher) {
+        val fakeMetadataRepo = FakeTrackMetadataRepo()
+        val sessionWithRepo = MusicPlayerAppSessionImpl(
+            playerEngine = fakeEngine,
+            serverRepository = null,
+            trackMetadataRepository = fakeMetadataRepo,
+            coroutineScope = sessionScope
+        )
+
+        sessionWithRepo.setActiveServer(testServer)
+        val file1 = RemoteFile(name = "song1.mp3", path = "/music/song1.mp3")
+        val file2 = RemoteFile(name = "song2.flac", path = "/music/song2.flac")
+        val file3 = RemoteFile(name = "song3.wav", path = "/music/song3.wav")
+        val dir = RemoteDirectory(path = "/music/", name = "music", files = listOf(file1, file2, file3))
+
+        sessionWithRepo.playDirectoryTrack(dir, file1)
+        advanceUntilIdle()
+
+        fakeEngine.updateTrackCalls = 0
+        fakeEngine.updatedTrackIndices.clear()
+
+        // Metadata arrives for ONLY song1
+        fakeMetadataRepo.emit(
+            listOf(
+                TrackMetadata(
+                    serverId = testServer.id,
+                    remotePath = "/music/song1.mp3",
+                    title = "Rich Song One",
+                    artist = "Awesome Artist",
+                    album = "Great Album"
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        // Should ONLY update song1 (index 0)
+        assertEquals(1, fakeEngine.updateTrackCalls)
+        assertEquals(listOf(0), fakeEngine.updatedTrackIndices)
+
+        // Now metadata for song2 arrives: Room emits [song1, song2]
+        fakeMetadataRepo.emit(
+            listOf(
+                TrackMetadata(
+                    serverId = testServer.id,
+                    remotePath = "/music/song1.mp3",
+                    title = "Rich Song One",
+                    artist = "Awesome Artist",
+                    album = "Great Album"
+                ),
+                TrackMetadata(
+                    serverId = testServer.id,
+                    remotePath = "/music/song2.flac",
+                    title = "Rich Song Two",
+                    artist = "Awesome Artist",
+                    album = "Great Album"
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        // song1 did NOT change! Only song2 changed! Total calls should be 2 (song1 once, song2 once).
+        assertEquals(2, fakeEngine.updateTrackCalls)
+        assertEquals(listOf(0, 1), fakeEngine.updatedTrackIndices)
+
+        sessionWithRepo.release()
+    }
+
+    @Test
     fun sessionState_lyricsLoadedAutomatically_whenTrackStartsPlaying() = runTest(testDispatcher) {
         val fakeLyricsRepo = FakeLyricsRepo()
         val expectedLyrics = com.webdav.player.domain.model.Lyrics(

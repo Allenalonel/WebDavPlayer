@@ -214,4 +214,22 @@ class AsfExtractorTest {
         assertTrue(track!!.sampleData.isNotEmpty())
         assertTrue(track.sampleMetadataCount > 0)
     }
+
+    @Test
+    fun asfSeekMap_isSeekable_andCalculatesByteOffsets() {
+        val durationUs = 200_000_000L // 200 seconds
+        val dataStartOffset = 4096L
+        val packetSize = 2048
+        val totalPackets = 1000L
+
+        val seekMap = AsfExtractor.AsfSeekMap(durationUs, dataStartOffset, packetSize, totalPackets)
+        assertTrue(seekMap.isSeekable)
+        assertEquals(durationUs, seekMap.durationUs)
+
+        // Seek to 100s (middle) -> should be packet 500
+        val points = seekMap.getSeekPoints(100_000_000L)
+        val expectedOffset = dataStartOffset + (500L * packetSize)
+        assertEquals(expectedOffset, points.first.position)
+        assertEquals(100_000_000L, points.first.timeUs)
+    }
 }

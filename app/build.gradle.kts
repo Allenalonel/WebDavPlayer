@@ -56,6 +56,13 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/LICENSE*"
         }
+        jniLibs {
+            excludes += "**/libavcodec.so"
+            excludes += "**/libavformat.so"
+            excludes += "**/libavutil.so"
+            excludes += "**/libswresample.so"
+            useLegacyPackaging = true
+        }
     }
 
     testOptions {

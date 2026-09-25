@@ -154,7 +154,12 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         }
     }
 
+    var updateTrackCalls = 0
+    val updatedTrackIndices = mutableListOf<Int>()
+
     override fun updateTrack(index: Int, track: AudioTrack) {
+        updateTrackCalls++
+        updatedTrackIndices.add(index)
         if (index in lastTracks.indices) {
             val mutable = lastTracks.toMutableList()
             mutable[index] = track

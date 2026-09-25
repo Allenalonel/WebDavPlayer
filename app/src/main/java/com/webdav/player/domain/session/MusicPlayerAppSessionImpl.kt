@@ -136,18 +136,35 @@ class MusicPlayerAppSessionImpl(
                                 trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
                                     if (metadataList.isNotEmpty()) {
                                         val metaMap = metadataList.associateBy { it.remotePath }
+                                        val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
+
                                         _sessionState.update { current ->
+                                            var anyChanged = false
                                             val updatedTracks = current.queue.tracks.mapIndexed { index, track ->
                                                 val meta = metaMap[track.remotePath]
                                                 if (meta != null) {
                                                     val enriched = track.withMetadata(meta)
-                                                    playerEngine.updateTrack(index, enriched)
-                                                    enriched
+                                                    if (enriched != track) {
+                                                        anyChanged = true
+                                                        tracksToUpdate.add(index to enriched)
+                                                        enriched
+                                                    } else {
+                                                        track
+                                                    }
                                                 } else {
                                                     track
                                                 }
                                             }
-                                            current.copy(queue = current.queue.copy(tracks = updatedTracks))
+                                            if (anyChanged) {
+                                                current.copy(queue = current.queue.copy(tracks = updatedTracks))
+                                            } else {
+                                                current
+                                            }
+                                        }
+
+                                        // Dispatch side-effects (playerEngine updates) outside the StateFlow reducer
+                                        tracksToUpdate.forEach { (index, enriched) ->
+                                            playerEngine.updateTrack(index, enriched)
                                         }
                                     }
                                 }
@@ -253,17 +270,31 @@ class MusicPlayerAppSessionImpl(
             coroutineScope.launch {
                 val file = RemoteFile(name = track.title, path = track.remotePath)
                 val meta = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                var updatedIndex: Int? = null
+                var enrichedTrack: AudioTrack? = null
+
                 _sessionState.update { current ->
+                    var changed = false
                     val updated = current.queue.tracks.mapIndexed { index, t ->
                         if (t.id == track.id) {
                             val enriched = t.withMetadata(meta)
-                            playerEngine.updateTrack(index, enriched)
-                            enriched
+                            if (enriched != t) {
+                                changed = true
+                                updatedIndex = index
+                                enrichedTrack = enriched
+                                enriched
+                            } else {
+                                t
+                            }
                         } else {
                             t
                         }
                     }
-                    current.copy(queue = current.queue.copy(tracks = updated))
+                    if (changed) current.copy(queue = current.queue.copy(tracks = updated)) else current
+                }
+
+                if (updatedIndex != null && enrichedTrack != null) {
+                    playerEngine.updateTrack(updatedIndex!!, enrichedTrack!!)
                 }
             }
         }

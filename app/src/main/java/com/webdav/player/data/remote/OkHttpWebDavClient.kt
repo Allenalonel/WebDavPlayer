@@ -224,12 +224,20 @@ class OkHttpWebDavClient(
         val builder = baseOkHttpClient.newBuilder()
 
         if (server.username.isNotBlank()) {
+            val credential = Credentials.basic(server.username, server.password)
+            builder.addInterceptor { chain ->
+                val request = chain.request()
+                if (request.header("Authorization") == null) {
+                    chain.proceed(request.newBuilder().header("Authorization", credential).build())
+                } else {
+                    chain.proceed(request)
+                }
+            }
             builder.authenticator { _, response ->
                 if (response.request.header("Authorization") != null) {
-                    // Already tried, prevent endless loop
+                    // Already tried with authorization and failed, prevent 401 retry loop
                     null
                 } else {
-                    val credential = Credentials.basic(server.username, server.password)
                     response.request.newBuilder().header("Authorization", credential).build()
                 }
             }

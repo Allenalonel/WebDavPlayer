@@ -12,15 +12,9 @@ object FfmpegLibrary {
         MediaLibraryInfo.registerModule("media3.decoder.ffmpeg")
     }
 
-    private var libraries = arrayOf("avutil", "swresample", "avcodec", "avformat")
     private var isNativeLoaded = false
     private var nativeLoadAttempted = false
     private var forcedAvailability: Boolean? = null
-
-    @JvmStatic
-    fun setLibraries(vararg libs: String) {
-        libraries = arrayOf(*libs)
-    }
 
     @JvmStatic
     fun setAvailableForTesting(available: Boolean?) {
@@ -33,16 +27,14 @@ object FfmpegLibrary {
         if (!nativeLoadAttempted) {
             nativeLoadAttempted = true
             try {
-                for (lib in libraries) {
-                    System.loadLibrary(lib)
-                }
+                System.loadLibrary("ffmpegJNI")
                 isNativeLoaded = true
             } catch (e: UnsatisfiedLinkError) {
                 // If running in JVM unit tests or on non-Android target, allow graceful fallback
-                Log.w(TAG, "Failed to load FFmpeg native libraries: ${e.message}")
+                Log.w(TAG, "Failed to load FFmpeg native library: ${e.message}")
                 isNativeLoaded = true
             } catch (e: Exception) {
-                Log.w(TAG, "Unexpected error loading FFmpeg libraries: ${e.message}")
+                Log.w(TAG, "Unexpected error loading FFmpeg library: ${e.message}")
                 isNativeLoaded = true
             }
         }
@@ -50,15 +42,27 @@ object FfmpegLibrary {
     }
 
     @JvmStatic
-    fun getVersion(): String? = "6.0"
+    fun getVersion(): String? {
+        return if (isNativeLoaded) {
+            try { ffmpegGetVersion() } catch (e: UnsatisfiedLinkError) { "6.0" }
+        } else "6.0"
+    }
 
     @JvmStatic
-    fun getInputBufferPaddingSize(): Int = 64
+    fun getInputBufferPaddingSize(): Int {
+        return if (isNativeLoaded) {
+            try { ffmpegGetInputBufferPaddingSize() } catch (e: UnsatisfiedLinkError) { 64 }
+        } else 64
+    }
 
     @JvmStatic
     fun supportsFormat(mimeType: String): Boolean {
         if (!isAvailable()) return false
-        return getCodecName(mimeType) != null
+        val codecName = getCodecName(mimeType) ?: return false
+        if (isNativeLoaded) {
+            return try { ffmpegHasDecoder(codecName) } catch (e: UnsatisfiedLinkError) { true }
+        }
+        return true
     }
 
     @JvmStatic
@@ -82,4 +86,13 @@ object FfmpegLibrary {
             else -> null
         }
     }
+
+    @JvmStatic
+    private external fun ffmpegGetVersion(): String?
+
+    @JvmStatic
+    private external fun ffmpegGetInputBufferPaddingSize(): Int
+
+    @JvmStatic
+    private external fun ffmpegHasDecoder(codecName: String): Boolean
 }
