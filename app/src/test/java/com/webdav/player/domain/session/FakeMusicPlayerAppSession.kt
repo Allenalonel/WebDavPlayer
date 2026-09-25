@@ -34,6 +34,21 @@ class FakeMusicPlayerAppSession(
         _sessionState.value = _sessionState.value.copy(activeServer = server)
     }
 
+    override fun setCurrentDirectoryPath(path: String) {
+        _sessionState.update { it.copy(currentDirectoryPath = path) }
+    }
+
+    var restoreSessionCount = 0
+    var flushSessionCount = 0
+
+    override suspend fun restoreSession() {
+        restoreSessionCount++
+    }
+
+    override suspend fun flushSession() {
+        flushSessionCount++
+    }
+
     override fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile) {
         lastPlayDirectory = directory
         lastPlaySelectedFile = selectedFile

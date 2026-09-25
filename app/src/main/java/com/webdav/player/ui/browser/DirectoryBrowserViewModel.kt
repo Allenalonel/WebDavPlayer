@@ -42,12 +42,15 @@ class DirectoryBrowserViewModel(
                     metadataObserverJob?.cancel()
                     metadataResolutionJob?.cancel()
 
+                    val initialPath = musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
+                        ?.takeIf { it.isNotBlank() } ?: "/"
+
                     _uiState.update {
                         it.copy(
                             activeServer = server,
-                            currentPath = "/",
-                            breadcrumbs = buildBreadcrumbs(server, "/"),
-                            canNavigateUp = false,
+                            currentPath = initialPath,
+                            breadcrumbs = buildBreadcrumbs(server, initialPath),
+                            canNavigateUp = initialPath != "/",
                             currentDirectory = null,
                             errorMessage = null,
                             metadataMap = emptyMap()
@@ -63,9 +66,54 @@ class DirectoryBrowserViewModel(
                                 }
                             }
                         }
-                        loadDirectory("/", forceRefresh = false)
+                        loadInitialDirectory(server, initialPath)
                     }
                 }
+            }
+        }
+    }
+
+    private fun loadInitialDirectory(server: WebDavServer, initialPath: String) {
+        if (initialPath == "/") {
+            loadDirectory("/", forceRefresh = false)
+            return
+        }
+
+        val normalized = normalizeDirectoryPath(initialPath)
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    currentPath = normalized,
+                    breadcrumbs = buildBreadcrumbs(server, normalized),
+                    canNavigateUp = normalized != "/",
+                    isLoading = true,
+                    isRefreshing = false,
+                    errorMessage = null
+                )
+            }
+
+            val result = directoryRepository.listDirectory(server, normalized, false)
+            if (result is ListDirectoryResult.Success) {
+                musicPlayerAppSession?.setCurrentDirectoryPath(normalized)
+                val audioFiles = result.directory.files.filter { it.isAudio }
+                if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
+                    metadataResolutionJob?.cancel()
+                    metadataResolutionJob = viewModelScope.launch {
+                        trackMetadataRepository.resolveMetadata(server, audioFiles)
+                    }
+                }
+
+                _uiState.update {
+                    it.copy(
+                        currentDirectory = result.directory,
+                        isLoading = false,
+                        isRefreshing = false,
+                        errorMessage = null
+                    )
+                }
+            } else {
+                // Graceful fallback to root directory if initial restored directory fails
+                loadDirectory("/", forceRefresh = false)
             }
         }
     }
@@ -160,6 +208,7 @@ class DirectoryBrowserViewModel(
             _uiState.update { current ->
                 when (result) {
                     is ListDirectoryResult.Success -> {
+                        musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
                         val audioFiles = result.directory.files.filter { it.isAudio }
                         if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
                             metadataResolutionJob?.cancel()

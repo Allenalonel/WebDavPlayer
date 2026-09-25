@@ -359,6 +359,55 @@ class DirectoryBrowserViewModelTest {
         assertEquals(wmaFile, fakeMusicPlayerAppSession.lastPlaySelectedFile)
     }
 
+    @Test
+    fun init_restoresSavedDirectoryPathFromAppSession() = runTest(testDispatcher) {
+        val jazzDir = RemoteDirectory(
+            path = "/Music/Jazz/",
+            name = "Jazz",
+            files = listOf(RemoteFile(name = "miles.mp3", path = "/Music/Jazz/miles.mp3"))
+        )
+        fakeDirectoryRepository.setResult("/Music/Jazz/", ListDirectoryResult.Success(jazzDir))
+
+        val sessionWithDir = FakeMusicPlayerAppSession(
+            com.webdav.player.domain.model.PlayerSessionState(currentDirectoryPath = "/Music/Jazz/")
+        )
+        val vm = DirectoryBrowserViewModel(
+            serverRepository = fakeServerRepository,
+            directoryRepository = fakeDirectoryRepository,
+            musicPlayerAppSession = sessionWithDir,
+            trackMetadataRepository = fakeTrackMetadataRepository
+        )
+        advanceUntilIdle()
+
+        assertEquals("/Music/Jazz/", vm.uiState.value.currentPath)
+        assertEquals(jazzDir, vm.uiState.value.currentDirectory)
+        assertTrue(vm.uiState.value.canNavigateUp)
+    }
+
+    @Test
+    fun init_whenRestoredDirectoryPathFails_gracefullyFallsBackToRoot() = runTest(testDispatcher) {
+        fakeDirectoryRepository.setResult(
+            "/DeletedFolder/",
+            ListDirectoryResult.Failure("404 Not Found")
+        )
+        fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(rootDir))
+
+        val sessionWithDir = FakeMusicPlayerAppSession(
+            com.webdav.player.domain.model.PlayerSessionState(currentDirectoryPath = "/DeletedFolder/")
+        )
+        val vm = DirectoryBrowserViewModel(
+            serverRepository = fakeServerRepository,
+            directoryRepository = fakeDirectoryRepository,
+            musicPlayerAppSession = sessionWithDir,
+            trackMetadataRepository = fakeTrackMetadataRepository
+        )
+        advanceUntilIdle()
+
+        // Should gracefully fall back to root "/"
+        assertEquals("/", vm.uiState.value.currentPath)
+        assertEquals(rootDir, vm.uiState.value.currentDirectory)
+    }
+
     private class FakeServerRepository : ServerRepository {
         private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
         private val activeServerFlow = MutableStateFlow<WebDavServer?>(null)

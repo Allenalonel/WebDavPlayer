@@ -1,0 +1,382 @@
+package com.webdav.player.domain.session
+
+import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackSessionData
+import com.webdav.player.domain.model.PlaybackState
+import com.webdav.player.domain.model.RemoteDirectory
+import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.player.FakeAudioPlayerEngine
+import com.webdav.player.domain.repository.ServerRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class PlaybackSessionResumptionTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var fakeEngine: FakeAudioPlayerEngine
+    private lateinit var fakeStore: FakePlaybackSessionStore
+    private lateinit var fakeServerRepo: TestServerRepository
+    private lateinit var sessionJob: kotlinx.coroutines.CompletableJob
+    private lateinit var sessionScope: kotlinx.coroutines.CoroutineScope
+    private lateinit var session: MusicPlayerAppSessionImpl
+
+    private val testServer = WebDavServer(
+        id = 1L,
+        name = "Home NAS",
+        url = "http://192.168.1.100:8080/webdav",
+        port = 8080,
+        pathPrefix = "/webdav",
+        username = "admin",
+        password = "password123",
+        isDefault = true
+    )
+
+    private val track1 = AudioTrack(
+        id = "1:/Music/Jazz/track1.mp3",
+        serverId = 1L,
+        remotePath = "/Music/Jazz/track1.mp3",
+        title = "Autumn Leaves",
+        artist = "Bill Evans",
+        album = "Portrait in Jazz",
+        durationMs = 210000L,
+        size = 8000000L,
+        format = AudioFormat.MP3,
+        coverThumbnailPath = "/covers/1.png"
+    )
+
+    private val track2 = AudioTrack(
+        id = "1:/Music/Jazz/track2.flac",
+        serverId = 1L,
+        remotePath = "/Music/Jazz/track2.flac",
+        title = "Blue in Green",
+        artist = "Miles Davis",
+        album = "Kind of Blue",
+        durationMs = 330000L,
+        size = 25000000L,
+        format = AudioFormat.FLAC,
+        coverThumbnailPath = "/covers/2.png"
+    )
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        fakeEngine = FakeAudioPlayerEngine()
+        fakeStore = FakePlaybackSessionStore()
+        fakeServerRepo = TestServerRepository(listOf(testServer))
+        sessionJob = SupervisorJob()
+        sessionScope = kotlinx.coroutines.CoroutineScope(testDispatcher + sessionJob)
+    }
+
+    @After
+    fun tearDown() {
+        if (::session.isInitialized) {
+            session.release()
+        }
+        sessionJob.cancel()
+        Dispatchers.resetMain()
+    }
+
+    private fun createSession(store: FakePlaybackSessionStore = fakeStore): MusicPlayerAppSessionImpl {
+        return MusicPlayerAppSessionImpl(
+            playerEngine = fakeEngine,
+            serverRepository = fakeServerRepo,
+            sessionStore = store,
+            coroutineScope = sessionScope
+        )
+    }
+
+    @Test
+    fun coldStart_restoresStateAndRendersMiniPlayerInPausedStateAtSavedPosition() = runTest(testDispatcher) {
+        val savedSession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Jazz/",
+            queueTracks = listOf(track1, track2),
+            currentTrackIndex = 1,
+            positionMs = 75000L,
+            playbackMode = PlaybackMode.SINGLE_LOOP
+        )
+        fakeStore.savedSession = savedSession
+
+        session = createSession()
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertEquals(testServer, state.activeServer)
+        assertEquals(2, state.queue.size)
+        assertEquals(1, state.queue.currentIndex)
+        assertEquals(track2, state.currentTrack)
+        assertTrue("Restored mini-player must be in paused state", state.isPaused)
+        assertEquals(75000L, state.currentPositionMs)
+        assertEquals(track2.durationMs, state.durationMs)
+        assertEquals(PlaybackMode.SINGLE_LOOP, state.playbackMode)
+        assertEquals("/Music/Jazz/", state.currentDirectoryPath)
+
+        // Engine should still be idle - no network streaming has started yet
+        assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
+        assertEquals(-1, fakeEngine.lastStartIndex)
+    }
+
+    @Test
+    fun tappingPlayOnRestoredMiniPlayer_seamlesslyStreamsFromSavedOffset() = runTest(testDispatcher) {
+        val savedSession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Jazz/",
+            queueTracks = listOf(track1, track2),
+            currentTrackIndex = 1,
+            positionMs = 75000L,
+            playbackMode = PlaybackMode.SINGLE_LOOP
+        )
+        fakeStore.savedSession = savedSession
+
+        session = createSession()
+        advanceUntilIdle()
+
+        assertTrue(session.sessionState.value.isPaused)
+
+        // User taps play on the restored mini-player
+        session.togglePlayPause()
+        runCurrent()
+
+        // Engine starts streaming at the exact saved millisecond offset
+        assertEquals(testServer, fakeEngine.lastServer)
+        assertEquals(2, fakeEngine.lastTracks.size)
+        assertEquals(1, fakeEngine.lastStartIndex)
+        assertEquals(75000L, fakeEngine.lastStartPositionMs)
+        assertTrue(session.sessionState.value.isPlaying)
+
+        session.pause()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun seekingWhileInRestoredPausedState_updatesPositionAndStreamsFromNewOffsetOnPlay() = runTest(testDispatcher) {
+        val savedSession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Jazz/",
+            queueTracks = listOf(track1, track2),
+            currentTrackIndex = 0,
+            positionMs = 20000L,
+            playbackMode = PlaybackMode.LIST_LOOP
+        )
+        fakeStore.savedSession = savedSession
+
+        session = createSession()
+        advanceUntilIdle()
+
+        // User scrubs progress bar to 90000ms
+        session.seekTo(90000L)
+        advanceUntilIdle()
+
+        assertEquals(90000L, session.sessionState.value.currentPositionMs)
+        assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
+
+        // User taps play
+        session.play()
+        runCurrent()
+
+        assertEquals(0, fakeEngine.lastStartIndex)
+        assertEquals(90000L, fakeEngine.lastStartPositionMs)
+        assertTrue(session.sessionState.value.isPlaying)
+
+        session.pause()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun flushSession_persistsCurrentDirectoryPathAndAllFields() = runTest(testDispatcher) {
+        session = createSession()
+        session.setActiveServer(testServer)
+        session.setCurrentDirectoryPath("/Music/Jazz/")
+        advanceUntilIdle()
+
+        val directory = RemoteDirectory(
+            path = "/Music/Jazz/",
+            name = "Jazz",
+            files = listOf(
+                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L)
+            )
+        )
+        session.playDirectoryTrack(directory, directory.files[1])
+        fakeEngine.seekTo(42000L)
+        session.setPlaybackMode(PlaybackMode.SHUFFLE)
+        runCurrent()
+
+        session.flushSession()
+        runCurrent()
+
+        val saved = fakeStore.savedSession
+        assertNotNull(saved)
+        assertEquals(1L, saved?.activeServerId)
+        assertEquals("/Music/Jazz/", saved?.currentDirectoryPath)
+        assertEquals(2, saved?.queueTracks?.size)
+        assertEquals(1, saved?.currentTrackIndex)
+        assertEquals(42000L, saved?.positionMs)
+        assertEquals(PlaybackMode.SHUFFLE, saved?.playbackMode)
+    }
+
+    @Test
+    fun periodicFlushing_periodicallySavesStateToStore() = runTest(testDispatcher) {
+        session = MusicPlayerAppSessionImpl(
+            playerEngine = fakeEngine,
+            serverRepository = fakeServerRepo,
+            sessionStore = fakeStore,
+            coroutineScope = sessionScope,
+            periodicDispatcher = testDispatcher
+        )
+        session.setActiveServer(testServer)
+        session.setCurrentDirectoryPath("/Music/Jazz/")
+        advanceUntilIdle()
+
+        val directory = RemoteDirectory(
+            path = "/Music/Jazz/",
+            name = "Jazz",
+            files = listOf(
+                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L)
+            )
+        )
+        session.playDirectoryTrack(directory, directory.files[0])
+        runCurrent()
+
+        fakeEngine.seekTo(15000L)
+        val initialCount = fakeStore.saveSessionCount
+
+        // Advance 5 seconds (periodic ticker)
+        advanceTimeBy(5100L)
+        runCurrent()
+
+        assertTrue(fakeStore.saveSessionCount > initialCount)
+        assertEquals(15000L, fakeStore.savedSession?.positionMs)
+
+        session.pause()
+        runCurrent()
+    }
+
+    @Test
+    fun coldStart_whenSavedServerDoesNotExist_handlesGracefullyWithoutCrashing() = runTest(testDispatcher) {
+        val nonExistentSession = PlaybackSessionData(
+            activeServerId = 9999L,
+            currentDirectoryPath = "/Unknown/",
+            queueTracks = listOf(track1),
+            currentTrackIndex = 0,
+            positionMs = 10000L,
+            playbackMode = PlaybackMode.LIST_LOOP
+        )
+        fakeStore.savedSession = nonExistentSession
+
+        // Repo without any matching server
+        val emptyServerRepo = TestServerRepository(emptyList())
+        session = MusicPlayerAppSessionImpl(
+            playerEngine = fakeEngine,
+            serverRepository = emptyServerRepo,
+            sessionStore = fakeStore,
+            coroutineScope = sessionScope
+        )
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertNull(state.activeServer)
+        assertTrue(state.queue.isEmpty)
+        assertTrue(state.isIdle)
+        assertNull(state.errorMessage)
+    }
+
+    @Test
+    fun coldStart_whenStoreIsEmpty_leavesSessionClean() = runTest(testDispatcher) {
+        fakeStore.savedSession = null
+
+        session = createSession()
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertNotNull(state.activeServer) // From fakeServerRepo default server
+        assertTrue(state.queue.isEmpty)
+        assertTrue(state.isIdle)
+        assertEquals(0L, state.currentPositionMs)
+    }
+
+    @Test
+    fun coldStart_whenRemoteFileIsNoLongerAccessible_handlesErrorGracefully() = runTest(testDispatcher) {
+        val savedSession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Jazz/",
+            queueTracks = listOf(track1),
+            currentTrackIndex = 0,
+            positionMs = 10000L,
+            playbackMode = PlaybackMode.LIST_LOOP
+        )
+        fakeStore.savedSession = savedSession
+
+        session = createSession()
+        advanceUntilIdle()
+
+        // User taps play
+        session.play()
+        runCurrent()
+
+        // Remote server returns 404 / error
+        fakeEngine._playbackState.value = PlaybackState.Error("HTTP 404: File not found")
+        advanceUntilIdle()
+
+        val state = session.sessionState.value
+        assertTrue(state.playbackState is PlaybackState.Error)
+        assertEquals("HTTP 404: File not found", state.errorMessage)
+        // Ensure no crash occurred and state still holds the track metadata
+        assertEquals(track1, state.currentTrack)
+    }
+
+    private class TestServerRepository(
+        servers: List<WebDavServer>
+    ) : ServerRepository {
+        private val serversFlow = MutableStateFlow(servers)
+
+        override fun getAllServers(): Flow<List<WebDavServer>> = serversFlow
+
+        override fun getActiveServer(): Flow<WebDavServer?> = serversFlow.map { list ->
+            list.firstOrNull { it.isDefault }
+        }
+
+        override suspend fun getServerById(id: Long): WebDavServer? {
+            return serversFlow.value.firstOrNull { it.id == id }
+        }
+
+        override suspend fun saveServer(server: WebDavServer): Long {
+            serversFlow.value = serversFlow.value + server
+            return server.id
+        }
+
+        override suspend fun deleteServer(id: Long) {
+            serversFlow.value = serversFlow.value.filter { it.id != id }
+        }
+
+        override suspend fun setActiveServer(id: Long) {
+            serversFlow.value = serversFlow.value.map {
+                it.copy(isDefault = it.id == id)
+            }
+        }
+    }
+}

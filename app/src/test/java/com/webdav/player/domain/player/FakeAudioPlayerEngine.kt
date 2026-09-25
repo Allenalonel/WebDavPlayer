@@ -28,6 +28,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var lastServer: WebDavServer? = null
     var lastTracks: List<AudioTrack> = emptyList()
     var lastStartIndex: Int = -1
+    var lastStartPositionMs: Long = 0L
     var playCount = 0
     var pauseCount = 0
     var stopCount = 0
@@ -45,6 +46,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         lastServer = server
         lastTracks = tracks
         lastStartIndex = startIndex
+        lastStartPositionMs = startPositionMs
         _currentTrackIndex.value = startIndex
         _currentPositionMs.value = startPositionMs
         _playbackState.value = PlaybackState.Playing

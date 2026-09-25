@@ -4,11 +4,11 @@
 
 **Blocked by:** 04: Full Player View, Seeking, and Queue Controls
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Jetpack DataStore schema stores `PlaybackSessionState` (activeServerId, currentDirectoryPath, queueTrackList, currentTrackIndex, positionMs, playbackMode).
-- [ ] Playback session periodically and on app pause/destroy flushes current state to DataStore.
-- [ ] App cold start reads saved state, initializes `MusicPlayerAppSession`, and renders the mini-player in paused state at the saved position.
-- [ ] Tapping play on the restored mini-player seamlessly streams from the saved millisecond offset.
-- [ ] If the remote server or file is no longer accessible on cold start, the app handles the error gracefully without crashing.
-- [ ] Tests verify state serialization, deserialization, and cold-start restoration logic through simulated process restarts.
+- [x] Jetpack DataStore schema stores `PlaybackSessionState` (activeServerId, currentDirectoryPath, queueTrackList, currentTrackIndex, positionMs, playbackMode).
+- [x] Playback session periodically and on app pause/destroy flushes current state to DataStore.
+- [x] App cold start reads saved state, initializes `MusicPlayerAppSession`, and renders the mini-player in paused state at the saved position.
+- [x] Tapping play on the restored mini-player seamlessly streams from the saved millisecond offset.
+- [x] If the remote server or file is no longer accessible on cold start, the app handles the error gracefully without crashing.
+- [x] Tests verify state serialization, deserialization, and cold-start restoration logic through simulated process restarts.

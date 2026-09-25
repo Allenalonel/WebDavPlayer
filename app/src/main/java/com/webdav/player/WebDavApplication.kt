@@ -6,11 +6,13 @@ import com.webdav.player.data.local.CoverArtStorageImpl
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.WebDavDataSourceFactory
 import com.webdav.player.data.remote.OkHttpWebDavClient
+import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.LyricsRepository
+import com.webdav.player.domain.repository.PlaybackSessionStore
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
@@ -25,6 +27,9 @@ class WebDavApplication : Application() {
         private set
 
     lateinit var lyricsRepository: LyricsRepository
+        private set
+
+    lateinit var sessionStore: PlaybackSessionStore
         private set
 
     lateinit var playerEngine: AudioPlayerEngine
@@ -55,11 +60,15 @@ class WebDavApplication : Application() {
         val dataSourceFactory = WebDavDataSourceFactory(webDavClient)
         playerEngine = Media3AudioPlayerEngine(this, dataSourceFactory)
 
+        val sessionStore = DataStorePlaybackSessionStore(this)
+        this.sessionStore = sessionStore
+
         musicPlayerAppSession = MusicPlayerAppSessionImpl(
             playerEngine = playerEngine,
             serverRepository = serverRepository,
             trackMetadataRepository = trackMetadataRepository,
-            lyricsRepository = lyricsRepository
+            lyricsRepository = lyricsRepository,
+            sessionStore = sessionStore
         )
     }
 }

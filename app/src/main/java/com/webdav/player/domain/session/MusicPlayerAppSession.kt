@@ -13,6 +13,12 @@ interface MusicPlayerAppSession {
 
     fun setActiveServer(server: WebDavServer?)
 
+    fun setCurrentDirectoryPath(path: String)
+
+    suspend fun restoreSession()
+
+    suspend fun flushSession()
+
     fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile)
 
     fun playTrack(track: AudioTrack)

@@ -15,7 +15,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.webdav.player.ui.browser.DirectoryBrowserScreen
+import kotlinx.coroutines.launch
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.browser.DirectoryBrowserViewModelFactory
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
@@ -95,6 +97,23 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        flushPlaybackSession()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        flushPlaybackSession()
+    }
+
+    private fun flushPlaybackSession() {
+        val app = application as? WebDavApplication ?: return
+        lifecycleScope.launch {
+            app.musicPlayerAppSession.flushSession()
         }
     }
 }
