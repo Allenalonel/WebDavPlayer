@@ -52,6 +52,8 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -64,9 +66,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.Breadcrumb
+import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
+import com.webdav.player.ui.player.MiniPlayer
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,9 +79,12 @@ fun DirectoryBrowserScreen(
     viewModel: DirectoryBrowserViewModel,
     onNavigateToServerManagement: () -> Unit,
     modifier: Modifier = Modifier,
-    onFileClicked: (RemoteFile) -> Unit = {}
+    onFileClicked: (RemoteFile) -> Unit = { viewModel.onAudioTrackClicked(it) },
+    onOpenFullPlayer: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val playerSessionState by (viewModel.playerSessionState?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf(PlayerSessionState()) })
 
     BackHandler {
         val handled = viewModel.onNavigateUp()
@@ -161,6 +168,15 @@ fun DirectoryBrowserScreen(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
+        },
+        bottomBar = {
+            if (playerSessionState.hasTrack) {
+                MiniPlayer(
+                    sessionState = playerSessionState,
+                    onTogglePlayPause = { viewModel.togglePlayPause() },
+                    onMiniPlayerClick = onOpenFullPlayer
+                )
+            }
         }
     ) { innerPadding ->
         Column(

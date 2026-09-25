@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.ListDirectoryResult
+import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
+import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,11 +19,14 @@ import kotlinx.coroutines.launch
 
 class DirectoryBrowserViewModel(
     private val serverRepository: ServerRepository,
-    private val directoryRepository: DirectoryRepository
+    private val directoryRepository: DirectoryRepository,
+    val musicPlayerAppSession: MusicPlayerAppSession? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
     val uiState: StateFlow<DirectoryBrowserUiState> = _uiState.asStateFlow()
+
+    val playerSessionState: StateFlow<PlayerSessionState>? = musicPlayerAppSession?.sessionState
 
     init {
         viewModelScope.launch {
@@ -52,6 +58,16 @@ class DirectoryBrowserViewModel(
     fun onBreadcrumbClicked(breadcrumb: Breadcrumb) {
         if (breadcrumb.path == _uiState.value.currentPath) return
         loadDirectory(breadcrumb.path, forceRefresh = false)
+    }
+
+    fun onAudioTrackClicked(file: RemoteFile) {
+        if (!file.isAudio) return
+        val dir = _uiState.value.currentDirectory ?: return
+        musicPlayerAppSession?.playDirectoryTrack(dir, file)
+    }
+
+    fun togglePlayPause() {
+        musicPlayerAppSession?.togglePlayPause()
     }
 
     fun onNavigateUp(): Boolean {

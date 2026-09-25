@@ -44,4 +44,18 @@ data class WebDavServer(
                 "$scheme://$host:$port$cleanPrefix"
             }
         }
+
+    /**
+     * Resolves the full URL for a remote file path on this server.
+     */
+    fun resolveFileUrl(filePath: String): String {
+        val baseUrl = endpointUrl.trimEnd('/')
+        var cleanPath = filePath.replace('\\', '/')
+        if (!cleanPath.startsWith("/")) cleanPath = "/$cleanPath"
+        val segments = cleanPath.split('/').filter { it.isNotEmpty() }
+        val encodedPath = segments.joinToString("/") { segment ->
+            java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+        }
+        return "$baseUrl/$encodedPath"
+    }
 }

@@ -1,0 +1,246 @@
+package com.webdav.player.data.player
+
+import android.content.Context
+import android.net.Uri
+import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackState
+import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.player.AudioPlayerEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+@OptIn(UnstableApi::class)
+class Media3AudioPlayerEngine(
+    context: Context,
+    val dataSourceFactory: WebDavDataSourceFactory = WebDavDataSourceFactory(),
+    customPlayer: Player? = null,
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+) : AudioPlayerEngine {
+
+    private val player: Player = customPlayer ?: run {
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 15_000,
+                /* maxBufferMs = */ 50_000,
+                /* bufferForPlaybackMs = */ 1_500,
+                /* bufferForPlaybackAfterRebufferMs = */ 3_000
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(dataSourceFactory)
+
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .setUsage(C.USAGE_MEDIA)
+                    .build(),
+                /* handleAudioFocus = */ true
+            )
+            .build()
+    }
+
+    private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
+    override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+
+    private val _currentPositionMs = MutableStateFlow(0L)
+    override val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
+
+    private val _durationMs = MutableStateFlow(0L)
+    override val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    private val _currentTrackIndex = MutableStateFlow(-1)
+    override val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
+
+    private var tickerJob: Job? = null
+
+    private val listener = object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            updatePlaybackState()
+            updatePositionAndDuration()
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            updatePlaybackState()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            updatePlaybackState()
+            if (isPlaying) {
+                startPositionTicker()
+            } else {
+                stopPositionTicker()
+                updatePositionAndDuration()
+            }
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            _currentTrackIndex.value = player.currentMediaItemIndex
+            updatePositionAndDuration()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            _playbackState.value = PlaybackState.Error(
+                error.localizedMessage ?: "Playback error (${error.errorCodeName})"
+            )
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            updatePositionAndDuration()
+        }
+    }
+
+    init {
+        player.addListener(listener)
+        updatePlaybackState()
+    }
+
+    override fun playTracks(
+        server: WebDavServer,
+        tracks: List<AudioTrack>,
+        startIndex: Int,
+        startPositionMs: Long
+    ) {
+        if (tracks.isEmpty()) return
+        dataSourceFactory.setServer(server)
+
+        val mediaItems = tracks.map { track ->
+            val uri = Uri.parse(track.streamUrl(server))
+            MediaItem.Builder()
+                .setUri(uri)
+                .setMediaId(track.id)
+                .setMimeType(track.format.mimeType)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(track.title)
+                        .setArtist(track.artist)
+                        .setAlbumTitle(track.album)
+                        .build()
+                )
+                .build()
+        }
+
+        val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
+        _currentTrackIndex.value = validStartIndex
+        player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
+        player.prepare()
+        player.play()
+    }
+
+    override fun play() {
+        player.play()
+    }
+
+    override fun pause() {
+        player.pause()
+    }
+
+    override fun seekTo(positionMs: Long) {
+        player.seekTo(positionMs)
+        _currentPositionMs.value = positionMs
+    }
+
+    override fun skipToNext() {
+        if (player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+        }
+    }
+
+    override fun skipToPrevious() {
+        if (player.hasPreviousMediaItem()) {
+            player.seekToPreviousMediaItem()
+        }
+    }
+
+    override fun seekToTrack(index: Int, positionMs: Long) {
+        if (index >= 0 && index < player.mediaItemCount) {
+            player.seekTo(index, positionMs)
+        }
+    }
+
+    override fun stop() {
+        stopPositionTicker()
+        player.stop()
+        _playbackState.value = PlaybackState.Idle
+        _currentPositionMs.value = 0L
+    }
+
+    override fun release() {
+        stopPositionTicker()
+        player.removeListener(listener)
+        player.release()
+    }
+
+    private fun updatePlaybackState() {
+        val state = when (player.playbackState) {
+            Player.STATE_IDLE -> {
+                val error = player.playerError
+                if (error != null) {
+                    PlaybackState.Error(error.localizedMessage ?: "Playback error")
+                } else {
+                    PlaybackState.Idle
+                }
+            }
+            Player.STATE_BUFFERING -> PlaybackState.Buffering
+            Player.STATE_READY -> {
+                if (player.playWhenReady) {
+                    PlaybackState.Playing
+                } else {
+                    PlaybackState.Paused
+                }
+            }
+            Player.STATE_ENDED -> PlaybackState.Ended
+            else -> PlaybackState.Idle
+        }
+        _playbackState.value = state
+    }
+
+    private fun updatePositionAndDuration() {
+        _currentPositionMs.value = player.currentPosition.coerceAtLeast(0L)
+        val dur = player.duration
+        if (dur != C.TIME_UNSET && dur > 0) {
+            _durationMs.value = dur
+        }
+    }
+
+    private fun startPositionTicker() {
+        tickerJob?.cancel()
+        tickerJob = coroutineScope.launch {
+            while (isActive) {
+                updatePositionAndDuration()
+                delay(300)
+            }
+        }
+    }
+
+    private fun stopPositionTicker() {
+        tickerJob?.cancel()
+        tickerJob = null
+    }
+}

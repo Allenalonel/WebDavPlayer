@@ -9,6 +9,7 @@ import com.webdav.player.domain.model.RemoteFileType
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,7 @@ class DirectoryBrowserViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeServerRepository: FakeServerRepository
     private lateinit var fakeDirectoryRepository: FakeDirectoryRepository
+    private lateinit var fakeMusicPlayerAppSession: FakeMusicPlayerAppSession
     private lateinit var viewModel: DirectoryBrowserViewModel
 
     private val sampleServer = WebDavServer(
@@ -79,13 +81,18 @@ class DirectoryBrowserViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeServerRepository = FakeServerRepository()
         fakeDirectoryRepository = FakeDirectoryRepository()
+        fakeMusicPlayerAppSession = FakeMusicPlayerAppSession()
         fakeServerRepository.setActiveServerSync(sampleServer)
 
         fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(rootDir))
         fakeDirectoryRepository.setResult("/Music/", ListDirectoryResult.Success(musicDir))
         fakeDirectoryRepository.setResult("/Music/Rock/", ListDirectoryResult.Success(rockDir))
 
-        viewModel = DirectoryBrowserViewModel(fakeServerRepository, fakeDirectoryRepository)
+        viewModel = DirectoryBrowserViewModel(
+            serverRepository = fakeServerRepository,
+            directoryRepository = fakeDirectoryRepository,
+            musicPlayerAppSession = fakeMusicPlayerAppSession
+        )
     }
 
     @After
@@ -227,6 +234,37 @@ class DirectoryBrowserViewModelTest {
         state = viewModel.uiState.value
         assertNull(state.errorMessage)
         assertEquals(recoveredDir, state.currentDirectory)
+    }
+
+    @Test
+    fun onAudioTrackClicked_dispatchesToMusicPlayerAppSession() = runTest {
+        advanceUntilIdle()
+
+        val audioFile = rootDir.files.first()
+        viewModel.onAudioTrackClicked(audioFile)
+
+        assertEquals(rootDir, fakeMusicPlayerAppSession.lastPlayDirectory)
+        assertEquals(audioFile, fakeMusicPlayerAppSession.lastPlaySelectedFile)
+    }
+
+    @Test
+    fun onAudioTrackClicked_ignoresNonAudioFiles() = runTest {
+        advanceUntilIdle()
+
+        val nonAudioFile = RemoteFile(name = "lyrics.lrc", path = "/lyrics.lrc", fileType = RemoteFileType.Lyrics)
+        viewModel.onAudioTrackClicked(nonAudioFile)
+
+        assertNull(fakeMusicPlayerAppSession.lastPlayDirectory)
+        assertNull(fakeMusicPlayerAppSession.lastPlaySelectedFile)
+    }
+
+    @Test
+    fun togglePlayPause_dispatchesToMusicPlayerAppSession() = runTest {
+        advanceUntilIdle()
+
+        viewModel.togglePlayPause()
+
+        assertEquals(1, fakeMusicPlayerAppSession.togglePlayPauseCount)
     }
 
     private class FakeServerRepository : ServerRepository {
