@@ -300,6 +300,125 @@ class AudioMetadataParserTest {
         assertFalse(emptyResult.hasTags)
     }
 
+    @Test
+    fun testParseId3v2_extractsUsltLyrics() {
+        val stream = ByteArrayOutputStream()
+        stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
+        stream.write(3) // v2.3
+        stream.write(0)
+        stream.write(0)
+
+        val bodyStream = ByteArrayOutputStream()
+        writeId3Frame(bodyStream, "TIT2", "Song with lyrics")
+
+        // USLT frame
+        // Payload: 1 byte encoding (3 = UTF-8), 3 bytes language ("eng"), null-terminated desc ("\u0000"), text
+        val usltBody = ByteArrayOutputStream()
+        usltBody.write(3) // UTF-8
+        usltBody.write("eng".toByteArray(StandardCharsets.US_ASCII))
+        usltBody.write("\u0000".toByteArray(StandardCharsets.UTF_8)) // empty descriptor + null terminator
+        val lyricText = "[00:01.00]Line 1\n[00:05.00]Line 2"
+        usltBody.write(lyricText.toByteArray(StandardCharsets.UTF_8))
+
+        writeRawId3Frame(bodyStream, "USLT", usltBody.toByteArray())
+
+        val bodyBytes = bodyStream.toByteArray()
+        val size = bodyBytes.size
+        stream.write((size shr 21) and 0x7F)
+        stream.write((size shr 14) and 0x7F)
+        stream.write((size shr 7) and 0x7F)
+        stream.write(size and 0x7F)
+        stream.write(bodyBytes)
+
+        val metadata = AudioMetadataParser.parse(stream.toByteArray())
+        assertEquals("Song with lyrics", metadata.title)
+        assertEquals(lyricText, metadata.lyrics)
+    }
+
+    @Test
+    fun testParseFlac_extractsVorbisCommentLyrics() {
+        val stream = ByteArrayOutputStream()
+        stream.write("fLaC".toByteArray(StandardCharsets.US_ASCII))
+
+        // Block 4: VORBIS_COMMENT (isLast = true, type = 4)
+        val vorbisStream = ByteArrayOutputStream()
+        val vendor = "reference libFLAC".toByteArray(StandardCharsets.UTF_8)
+        writeIntLe(vorbisStream, vendor.size)
+        vorbisStream.write(vendor)
+
+        val comments = listOf(
+            "TITLE=Flac Song",
+            "LYRICS=[00:10.00]Flac lyric line"
+        )
+        writeIntLe(vorbisStream, comments.size)
+        for (c in comments) {
+            val cb = c.toByteArray(StandardCharsets.UTF_8)
+            writeIntLe(vorbisStream, cb.size)
+            vorbisStream.write(cb)
+        }
+
+        val vorbisBytes = vorbisStream.toByteArray()
+        stream.write(0x84) // isLast = 1, type = 4
+        write24BitBe(stream, vorbisBytes.size)
+        stream.write(vorbisBytes)
+
+        val metadata = AudioMetadataParser.parse(stream.toByteArray())
+        assertEquals("Flac Song", metadata.title)
+        assertEquals("[00:10.00]Flac lyric line", metadata.lyrics)
+    }
+
+    @Test
+    fun testParseAsf_extractsWmLyrics() {
+        val stream = ByteArrayOutputStream()
+        val asfHeaderGuid = byteArrayOf(
+            0x30.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
+            0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
+            0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
+            0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
+        )
+        stream.write(asfHeaderGuid)
+        val headerBodyStream = ByteArrayOutputStream()
+
+        // Extended Content Description Guid
+        val extDescGuid = byteArrayOf(
+            0x40.toByte(), 0xA4.toByte(), 0xD0.toByte(), 0xD2.toByte(),
+            0x07.toByte(), 0xE3.toByte(), 0xD2.toByte(), 0x11.toByte(),
+            0x97.toByte(), 0xF0.toByte(), 0x00.toByte(), 0xA0.toByte(),
+            0xC9.toByte(), 0x5E.toByte(), 0xA8.toByte(), 0x50.toByte()
+        )
+        headerBodyStream.write(extDescGuid)
+
+        val extDescBody = ByteArrayOutputStream()
+        writeShortLe(extDescBody, 1) // 1 descriptor
+        val nameBytes = "WM/Lyrics\u0000".toByteArray(StandardCharsets.UTF_16LE)
+        writeShortLe(extDescBody, nameBytes.size)
+        extDescBody.write(nameBytes)
+        writeShortLe(extDescBody, 0) // valType = Unicode string
+        val valBytes = "Asf embedded lyrics text".toByteArray(StandardCharsets.UTF_16LE)
+        writeShortLe(extDescBody, valBytes.size)
+        extDescBody.write(valBytes)
+
+        val extBytes = extDescBody.toByteArray()
+        val totalSize = (24 + extBytes.size).toLong()
+        for (i in 0..7) {
+            headerBodyStream.write(((totalSize shr (i * 8)) and 0xFF).toInt())
+        }
+        headerBodyStream.write(extBytes)
+
+        val headerBody = headerBodyStream.toByteArray()
+        val totalHeaderSize = (30 + headerBody.size).toLong()
+        for (i in 0..7) {
+            stream.write(((totalHeaderSize shr (i * 8)) and 0xFF).toInt())
+        }
+        writeIntLe(stream, 1) // 1 sub-object
+        stream.write(0)
+        stream.write(0)
+        stream.write(headerBody)
+
+        val metadata = AudioMetadataParser.parse(stream.toByteArray())
+        assertEquals("Asf embedded lyrics text", metadata.lyrics)
+    }
+
     // Helper functions
     private fun writeId3Frame(stream: ByteArrayOutputStream, frameId: String, text: String) {
         val payload = ByteArrayOutputStream()

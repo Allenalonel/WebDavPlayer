@@ -115,7 +115,8 @@ class TrackMetadataRepositoryImpl(
                     album = album,
                     trackNumber = parsed.trackNumber,
                     durationMs = parsed.durationMs,
-                    coverThumbnailPath = thumbnailPath
+                    coverThumbnailPath = thumbnailPath,
+                    lyrics = parsed.lyrics
                 )
 
                 trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
@@ -134,7 +135,8 @@ class TrackMetadataRepositoryImpl(
             album = null,
             trackNumber = null,
             durationMs = 0L,
-            coverThumbnailPath = null
+            coverThumbnailPath = null,
+            lyrics = null
         )
         trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(fallback))
         return fallback

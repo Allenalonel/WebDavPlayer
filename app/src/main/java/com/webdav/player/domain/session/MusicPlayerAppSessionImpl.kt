@@ -9,6 +9,7 @@ import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
+import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,7 @@ class MusicPlayerAppSessionImpl(
     private val playerEngine: AudioPlayerEngine,
     serverRepository: ServerRepository? = null,
     private val trackMetadataRepository: TrackMetadataRepository? = null,
+    private val lyricsRepository: LyricsRepository? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 ) : MusicPlayerAppSession {
 
@@ -119,6 +121,33 @@ class MusicPlayerAppSessionImpl(
                     }
             }
         }
+
+        // Observe active track changes and load lyrics reactively
+        if (lyricsRepository != null) {
+            coroutineScope.launch {
+                var lyricJob: Job? = null
+                _sessionState
+                    .map { state ->
+                        val server = state.activeServer
+                        val track = state.currentTrack
+                        if (server != null && track != null) server to track else null
+                    }
+                    .distinctUntilChanged()
+                    .collect { pair ->
+                        lyricJob?.cancel()
+                        if (pair == null) {
+                            _sessionState.update { it.copy(lyrics = null, isLoadingLyrics = false) }
+                        } else {
+                            val (server, track) = pair
+                            _sessionState.update { it.copy(lyrics = null, isLoadingLyrics = true) }
+                            lyricJob = coroutineScope.launch {
+                                val resolved = lyricsRepository.resolveLyrics(server, track)
+                                _sessionState.update { it.copy(lyrics = resolved, isLoadingLyrics = false) }
+                            }
+                        }
+                    }
+            }
+        }
     }
 
     override fun setActiveServer(server: WebDavServer?) {
@@ -133,7 +162,9 @@ class MusicPlayerAppSessionImpl(
                     playbackState = PlaybackState.Idle,
                     currentPositionMs = 0L,
                     durationMs = 0L,
-                    errorMessage = null
+                    errorMessage = null,
+                    lyrics = null,
+                    isLoadingLyrics = false
                 )
             } else {
                 current.copy(activeServer = server)
@@ -271,7 +302,9 @@ class MusicPlayerAppSessionImpl(
                     queue = PlaybackQueue.EMPTY,
                     playbackState = PlaybackState.Idle,
                     currentPositionMs = 0L,
-                    durationMs = 0L
+                    durationMs = 0L,
+                    lyrics = null,
+                    isLoadingLyrics = false
                 )
             }
         } else {

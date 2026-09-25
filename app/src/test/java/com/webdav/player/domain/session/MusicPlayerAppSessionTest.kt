@@ -472,6 +472,57 @@ class MusicPlayerAppSessionTest {
         sessionWithRepo.release()
     }
 
+    @Test
+    fun sessionState_lyricsLoadedAutomatically_whenTrackStartsPlaying() = runTest(testDispatcher) {
+        val fakeLyricsRepo = FakeLyricsRepo()
+        val expectedLyrics = com.webdav.player.domain.model.Lyrics(
+            lines = listOf(
+                com.webdav.player.domain.model.LyricLine(1000L, "Hello world")
+            ),
+            isSynchronized = true
+        )
+        fakeLyricsRepo.lyricsMap["/music/song1.mp3"] = expectedLyrics
+
+        val sessionWithLyrics = MusicPlayerAppSessionImpl(
+            playerEngine = fakeEngine,
+            serverRepository = null,
+            trackMetadataRepository = null,
+            lyricsRepository = fakeLyricsRepo,
+            coroutineScope = sessionScope
+        )
+
+        sessionWithLyrics.setActiveServer(testServer)
+        val track = AudioTrack(
+            id = "1:/music/song1.mp3",
+            serverId = testServer.id,
+            remotePath = "/music/song1.mp3",
+            title = "song1.mp3",
+            format = AudioFormat.MP3
+        )
+
+        sessionWithLyrics.playTrack(track)
+        advanceUntilIdle()
+
+        val state = sessionWithLyrics.sessionState.value
+        assertNotNull(state.lyrics)
+        assertEquals(1, state.lyrics?.lines?.size)
+        assertEquals("Hello world", state.lyrics?.lines?.get(0)?.text)
+        assertFalse(state.isLoadingLyrics)
+
+        sessionWithLyrics.release()
+    }
+
+    private class FakeLyricsRepo : com.webdav.player.domain.repository.LyricsRepository {
+        val lyricsMap = mutableMapOf<String, com.webdav.player.domain.model.Lyrics>()
+
+        override suspend fun resolveLyrics(
+            server: WebDavServer,
+            track: AudioTrack
+        ): com.webdav.player.domain.model.Lyrics {
+            return lyricsMap[track.remotePath] ?: com.webdav.player.domain.model.Lyrics.EMPTY
+        }
+    }
+
     private class FakeTrackMetadataRepo : TrackMetadataRepository {
         val flow = MutableStateFlow<List<TrackMetadata>>(emptyList())
 

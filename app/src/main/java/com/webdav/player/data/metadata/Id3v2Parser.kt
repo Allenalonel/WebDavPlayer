@@ -47,6 +47,7 @@ object Id3v2Parser {
         var durationMs = 0L
         var artworkData: ByteArray? = null
         var artworkMimeType: String? = null
+        var lyrics: String? = null
 
         while (reader.hasRemaining(if (majorVersion == 2) 6 else 10) && reader.position() < tagEndPos) {
             val (frameId, frameSize) = if (majorVersion == 2) {
@@ -132,6 +133,19 @@ object Id3v2Parser {
                         reader.skip(actualPayloadSize)
                     }
                 }
+                "USLT", "ULT" -> {
+                    if (lyrics == null) {
+                        lyrics = readUsltFrame(reader, actualPayloadSize)
+                    } else {
+                        reader.skip(actualPayloadSize)
+                    }
+                }
+                "SYLT", "SLT" -> {
+                    val sylt = readSyltFrame(reader, actualPayloadSize)
+                    if (sylt != null) {
+                        lyrics = sylt
+                    }
+                }
                 else -> {
                     reader.skip(actualPayloadSize)
                 }
@@ -150,8 +164,66 @@ object Id3v2Parser {
             trackNumber = trackNumber,
             durationMs = durationMs,
             artworkData = artworkData,
-            artworkMimeType = artworkMimeType
+            artworkMimeType = artworkMimeType,
+            lyrics = lyrics
         )
+    }
+
+    private fun readUsltFrame(reader: ByteSliceReader, size: Int): String? {
+        if (size <= 4) {
+            reader.skip(size)
+            return null
+        }
+        val startPos = reader.position()
+        val endPos = startPos + size
+
+        val encodingByte = reader.readUByte()
+        val charset = charsetForEncoding(encodingByte)
+        reader.skip(3) // skip language
+        reader.readNullTerminatedString(charset) // skip descriptor
+
+        val remaining = (endPos - reader.position()).coerceAtLeast(0)
+        if (remaining <= 0) return null
+
+        val lyricText = reader.readString(remaining, charset)
+        return lyricText.trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun readSyltFrame(reader: ByteSliceReader, size: Int): String? {
+        if (size <= 6) {
+            reader.skip(size)
+            return null
+        }
+        val startPos = reader.position()
+        val endPos = startPos + size
+
+        val encodingByte = reader.readUByte()
+        val charset = charsetForEncoding(encodingByte)
+        reader.skip(3) // skip language
+        val timeStampFormat = reader.readUByte()
+        reader.skip(1) // skip content type
+        reader.readNullTerminatedString(charset) // skip descriptor
+
+        if (timeStampFormat != 2) {
+            if (reader.position() < endPos) {
+                reader.seek(endPos)
+            }
+            return null
+        }
+
+        val sb = java.lang.StringBuilder()
+        while (reader.position() < endPos && reader.hasRemaining(5)) {
+            val lineText = reader.readNullTerminatedString(charset)
+            if (!reader.hasRemaining(4)) break
+            val timestampMs = reader.readIntBe().toLong() and 0xFFFFFFFFL
+            val minutes = timestampMs / 60000L
+            val seconds = (timestampMs % 60000L) / 1000L
+            val centiseconds = (timestampMs % 1000L) / 10L
+            val timeTag = String.format(java.util.Locale.US, "[%02d:%02d.%02d]", minutes, seconds, centiseconds)
+            sb.append(timeTag).append(lineText).append('\n')
+        }
+
+        return sb.toString().trim().takeIf { it.isNotBlank() }
     }
 
     private fun readTextFrame(reader: ByteSliceReader, size: Int): String {

@@ -23,6 +23,7 @@ object WavParser {
         var trackNumber: Int? = null
         var artworkData: ByteArray? = null
         var artworkMimeType: String? = null
+        var lyrics: String? = null
 
         while (reader.hasRemaining(8)) {
             val chunkId = reader.readAsciiId(4)
@@ -76,6 +77,7 @@ object WavParser {
                             artworkData = parsedId3.artworkData
                             artworkMimeType = parsedId3.artworkMimeType
                         }
+                        if (lyrics == null) lyrics = parsedId3.lyrics
                     }
                 }
             }
@@ -100,7 +102,8 @@ object WavParser {
             trackNumber = trackNumber,
             durationMs = durationMs,
             artworkData = artworkData,
-            artworkMimeType = artworkMimeType
+            artworkMimeType = artworkMimeType,
+            lyrics = lyrics
         )
     }
 }

@@ -24,6 +24,7 @@ object FlacParser {
         var durationMs = 0L
         var artworkData: ByteArray? = null
         var artworkMimeType: String? = null
+        var lyrics: String? = null
 
         var isLast = false
 
@@ -83,6 +84,11 @@ object FlacParser {
                                     val digits = value.takeWhile { it.isDigit() }
                                     trackNumber = digits.toIntOrNull()
                                 }
+                                "LYRICS", "UNSYNCEDLYRICS", "SYNCEDLYRICS", "UNSYNCED LYRICS" -> {
+                                    if (lyrics == null && value.isNotBlank()) {
+                                        lyrics = value
+                                    }
+                                }
                             }
                         }
                     }
@@ -117,7 +123,8 @@ object FlacParser {
             trackNumber = trackNumber,
             durationMs = durationMs,
             artworkData = artworkData,
-            artworkMimeType = artworkMimeType
+            artworkMimeType = artworkMimeType,
+            lyrics = lyrics
         )
     }
 }

@@ -21,4 +21,8 @@ interface WebDavClient {
         startByte: Long = 0L,
         endByte: Long = 131071L
     ): ByteArray?
+    suspend fun fetchText(
+        server: WebDavServer,
+        remotePath: String
+    ): String? = null
 }

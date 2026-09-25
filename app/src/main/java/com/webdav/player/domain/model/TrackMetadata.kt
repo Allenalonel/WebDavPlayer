@@ -8,7 +8,8 @@ data class TrackMetadata(
     val album: String? = null,
     val trackNumber: Int? = null,
     val durationMs: Long = 0L,
-    val coverThumbnailPath: String? = null
+    val coverThumbnailPath: String? = null,
+    val lyrics: String? = null
 ) {
     /**
      * Returns a displayable title, falling back to clean file name if title is null or blank.

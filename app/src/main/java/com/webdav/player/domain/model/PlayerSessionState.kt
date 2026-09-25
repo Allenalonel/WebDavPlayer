@@ -7,7 +7,9 @@ data class PlayerSessionState(
     val playbackMode: PlaybackMode = PlaybackMode.LIST_LOOP,
     val currentPositionMs: Long = 0L,
     val durationMs: Long = 0L,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val lyrics: Lyrics? = null,
+    val isLoadingLyrics: Boolean = false
 ) {
     val currentTrack: AudioTrack? get() = queue.currentTrack
     val isPlaying: Boolean get() = playbackState is PlaybackState.Playing

@@ -7,7 +7,8 @@ data class ParsedAudioMetadata(
     val trackNumber: Int? = null,
     val durationMs: Long = 0L,
     val artworkData: ByteArray? = null,
-    val artworkMimeType: String? = null
+    val artworkMimeType: String? = null,
+    val lyrics: String? = null
 ) {
     val hasTags: Boolean
         get() = !title.isNullOrBlank() ||
@@ -15,7 +16,8 @@ data class ParsedAudioMetadata(
                 !album.isNullOrBlank() ||
                 trackNumber != null ||
                 durationMs > 0L ||
-                artworkData != null
+                artworkData != null ||
+                !lyrics.isNullOrBlank()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -33,6 +35,7 @@ data class ParsedAudioMetadata(
             if (!artworkData.contentEquals(other.artworkData)) return false
         } else if (other.artworkData != null) return false
         if (artworkMimeType != other.artworkMimeType) return false
+        if (lyrics != other.lyrics) return false
 
         return true
     }
@@ -45,6 +48,7 @@ data class ParsedAudioMetadata(
         result = 31 * result + durationMs.hashCode()
         result = 31 * result + (artworkData?.contentHashCode() ?: 0)
         result = 31 * result + (artworkMimeType?.hashCode() ?: 0)
+        result = 31 * result + (lyrics?.hashCode() ?: 0)
         return result
     }
 }

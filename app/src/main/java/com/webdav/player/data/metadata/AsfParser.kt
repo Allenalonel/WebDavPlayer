@@ -52,6 +52,7 @@ object AsfParser {
         var durationMs = 0L
         var artworkData: ByteArray? = null
         var artworkMimeType: String? = null
+        var lyrics: String? = null
 
         val headerEnd = (reader.position() + totalHeaderSize.toInt() - 30).coerceAtMost(reader.remaining() + reader.position())
 
@@ -147,6 +148,13 @@ object AsfParser {
                                         reader.skip(valLen)
                                     }
                                 }
+                                "WM/Lyrics", "WM/Lyrics_Synchronised" -> {
+                                    if (lyrics == null && valType == 0) {
+                                        lyrics = reader.readString(valLen, StandardCharsets.UTF_16LE).takeIf { it.isNotBlank() }
+                                    } else {
+                                        reader.skip(valLen)
+                                    }
+                                }
                                 else -> {
                                     reader.skip(valLen)
                                 }
@@ -168,7 +176,8 @@ object AsfParser {
             trackNumber = trackNumber,
             durationMs = durationMs,
             artworkData = artworkData,
-            artworkMimeType = artworkMimeType
+            artworkMimeType = artworkMimeType,
+            lyrics = lyrics
         )
     }
 }

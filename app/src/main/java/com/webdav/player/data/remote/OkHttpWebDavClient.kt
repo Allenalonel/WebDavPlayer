@@ -155,6 +155,58 @@ class OkHttpWebDavClient(
         }
     }
 
+    override suspend fun fetchText(
+        server: WebDavServer,
+        remotePath: String
+    ): String? = withContext(Dispatchers.IO) {
+        val client = buildClientForServer(server)
+        val fileUrl = server.resolveFileUrl(remotePath)
+
+        val requestBuilder = Request.Builder()
+            .url(fileUrl)
+            .get()
+
+        if (server.username.isNotBlank()) {
+            val credential = Credentials.basic(server.username, server.password)
+            requestBuilder.header("Authorization", credential)
+        }
+
+        try {
+            client.newCall(requestBuilder.build()).execute().use { response ->
+                if (response.code == 200) {
+                    val bytes = response.body?.bytes() ?: return@withContext null
+                    decodeTextWithBom(bytes)
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun decodeTextWithBom(bytes: ByteArray): String {
+        if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
+            return String(bytes, 3, bytes.size - 3, java.nio.charset.StandardCharsets.UTF_8)
+        }
+        if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) {
+            return String(bytes, 2, bytes.size - 2, java.nio.charset.StandardCharsets.UTF_16LE)
+        }
+        if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
+            return String(bytes, 2, bytes.size - 2, java.nio.charset.StandardCharsets.UTF_16BE)
+        }
+        return try {
+            val decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+            decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+        } catch (e: Exception) {
+            try {
+                String(bytes, java.nio.charset.Charset.forName("GBK"))
+            } catch (e2: Exception) {
+                String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+            }
+        }
+    }
+
     private fun buildDirectoryUrl(server: WebDavServer, path: String): String {
         val baseUrl = server.endpointUrl.trimEnd('/')
         var cleanPath = path.replace('\\', '/')
