@@ -10,18 +10,23 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MusicPlayerAppSessionImpl(
     private val playerEngine: AudioPlayerEngine,
     serverRepository: ServerRepository? = null,
+    private val trackMetadataRepository: TrackMetadataRepository? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 ) : MusicPlayerAppSession {
 
@@ -79,6 +84,35 @@ class MusicPlayerAppSessionImpl(
                 _sessionState.update { it.copy(playbackMode = mode) }
             }
         }
+
+        // Observe metadata changes and enrich queue tracks reactively
+        if (trackMetadataRepository != null) {
+            coroutineScope.launch {
+                var currentMetadataJob: Job? = null
+                _sessionState
+                    .map { it.activeServer?.id }
+                    .distinctUntilChanged()
+                    .collect { serverId ->
+                        currentMetadataJob?.cancel()
+                        if (serverId != null) {
+                            currentMetadataJob = coroutineScope.launch {
+                                trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
+                                    if (metadataList.isNotEmpty()) {
+                                        val metaMap = metadataList.associateBy { it.remotePath }
+                                        _sessionState.update { current ->
+                                            val updatedTracks = current.queue.tracks.map { track ->
+                                                val meta = metaMap[track.remotePath]
+                                                if (meta != null) track.withMetadata(meta) else track
+                                            }
+                                            current.copy(queue = current.queue.copy(tracks = updatedTracks))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+            }
+        }
     }
 
     override fun setActiveServer(server: WebDavServer?) {
@@ -120,6 +154,13 @@ class MusicPlayerAppSessionImpl(
             tracks = tracks,
             startIndex = selectedIndex
         )
+
+        // Asynchronously resolve metadata for the directory's tracks
+        if (trackMetadataRepository != null) {
+            coroutineScope.launch {
+                trackMetadataRepository.resolveMetadata(server, audioFiles)
+            }
+        }
     }
 
     override fun playTrack(track: AudioTrack) {
@@ -127,6 +168,19 @@ class MusicPlayerAppSessionImpl(
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
         _sessionState.update { it.copy(queue = queue, errorMessage = null) }
         playerEngine.playTracks(server = server, tracks = listOf(track), startIndex = 0)
+
+        if (trackMetadataRepository != null) {
+            coroutineScope.launch {
+                val file = RemoteFile(name = track.title, path = track.remotePath)
+                val meta = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                _sessionState.update { current ->
+                    val updated = current.queue.tracks.map {
+                        if (it.id == track.id) it.withMetadata(meta) else it
+                    }
+                    current.copy(queue = current.queue.copy(tracks = updated))
+                }
+            }
+        }
     }
 
     override fun togglePlayPause() {

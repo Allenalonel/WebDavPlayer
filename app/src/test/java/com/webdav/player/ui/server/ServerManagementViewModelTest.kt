@@ -218,4 +218,11 @@ private class FakeWebDavClient : WebDavClient {
             com.webdav.player.domain.model.RemoteDirectory(path = path, name = "root")
         )
     }
+
+    override suspend fun fetchRange(
+        server: WebDavServer,
+        remotePath: String,
+        startByte: Long,
+        endByte: Long
+    ): ByteArray? = null
 }

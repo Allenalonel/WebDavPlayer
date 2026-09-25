@@ -10,7 +10,9 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +22,8 @@ import kotlinx.coroutines.launch
 class DirectoryBrowserViewModel(
     private val serverRepository: ServerRepository,
     private val directoryRepository: DirectoryRepository,
-    val musicPlayerAppSession: MusicPlayerAppSession? = null
+    val musicPlayerAppSession: MusicPlayerAppSession? = null,
+    val trackMetadataRepository: TrackMetadataRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
@@ -28,11 +31,17 @@ class DirectoryBrowserViewModel(
 
     val playerSessionState: StateFlow<PlayerSessionState>? = musicPlayerAppSession?.sessionState
 
+    private var metadataObserverJob: Job? = null
+    private var metadataResolutionJob: Job? = null
+
     init {
         viewModelScope.launch {
             serverRepository.getActiveServer().collect { server ->
                 val previousServer = _uiState.value.activeServer
                 if (server != previousServer) {
+                    metadataObserverJob?.cancel()
+                    metadataResolutionJob?.cancel()
+
                     _uiState.update {
                         it.copy(
                             activeServer = server,
@@ -40,10 +49,20 @@ class DirectoryBrowserViewModel(
                             breadcrumbs = buildBreadcrumbs(server, "/"),
                             canNavigateUp = false,
                             currentDirectory = null,
-                            errorMessage = null
+                            errorMessage = null,
+                            metadataMap = emptyMap()
                         )
                     }
+
                     if (server != null) {
+                        if (trackMetadataRepository != null) {
+                            metadataObserverJob = viewModelScope.launch {
+                                trackMetadataRepository.getAllMetadataFlow(server.id).collect { list ->
+                                    val map = list.associateBy { it.remotePath }
+                                    _uiState.update { it.copy(metadataMap = map) }
+                                }
+                            }
+                        }
                         loadDirectory("/", forceRefresh = false)
                     }
                 }
@@ -141,6 +160,14 @@ class DirectoryBrowserViewModel(
             _uiState.update { current ->
                 when (result) {
                     is ListDirectoryResult.Success -> {
+                        val audioFiles = result.directory.files.filter { it.isAudio }
+                        if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
+                            metadataResolutionJob?.cancel()
+                            metadataResolutionJob = viewModelScope.launch {
+                                trackMetadataRepository.resolveMetadata(server, audioFiles)
+                            }
+                        }
+
                         current.copy(
                             currentDirectory = result.directory,
                             isLoading = false,

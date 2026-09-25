@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.ui.common.CoverThumbnailImage
 
 @Composable
 fun MiniPlayer(
@@ -90,12 +91,18 @@ fun MiniPlayer(
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Audiotrack,
-                        contentDescription = "音轨",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    CoverThumbnailImage(
+                        thumbnailPath = currentTrack.coverThumbnailPath,
+                        contentDescription = "封面",
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Audiotrack,
+                            contentDescription = "音轨",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -174,10 +181,20 @@ private fun PlaybackStateIndicator(
                 )
             }
             else -> {
+                val track = sessionState.currentTrack
+                val label = buildString {
+                    if (track?.artist != null && track.artist.isNotBlank()) {
+                        append(track.artist)
+                        append(" · ")
+                    }
+                    append(currentTrackFormatLabel(sessionState))
+                }
                 Text(
-                    text = currentTrackFormatLabel(sessionState),
+                    text = label,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

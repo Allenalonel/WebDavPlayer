@@ -72,14 +72,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.draw.clip
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
+import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.MiniPlayer
+import com.webdav.player.ui.player.PlayerTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -253,6 +257,7 @@ fun DirectoryBrowserScreen(
                             DirectoryContentList(
                                 directories = uiState.subDirectories,
                                 files = uiState.files,
+                                metadataMap = uiState.metadataMap,
                                 onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
                                 onFileClicked = onFileClicked
                             )
@@ -352,6 +357,7 @@ fun BreadcrumbBar(
 fun DirectoryContentList(
     directories: List<RemoteDirectory>,
     files: List<RemoteFile>,
+    metadataMap: Map<String, TrackMetadata> = emptyMap(),
     onDirectoryClicked: (RemoteDirectory) -> Unit,
     onFileClicked: (RemoteFile) -> Unit,
     modifier: Modifier = Modifier
@@ -370,8 +376,10 @@ fun DirectoryContentList(
 
         // Files next
         items(files, key = { "file_${it.path}" }) { file ->
+            val metadata = metadataMap[file.path]
             FileItemRow(
                 file = file,
+                metadata = metadata,
                 onClick = { onFileClicked(file) }
             )
         }
@@ -430,6 +438,7 @@ fun DirectoryItemRow(
 @Composable
 fun FileItemRow(
     file: RemoteFile,
+    metadata: TrackMetadata? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -438,6 +447,14 @@ fun FileItemRow(
     val isOther = !isAudio && !isLyrics
 
     val rowAlpha = if (isOther) 0.45f else 1f
+
+    val displayTitle = metadata?.displayTitle(file.name) ?: file.name
+    val displayArtist = metadata?.displayArtist()
+    val displayDuration = if ((metadata?.durationMs ?: 0L) > 0L) {
+        PlayerTimeFormatter.formatMs(metadata?.durationMs ?: 0L)
+    } else {
+        null
+    }
 
     Surface(
         modifier = modifier
@@ -452,15 +469,28 @@ fun FileItemRow(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon
+            // Icon or Cover Thumbnail
             when {
                 isAudio -> {
-                    Icon(
-                        imageVector = Icons.Filled.Audiotrack,
-                        contentDescription = "音频",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(6.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CoverThumbnailImage(
+                            thumbnailPath = metadata?.coverThumbnailPath,
+                            contentDescription = "封面",
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Audiotrack,
+                                contentDescription = "音频",
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                 }
                 isLyrics -> {
                     Icon(
@@ -482,10 +512,10 @@ fun FileItemRow(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // File Name and details
+            // File Name / Tag Title and details
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = file.name,
+                    text = displayTitle,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (isAudio) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1,
@@ -493,14 +523,34 @@ fun FileItemRow(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (file.size > 0) {
+                    if (displayArtist != null) {
+                        Text(
+                            text = displayArtist,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = " · ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (displayDuration != null) {
+                        Text(
+                            text = displayDuration,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (file.size > 0) {
                         Text(
                             text = formatFileSize(file.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (file.lastModified != null) {
+                    if (file.lastModified != null && displayArtist == null) {
                         if (file.size > 0) {
                             Text(
                                 text = " · ",

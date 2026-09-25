@@ -15,4 +15,10 @@ sealed interface ConnectionResult {
 interface WebDavClient {
     suspend fun testConnection(server: WebDavServer): ConnectionResult
     suspend fun listDirectory(server: WebDavServer, path: String): ListDirectoryResult
+    suspend fun fetchRange(
+        server: WebDavServer,
+        remotePath: String,
+        startByte: Long = 0L,
+        endByte: Long = 131071L
+    ): ByteArray?
 }

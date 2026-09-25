@@ -92,5 +92,12 @@ class DirectoryRepositoryTest {
             callCount[path] = (callCount[path] ?: 0) + 1
             return results[path] ?: ListDirectoryResult.Failure("Not found")
         }
+
+        override suspend fun fetchRange(
+            server: WebDavServer,
+            remotePath: String,
+            startByte: Long,
+            endByte: Long
+        ): ByteArray? = null
     }
 }

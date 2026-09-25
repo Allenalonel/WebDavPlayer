@@ -9,26 +9,43 @@ data class AudioTrack(
     val album: String? = null,
     val durationMs: Long = 0L,
     val size: Long = 0L,
-    val format: AudioFormat
+    val format: AudioFormat,
+    val coverThumbnailPath: String? = null
 ) {
     fun streamUrl(server: WebDavServer): String {
         return server.resolveFileUrl(remotePath)
     }
 
+    fun withMetadata(metadata: TrackMetadata): AudioTrack {
+        return copy(
+            title = metadata.title?.takeIf { it.isNotBlank() } ?: this.title,
+            artist = metadata.artist?.takeIf { it.isNotBlank() } ?: this.artist,
+            album = metadata.album?.takeIf { it.isNotBlank() } ?: this.album,
+            durationMs = if (metadata.durationMs > 0L) metadata.durationMs else this.durationMs,
+            coverThumbnailPath = metadata.coverThumbnailPath ?: this.coverThumbnailPath
+        )
+    }
+
     companion object {
-        fun fromRemoteFile(server: WebDavServer, file: RemoteFile): AudioTrack? {
+        fun fromRemoteFile(
+            server: WebDavServer,
+            file: RemoteFile,
+            metadata: TrackMetadata? = null
+        ): AudioTrack? {
             val format = (file.fileType as? RemoteFileType.Audio)?.format ?: return null
-            return AudioTrack(
+            val baseTrack = AudioTrack(
                 id = "${server.id}:${file.path}",
                 serverId = server.id,
                 remotePath = file.path,
-                title = file.name,
-                artist = null,
-                album = null,
-                durationMs = 0L,
+                title = metadata?.displayTitle(file.name) ?: file.name,
+                artist = metadata?.displayArtist(),
+                album = metadata?.album,
+                durationMs = metadata?.durationMs ?: 0L,
                 size = file.size,
-                format = format
+                format = format,
+                coverThumbnailPath = metadata?.coverThumbnailPath
             )
+            return baseTrack
         }
     }
 }

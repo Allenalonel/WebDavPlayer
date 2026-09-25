@@ -6,12 +6,18 @@ import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -413,5 +419,75 @@ class MusicPlayerAppSessionTest {
         advanceUntilIdle()
         assertEquals(0, fakeEngine._currentTrackIndex.value)
         assertEquals(0, session.sessionState.value.queue.currentIndex)
+    }
+
+    @Test
+    fun metadataResolution_enrichesPlaybackQueueTracksReactively() = runTest(testDispatcher) {
+        val fakeMetadataRepo = FakeTrackMetadataRepo()
+        val sessionWithRepo = MusicPlayerAppSessionImpl(
+            playerEngine = fakeEngine,
+            serverRepository = null,
+            trackMetadataRepository = fakeMetadataRepo,
+            coroutineScope = sessionScope
+        )
+
+        sessionWithRepo.setActiveServer(testServer)
+        val file1 = RemoteFile(name = "song1.mp3", path = "/music/song1.mp3")
+        val file2 = RemoteFile(name = "song2.flac", path = "/music/song2.flac")
+        val dir = RemoteDirectory(path = "/music/", name = "music", files = listOf(file1, file2))
+
+        sessionWithRepo.playDirectoryTrack(dir, file1)
+        advanceUntilIdle()
+
+        // Initially tracks have file names
+        val initialTracks = sessionWithRepo.sessionState.value.queue.tracks
+        assertEquals(2, initialTracks.size)
+        assertEquals("song1.mp3", initialTracks[0].title)
+        assertNull(initialTracks[0].artist)
+
+        // Metadata arrives
+        fakeMetadataRepo.emit(
+            listOf(
+                TrackMetadata(
+                    serverId = testServer.id,
+                    remotePath = "/music/song1.mp3",
+                    title = "Rich Song One",
+                    artist = "Awesome Artist",
+                    album = "Great Album",
+                    trackNumber = 1,
+                    durationMs = 180000L,
+                    coverThumbnailPath = "/cache/cover1.jpg"
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        val enrichedTracks = sessionWithRepo.sessionState.value.queue.tracks
+        assertEquals("Rich Song One", enrichedTracks[0].title)
+        assertEquals("Awesome Artist", enrichedTracks[0].artist)
+        assertEquals("Great Album", enrichedTracks[0].album)
+        assertEquals(180000L, enrichedTracks[0].durationMs)
+        assertEquals("/cache/cover1.jpg", enrichedTracks[0].coverThumbnailPath)
+
+        sessionWithRepo.release()
+    }
+
+    private class FakeTrackMetadataRepo : TrackMetadataRepository {
+        val flow = MutableStateFlow<List<TrackMetadata>>(emptyList())
+
+        fun emit(list: List<TrackMetadata>) {
+            flow.value = list
+        }
+
+        override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> = flow.asStateFlow()
+        override fun getMetadataForPathsFlow(serverId: Long, remotePaths: List<String>): Flow<List<TrackMetadata>> =
+            flow.map { list -> list.filter { it.remotePath in remotePaths } }
+        override fun getMetadataFlow(serverId: Long, remotePath: String): Flow<TrackMetadata?> =
+            flow.map { list -> list.firstOrNull { it.remotePath == remotePath } }
+        override suspend fun getCachedMetadata(serverId: Long, remotePath: String): TrackMetadata? =
+            flow.value.firstOrNull { it.remotePath == remotePath }
+        override suspend fun resolveMetadata(server: WebDavServer, files: List<RemoteFile>) {}
+        override suspend fun resolveSingleTrackMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata =
+            TrackMetadata(serverId = server.id, remotePath = file.path, title = file.name)
     }
 }

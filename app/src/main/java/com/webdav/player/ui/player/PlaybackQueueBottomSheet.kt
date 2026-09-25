@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackQueue
+import com.webdav.player.ui.common.CoverThumbnailImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -249,12 +250,35 @@ private fun QueueTrackItemRow(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Leading Icon or Track Number
+                // Leading Icon or Track Number or Cover Art
                 Box(
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(6.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isActive) {
+                    if (track.coverThumbnailPath != null) {
+                        CoverThumbnailImage(
+                            thumbnailPath = track.coverThumbnailPath,
+                            contentDescription = "封面",
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            if (isActive) {
+                                Icon(
+                                    imageVector = Icons.Filled.GraphicEq,
+                                    contentDescription = "正在播放",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = "${index + 1}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else if (isActive) {
                         Icon(
                             imageVector = Icons.Filled.GraphicEq,
                             contentDescription = "正在播放",

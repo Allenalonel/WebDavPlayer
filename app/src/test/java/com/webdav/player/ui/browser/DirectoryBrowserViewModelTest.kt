@@ -7,15 +7,18 @@ import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -24,6 +27,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -36,6 +40,7 @@ class DirectoryBrowserViewModelTest {
     private lateinit var fakeServerRepository: FakeServerRepository
     private lateinit var fakeDirectoryRepository: FakeDirectoryRepository
     private lateinit var fakeMusicPlayerAppSession: FakeMusicPlayerAppSession
+    private lateinit var fakeTrackMetadataRepository: FakeTrackMetadataRepository
     private lateinit var viewModel: DirectoryBrowserViewModel
 
     private val sampleServer = WebDavServer(
@@ -83,6 +88,7 @@ class DirectoryBrowserViewModelTest {
         fakeServerRepository = FakeServerRepository()
         fakeDirectoryRepository = FakeDirectoryRepository()
         fakeMusicPlayerAppSession = FakeMusicPlayerAppSession()
+        fakeTrackMetadataRepository = FakeTrackMetadataRepository()
         fakeServerRepository.setActiveServerSync(sampleServer)
 
         fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(rootDir))
@@ -92,7 +98,8 @@ class DirectoryBrowserViewModelTest {
         viewModel = DirectoryBrowserViewModel(
             serverRepository = fakeServerRepository,
             directoryRepository = fakeDirectoryRepository,
-            musicPlayerAppSession = fakeMusicPlayerAppSession
+            musicPlayerAppSession = fakeMusicPlayerAppSession,
+            trackMetadataRepository = fakeTrackMetadataRepository
         )
     }
 
@@ -291,6 +298,45 @@ class DirectoryBrowserViewModelTest {
         assertEquals(listOf(2), fakeMusicPlayerAppSession.removedQueueIndices)
     }
 
+    @Test
+    fun directoryLoad_triggersAsynchronousMetadataResolution_andUpdatesUiStateIncrementally() = runTest {
+        advanceUntilIdle()
+
+        // Root dir loaded initially, verify resolveMetadata was triggered for root_track.mp3
+        assertEquals(1, fakeTrackMetadataRepository.resolveCalls.size)
+        assertEquals("/root_track.mp3", fakeTrackMetadataRepository.resolveCalls.first().first().path)
+
+        // UI initially has empty metadataMap, transient file name is displayed
+        assertTrue(viewModel.uiState.value.metadataMap.isEmpty())
+
+        // Metadata arrives asynchronously from background resolution / Room
+        fakeTrackMetadataRepository.emitMetadata(
+            listOf(
+                TrackMetadata(
+                    serverId = 1L,
+                    remotePath = "/root_track.mp3",
+                    title = "Rich Root Track Title",
+                    artist = "Famous Artist",
+                    album = "Debut Album",
+                    trackNumber = 1,
+                    durationMs = 210000L,
+                    coverThumbnailPath = "/cache/covers/cover_1.jpg"
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        val updatedMap = viewModel.uiState.value.metadataMap
+        assertEquals(1, updatedMap.size)
+        val meta = updatedMap["/root_track.mp3"]
+        assertNotNull(meta)
+        assertEquals("Rich Root Track Title", meta?.title)
+        assertEquals("Famous Artist", meta?.artist)
+        assertEquals("Debut Album", meta?.album)
+        assertEquals(210000L, meta?.durationMs)
+        assertEquals("/cache/covers/cover_1.jpg", meta?.coverThumbnailPath)
+    }
+
     private class FakeServerRepository : ServerRepository {
         private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
         private val activeServerFlow = MutableStateFlow<WebDavServer?>(null)
@@ -331,6 +377,34 @@ class DirectoryBrowserViewModelTest {
 
         override fun clearCache() {
             results.clear()
+        }
+    }
+
+    private class FakeTrackMetadataRepository : TrackMetadataRepository {
+        val metadataFlow = MutableStateFlow<List<TrackMetadata>>(emptyList())
+        val resolveCalls = mutableListOf<List<RemoteFile>>()
+
+        fun emitMetadata(list: List<TrackMetadata>) {
+            metadataFlow.value = list
+        }
+
+        override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> = metadataFlow.asStateFlow()
+
+        override fun getMetadataForPathsFlow(serverId: Long, remotePaths: List<String>): Flow<List<TrackMetadata>> =
+            metadataFlow.map { list -> list.filter { it.remotePath in remotePaths } }
+
+        override fun getMetadataFlow(serverId: Long, remotePath: String): Flow<TrackMetadata?> =
+            metadataFlow.map { list -> list.firstOrNull { it.remotePath == remotePath } }
+
+        override suspend fun getCachedMetadata(serverId: Long, remotePath: String): TrackMetadata? =
+            metadataFlow.value.firstOrNull { it.remotePath == remotePath }
+
+        override suspend fun resolveMetadata(server: WebDavServer, files: List<RemoteFile>) {
+            resolveCalls.add(files)
+        }
+
+        override suspend fun resolveSingleTrackMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata {
+            return TrackMetadata(serverId = server.id, remotePath = file.path, title = file.name)
         }
     }
 }

@@ -21,7 +21,21 @@ class DirectoryBrowserViewModelFactory(private val context: Context) : ViewModel
             val client = OkHttpWebDavClient()
             val directoryRepository = DirectoryRepositoryImpl(client)
             val session = app?.musicPlayerAppSession
-            return DirectoryBrowserViewModel(serverRepository, directoryRepository, session) as T
+            val metadataRepository = app?.trackMetadataRepository ?: run {
+                val database = AppDatabase.getInstance(context)
+                val storage = com.webdav.player.data.local.CoverArtStorageImpl(context)
+                com.webdav.player.data.repository.TrackMetadataRepositoryImpl(
+                    trackMetadataDao = database.trackMetadataDao(),
+                    webDavClient = client,
+                    coverArtStorage = storage
+                )
+            }
+            return DirectoryBrowserViewModel(
+                serverRepository = serverRepository,
+                directoryRepository = directoryRepository,
+                musicPlayerAppSession = session,
+                trackMetadataRepository = metadataRepository
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

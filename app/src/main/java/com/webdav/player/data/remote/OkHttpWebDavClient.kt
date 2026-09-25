@@ -123,6 +123,38 @@ class OkHttpWebDavClient(
         }
     }
 
+    override suspend fun fetchRange(
+        server: WebDavServer,
+        remotePath: String,
+        startByte: Long,
+        endByte: Long
+    ): ByteArray? = withContext(Dispatchers.IO) {
+        val client = buildClientForServer(server)
+        val fileUrl = server.resolveFileUrl(remotePath)
+
+        val requestBuilder = Request.Builder()
+            .url(fileUrl)
+            .get()
+            .header("Range", "bytes=$startByte-$endByte")
+
+        if (server.username.isNotBlank()) {
+            val credential = Credentials.basic(server.username, server.password)
+            requestBuilder.header("Authorization", credential)
+        }
+
+        try {
+            client.newCall(requestBuilder.build()).execute().use { response ->
+                if (response.code == 206 || response.code == 200) {
+                    response.body?.bytes()
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun buildDirectoryUrl(server: WebDavServer, path: String): String {
         val baseUrl = server.endpointUrl.trimEnd('/')
         var cleanPath = path.replace('\\', '/')

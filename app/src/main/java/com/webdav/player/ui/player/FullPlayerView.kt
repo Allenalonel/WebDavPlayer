@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.ui.common.CoverThumbnailImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,7 +160,7 @@ fun FullPlayerView(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Album Artwork Placeholder Area
+            // Album Artwork Area
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
@@ -169,12 +170,18 @@ fun FullPlayerView(
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Audiotrack,
+                CoverThumbnailImage(
+                    thumbnailPath = currentTrack?.coverThumbnailPath,
                     contentDescription = "专辑封面",
-                    modifier = Modifier.size(96.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Audiotrack,
+                        contentDescription = "专辑封面",
+                        modifier = Modifier.size(96.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -3,6 +3,7 @@ package com.webdav.player.ui.browser
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 
 data class DirectoryBrowserUiState(
@@ -13,7 +14,8 @@ data class DirectoryBrowserUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
-    val canNavigateUp: Boolean = false
+    val canNavigateUp: Boolean = false,
+    val metadataMap: Map<String, TrackMetadata> = emptyMap()
 ) {
     val isEmpty: Boolean
         get() = currentDirectory?.isEmpty == true

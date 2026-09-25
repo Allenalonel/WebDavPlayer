@@ -6,13 +6,17 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [WebDavServerEntity::class],
-    version = 1,
+    entities = [
+        WebDavServerEntity::class,
+        TrackMetadataEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun webDavServerDao(): WebDavServerDao
+    abstract fun trackMetadataDao(): TrackMetadataDao
 
     companion object {
         @Volatile
@@ -24,7 +28,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "webdav_player.db"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
