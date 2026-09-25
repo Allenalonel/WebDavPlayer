@@ -22,6 +22,19 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
+        externalNativeBuild {
+            cmake {
+                arguments += "-DANDROID_STL=c++_static"
+            }
+        }
+    }
+
+    ndkVersion = "27.0.12077973"
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {
@@ -57,10 +70,6 @@ android {
             excludes += "META-INF/LICENSE*"
         }
         jniLibs {
-            excludes += "**/libavcodec.so"
-            excludes += "**/libavformat.so"
-            excludes += "**/libavutil.so"
-            excludes += "**/libswresample.so"
             useLegacyPackaging = true
         }
     }

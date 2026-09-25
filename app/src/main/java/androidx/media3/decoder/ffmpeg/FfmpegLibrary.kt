@@ -27,6 +27,13 @@ object FfmpegLibrary {
         if (!nativeLoadAttempted) {
             nativeLoadAttempted = true
             try {
+                try {
+                    System.loadLibrary("avutil")
+                    System.loadLibrary("swresample")
+                    System.loadLibrary("avcodec")
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Optional FFmpeg component load notice: ${t.message}")
+                }
                 System.loadLibrary("ffmpegJNI")
                 isNativeLoaded = true
             } catch (e: UnsatisfiedLinkError) {
@@ -59,10 +66,11 @@ object FfmpegLibrary {
     fun supportsFormat(mimeType: String): Boolean {
         if (!isAvailable()) return false
         val codecName = getCodecName(mimeType) ?: return false
-        if (isNativeLoaded) {
-            return try { ffmpegHasDecoder(codecName) } catch (e: UnsatisfiedLinkError) { true }
+        return if (isNativeLoaded) {
+            try { ffmpegHasDecoder(codecName) } catch (e: UnsatisfiedLinkError) { true }
+        } else {
+            true
         }
-        return true
     }
 
     @JvmStatic

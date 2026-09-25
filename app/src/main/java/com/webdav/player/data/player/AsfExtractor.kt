@@ -73,12 +73,14 @@ class AsfExtractor : Extractor {
 
     override fun sniff(input: ExtractorInput): Boolean {
         val header = ByteArray(16)
-        return try {
+        val matched = try {
             input.peekFully(header, 0, 16)
             header.contentEquals(ASF_HEADER_GUID)
         } catch (e: Exception) {
             false
         }
+        android.util.Log.i("WMA_DEBUG", "AsfExtractor.sniff result=$matched")
+        return matched
     }
 
     override fun init(output: ExtractorOutput) {
@@ -102,7 +104,8 @@ class AsfExtractor : Extractor {
                 formatBuilder.setInitializationData(listOf(it))
             }
 
-            track.format(formatBuilder.build())
+            val fmt = formatBuilder.build()
+            track.format(fmt)
             val output = extractorOutput
             if (output != null) {
                 output.endTracks()
@@ -250,7 +253,7 @@ class AsfExtractor : Extractor {
                 bytesRead += r
             }
         } catch (e: Exception) {
-            return Extractor.RESULT_END_OF_INPUT
+            if (bytesRead == 0) return Extractor.RESULT_END_OF_INPUT
         }
 
         if (bytesRead == 0) return Extractor.RESULT_END_OF_INPUT
@@ -330,7 +333,6 @@ class AsfExtractor : Extractor {
                         if (offset >= bytesRead) break
                         val streamByte = packetBuffer[offset++].toInt() and 0xFF
                         val streamId = streamByte and 0x7F
-                        val isKeyframe = (streamByte and 0x80) != 0
 
                         readVar(mediaObjType)
                         readVar(offsetType)
@@ -349,15 +351,13 @@ class AsfExtractor : Extractor {
                                 track.sampleData(parsable, validPayloadLen)
                                 track.sampleMetadata(
                                     currentTimeUs,
-                                    if (isKeyframe) C.BUFFER_FLAG_KEY_FRAME else 0,
+                                    C.BUFFER_FLAG_KEY_FRAME,
                                     validPayloadLen,
                                     0,
                                     null
                                 )
-                                val bytesPerSec = sampleRate * channelCount * 2L
-                                if (bytesPerSec > 0) {
-                                    currentTimeUs += (validPayloadLen * 1_000_000L) / bytesPerSec
-                                }
+                                val frameDurationUs = (512L * 1_000_000L) / sampleRate.coerceAtLeast(8000)
+                                currentTimeUs += frameDurationUs
                             }
                             offset += validPayloadLen
                         }
@@ -367,7 +367,6 @@ class AsfExtractor : Extractor {
                     if (offset < bytesRead) {
                         val streamByte = packetBuffer[offset++].toInt() and 0xFF
                         val streamId = streamByte and 0x7F
-                        val isKeyframe = (streamByte and 0x80) != 0
 
                         readVar(mediaObjType)
                         readVar(offsetType)
@@ -381,15 +380,13 @@ class AsfExtractor : Extractor {
                                 track.sampleData(parsable, payloadLen)
                                 track.sampleMetadata(
                                     currentTimeUs,
-                                    if (isKeyframe) C.BUFFER_FLAG_KEY_FRAME else 0,
+                                    C.BUFFER_FLAG_KEY_FRAME,
                                     payloadLen,
                                     0,
                                     null
                                 )
-                                val bytesPerSec = sampleRate * channelCount * 2L
-                                if (bytesPerSec > 0) {
-                                    currentTimeUs += (payloadLen * 1_000_000L) / bytesPerSec
-                                }
+                                val frameDurationUs = (512L * 1_000_000L) / sampleRate.coerceAtLeast(8000)
+                                currentTimeUs += frameDurationUs
                             }
                         }
                     }

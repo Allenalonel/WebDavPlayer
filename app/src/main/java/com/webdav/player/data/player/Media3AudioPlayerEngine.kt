@@ -59,7 +59,7 @@ class Media3AudioPlayerEngine(
             .build()
 
         val renderersFactory = DefaultRenderersFactory(context)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
 
         val extractorsFactory = ExtractorsFactory {
             arrayOf(

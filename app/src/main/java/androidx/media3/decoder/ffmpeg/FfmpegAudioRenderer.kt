@@ -45,14 +45,23 @@ class FfmpegAudioRenderer : DecoderAudioRenderer<FfmpegAudioDecoder> {
         if (!FfmpegLibrary.supportsFormat(mimeType)) {
             return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_SUBTYPE)
         }
+        val channels = if (format.channelCount != Format.NO_VALUE) format.channelCount else 2
+        val sampleRate = if (format.sampleRate != Format.NO_VALUE) format.sampleRate else 44100
         val sinkFormat = Format.Builder()
             .setSampleMimeType(MimeTypes.AUDIO_RAW)
-            .setChannelCount(if (format.channelCount != Format.NO_VALUE) format.channelCount else 2)
-            .setSampleRate(if (format.sampleRate != Format.NO_VALUE) format.sampleRate else 44100)
+            .setChannelCount(channels)
+            .setSampleRate(sampleRate)
             .setPcmEncoding(C.ENCODING_PCM_16BIT)
             .build()
 
-        return if (sinkSupportsFormat(sinkFormat)) {
+        val stdFormat = Format.Builder()
+            .setSampleMimeType(MimeTypes.AUDIO_RAW)
+            .setChannelCount(channels)
+            .setSampleRate(44100)
+            .setPcmEncoding(C.ENCODING_PCM_16BIT)
+            .build()
+
+        return if (sinkSupportsFormat(sinkFormat) || sinkSupportsFormat(stdFormat)) {
             RendererCapabilities.create(C.FORMAT_HANDLED)
         } else {
             RendererCapabilities.create(C.FORMAT_UNSUPPORTED_SUBTYPE)

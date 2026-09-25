@@ -122,26 +122,17 @@ class FfmpegAudioDecoder(
         val inputSize = inputData.limit()
         val outputData = outputBuffer.init(inputBuffer.timeUs, outputBufferSize)
 
-        // For WMA formats, use high-fidelity decoder bridge to ensure clean 16-bit linear PCM output
-        if (codecName.startsWith("wma") && wmaBridge != null) {
-            val decodedBytes = wmaBridge.decode(inputData, outputData)
-            if (decodedBytes > 0) {
-                outputData.position(0)
-                outputData.limit(decodedBytes)
-                return null
-            } else {
-                outputBuffer.clear()
-                outputBuffer.addFlag(C.BUFFER_FLAG_DECODE_ONLY)
-                return null
-            }
-        }
-
+        // If native decoder context is active, execute genuine FFmpeg native software decoding
         if (nativeContext != 0L) {
             val result = try {
                 ffmpegDecode(nativeContext, inputData, inputSize, outputData, outputBufferSize)
             } catch (e: UnsatisfiedLinkError) {
-                outputData.put(inputData)
-                inputData.remaining()
+                if (codecName.startsWith("wma") && wmaBridge != null) {
+                    wmaBridge.decode(inputData, outputData)
+                } else {
+                    outputData.put(inputData)
+                    inputData.remaining()
+                }
             }
 
             if (result == AUDIO_DECODER_ERROR_OTHER) {
@@ -155,8 +146,10 @@ class FfmpegAudioDecoder(
             if (result > 0) {
                 if (!hasOutputFormat) {
                     try {
-                        channelCount = ffmpegGetChannelCount(nativeContext)
-                        sampleRate = ffmpegGetSampleRate(nativeContext)
+                        val cc = ffmpegGetChannelCount(nativeContext)
+                        val sr = ffmpegGetSampleRate(nativeContext)
+                        if (cc > 0) channelCount = cc
+                        if (sr > 0) sampleRate = sr
                     } catch (e: UnsatisfiedLinkError) {
                         // ignore
                     }
@@ -170,7 +163,18 @@ class FfmpegAudioDecoder(
             }
         } else {
             // JVM unit test fallback when native library is not linked
-            outputData.put(inputData)
+            if (codecName.startsWith("wma") && wmaBridge != null) {
+                val decodedBytes = wmaBridge.decode(inputData, outputData)
+                if (decodedBytes > 0) {
+                    outputData.position(0)
+                    outputData.limit(decodedBytes)
+                } else {
+                    outputBuffer.clear()
+                    outputBuffer.addFlag(C.BUFFER_FLAG_DECODE_ONLY)
+                }
+            } else {
+                outputData.put(inputData)
+            }
         }
 
         return null
