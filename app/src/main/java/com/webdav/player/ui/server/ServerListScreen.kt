@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Security
@@ -52,7 +53,8 @@ import com.webdav.player.domain.model.WebDavServer
 @Composable
 fun ServerListScreen(
     viewModel: ServerManagementViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToBrowser: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -72,6 +74,16 @@ fun ServerListScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                },
+                actions = {
+                    if (uiState.activeServer != null) {
+                        IconButton(onClick = onNavigateToBrowser) {
+                            Icon(
+                                imageVector = Icons.Filled.FolderOpen,
+                                contentDescription = "浏览文件"
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -134,7 +146,8 @@ fun ServerListScreen(
                             isActive = isActive,
                             onSelect = { viewModel.onSelectActiveServer(server.id) },
                             onEdit = { viewModel.onEditServerClicked(server) },
-                            onDelete = { viewModel.onRequestDeleteServer(server) }
+                            onDelete = { viewModel.onRequestDeleteServer(server) },
+                            onBrowse = onNavigateToBrowser
                         )
                     }
                 }
@@ -171,12 +184,13 @@ fun ServerCardItem(
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBrowse: () -> Unit = {}
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onSelect() },
+            .clickable { if (isActive) onBrowse() else onSelect() },
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -289,6 +303,23 @@ fun ServerCardItem(
                             )
                         }
                     }
+                }
+            }
+
+            if (isActive) {
+                Spacer(modifier = Modifier.height(12.dp))
+                androidx.compose.material3.Button(
+                    onClick = onBrowse,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("浏览目录与音频")
                 }
             }
         }

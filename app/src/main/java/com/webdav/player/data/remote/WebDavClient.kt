@@ -1,5 +1,8 @@
 package com.webdav.player.data.remote
 
+import com.webdav.player.domain.model.ListDirectoryResult
+import com.webdav.player.domain.model.WebDavServer
+
 sealed interface ConnectionResult {
     data object Success : ConnectionResult
     data class Failure(
@@ -10,5 +13,6 @@ sealed interface ConnectionResult {
 }
 
 interface WebDavClient {
-    suspend fun testConnection(server: com.webdav.player.domain.model.WebDavServer): ConnectionResult
+    suspend fun testConnection(server: WebDavServer): ConnectionResult
+    suspend fun listDirectory(server: WebDavServer, path: String): ListDirectoryResult
 }

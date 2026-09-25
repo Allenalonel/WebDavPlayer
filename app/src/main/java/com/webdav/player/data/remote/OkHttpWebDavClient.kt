@@ -1,5 +1,6 @@
 package com.webdav.player.data.remote
 
+import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.URLEncoder
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -61,6 +63,77 @@ class OkHttpWebDavClient(
                 cause = e
             )
         }
+    }
+
+    override suspend fun listDirectory(server: WebDavServer, path: String): ListDirectoryResult = withContext(Dispatchers.IO) {
+        val client = buildClientForServer(server)
+        val fullUrl = buildDirectoryUrl(server, path)
+
+        val requestBuilder = Request.Builder()
+            .url(fullUrl)
+            .method("PROPFIND", null)
+            .header("Depth", "1")
+
+        if (server.username.isNotBlank()) {
+            val credential = Credentials.basic(server.username, server.password)
+            requestBuilder.header("Authorization", credential)
+        }
+
+        val request = requestBuilder.build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                when (response.code) {
+                    207 -> {
+                        val body = response.body?.string() ?: ""
+                        try {
+                            val directory = WebDavXmlParser.parseMultistatus(
+                                xml = body,
+                                serverPathPrefix = server.pathPrefix,
+                                requestedPath = path
+                            )
+                            ListDirectoryResult.Success(directory)
+                        } catch (e: Exception) {
+                            ListDirectoryResult.Failure(
+                                message = "Failed to parse WebDAV XML: ${e.localizedMessage}",
+                                statusCode = 207,
+                                cause = e
+                            )
+                        }
+                    }
+                    401 -> ListDirectoryResult.Failure("Authentication failed: HTTP 401", statusCode = 401)
+                    403 -> ListDirectoryResult.Failure("Access forbidden: HTTP 403", statusCode = 403)
+                    404 -> ListDirectoryResult.Failure("Directory not found: HTTP 404", statusCode = 404)
+                    else -> ListDirectoryResult.Failure(
+                        message = "Server returned HTTP ${response.code}: ${response.message.ifBlank { "Error" }}",
+                        statusCode = response.code
+                    )
+                }
+            }
+        } catch (e: IOException) {
+            ListDirectoryResult.Failure(
+                message = e.localizedMessage ?: "Network connection error",
+                cause = e
+            )
+        } catch (e: Exception) {
+            ListDirectoryResult.Failure(
+                message = e.localizedMessage ?: "Unexpected error",
+                cause = e
+            )
+        }
+    }
+
+    private fun buildDirectoryUrl(server: WebDavServer, path: String): String {
+        val baseUrl = server.endpointUrl.trimEnd('/')
+        var cleanPath = path.replace('\\', '/')
+        if (!cleanPath.startsWith("/")) cleanPath = "/$cleanPath"
+        if (!cleanPath.endsWith("/")) cleanPath = "$cleanPath/"
+        val segments = cleanPath.split('/')
+        val encodedSegments = segments.map { segment ->
+            URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+        }
+        val encodedPath = encodedSegments.joinToString("/")
+        return "$baseUrl$encodedPath"
     }
 
     fun buildClientForServer(server: WebDavServer): OkHttpClient {

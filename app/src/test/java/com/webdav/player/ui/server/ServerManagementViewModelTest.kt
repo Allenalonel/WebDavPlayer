@@ -209,4 +209,13 @@ private class FakeWebDavClient : WebDavClient {
     override suspend fun testConnection(server: WebDavServer): ConnectionResult {
         return resultToReturn
     }
+
+    override suspend fun listDirectory(
+        server: WebDavServer,
+        path: String
+    ): com.webdav.player.domain.model.ListDirectoryResult {
+        return com.webdav.player.domain.model.ListDirectoryResult.Success(
+            com.webdav.player.domain.model.RemoteDirectory(path = path, name = "root")
+        )
+    }
 }
