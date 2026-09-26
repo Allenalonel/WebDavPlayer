@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NetworkCheck
@@ -90,16 +89,6 @@ fun ServerListScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                },
-                actions = {
-                    if (uiState.activeServer != null) {
-                        IconButton(onClick = onNavigateToBrowser) {
-                            Icon(
-                                imageVector = Icons.Filled.FolderOpen,
-                                contentDescription = "浏览文件"
-                            )
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -158,13 +157,6 @@ fun DirectoryBrowserScreen(
                                 contentDescription = "返回上级"
                             )
                         }
-                    } else {
-                        IconButton(onClick = onNavigateToServerManagement) {
-                            Icon(
-                                imageVector = Icons.Filled.Storage,
-                                contentDescription = "服务器列表"
-                            )
-                        }
                     }
                 },
                 actions = {
@@ -172,12 +164,6 @@ fun DirectoryBrowserScreen(
                         Icon(
                             imageVector = Icons.Filled.Refresh,
                             contentDescription = "刷新目录"
-                        )
-                    }
-                    IconButton(onClick = onNavigateToServerManagement) {
-                        Icon(
-                            imageVector = Icons.Filled.Storage,
-                            contentDescription = "管理服务器"
                         )
                     }
                 },
