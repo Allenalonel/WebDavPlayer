@@ -508,8 +508,8 @@ private fun ArtworkPage(
             modifier = Modifier
                 .fillMaxWidth(0.88f)
                 .aspectRatio(1f)
-                .shadow(elevation = 20.dp, shape = RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
+                .shadow(elevation = 20.dp, shape = MaterialTheme.shapes.extraLarge)
+                .clip(MaterialTheme.shapes.extraLarge)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { onArtworkClick() },
             contentAlignment = Alignment.Center

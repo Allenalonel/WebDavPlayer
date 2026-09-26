@@ -98,7 +98,7 @@ fun DirectoryBrowserScreen(
     modifier: Modifier = Modifier,
     isCurrentTab: Boolean = true,
     onFileClicked: (RemoteFile) -> Unit = { viewModel.onAudioTrackClicked(it) },
-    onOpenFullPlayer: () -> Unit = {}
+    @Suppress("UNUSED_PARAMETER") onOpenFullPlayer: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -338,7 +338,7 @@ fun DirectoryBreadcrumbStrip(
                         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                     )
                 },
-                shape = RoundedCornerShape(8.dp)
+                shape = MaterialTheme.shapes.small
             )
 
             if (index < breadcrumbs.lastIndex) {
@@ -424,7 +424,7 @@ fun DirectoryItemRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
@@ -440,7 +440,7 @@ fun DirectoryItemRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.size(44.dp)
             ) {
@@ -538,7 +538,7 @@ fun FileItemRow(
                     Box(
                         modifier = Modifier
                             .size(46.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                            .clip(MaterialTheme.shapes.small),
                         contentAlignment = Alignment.Center
                     ) {
                         CoverThumbnailImage(
@@ -547,7 +547,7 @@ fun FileItemRow(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = MaterialTheme.shapes.small,
                                 color = MaterialTheme.colorScheme.secondaryContainer,
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -565,7 +565,7 @@ fun FileItemRow(
                 }
                 isLyrics -> {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.tertiaryContainer,
                         modifier = Modifier.size(46.dp)
                     ) {
@@ -581,7 +581,7 @@ fun FileItemRow(
                 }
                 else -> {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.size(46.dp)
                     ) {
@@ -749,7 +749,7 @@ fun AudioQualityBadgePill(
     Surface(
         modifier = modifier,
         color = containerColor,
-        shape = RoundedCornerShape(6.dp)
+        shape = MaterialTheme.shapes.extraSmall
     ) {
         Text(
             text = badge.label,
@@ -878,7 +878,7 @@ fun LyricBadge(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(4.dp)
+        shape = MaterialTheme.shapes.extraSmall
     ) {
         Text(
             text = "LRC",
@@ -894,7 +894,7 @@ fun OtherBadge(extension: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(4.dp)
+        shape = MaterialTheme.shapes.extraSmall
     ) {
         Text(
             text = extension.take(4),

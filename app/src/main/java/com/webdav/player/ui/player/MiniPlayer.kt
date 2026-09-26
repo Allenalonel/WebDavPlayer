@@ -56,7 +56,7 @@ fun MiniPlayer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.medium)
             .pointerInput(Unit) {
                 var upwardDrag = 0f
                 detectVerticalDragGestures(
@@ -73,7 +73,7 @@ fun MiniPlayer(
                 )
             }
             .clickable { onMiniPlayerClick() },
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
         shadowElevation = 8.dp
@@ -103,7 +103,7 @@ fun MiniPlayer(
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {

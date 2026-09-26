@@ -232,17 +232,17 @@ fun ServerCardItem(
                 if (isActive) {
                     Modifier.border(
                         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.medium
                     )
                 } else {
                     Modifier.border(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.medium
                     )
                 }
             )
             .clickable(onClick = handleCardClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.elevatedCardColors(
             containerColor = if (isActive) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
@@ -323,7 +323,7 @@ fun ServerCardItem(
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant
                         },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = MaterialTheme.shapes.small
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
@@ -357,7 +357,7 @@ fun ServerCardItem(
                     if (isActive) {
                         Surface(
                             color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = MaterialTheme.shapes.small
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
@@ -392,7 +392,7 @@ fun ServerCardItem(
                     if (server.username.isNotBlank()) {
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = MaterialTheme.shapes.extraSmall
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -417,7 +417,7 @@ fun ServerCardItem(
                     if (server.allowSelfSigned) {
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = MaterialTheme.shapes.extraSmall
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -473,7 +473,7 @@ fun ServerCardItem(
                     } else if (connectionTestResult is ConnectionResult.Success) {
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = MaterialTheme.shapes.extraSmall
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
@@ -496,7 +496,7 @@ fun ServerCardItem(
                     } else if (connectionTestResult is ConnectionResult.Failure) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = MaterialTheme.shapes.extraSmall
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),

@@ -254,7 +254,7 @@ private fun QueueTrackItemRow(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(6.dp)),
+                        .clip(MaterialTheme.shapes.extraSmall),
                     contentAlignment = Alignment.Center
                 ) {
                     if (track.coverThumbnailPath != null) {
