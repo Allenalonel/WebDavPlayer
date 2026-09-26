@@ -12,7 +12,6 @@ import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 
 class LyricsRepositoryImpl(
     private val webDavClient: WebDavClient,
@@ -20,11 +19,22 @@ class LyricsRepositoryImpl(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : LyricsRepository {
 
-    private val cache = ConcurrentHashMap<String, Lyrics>()
+    companion object {
+        private const val MAX_LYRICS_CACHE_SIZE = 100
+    }
+
+    private val cacheLock = Any()
+    private val cache = object : LinkedHashMap<String, Lyrics>(MAX_LYRICS_CACHE_SIZE, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Lyrics>?): Boolean {
+            return size > MAX_LYRICS_CACHE_SIZE
+        }
+    }
 
     override suspend fun resolveLyrics(server: WebDavServer, track: AudioTrack): Lyrics = withContext(ioDispatcher) {
         val cacheKey = "${server.id}:${track.remotePath}"
-        cache[cacheKey]?.let { return@withContext it }
+        synchronized(cacheLock) {
+            cache[cacheKey]?.let { return@withContext it }
+        }
 
         // 1. Probe remote directory for ${baseName}.lrc
         val lrcPath = track.remotePath.substringBeforeLast('.') + ".lrc"
@@ -33,7 +43,9 @@ class LyricsRepositoryImpl(
             if (!remoteText.isNullOrBlank()) {
                 val parsed = LrcParser.parse(remoteText)
                 if (parsed.isNotEmpty) {
-                    cache[cacheKey] = parsed
+                    synchronized(cacheLock) {
+                        cache[cacheKey] = parsed
+                    }
                     return@withContext parsed
                 }
             }
@@ -64,7 +76,9 @@ class LyricsRepositoryImpl(
             if (!embeddedText.isNullOrBlank()) {
                 val parsed = LrcParser.parse(embeddedText)
                 if (parsed.isNotEmpty) {
-                    cache[cacheKey] = parsed
+                    synchronized(cacheLock) {
+                        cache[cacheKey] = parsed
+                    }
                     return@withContext parsed
                 }
             }
@@ -74,7 +88,21 @@ class LyricsRepositoryImpl(
 
         // 3. No lyrics available from either source
         val empty = Lyrics.EMPTY
-        cache[cacheKey] = empty
+        synchronized(cacheLock) {
+            cache[cacheKey] = empty
+        }
         empty
+    }
+
+    override fun clearCache() {
+        synchronized(cacheLock) {
+            cache.clear()
+        }
+    }
+
+    override fun clearMemoryCache() {
+        synchronized(cacheLock) {
+            cache.clear()
+        }
     }
 }

@@ -13,4 +13,14 @@ interface LyricsRepository {
      * 3. Returns Lyrics.EMPTY if neither source provides lyrics.
      */
     suspend fun resolveLyrics(server: WebDavServer, track: AudioTrack): Lyrics
+
+    /**
+     * Clears all cached lyrics.
+     */
+    fun clearCache() {}
+
+    /**
+     * Clears in-memory lyrics cache.
+     */
+    fun clearMemoryCache() {}
 }

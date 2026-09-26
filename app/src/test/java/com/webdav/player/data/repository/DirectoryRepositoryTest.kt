@@ -186,10 +186,51 @@ class DirectoryRepositoryTest {
         assertTrue(lrcFile?.isLyrics == true)
     }
 
+    @Test
+    fun memoryCache_whenExceedingCapacity_evictsLruAndFallsBackToRoomL2() = runTest {
+        // Insert 50 directories (/dir0/ to /dir49/)
+        for (i in 0 until 50) {
+            val dir = RemoteDirectory(path = "/dir$i/", name = "dir$i")
+            fakeClient.results["/dir$i/"] = ListDirectoryResult.Success(dir)
+            repository.listDirectory(testServer, "/dir$i/")
+        }
+
+        // Clear DAO call count so we measure accesses after initial population
+        fakeDao.getCacheCallCount.clear()
+
+        // Initially, all 50 should be in L1 memory cache.
+        // Access /dir0/ to make it MRU (most recently used).
+        val cached0 = repository.getCachedDirectory(testServer, "/dir0/")
+        assertNotNull(cached0)
+        assertEquals(0, fakeDao.getCacheCallCount["/dir0/"] ?: 0) // Hit L1, no L2 query
+
+        // Insert 51st directory (/dir50/). Since /dir0/ was refreshed, /dir1/ is the LRU entry.
+        val dir50 = RemoteDirectory(path = "/dir50/", name = "dir50")
+        fakeClient.results["/dir50/"] = ListDirectoryResult.Success(dir50)
+        repository.listDirectory(testServer, "/dir50/")
+
+        // /dir0/ should still be in L1 memory cache
+        val cached0Again = repository.getCachedDirectory(testServer, "/dir0/")
+        assertNotNull(cached0Again)
+        assertEquals(0, fakeDao.getCacheCallCount["/dir0/"] ?: 0) // Still L1 hit
+
+        // /dir1/ was evicted from L1. Querying it should hit L2 (Room DAO) transparently without calling network!
+        val clientCallsBefore = fakeClient.callCount["/dir1/"] ?: 0
+        val cached1 = repository.getCachedDirectory(testServer, "/dir1/")
+        assertNotNull(cached1)
+        assertEquals("dir1", cached1?.name)
+        // Verify L2 was queried
+        assertEquals(1, fakeDao.getCacheCallCount["/dir1/"] ?: 0)
+        // Verify client was NOT queried again (instant 0ms without network)
+        assertEquals(clientCallsBefore, fakeClient.callCount["/dir1/"] ?: 0)
+    }
+
     private class FakeDirectoryCacheDao : DirectoryCacheDao {
         val cacheMap = mutableMapOf<String, DirectoryCacheEntity>()
+        val getCacheCallCount = mutableMapOf<String, Int>()
 
         override suspend fun getCache(serverId: Long, path: String): DirectoryCacheEntity? {
+            getCacheCallCount[path] = (getCacheCallCount[path] ?: 0) + 1
             return cacheMap["$serverId:$path"]
         }
 

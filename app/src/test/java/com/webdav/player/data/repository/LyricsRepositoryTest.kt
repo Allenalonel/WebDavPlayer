@@ -128,6 +128,62 @@ class LyricsRepositoryTest {
         assertEquals(1, fakeClient.fetchTextCount.get())
     }
 
+    @Test
+    fun resolveLyrics_whenExceedingCapacity_evictsLeastRecentlyUsedLyrics() = runTest {
+        fun makeTrack(i: Int) = AudioTrack(
+            id = "1:/music/track$i.mp3",
+            serverId = 1L,
+            remotePath = "/music/track$i.mp3",
+            title = "Track $i",
+            artist = "Artist",
+            album = "Album",
+            format = AudioFormat.MP3
+        )
+
+        // Populate 100 tracks (track0 to track99)
+        for (i in 0 until 100) {
+            fakeClient.textFiles["/music/track$i.lrc"] = "[00:01.00]Lyrics $i"
+            lyricsRepository.resolveLyrics(testServer, makeTrack(i))
+        }
+        assertEquals(100, fakeClient.fetchTextCount.get())
+
+        // Access track0 again so track0 becomes MRU; track1 is now the eldest (LRU)
+        lyricsRepository.resolveLyrics(testServer, makeTrack(0))
+        assertEquals(100, fakeClient.fetchTextCount.get())
+
+        // Resolve 101st track (track100) -> should evict LRU entry (track1)
+        fakeClient.textFiles["/music/track100.lrc"] = "[00:01.00]Lyrics 100"
+        lyricsRepository.resolveLyrics(testServer, makeTrack(100))
+        assertEquals(101, fakeClient.fetchTextCount.get())
+
+        // Track0 was recently accessed, so it should still be in cache
+        lyricsRepository.resolveLyrics(testServer, makeTrack(0))
+        assertEquals(101, fakeClient.fetchTextCount.get()) // Hit cache
+
+        // Track1 was LRU and evicted, so resolving it must probe remote again
+        lyricsRepository.resolveLyrics(testServer, makeTrack(1))
+        assertEquals(102, fakeClient.fetchTextCount.get()) // Cache miss -> fetched again
+    }
+
+    @Test
+    fun clearCache_and_clearMemoryCache_evictAllEntries() = runTest {
+        val lrcPath = "/music/Queen/Bohemian Rhapsody.lrc"
+        fakeClient.textFiles[lrcPath] = "[00:01.00]Only once"
+
+        lyricsRepository.resolveLyrics(testServer, testTrack)
+        assertEquals(1, fakeClient.fetchTextCount.get())
+
+        lyricsRepository.clearCache()
+
+        lyricsRepository.resolveLyrics(testServer, testTrack)
+        assertEquals(2, fakeClient.fetchTextCount.get())
+
+        lyricsRepository.clearMemoryCache()
+
+        lyricsRepository.resolveLyrics(testServer, testTrack)
+        assertEquals(3, fakeClient.fetchTextCount.get())
+    }
+
     private class FakeLyricsWebDavClient : WebDavClient {
         val textFiles = mutableMapOf<String, String>()
         val fetchTextCount = AtomicInteger(0)

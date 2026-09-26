@@ -8,14 +8,22 @@ import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
-import java.util.concurrent.ConcurrentHashMap
 
 class DirectoryRepositoryImpl(
     private val webDavClient: WebDavClient,
     private val directoryCacheDao: DirectoryCacheDao? = null
 ) : DirectoryRepository {
 
-    private val memoryCache = ConcurrentHashMap<String, RemoteDirectory>()
+    companion object {
+        private const val MAX_DIRECTORY_CACHE_SIZE = 50
+    }
+
+    private val cacheLock = Any()
+    private val memoryCache = object : LinkedHashMap<String, RemoteDirectory>(MAX_DIRECTORY_CACHE_SIZE, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, RemoteDirectory>?): Boolean {
+            return size > MAX_DIRECTORY_CACHE_SIZE
+        }
+    }
 
     override suspend fun getCachedDirectory(
         server: WebDavServer,
@@ -25,7 +33,9 @@ class DirectoryRepositoryImpl(
         val cacheKey = "${server.id}:$normalizedPath"
 
         // 1. Check L1 memory cache
-        val inMemory = memoryCache[cacheKey]
+        val inMemory = synchronized(cacheLock) {
+            memoryCache[cacheKey]
+        }
         if (inMemory != null) {
             return inMemory
         }
@@ -35,7 +45,9 @@ class DirectoryRepositoryImpl(
         if (cachedEntity != null) {
             val deserialized = RemoteDirectoryJsonSerializer.deserialize(cachedEntity.dataJson)
             if (deserialized != null) {
-                memoryCache[cacheKey] = deserialized
+                synchronized(cacheLock) {
+                    memoryCache[cacheKey] = deserialized
+                }
                 return deserialized
             }
         }
@@ -60,7 +72,9 @@ class DirectoryRepositoryImpl(
 
         val result = webDavClient.listDirectory(server, normalizedPath)
         if (result is ListDirectoryResult.Success) {
-            memoryCache[cacheKey] = result.directory
+            synchronized(cacheLock) {
+                memoryCache[cacheKey] = result.directory
+            }
             val json = RemoteDirectoryJsonSerializer.serialize(result.directory)
             directoryCacheDao?.insertOrUpdate(
                 DirectoryCacheEntity(
@@ -75,18 +89,24 @@ class DirectoryRepositoryImpl(
     }
 
     override suspend fun clearCache() {
-        memoryCache.clear()
+        synchronized(cacheLock) {
+            memoryCache.clear()
+        }
         directoryCacheDao?.clearAll()
     }
 
     override fun clearMemoryCache() {
-        memoryCache.clear()
+        synchronized(cacheLock) {
+            memoryCache.clear()
+        }
     }
 
     override suspend fun clearCacheForServer(serverId: Long) {
         val prefix = "$serverId:"
-        val keysToRemove = memoryCache.keys.filter { it.startsWith(prefix) }
-        keysToRemove.forEach { memoryCache.remove(it) }
+        synchronized(cacheLock) {
+            val keysToRemove = memoryCache.keys.filter { it.startsWith(prefix) }
+            keysToRemove.forEach { memoryCache.remove(it) }
+        }
         directoryCacheDao?.deleteCacheByServerId(serverId)
     }
 
