@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,6 +46,7 @@ fun MiniPlayer(
     sessionState: PlayerSessionState,
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
+    onSkipToNext: () -> Unit = {},
     onMiniPlayerClick: () -> Unit = {}
 ) {
     val currentTrack = sessionState.currentTrack ?: return
@@ -52,7 +54,9 @@ fun MiniPlayer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .clickable { onMiniPlayerClick() },
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
         shadowElevation = 8.dp
@@ -66,28 +70,23 @@ fun MiniPlayer(
                     progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(2.dp),
+                        .height(2.5.dp),
                     color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            } else {
-                HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
             }
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Album Art / Audio Icon Box
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
@@ -122,16 +121,50 @@ fun MiniPlayer(
                     PlaybackStateIndicator(sessionState = sessionState)
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Play / Pause / Buffering Toggle Button
                 PlayPauseToggleButton(
                     sessionState = sessionState,
                     onTogglePlayPause = onTogglePlayPause
                 )
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Skip Next Button
+                IconButton(
+                    onClick = onSkipToNext,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = "下一首",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+fun DockedMiniPlayer(
+    sessionState: PlayerSessionState,
+    onTogglePlayPause: () -> Unit,
+    modifier: Modifier = Modifier,
+    onSkipToNext: () -> Unit = {},
+    onMiniPlayerClick: () -> Unit = {}
+) {
+    MiniPlayer(
+        sessionState = sessionState,
+        onTogglePlayPause = onTogglePlayPause,
+        modifier = modifier,
+        onSkipToNext = onSkipToNext,
+        onMiniPlayerClick = onMiniPlayerClick
+    )
 }
 
 @Composable
@@ -181,16 +214,8 @@ private fun PlaybackStateIndicator(
                 )
             }
             else -> {
-                val track = sessionState.currentTrack
-                val label = buildString {
-                    if (track?.artist != null && track.artist.isNotBlank()) {
-                        append(track.artist)
-                        append(" · ")
-                    }
-                    append(currentTrackFormatLabel(sessionState))
-                }
                 Text(
-                    text = label,
+                    text = formatMiniPlayerSubtitle(sessionState),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -244,6 +269,19 @@ private fun PlayPauseToggleButton(
                 }
             }
         }
+    }
+}
+
+fun formatMiniPlayerSubtitle(sessionState: PlayerSessionState): String {
+    val track = sessionState.currentTrack ?: return ""
+    val format = currentTrackFormatLabel(sessionState)
+    val artist = track.artist?.trim()?.takeIf { it.isNotBlank() }
+    return when {
+        artist != null && format.isNotBlank() -> "$artist · $format"
+        artist != null -> artist
+        format.isNotBlank() -> format
+        sessionState.isPlaying -> "正在播放"
+        else -> "已暂停"
     }
 }
 
