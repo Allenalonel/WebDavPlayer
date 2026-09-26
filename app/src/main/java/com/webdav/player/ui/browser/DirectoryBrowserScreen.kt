@@ -71,6 +71,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
@@ -78,7 +80,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.draw.clip
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.PlayerSessionState
@@ -205,6 +206,7 @@ fun DirectoryBrowserScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(pullRefreshState.nestedScrollConnection)
+                    .clipToBounds()
             ) {
                 when {
                     uiState.activeServer == null -> {
@@ -253,10 +255,12 @@ fun DirectoryBrowserScreen(
                     }
                 }
 
-                PullToRefreshContainer(
-                    state = pullRefreshState,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
+                if (pullRefreshState.verticalOffset > 0f || pullRefreshState.isRefreshing) {
+                    PullToRefreshContainer(
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
             }
         }
     }
