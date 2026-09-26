@@ -18,19 +18,54 @@ interface CoverArtStorage {
 
     fun getThumbnailFile(serverId: Long, remotePath: String): File?
     fun deleteThumbnail(serverId: Long, remotePath: String)
+    suspend fun deleteServerCovers(serverId: Long)
 }
 
 class CoverArtStorageImpl(
     private val context: Context,
-    private val maxDimension: Int = 512
+    private val maxDimension: Int = DEFAULT_MAX_DIMENSION,
+    private val maxCacheSizeBytes: Long = DEFAULT_MAX_CACHE_SIZE_BYTES,
+    private val customDir: File? = null
 ) : CoverArtStorage {
 
+    companion object {
+        const val DEFAULT_MAX_DIMENSION = 512
+        const val DEFAULT_MAX_CACHE_SIZE_BYTES = 50L * 1024 * 1024L // 50 MB
+    }
+
     private val coversDir: File by lazy {
-        val dir = File(context.filesDir, "covers")
-        if (!dir.exists()) {
-            dir.mkdirs()
+        val baseDir = customDir ?: context.cacheDir?.let { File(it, "covers") } ?: File(context.filesDir, "covers")
+        if (!baseDir.exists()) {
+            baseDir.mkdirs()
         }
-        dir
+        migrateLegacyCoversDir(baseDir)
+        baseDir
+    }
+
+    private fun migrateLegacyCoversDir(targetDir: File) {
+        try {
+            val filesDir = context.filesDir ?: return
+            val legacyDir = File(filesDir, "covers")
+            if (legacyDir.exists() && legacyDir.isDirectory && legacyDir.canonicalPath != targetDir.canonicalPath) {
+                val files = legacyDir.listFiles() ?: return
+                for (file in files) {
+                    if (file.isFile) {
+                        val targetFile = File(targetDir, file.name)
+                        if (!targetFile.exists()) {
+                            if (!file.renameTo(targetFile)) {
+                                file.copyTo(targetFile, overwrite = true)
+                                file.delete()
+                            }
+                        } else {
+                            file.delete()
+                        }
+                    }
+                }
+                legacyDir.delete()
+            }
+        } catch (_: Exception) {
+            // Ignore migration failure to prevent startup crashes
+        }
     }
 
     override suspend fun saveThumbnail(
@@ -80,6 +115,8 @@ class CoverArtStorageImpl(
                 }
             }
 
+            pruneDiskQuota(maxCacheSizeBytes, justSavedFile = targetFile)
+
             targetFile.absolutePath
         } catch (e: Exception) {
             null
@@ -89,12 +126,64 @@ class CoverArtStorageImpl(
     override fun getThumbnailFile(serverId: Long, remotePath: String): File? {
         val fileName = buildFileName(serverId, remotePath)
         val file = File(coversDir, fileName)
-        return if (file.exists()) file else null
+        return if (file.exists()) {
+            file.setLastModified(System.currentTimeMillis())
+            file
+        } else {
+            null
+        }
     }
 
     override fun deleteThumbnail(serverId: Long, remotePath: String) {
-        val file = getThumbnailFile(serverId, remotePath)
-        file?.delete()
+        val fileName = buildFileName(serverId, remotePath)
+        val file = File(coversDir, fileName)
+        if (file.exists()) {
+            file.delete()
+        }
+    }
+
+    override suspend fun deleteServerCovers(serverId: Long) {
+        withContext(Dispatchers.IO) {
+            deleteServerCoversSync(serverId)
+        }
+    }
+
+    fun deleteServerCoversSync(serverId: Long): Int {
+        val prefix = "cover_${serverId}_"
+        val files = coversDir.listFiles { _, name -> name.startsWith(prefix) } ?: return 0
+        var count = 0
+        for (file in files) {
+            if (file.delete()) {
+                count++
+            }
+        }
+        return count
+    }
+
+    fun pruneDiskQuota(quotaBytes: Long = maxCacheSizeBytes, justSavedFile: File? = null) {
+        val files = coversDir.listFiles() ?: return
+        var currentSize = files.sumOf { it.length() }
+        if (currentSize <= quotaBytes) return
+
+        // Sort candidates: prune files other than the just-saved one first, oldest lastModified first
+        val sortedFiles = files.sortedWith(
+            compareBy<File> { if (justSavedFile != null && it.absolutePath == justSavedFile.absolutePath) 1 else 0 }
+                .thenBy { it.lastModified() }
+                .thenBy { it.name }
+        )
+
+        for (file in sortedFiles) {
+            if (currentSize <= quotaBytes) break
+            val length = file.length()
+            if (file.delete()) {
+                currentSize -= length
+            }
+        }
+    }
+
+    fun getDiskUsageBytes(): Long {
+        val files = coversDir.listFiles() ?: return 0L
+        return files.sumOf { it.length() }
     }
 
     private fun buildFileName(serverId: Long, remotePath: String): String {

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
+import com.webdav.player.data.local.CoverArtStorageImpl
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.ServerRepository
 import kotlinx.coroutines.flow.first
@@ -19,26 +20,31 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class ServerRepositoryTest {
 
+    private lateinit var context: Context
     private lateinit var database: AppDatabase
+    private lateinit var coverArtStorage: CoverArtStorageImpl
     private lateinit var repository: ServerRepository
 
     @Before
     fun setUp() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
+        context = ApplicationProvider.getApplicationContext<Context>()
         database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = ServerRepositoryImpl(database.webDavServerDao())
+        coverArtStorage = CoverArtStorageImpl(context)
+        repository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage)
     }
 
     @After
     fun tearDown() {
         database.close()
+        File(context.cacheDir, "covers").deleteRecursively()
     }
 
     @Test
@@ -116,5 +122,32 @@ class ServerRepositoryTest {
 
         assertTrue(repository.getAllServers().first().isEmpty())
         assertNull(repository.getServerById(id))
+    }
+
+    @Test
+    fun deleteServer_cascadesRemovalOfCoverArtFromDisk() = runTest {
+        val s1 = WebDavServer(name = "Server 1", url = "http://srv1")
+        val s2 = WebDavServer(name = "Server 2", url = "http://srv2")
+        val id1 = repository.saveServer(s1)
+        val id2 = repository.saveServer(s2)
+
+        // Save cover files for both servers
+        val dummyBytes = ByteArray(32) { 0x11 }
+        coverArtStorage.saveThumbnail(id1, "/track1.mp3", dummyBytes)
+        coverArtStorage.saveThumbnail(id2, "/track2.mp3", dummyBytes)
+
+        assertNotNull(coverArtStorage.getThumbnailFile(id1, "/track1.mp3"))
+        assertNotNull(coverArtStorage.getThumbnailFile(id2, "/track2.mp3"))
+
+        // Delete server 1
+        repository.deleteServer(id1)
+
+        // Server 1 should be gone from DB and its covers physically gone from disk
+        assertNull(repository.getServerById(id1))
+        assertNull(coverArtStorage.getThumbnailFile(id1, "/track1.mp3"))
+
+        // Server 2 and its covers should still exist
+        assertNotNull(repository.getServerById(id2))
+        assertNotNull(coverArtStorage.getThumbnailFile(id2, "/track2.mp3"))
     }
 }

@@ -232,5 +232,6 @@ class TrackMetadataRepositoryTest {
 
         override fun getThumbnailFile(serverId: Long, remotePath: String): File? = null
         override fun deleteThumbnail(serverId: Long, remotePath: String) {}
+        override suspend fun deleteServerCovers(serverId: Long) {}
     }
 }
