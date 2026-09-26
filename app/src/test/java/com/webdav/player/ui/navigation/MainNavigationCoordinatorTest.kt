@@ -148,4 +148,28 @@ class MainNavigationCoordinatorTest {
         // Mini player remains visible on Server List
         assertTrue(coordinator.uiState.value.isMiniPlayerVisible)
     }
+
+    @Test
+    fun onServerCardClicked_activatesServer_andSwitchesToBrowserTab() {
+        var rootResetCalled = false
+        coordinator.onServerCardClicked(sampleServer) {
+            rootResetCalled = true
+        }
+
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertTrue(rootResetCalled)
+    }
+
+    @Test
+    fun onServerCardClicked_whenAlreadyOnBrowserTab_stillResetsToRoot() {
+        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        var rootResetCalled = false
+        coordinator.onServerCardClicked(sampleServer) {
+            rootResetCalled = true
+        }
+
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertTrue(rootResetCalled)
+    }
 }
+

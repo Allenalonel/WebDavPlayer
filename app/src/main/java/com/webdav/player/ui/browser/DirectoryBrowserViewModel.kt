@@ -42,8 +42,15 @@ class DirectoryBrowserViewModel(
                     metadataObserverJob?.cancel()
                     metadataResolutionJob?.cancel()
 
-                    val initialPath = musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
-                        ?.takeIf { it.isNotBlank() } ?: "/"
+                    // If previousServer == null, this is app startup -> restore saved directory from session.
+                    // If previousServer != null, user switched servers -> reset directory to root "/".
+                    val initialPath = if (previousServer == null) {
+                        musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
+                            ?.takeIf { it.isNotBlank() } ?: "/"
+                    } else {
+                        musicPlayerAppSession?.setCurrentDirectoryPath("/")
+                        "/"
+                    }
 
                     _uiState.update {
                         it.copy(
@@ -125,6 +132,11 @@ class DirectoryBrowserViewModel(
     fun onBreadcrumbClicked(breadcrumb: Breadcrumb) {
         if (breadcrumb.path == _uiState.value.currentPath) return
         loadDirectory(breadcrumb.path, forceRefresh = false)
+    }
+
+    fun resetToRoot() {
+        musicPlayerAppSession?.setCurrentDirectoryPath("/")
+        loadDirectory("/", forceRefresh = false)
     }
 
     fun onAudioTrackClicked(file: RemoteFile) {

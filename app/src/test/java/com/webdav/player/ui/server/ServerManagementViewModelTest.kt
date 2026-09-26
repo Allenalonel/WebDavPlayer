@@ -151,7 +151,23 @@ class ServerManagementViewModelTest {
         assertTrue(state.connectionTestResult is ConnectionResult.Failure)
         assertEquals(401, (state.connectionTestResult as ConnectionResult.Failure).statusCode)
     }
+
+    @Test
+    fun testConnection_tracksTestingStateAndResultPerServer() = runTest {
+        val server1 = WebDavServer(id = 11L, name = "S11", url = "http://s11", port = 80)
+        fakeRepository.addServerDirectly(server1)
+        fakeClient.resultToReturn = ConnectionResult.Success
+
+        viewModel.onTestConnection(server1)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.testingConnection)
+        assertEquals(null, state.testingServerId)
+        assertEquals(ConnectionResult.Success, state.serverConnectionResults[11L])
+    }
 }
+
 
 private class FakeServerRepository : ServerRepository {
     private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())

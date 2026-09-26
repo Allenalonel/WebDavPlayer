@@ -48,6 +48,11 @@ class MainNavigationCoordinator(
         _uiState.update { it.copy(currentDestination = destination) }
     }
 
+    fun onServerCardClicked(@Suppress("UNUSED_PARAMETER") server: WebDavServer, onResetToRoot: (() -> Unit)? = null) {
+        onResetToRoot?.invoke()
+        _uiState.update { it.copy(currentDestination = AppDestination.DIRECTORY_BROWSER) }
+    }
+
     fun onSessionStateChanged(sessionState: PlayerSessionState) {
         _uiState.update {
             it.copy(

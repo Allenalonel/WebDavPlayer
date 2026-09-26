@@ -208,6 +208,11 @@ class MainActivity : ComponentActivity() {
                                     viewModel = serverViewModel,
                                     onNavigateToBrowser = {
                                         destination = AppDestination.DIRECTORY_BROWSER
+                                    },
+                                    onSelectServerAndNavigate = { server ->
+                                        serverViewModel.onSelectActiveServer(server.id)
+                                        browserViewModel.resetToRoot()
+                                        destination = AppDestination.DIRECTORY_BROWSER
                                     }
                                 )
                             }

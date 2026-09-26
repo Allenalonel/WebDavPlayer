@@ -46,6 +46,28 @@ data class WebDavServer(
         }
 
     /**
+     * Whether this server uses secure HTTPS protocol.
+     */
+    val isHttps: Boolean
+        get() = endpointUrl.startsWith("https://", ignoreCase = true)
+
+    /**
+     * Protocol badge string ("HTTP" or "HTTPS").
+     */
+    val protocol: String
+        get() = if (isHttps) "HTTPS" else "HTTP"
+
+    /**
+     * Concise host summary for modern MD3 card presentation (host, optional port, and prefix).
+     */
+    val hostSummary: String
+        get() {
+            val endpoint = endpointUrl
+            val withoutScheme = endpoint.substringAfter("://")
+            return withoutScheme.trimEnd('/')
+        }
+
+    /**
      * Resolves the full URL for a remote file path on this server.
      */
     fun resolveFileUrl(filePath: String): String {

@@ -434,6 +434,57 @@ class DirectoryBrowserViewModelTest {
         assertEquals(initialCalls, fakeDirectoryRepository.listCalls)
     }
 
+    @Test
+    fun switchingActiveServer_resetsDirectoryToRoot() = runTest {
+        advanceUntilIdle()
+
+        // User browses deep into /Music/Rock/ on server 1
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/", name = "Music"))
+        advanceUntilIdle()
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/Rock/", name = "Rock"))
+        advanceUntilIdle()
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+
+        // Switch to a new server 2
+        val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://server2.local", port = 80, isDefault = true)
+        val server2RootDir = RemoteDirectory(
+            path = "/",
+            name = "Server 2 Root",
+            subDirectories = emptyList(),
+            files = emptyList()
+        )
+        fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(server2RootDir))
+
+        fakeServerRepository.setActiveServerSync(server2)
+        advanceUntilIdle()
+
+        assertEquals(server2, viewModel.uiState.value.activeServer)
+        assertEquals("/", viewModel.uiState.value.currentPath)
+        assertEquals(1, viewModel.uiState.value.breadcrumbs.size)
+        assertEquals(server2RootDir, viewModel.uiState.value.currentDirectory)
+        assertFalse(viewModel.uiState.value.canNavigateUp)
+    }
+
+    @Test
+    fun resetToRoot_navigatesDirectlyToRootDirectory() = runTest {
+        advanceUntilIdle()
+
+        // User browses deep into /Music/Rock/
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/", name = "Music"))
+        advanceUntilIdle()
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/Rock/", name = "Rock"))
+        advanceUntilIdle()
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+
+        viewModel.resetToRoot()
+        advanceUntilIdle()
+
+        assertEquals("/", viewModel.uiState.value.currentPath)
+        assertEquals(1, viewModel.uiState.value.breadcrumbs.size)
+        assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
+        assertFalse(viewModel.uiState.value.canNavigateUp)
+    }
+
     private class FakeServerRepository : ServerRepository {
         private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
         private val activeServerFlow = MutableStateFlow<WebDavServer?>(null)

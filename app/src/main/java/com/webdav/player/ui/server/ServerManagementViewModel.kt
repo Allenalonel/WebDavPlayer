@@ -23,6 +23,8 @@ data class ServerManagementUiState(
     val serverToDelete: WebDavServer? = null,
     val testingConnection: Boolean = false,
     val connectionTestResult: ConnectionResult? = null,
+    val testingServerId: Long? = null,
+    val serverConnectionResults: Map<Long, ConnectionResult> = emptyMap(),
     val userMessage: String? = null
 )
 
@@ -39,6 +41,8 @@ class ServerManagementViewModel(
         val serverToDelete: WebDavServer? = null,
         val testingConnection: Boolean = false,
         val connectionTestResult: ConnectionResult? = null,
+        val testingServerId: Long? = null,
+        val serverConnectionResults: Map<Long, ConnectionResult> = emptyMap(),
         val userMessage: String? = null
     )
 
@@ -56,6 +60,8 @@ class ServerManagementViewModel(
             serverToDelete = dialogState.serverToDelete,
             testingConnection = dialogState.testingConnection,
             connectionTestResult = dialogState.connectionTestResult,
+            testingServerId = dialogState.testingServerId,
+            serverConnectionResults = dialogState.serverConnectionResults,
             userMessage = dialogState.userMessage
         )
     }.stateIn(
@@ -110,7 +116,12 @@ class ServerManagementViewModel(
         val server = _dialogAndActionState.value.serverToDelete ?: return
         viewModelScope.launch {
             repository.deleteServer(server.id)
-            _dialogAndActionState.update { it.copy(serverToDelete = null) }
+            _dialogAndActionState.update {
+                it.copy(
+                    serverToDelete = null,
+                    serverConnectionResults = it.serverConnectionResults - server.id
+                )
+            }
         }
     }
 
@@ -121,13 +132,28 @@ class ServerManagementViewModel(
     }
 
     fun onTestConnection(server: WebDavServer) {
+        val serverId = if (server.id != 0L) server.id else null
         viewModelScope.launch {
             _dialogAndActionState.update {
-                it.copy(testingConnection = true, connectionTestResult = null)
+                it.copy(
+                    testingConnection = true,
+                    connectionTestResult = null,
+                    testingServerId = serverId
+                )
             }
             val result = webDavClient.testConnection(server)
             _dialogAndActionState.update {
-                it.copy(testingConnection = false, connectionTestResult = result)
+                val updatedResults = if (serverId != null) {
+                    it.serverConnectionResults + (serverId to result)
+                } else {
+                    it.serverConnectionResults
+                }
+                it.copy(
+                    testingConnection = false,
+                    connectionTestResult = result,
+                    testingServerId = null,
+                    serverConnectionResults = updatedResults
+                )
             }
         }
     }

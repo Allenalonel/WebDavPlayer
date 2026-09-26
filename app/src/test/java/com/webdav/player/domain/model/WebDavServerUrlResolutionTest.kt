@@ -95,4 +95,41 @@ class WebDavServerUrlResolutionTest {
         val nullTrack = AudioTrack.fromRemoteFile(server, nonAudioFile)
         assertNull(nullTrack)
     }
+
+    @Test
+    fun protocolAndHostSummary_httpAndHttps() {
+        val http = WebDavServer(
+            id = 1L,
+            name = "HTTP NAS",
+            url = "http://192.168.1.100",
+            port = 80,
+            pathPrefix = "/dav"
+        )
+        assertEquals("HTTP", http.protocol)
+        assertEquals(false, http.isHttps)
+        assertEquals("192.168.1.100/dav", http.hostSummary)
+
+        val https = WebDavServer(
+            id = 2L,
+            name = "Secure Nextcloud",
+            url = "https://cloud.example.com",
+            port = 443,
+            pathPrefix = "/remote.php/dav/files"
+        )
+        assertEquals("HTTPS", https.protocol)
+        assertEquals(true, https.isHttps)
+        assertEquals("cloud.example.com/remote.php/dav/files", https.hostSummary)
+
+        val customPort = WebDavServer(
+            id = 3L,
+            name = "Custom Port",
+            url = "http://nas.local:5005",
+            port = 5005,
+            pathPrefix = "/"
+        )
+        assertEquals("HTTP", customPort.protocol)
+        assertEquals(false, customPort.isHttps)
+        assertEquals("nas.local:5005", customPort.hostSummary)
+    }
 }
+
