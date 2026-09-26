@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
@@ -30,16 +31,27 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -179,8 +191,8 @@ fun DirectoryBrowserScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Breadcrumb navigation bar
-            BreadcrumbBar(
+            // Breadcrumb navigation bar (MD3 AssistChip Strip)
+            DirectoryBreadcrumbStrip(
                 breadcrumbs = uiState.breadcrumbs,
                 currentPath = uiState.currentPath,
                 onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) }
@@ -235,7 +247,8 @@ fun DirectoryBrowserScreen(
                             files = uiState.files,
                             metadataMap = uiState.metadataMap,
                             onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                            onFileClicked = onFileClicked
+                            onFileClicked = onFileClicked,
+                            onPlayNext = { viewModel.playNext(it) }
                         )
                     }
                 }
@@ -250,7 +263,7 @@ fun DirectoryBrowserScreen(
 }
 
 @Composable
-fun BreadcrumbBar(
+fun DirectoryBreadcrumbStrip(
     breadcrumbs: List<Breadcrumb>,
     currentPath: String,
     onBreadcrumbClicked: (Breadcrumb) -> Unit,
@@ -258,7 +271,7 @@ fun BreadcrumbBar(
 ) {
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(breadcrumbs.size) {
+    LaunchedEffect(breadcrumbs, breadcrumbs.size) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
@@ -266,41 +279,96 @@ fun BreadcrumbBar(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(scrollState)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         breadcrumbs.forEachIndexed { index, breadcrumb ->
-            val isCurrent = breadcrumb.path == currentPath ||
-                    (breadcrumb.path.trimEnd('/') == currentPath.trimEnd('/'))
+            val isTail = index == breadcrumbs.lastIndex ||
+                    breadcrumb.path == currentPath ||
+                    breadcrumb.path.trimEnd('/') == currentPath.trimEnd('/')
 
-            Surface(
-                modifier = Modifier.clickable { onBreadcrumbClicked(breadcrumb) },
-                color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = breadcrumb.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isCurrent) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
+            AssistChip(
+                onClick = { onBreadcrumbClicked(breadcrumb) },
+                label = {
+                    Text(
+                        text = breadcrumb.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (isTail) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                leadingIcon = {
+                    if (index == 0) {
+                        Icon(
+                            imageVector = Icons.Filled.Home,
+                            contentDescription = "根目录",
+                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                        )
                     } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
+                        Icon(
+                            imageVector = Icons.Filled.Folder,
+                            contentDescription = "目录",
+                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                        )
+                    }
+                },
+                colors = if (isTail) {
+                    AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else {
+                    AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        leadingIconContentColor = MaterialTheme.colorScheme.outline
+                    )
+                },
+                border = if (isTail) {
+                    AssistChipDefaults.assistChipBorder(
+                        enabled = true,
+                        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                } else {
+                    AssistChipDefaults.assistChipBorder(
+                        enabled = true,
+                        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
+                },
+                shape = RoundedCornerShape(8.dp)
+            )
 
-            if (index < breadcrumbs.size - 1) {
+            if (index < breadcrumbs.lastIndex) {
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.outline
+                    tint = MaterialTheme.colorScheme.outlineVariant
                 )
             }
         }
     }
+}
+
+/**
+ * Backward compatibility alias for DirectoryBreadcrumbStrip
+ */
+@Composable
+fun BreadcrumbBar(
+    breadcrumbs: List<Breadcrumb>,
+    currentPath: String,
+    onBreadcrumbClicked: (Breadcrumb) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    DirectoryBreadcrumbStrip(
+        breadcrumbs = breadcrumbs,
+        currentPath = currentPath,
+        onBreadcrumbClicked = onBreadcrumbClicked,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -310,13 +378,14 @@ fun DirectoryContentList(
     metadataMap: Map<String, TrackMetadata> = emptyMap(),
     onDirectoryClicked: (RemoteDirectory) -> Unit,
     onFileClicked: (RemoteFile) -> Unit,
+    onPlayNext: (RemoteFile) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 4.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
     ) {
-        // Subdirectories first
+        // Subdirectories first (Elevated MD3 Cards)
         items(directories, key = { "dir_${it.path}" }) { dir ->
             DirectoryItemRow(
                 directory = dir,
@@ -324,13 +393,21 @@ fun DirectoryContentList(
             )
         }
 
-        // Files next
+        // Space between folders and files if both exist
+        if (directories.isNotEmpty() && files.isNotEmpty()) {
+            item(key = "divider_folder_files") {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
+        // Files next (MD3 ListItems)
         items(files, key = { "file_${it.path}" }) { file ->
             val metadata = metadataMap[file.path]
             FileItemRow(
                 file = file,
                 metadata = metadata,
-                onClick = { onFileClicked(file) }
+                onClick = { onFileClicked(file) },
+                onPlayNext = { onPlayNext(file) }
             )
         }
     }
@@ -342,47 +419,73 @@ fun DirectoryItemRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    ElevatedCard(
+        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        color = MaterialTheme.colorScheme.surface
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        elevation = CardDefaults.elevatedCardElevation(
+            defaultElevation = 1.dp,
+            pressedElevation = 3.dp
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Filled.Folder,
-                contentDescription = "目录",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.Folder,
+                        contentDescription = "文件夹",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = directory.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(2.dp))
+                val hint = when {
+                    directory.audioFiles.isNotEmpty() -> "${directory.audioFiles.size} 首歌曲"
+                    (directory.subDirectories.size + directory.files.size) > 0 -> "${directory.subDirectories.size + directory.files.size} 项内容"
+                    else -> "文件夹"
+                }
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.outlineVariant
+                contentDescription = "进入目录",
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
     }
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 60.dp),
-        thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    )
 }
 
 @Composable
@@ -390,42 +493,52 @@ fun FileItemRow(
     file: RemoteFile,
     metadata: TrackMetadata? = null,
     onClick: () -> Unit,
+    onPlayNext: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
+
     val isAudio = file.isAudio
     val isLyrics = file.isLyrics
     val isOther = !isAudio && !isLyrics
 
-    val rowAlpha = if (isOther) 0.45f else 1f
-
     val displayTitle = metadata?.displayTitle(file.name) ?: file.name
     val displayArtist = metadata?.displayArtist()
-    val displayDuration = if ((metadata?.durationMs ?: 0L) > 0L) {
+    val displayAlbum = metadata?.album?.takeIf { it.isNotBlank() }
+    val durationStr = if ((metadata?.durationMs ?: 0L) > 0L) {
         PlayerTimeFormatter.formatMs(metadata?.durationMs ?: 0L)
-    } else {
-        null
+    } else null
+
+    val badgeInfo = remember(file, metadata) {
+        AudioQualityBadgeHelper.getBadge(file, metadata)
     }
 
-    Surface(
+    if (showInfoDialog) {
+        FileInfoDialog(
+            file = file,
+            metadata = metadata,
+            badgeInfo = badgeInfo,
+            onDismiss = { showInfoDialog = false },
+            onPlay = {
+                showInfoDialog = false
+                onClick()
+            }
+        )
+    }
+
+    ListItem(
         modifier = modifier
             .fillMaxWidth()
-            .alpha(rowAlpha)
-            .clickable(enabled = isAudio) { onClick() },
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon or Cover Thumbnail
+            .clickable(enabled = isAudio) { onClick() }
+            .alpha(if (isOther) 0.5f else 1f),
+        leadingContent = {
             when {
                 isAudio -> {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(6.dp)),
+                            .size(46.dp)
+                            .clip(RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         CoverThumbnailImage(
@@ -433,142 +546,331 @@ fun FileItemRow(
                             contentDescription = "封面",
                             modifier = Modifier.fillMaxSize()
                         ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Audiotrack,
+                                        contentDescription = "音频",
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                isLyrics -> {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Filled.Audiotrack,
-                                contentDescription = "音频",
-                                tint = MaterialTheme.colorScheme.secondary,
+                                imageVector = Icons.Filled.Description,
+                                contentDescription = "歌词",
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                     }
                 }
-                isLyrics -> {
-                    Icon(
-                        imageVector = Icons.Filled.Description,
-                        contentDescription = "歌词",
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
                 else -> {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                        contentDescription = "其他文件",
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // File Name / Tag Title and details
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = displayTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isAudio) FontWeight.Medium else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (displayArtist != null) {
-                        Text(
-                            text = displayArtist,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = " · ",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (displayDuration != null) {
-                        Text(
-                            text = displayDuration,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else if (file.size > 0) {
-                        Text(
-                            text = formatFileSize(file.size),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (file.lastModified != null && displayArtist == null) {
-                        if (file.size > 0) {
-                            Text(
-                                text = " · ",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                                contentDescription = "其他文件",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
+                    }
+                }
+            }
+        },
+        headlineContent = {
+            Text(
+                text = displayTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = if (isAudio) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        supportingContent = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 2.dp)
+            ) {
+                if (displayArtist != null) {
+                    Text(
+                        text = displayArtist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (displayAlbum != null) {
                         Text(
-                            text = file.lastModified,
+                            text = " · $displayAlbum",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
+                    if (durationStr != null) {
+                        Text(
+                            text = " · $durationStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    val subtitleParts = mutableListOf<String>()
+                    if (durationStr != null) subtitleParts.add(durationStr)
+                    if (file.size > 0) subtitleParts.add(formatFileSize(file.size))
+                    if (file.lastModified != null && subtitleParts.isEmpty()) subtitleParts.add(file.lastModified)
+                    Text(
+                        text = subtitleParts.joinToString(" · ").ifEmpty { "音频文件" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Badge for format
-            when (val type = file.fileType) {
-                is RemoteFileType.Audio -> {
-                    AudioBadge(format = type.format)
+        },
+        trailingContent = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Quality Badge Pill
+                if (badgeInfo != null) {
+                    AudioQualityBadgePill(badge = badgeInfo)
                 }
-                is RemoteFileType.Lyrics -> {
-                    LyricBadge()
-                }
-                is RemoteFileType.Other -> {
-                    val ext = file.name.substringAfterLast('.', "").uppercase()
-                    if (ext.isNotBlank()) {
-                        OtherBadge(extension = ext)
+
+                // Secondary Action Menu ("...")
+                if (isAudio) {
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreVert,
+                                contentDescription = "更多操作",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("下一首播放") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onPlayNext()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("查看详细信息") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Info,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showInfoDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             }
-        }
-    }
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent
+        )
+    )
     HorizontalDivider(
-        modifier = Modifier.padding(start = 56.dp),
+        modifier = Modifier.padding(start = 72.dp, end = 16.dp),
         thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     )
 }
 
 @Composable
-fun AudioBadge(format: AudioFormat, modifier: Modifier = Modifier) {
-    val (containerColor, contentColor) = when (format) {
-        AudioFormat.FLAC -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        AudioFormat.MP3 -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        AudioFormat.WAV -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        AudioFormat.WMA -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        AudioFormat.AAC -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        AudioFormat.OGG, AudioFormat.M4A -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+fun AudioQualityBadgePill(
+    badge: AudioQualityBadge,
+    modifier: Modifier = Modifier
+) {
+    val (containerColor, contentColor) = when (badge.qualityLevel) {
+        AudioQualityLevel.LOSSLESS -> {
+            MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        }
+        AudioQualityLevel.HIGH_QUALITY -> {
+            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        }
+        AudioQualityLevel.STANDARD -> {
+            MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        }
+        AudioQualityLevel.COMPRESSED -> {
+            MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        }
     }
 
     Surface(
         modifier = modifier,
         color = containerColor,
-        shape = RoundedCornerShape(4.dp)
+        shape = RoundedCornerShape(6.dp)
     ) {
         Text(
-            text = format.extension.uppercase(),
+            text = badge.label,
             color = contentColor,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
         )
     }
+}
+
+@Composable
+fun FileInfoDialog(
+    file: RemoteFile,
+    metadata: TrackMetadata? = null,
+    badgeInfo: AudioQualityBadge? = null,
+    onDismiss: () -> Unit,
+    onPlay: () -> Unit
+) {
+    val displayTitle = metadata?.displayTitle(file.name) ?: file.name
+    val qualitySummary = remember(file, metadata) {
+        AudioQualityBadgeHelper.formatQualitySummary(file, metadata)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "音频详情",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                InfoRow(label = "歌曲标题", value = displayTitle)
+                if (!metadata?.artist.isNullOrBlank()) {
+                    InfoRow(label = "艺术家", value = metadata!!.artist!!)
+                }
+                if (!metadata?.album.isNullOrBlank()) {
+                    InfoRow(label = "专辑名称", value = metadata!!.album!!)
+                }
+                InfoRow(label = "音频格式", value = qualitySummary)
+                if (badgeInfo?.estimatedBitrateKbps != null) {
+                    InfoRow(label = "预估码率", value = "${badgeInfo.estimatedBitrateKbps} kbps")
+                }
+                if ((metadata?.durationMs ?: 0L) > 0L) {
+                    InfoRow(label = "曲目时长", value = PlayerTimeFormatter.formatMs(metadata!!.durationMs))
+                }
+                if (file.size > 0L) {
+                    InfoRow(label = "文件大小", value = formatFileSize(file.size))
+                }
+                InfoRow(label = "文件名称", value = file.name)
+                InfoRow(label = "远程路径", value = file.path)
+            }
+        },
+        confirmButton = {
+            if (file.isAudio) {
+                Button(onClick = onPlay) {
+                    Text("立即播放")
+                }
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Backward compatibility alias for AudioBadge
+ */
+@Composable
+fun AudioBadge(format: AudioFormat, modifier: Modifier = Modifier) {
+    val badge = AudioQualityBadge(
+        label = format.extension.uppercase(),
+        format = format,
+        isLossless = format == AudioFormat.FLAC || format == AudioFormat.WAV,
+        qualityLevel = when (format) {
+            AudioFormat.FLAC, AudioFormat.WAV -> AudioQualityLevel.LOSSLESS
+            AudioFormat.MP3 -> AudioQualityLevel.HIGH_QUALITY
+            AudioFormat.WMA -> AudioQualityLevel.COMPRESSED
+            else -> AudioQualityLevel.STANDARD
+        }
+    )
+    AudioQualityBadgePill(badge = badge, modifier = modifier)
 }
 
 @Composable

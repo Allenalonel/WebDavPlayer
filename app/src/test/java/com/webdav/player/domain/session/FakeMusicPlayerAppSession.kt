@@ -2,6 +2,7 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
@@ -49,12 +50,26 @@ class FakeMusicPlayerAppSession(
         flushSessionCount++
     }
 
+    var lastPlayTrack: AudioTrack? = null
+    var lastPlayNextTrack: AudioTrack? = null
+
     override fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile) {
         lastPlayDirectory = directory
         lastPlaySelectedFile = selectedFile
     }
 
-    override fun playTrack(track: AudioTrack) {}
+    override fun playTrack(track: AudioTrack) {
+        lastPlayTrack = track
+        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
+        _sessionState.update { it.copy(queue = queue) }
+    }
+
+    override fun playNext(track: AudioTrack) {
+        lastPlayNextTrack = track
+        val currentQueue = _sessionState.value.queue
+        val updatedQueue = currentQueue.insertNext(track)
+        _sessionState.update { it.copy(queue = updatedQueue) }
+    }
 
     override fun togglePlayPause() {
         togglePlayPauseCount++

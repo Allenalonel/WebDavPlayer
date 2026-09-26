@@ -267,6 +267,29 @@ class DirectoryBrowserViewModelTest {
     }
 
     @Test
+    fun playNext_dispatchesToMusicPlayerAppSession_asAudioTrack() = runTest {
+        advanceUntilIdle()
+
+        val audioFile = rootDir.files.first() // root_track.mp3
+        viewModel.playNext(audioFile)
+
+        val inserted = fakeMusicPlayerAppSession.lastPlayNextTrack
+        assertNotNull(inserted)
+        assertEquals("/root_track.mp3", inserted?.remotePath)
+        assertEquals(AudioFormat.MP3, inserted?.format)
+    }
+
+    @Test
+    fun playNext_ignoresNonAudioFiles() = runTest {
+        advanceUntilIdle()
+
+        val nonAudioFile = RemoteFile(name = "lyrics.lrc", path = "/lyrics.lrc", fileType = RemoteFileType.Lyrics)
+        viewModel.playNext(nonAudioFile)
+
+        assertNull(fakeMusicPlayerAppSession.lastPlayNextTrack)
+    }
+
+    @Test
     fun togglePlayPause_dispatchesToMusicPlayerAppSession() = runTest {
         advanceUntilIdle()
 
