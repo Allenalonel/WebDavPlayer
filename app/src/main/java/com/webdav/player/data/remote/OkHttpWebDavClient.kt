@@ -7,11 +7,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLEncoder
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
@@ -24,6 +24,8 @@ class OkHttpWebDavClient(
         .writeTimeout(10, TimeUnit.SECONDS)
         .build()
 ) : WebDavClient {
+
+    private val clientCache = ConcurrentHashMap<String, OkHttpClient>()
 
     override suspend fun testConnection(server: WebDavServer): ConnectionResult = withContext(Dispatchers.IO) {
         val client = buildClientForServer(server)
@@ -220,7 +222,40 @@ class OkHttpWebDavClient(
         return "$baseUrl$encodedPath"
     }
 
+    fun getClientForServer(server: WebDavServer): OkHttpClient = buildClientForServer(server)
+
     fun buildClientForServer(server: WebDavServer): OkHttpClient {
+        val cacheKey = buildCacheKey(server)
+        val existing = clientCache[cacheKey]
+        if (existing != null) {
+            return existing
+        }
+        if (server.id > 0L) {
+            invalidateServer(server.id)
+        }
+        return clientCache.computeIfAbsent(cacheKey) {
+            createClient(server)
+        }
+    }
+
+    fun invalidateServer(serverId: Long) {
+        if (serverId <= 0L) return
+        val prefix = "$serverId:"
+        clientCache.keys.removeIf { it.startsWith(prefix) }
+    }
+
+    fun clearCache() {
+        clientCache.clear()
+    }
+
+    val cachedClientCount: Int
+        get() = clientCache.size
+
+    private fun buildCacheKey(server: WebDavServer): String {
+        return "${server.id}:${server.endpointUrl}:${server.username}:${server.password}:${server.allowSelfSigned}"
+    }
+
+    private fun createClient(server: WebDavServer): OkHttpClient {
         val builder = baseOkHttpClient.newBuilder()
 
         if (server.username.isNotBlank()) {

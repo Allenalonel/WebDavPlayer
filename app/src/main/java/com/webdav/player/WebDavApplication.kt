@@ -25,6 +25,9 @@ class WebDavApplication : Application() {
     lateinit var serverRepository: ServerRepository
         private set
 
+    lateinit var webDavClient: OkHttpWebDavClient
+        private set
+
     lateinit var trackMetadataRepository: TrackMetadataRepository
         private set
 
@@ -48,9 +51,9 @@ class WebDavApplication : Application() {
 
         val database = AppDatabase.getInstance(this)
         val coverArtStorage = CoverArtStorageImpl(this)
-        serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage)
-
         val webDavClient = OkHttpWebDavClient()
+        this.webDavClient = webDavClient
+        serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
         trackMetadataRepository = TrackMetadataRepositoryImpl(
             trackMetadataDao = database.trackMetadataDao(),
             webDavClient = webDavClient,

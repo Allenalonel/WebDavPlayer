@@ -19,7 +19,7 @@ class ServerManagementViewModelFactory(private val context: Context) : ViewModel
                 val storage = CoverArtStorageImpl(context)
                 ServerRepositoryImpl(database.webDavServerDao(), storage)
             }
-            val client = OkHttpWebDavClient()
+            val client = app?.webDavClient ?: OkHttpWebDavClient()
             return ServerManagementViewModel(repository, client) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

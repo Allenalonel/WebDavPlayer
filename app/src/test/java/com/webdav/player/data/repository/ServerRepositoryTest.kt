@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
+import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.ServerRepository
 import kotlinx.coroutines.flow.first
@@ -13,6 +14,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -149,5 +151,35 @@ class ServerRepositoryTest {
         // Server 2 and its covers should still exist
         assertNotNull(repository.getServerById(id2))
         assertNotNull(coverArtStorage.getThumbnailFile(id2, "/track2.mp3"))
+    }
+
+    @Test
+    fun saveServer_and_deleteServer_invalidatesWebDavClientCache() = runTest {
+        val webDavClient = OkHttpWebDavClient()
+        val repoWithClient = ServerRepositoryImpl(
+            serverDao = database.webDavServerDao(),
+            coverArtStorage = coverArtStorage,
+            webDavClient = webDavClient
+        )
+
+        val server1 = WebDavServer(name = "Cached Server", url = "http://cached-srv", port = 80)
+        val id = repoWithClient.saveServer(server1)
+        val savedServer = repoWithClient.getServerById(id)!!
+
+        val clientA = webDavClient.buildClientForServer(savedServer)
+        assertEquals(1, webDavClient.cachedClientCount)
+
+        // Updating server invalidates cache
+        val updatedServer = savedServer.copy(port = 8080)
+        repoWithClient.saveServer(updatedServer)
+        assertEquals(0, webDavClient.cachedClientCount)
+
+        // Re-cache and delete
+        val clientB = webDavClient.buildClientForServer(updatedServer)
+        assertEquals(1, webDavClient.cachedClientCount)
+        assertNotSame(clientA, clientB)
+
+        repoWithClient.deleteServer(id)
+        assertEquals(0, webDavClient.cachedClientCount)
     }
 }

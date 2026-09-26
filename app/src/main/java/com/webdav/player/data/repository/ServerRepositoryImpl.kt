@@ -3,6 +3,7 @@ package com.webdav.player.data.repository
 import com.webdav.player.data.local.CoverArtStorage
 import com.webdav.player.data.local.WebDavServerDao
 import com.webdav.player.data.local.WebDavServerEntity
+import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.ServerRepository
 import kotlinx.coroutines.flow.Flow
@@ -10,7 +11,8 @@ import kotlinx.coroutines.flow.map
 
 class ServerRepositoryImpl(
     private val serverDao: WebDavServerDao,
-    private val coverArtStorage: CoverArtStorage? = null
+    private val coverArtStorage: CoverArtStorage? = null,
+    private val webDavClient: OkHttpWebDavClient? = null
 ) : ServerRepository {
 
     override fun getAllServers(): Flow<List<WebDavServer>> {
@@ -45,6 +47,7 @@ class ServerRepositoryImpl(
                 serverDao.setActiveServer(server.id)
             }
             serverDao.updateServer(entity)
+            webDavClient?.invalidateServer(server.id)
             server.id
         }
     }
@@ -52,6 +55,7 @@ class ServerRepositoryImpl(
     override suspend fun deleteServer(id: Long) {
         val serverToDelete = serverDao.getServerById(id)
         coverArtStorage?.deleteServerCovers(id)
+        webDavClient?.invalidateServer(id)
         serverDao.deleteServerById(id)
 
         if (serverToDelete?.isDefault == true) {

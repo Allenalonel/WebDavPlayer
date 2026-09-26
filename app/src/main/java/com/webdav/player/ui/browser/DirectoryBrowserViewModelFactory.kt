@@ -19,7 +19,7 @@ class DirectoryBrowserViewModelFactory(private val context: Context) : ViewModel
                 val storage = com.webdav.player.data.local.CoverArtStorageImpl(context)
                 ServerRepositoryImpl(database.webDavServerDao(), storage)
             }
-            val client = OkHttpWebDavClient()
+            val client = app?.webDavClient ?: OkHttpWebDavClient()
             val directoryRepository = app?.directoryRepository ?: run {
                 val database = AppDatabase.getInstance(context)
                 DirectoryRepositoryImpl(
