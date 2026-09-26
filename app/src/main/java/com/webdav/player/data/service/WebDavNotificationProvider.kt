@@ -19,6 +19,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.google.common.collect.ImmutableList
 import com.webdav.player.MainActivity
+import com.webdav.player.R
 import java.io.File
 
 @OptIn(UnstableApi::class)
@@ -126,7 +127,7 @@ class WebDavNotificationProvider(
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_notification_playback)
             .setContentTitle(title)
             .setContentText(artist)
             .setSubText(album)

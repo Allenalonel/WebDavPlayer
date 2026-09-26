@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -13,6 +14,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.collect.ImmutableList
+import com.webdav.player.R
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -80,6 +82,7 @@ class WebDavNotificationProviderTest {
         assertEquals("Test Artist", notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
         assertEquals("Test Album", notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString())
         assertEquals(Notification.VISIBILITY_PUBLIC, notification.visibility)
+        assertEquals(R.drawable.ic_notification_playback, notification.smallIcon.resId)
 
         // Verify actions: Previous, Play, Next
         assertNotNull(notification.actions)
@@ -230,5 +233,27 @@ class WebDavNotificationProviderTest {
             "Provider Test",
             mediaNotification.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         )
+    }
+
+    @Test
+    fun vectorNotificationIcon_resolvesAndInflatesCleanly() {
+        val drawable = ContextCompat.getDrawable(context, R.drawable.ic_notification_playback)
+        assertNotNull("Vector notification icon must resolve and inflate cleanly", drawable)
+    }
+
+    @Test
+    fun buildNotification_usesVectorNotificationPlaybackAsSmallIcon() {
+        val mediaMetadata = MediaMetadata.Builder()
+            .setTitle("Vector Icon Check")
+            .build()
+        val mediaItem = MediaItem.Builder()
+            .setUri("http://example.com/audio.mp3")
+            .setMediaId("test:vector_icon")
+            .setMediaMetadata(mediaMetadata)
+            .build()
+        player.setMediaItem(mediaItem)
+
+        val notification = provider.buildNotification(session)
+        assertEquals(R.drawable.ic_notification_playback, notification.smallIcon.resId)
     }
 }

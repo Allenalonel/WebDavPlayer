@@ -46,6 +46,7 @@ import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.browser.DirectoryBrowserViewModelFactory
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
 import com.webdav.player.ui.navigation.AppDestination
+import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.DockedMiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.server.ServerListScreen
@@ -170,6 +171,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .tabAccessibilityGuard(isBrowser)
                                     .graphicsLayer {
                                         alpha = if (isBrowser) 1f else 0f
                                         translationX = if (isBrowser) 0f else 99999f
@@ -191,6 +193,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .tabAccessibilityGuard(isServers)
                                     .graphicsLayer {
                                         alpha = if (isServers) 1f else 0f
                                         translationX = if (isServers) 0f else 99999f
