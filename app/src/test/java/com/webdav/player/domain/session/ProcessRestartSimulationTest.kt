@@ -307,6 +307,84 @@ class ProcessRestartSimulationTest {
         processScope.coroutineContext[Job]?.cancel()
     }
 
+    @Test
+    fun skipToNext_followedByProcessRestart_resumesAtNextTrack() = runTest(testDispatcher) {
+        val serverRepo = InMemoryServerRepository(mutableListOf(testServer))
+
+        // === PROCESS 1 ===
+        val process1Scope = kotlinx.coroutines.CoroutineScope(testDispatcher + SupervisorJob())
+        val engine1 = FakeAudioPlayerEngine()
+        val session1 = MusicPlayerAppSessionImpl(
+            playerEngine = engine1,
+            serverRepository = serverRepo,
+            sessionStore = sessionStore,
+            coroutineScope = process1Scope
+        )
+        session1.setActiveServer(testServer)
+
+        val rockDir = RemoteDirectory(
+            path = "/Music/Rock/",
+            name = "Rock",
+            files = listOf(
+                RemoteFile(name = "01-Intro.mp3", path = "/Music/Rock/01-Intro.mp3", size = 3000000L),
+                RemoteFile(name = "02-Solo.flac", path = "/Music/Rock/02-Solo.flac", size = 18000000L),
+                RemoteFile(name = "03-Outro.wav", path = "/Music/Rock/03-Outro.wav", size = 22000000L)
+            )
+        )
+
+        // 1. User starts playing track 1 ("01-Intro.mp3", index 0)
+        session1.playDirectoryTrack(rockDir, rockDir.files[0])
+        runCurrent()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, session1.sessionState.value.queue.currentIndex)
+
+        // 2. User taps "Next" on the player UI to play track 2 ("02-Solo.flac", index 1)
+        session1.skipToNext()
+        runCurrent()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, session1.sessionState.value.queue.currentIndex)
+
+        // Wait briefly for background DataStore IO to finish writing to disk
+        var savedSession: com.webdav.player.domain.model.PlaybackSessionData? = null
+        for (i in 0 until 50) {
+            testDispatcher.scheduler.advanceUntilIdle()
+            runCurrent()
+            savedSession = sessionStore.getSavedSession()
+            if (savedSession != null && savedSession.currentTrackIndex == 1) break
+            Thread.sleep(50)
+        }
+        assertNotNull(savedSession)
+        assertEquals(1, savedSession?.currentTrackIndex)
+
+        // 3. User exits app immediately (process terminates)
+        session1.release()
+        process1Scope.coroutineContext[Job]?.cancel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // === PROCESS 2 (COLD START RESTART) ===
+        val process2Scope = kotlinx.coroutines.CoroutineScope(testDispatcher + SupervisorJob())
+        val engine2 = FakeAudioPlayerEngine()
+        val session2 = MusicPlayerAppSessionImpl(
+            playerEngine = engine2,
+            serverRepository = serverRepo,
+            sessionStore = sessionStore,
+            coroutineScope = process2Scope
+        )
+
+        advanceUntilIdle()
+
+        // 4. Verify cold start restored session remembers track 2 ("02-Solo.flac", index 1), NOT track 1!
+        val restoredState = session2.sessionState.value
+        assertEquals(3, restoredState.queue.size)
+        assertEquals(1, restoredState.queue.currentIndex)
+        assertEquals("02-Solo.flac", restoredState.currentTrack?.title)
+
+        session2.release()
+        process2Scope.coroutineContext[Job]?.cancel()
+    }
+
     private class InMemoryServerRepository(
         private val servers: MutableList<WebDavServer>
     ) : ServerRepository {

@@ -61,6 +61,14 @@ class DataStorePlaybackSessionStore(
         }
     }
 
+    override suspend fun savePosition(positionMs: Long) {
+        val clamped = positionMs.coerceAtLeast(0L)
+        dataStore.edit { prefs ->
+            testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
+            prefs[KEY_POSITION_MS] = clamped
+        }
+    }
+
     override suspend fun getSavedSession(): PlaybackSessionData? {
         val prefs = dataStore.data
             .catch { exception ->

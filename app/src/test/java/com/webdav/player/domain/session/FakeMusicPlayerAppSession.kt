@@ -63,6 +63,10 @@ class FakeMusicPlayerAppSession(
         flushSessionCount++
     }
 
+    override fun flushSessionAsync() {
+        flushSessionCount++
+    }
+
     var lastPlayTrack: AudioTrack? = null
     var lastPlayNextTrack: AudioTrack? = null
 

@@ -113,12 +113,24 @@ class MusicPlayerAppSessionImpl(
         coroutineScope.launch {
             playerEngine.currentTrackIndex.collect { index ->
                 if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                    var indexChanged = false
                     _sessionState.update { current ->
                         if (index in current.queue.tracks.indices) {
-                            current.copy(queue = current.queue.copy(currentIndex = index))
+                            if (current.queue.currentIndex != index) {
+                                indexChanged = true
+                                current.copy(
+                                    queue = current.queue.copy(currentIndex = index),
+                                    currentPositionMs = 0L
+                                )
+                            } else {
+                                current
+                            }
                         } else {
                             current
                         }
+                    }
+                    if (indexChanged) {
+                        flushSession()
                     }
                 }
             }
@@ -253,6 +265,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile) {
+        _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         val audioFiles = directory.files.filter { it.isAudio }
         if (audioFiles.isEmpty()) return
@@ -289,6 +302,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun playTrack(track: AudioTrack) {
+        _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
         _sessionState.update { it.copy(queue = queue, errorMessage = null) }
@@ -347,7 +361,15 @@ class MusicPlayerAppSessionImpl(
         when {
             current.isPlaying -> {
                 playerEngine.pause()
-                coroutineScope.launch { flushSession() }
+                coroutineScope.launch {
+                    if (_isRestored.value) {
+                        val pos = playerEngine.currentPositionMs.value
+                        if (pos > 0L) {
+                            sessionStore?.savePosition(pos)
+                        }
+                    }
+                    flushSession()
+                }
             }
             current.isPaused -> {
                 if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null && current.activeServer != null) {
@@ -398,7 +420,15 @@ class MusicPlayerAppSessionImpl(
 
     override fun pause() {
         playerEngine.pause()
-        coroutineScope.launch { flushSession() }
+        coroutineScope.launch {
+            if (_isRestored.value) {
+                val pos = playerEngine.currentPositionMs.value
+                if (pos > 0L) {
+                    sessionStore?.savePosition(pos)
+                }
+            }
+            flushSession()
+        }
     }
 
     override fun seekTo(positionMs: Long) {
@@ -406,6 +436,11 @@ class MusicPlayerAppSessionImpl(
         _sessionState.update { it.copy(currentPositionMs = clamped) }
         if (playerEngine.playbackState.value !is PlaybackState.Idle) {
             playerEngine.seekTo(clamped)
+        }
+        coroutineScope.launch {
+            if (_isRestored.value) {
+                sessionStore?.savePosition(clamped)
+            }
         }
     }
 
@@ -472,12 +507,23 @@ class MusicPlayerAppSessionImpl(
         playerEngine.release()
     }
 
+    override fun flushSessionAsync() {
+        coroutineScope.launch {
+            flushSession()
+        }
+    }
+
     private fun startPeriodicFlush() {
         if (sessionStore == null || periodicFlushJob?.isActive == true) return
         periodicFlushJob = coroutineScope.launch(periodicDispatcher) {
             while (isActive) {
-                delay(5000L)
-                flushSession()
+                delay(1000L)
+                if (_isRestored.value && playerEngine.playbackState.value is PlaybackState.Playing) {
+                    val pos = playerEngine.currentPositionMs.value
+                    if (pos > 0L) {
+                        sessionStore.savePosition(pos)
+                    }
+                }
             }
         }
     }
@@ -569,6 +615,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override suspend fun flushSession() {
+        if (!_isRestored.value) return
         val store = sessionStore ?: return
         val current = _sessionState.value
         val currentServerId = current.activeServer?.id
@@ -582,7 +629,8 @@ class MusicPlayerAppSessionImpl(
 
         // Query live engine position if active
         val livePositionMs = if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-            playerEngine.currentPositionMs.value.takeIf { it > 0L } ?: current.currentPositionMs
+            val enginePos = playerEngine.currentPositionMs.value
+            if (enginePos > 0L) enginePos else current.currentPositionMs
         } else {
             current.currentPositionMs
         }

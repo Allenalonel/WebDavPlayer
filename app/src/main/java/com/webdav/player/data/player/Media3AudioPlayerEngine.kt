@@ -187,6 +187,7 @@ class Media3AudioPlayerEngine(
 
         val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
         _currentTrackIndex.value = validStartIndex
+        _currentPositionMs.value = startPositionMs
         applyPlaybackMode(_playbackMode.value)
         player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
         player.prepare()
@@ -202,6 +203,7 @@ class Media3AudioPlayerEngine(
     }
 
     override fun pause() {
+        updatePositionAndDuration()
         player.pause()
     }
 

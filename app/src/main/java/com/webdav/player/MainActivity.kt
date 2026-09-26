@@ -254,8 +254,6 @@ class MainActivity : ComponentActivity() {
 
     private fun flushPlaybackSession() {
         val app = application as? WebDavApplication ?: return
-        lifecycleScope.launch {
-            app.musicPlayerAppSession.flushSession()
-        }
+        app.musicPlayerAppSession.flushSessionAsync()
     }
 }

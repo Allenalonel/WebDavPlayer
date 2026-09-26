@@ -24,6 +24,8 @@ interface MusicPlayerAppSession {
 
     suspend fun flushSession()
 
+    fun flushSessionAsync() {}
+
     fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile)
 
     fun playTrack(track: AudioTrack)

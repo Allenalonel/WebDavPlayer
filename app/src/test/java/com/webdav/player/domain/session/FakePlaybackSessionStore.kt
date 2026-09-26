@@ -16,6 +16,11 @@ class FakePlaybackSessionStore(
         saveSessionCount++
     }
 
+    override suspend fun savePosition(positionMs: Long) {
+        saveSessionCount++
+        savedSession = savedSession?.copy(positionMs = positionMs)
+    }
+
     override suspend fun getSavedSession(): PlaybackSessionData? {
         return savedSession
     }
