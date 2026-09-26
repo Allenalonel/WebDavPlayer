@@ -30,7 +30,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -167,7 +166,7 @@ fun FullPlayerView(
                     .then(downwardSwipeModifier)
             )
 
-            // Top Bar with Collapse Arrow, Subtitle Header, Lyrics Toggle & Queue Trigger
+            // Top Bar with Collapse Arrow and Subtitle Header
             TopAppBar(
                 title = {
                     Column(
@@ -200,36 +199,6 @@ fun FullPlayerView(
                             contentDescription = "收起播放器",
                             modifier = Modifier.size(28.dp),
                             tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                actions = {
-                    // Explicit lyrics toggle button (accessible switch between cover & lyrics)
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                val targetPage = if (pagerState.currentPage == 0) 1 else 0
-                                pagerState.animateScrollToPage(targetPage)
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Lyrics,
-                            contentDescription = if (pagerState.currentPage == 1) "显示封面" else "显示歌词",
-                            tint = if (pagerState.currentPage == 1) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-
-                    // Queue Sheet Trigger
-                    IconButton(onClick = { showQueueSheet = true }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = "查看播放队列",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
