@@ -182,22 +182,7 @@ class Media3AudioPlayerEngine(
         dataSourceFactory.setServer(server)
 
         val mediaItems = tracks.map { track ->
-            val uri = Uri.parse(track.streamUrl(server))
-            val metaBuilder = MediaMetadata.Builder()
-                .setTitle(track.title)
-                .setArtist(track.artist)
-                .setAlbumTitle(track.album)
-
-            track.coverThumbnailPath?.let { path ->
-                metaBuilder.setArtworkUri(Uri.fromFile(File(path)))
-            }
-
-            MediaItem.Builder()
-                .setUri(uri)
-                .setMediaId(track.id)
-                .setMimeType(track.format.mimeType)
-                .setMediaMetadata(metaBuilder.build())
-                .build()
+            buildMediaItem(server, track)
         }
 
         val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
@@ -263,6 +248,32 @@ class Media3AudioPlayerEngine(
                 updatePositionAndDuration()
             }
         }
+    }
+
+    override fun insertTrack(index: Int, server: WebDavServer, track: AudioTrack) {
+        if (index in 0..player.mediaItemCount) {
+            val mediaItem = buildMediaItem(server, track)
+            player.addMediaItem(index, mediaItem)
+        }
+    }
+
+    private fun buildMediaItem(server: WebDavServer, track: AudioTrack): MediaItem {
+        val uri = Uri.parse(track.streamUrl(server))
+        val metaBuilder = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artist)
+            .setAlbumTitle(track.album)
+
+        track.coverThumbnailPath?.let { path ->
+            metaBuilder.setArtworkUri(Uri.fromFile(File(path)))
+        }
+
+        return MediaItem.Builder()
+            .setUri(uri)
+            .setMediaId(track.id)
+            .setMimeType(track.format.mimeType)
+            .setMediaMetadata(metaBuilder.build())
+            .build()
     }
 
     override fun updateTrack(index: Int, track: AudioTrack) {

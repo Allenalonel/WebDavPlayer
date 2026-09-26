@@ -267,6 +267,29 @@ class DirectoryBrowserViewModelTest {
     }
 
     @Test
+    fun playNext_dispatchesToMusicPlayerAppSession_asAudioTrack() = runTest {
+        advanceUntilIdle()
+
+        val audioFile = rootDir.files.first() // root_track.mp3
+        viewModel.playNext(audioFile)
+
+        val inserted = fakeMusicPlayerAppSession.lastPlayNextTrack
+        assertNotNull(inserted)
+        assertEquals("/root_track.mp3", inserted?.remotePath)
+        assertEquals(AudioFormat.MP3, inserted?.format)
+    }
+
+    @Test
+    fun playNext_ignoresNonAudioFiles() = runTest {
+        advanceUntilIdle()
+
+        val nonAudioFile = RemoteFile(name = "lyrics.lrc", path = "/lyrics.lrc", fileType = RemoteFileType.Lyrics)
+        viewModel.playNext(nonAudioFile)
+
+        assertNull(fakeMusicPlayerAppSession.lastPlayNextTrack)
+    }
+
+    @Test
     fun togglePlayPause_dispatchesToMusicPlayerAppSession() = runTest {
         advanceUntilIdle()
 
@@ -408,6 +431,83 @@ class DirectoryBrowserViewModelTest {
         assertEquals(rootDir, vm.uiState.value.currentDirectory)
     }
 
+    @Test
+    fun tabSwitching_preservesDirectoryBrowsingDepthWithoutReloading() = runTest {
+        advanceUntilIdle()
+
+        // User browses deep into /Music/Rock/
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/", name = "Music"))
+        advanceUntilIdle()
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/Rock/", name = "Rock"))
+        advanceUntilIdle()
+
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+        assertEquals(3, viewModel.uiState.value.breadcrumbs.size)
+        val initialCalls = fakeDirectoryRepository.listCalls
+
+        // User switches tab to Server List and returns to Directory Browser
+        val coordinator = com.webdav.player.ui.navigation.MainNavigationCoordinator()
+        coordinator.selectDestination(com.webdav.player.ui.navigation.AppDestination.SERVER_LIST)
+        coordinator.selectDestination(com.webdav.player.ui.navigation.AppDestination.DIRECTORY_BROWSER)
+
+        // ViewModel state is strictly preserved without reloading
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+        assertEquals(3, viewModel.uiState.value.breadcrumbs.size)
+        assertEquals("Rock", viewModel.uiState.value.currentDirectory?.name)
+        assertEquals(initialCalls, fakeDirectoryRepository.listCalls)
+    }
+
+    @Test
+    fun switchingActiveServer_resetsDirectoryToRoot() = runTest {
+        advanceUntilIdle()
+
+        // User browses deep into /Music/Rock/ on server 1
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/", name = "Music"))
+        advanceUntilIdle()
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/Rock/", name = "Rock"))
+        advanceUntilIdle()
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+
+        // Switch to a new server 2
+        val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://server2.local", port = 80, isDefault = true)
+        val server2RootDir = RemoteDirectory(
+            path = "/",
+            name = "Server 2 Root",
+            subDirectories = emptyList(),
+            files = emptyList()
+        )
+        fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(server2RootDir))
+
+        fakeServerRepository.setActiveServerSync(server2)
+        advanceUntilIdle()
+
+        assertEquals(server2, viewModel.uiState.value.activeServer)
+        assertEquals("/", viewModel.uiState.value.currentPath)
+        assertEquals(1, viewModel.uiState.value.breadcrumbs.size)
+        assertEquals(server2RootDir, viewModel.uiState.value.currentDirectory)
+        assertFalse(viewModel.uiState.value.canNavigateUp)
+    }
+
+    @Test
+    fun resetToRoot_navigatesDirectlyToRootDirectory() = runTest {
+        advanceUntilIdle()
+
+        // User browses deep into /Music/Rock/
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/", name = "Music"))
+        advanceUntilIdle()
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/Rock/", name = "Rock"))
+        advanceUntilIdle()
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+
+        viewModel.resetToRoot()
+        advanceUntilIdle()
+
+        assertEquals("/", viewModel.uiState.value.currentPath)
+        assertEquals(1, viewModel.uiState.value.breadcrumbs.size)
+        assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
+        assertFalse(viewModel.uiState.value.canNavigateUp)
+    }
+
     private class FakeServerRepository : ServerRepository {
         private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
         private val activeServerFlow = MutableStateFlow<WebDavServer?>(null)
@@ -430,6 +530,7 @@ class DirectoryBrowserViewModelTest {
     private class FakeDirectoryRepository : DirectoryRepository {
         private val results = mutableMapOf<String, ListDirectoryResult>()
         val forceRefreshCount = mutableMapOf<String, Int>()
+        var listCalls = 0
 
         fun setResult(path: String, result: ListDirectoryResult) {
             results[path] = result
@@ -440,6 +541,7 @@ class DirectoryBrowserViewModelTest {
             path: String,
             forceRefresh: Boolean
         ): ListDirectoryResult {
+            listCalls++
             if (forceRefresh) {
                 forceRefreshCount[path] = (forceRefreshCount[path] ?: 0) + 1
             }

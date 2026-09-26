@@ -165,4 +165,44 @@ class PlaybackQueueTest {
         assertEquals(2, queueAt1.getNextIndex(PlaybackMode.SHUFFLE, shuffleOrder)) // wraps to first
         assertEquals(3, queueAt1.getPreviousIndex(PlaybackMode.SHUFFLE, shuffleOrder))
     }
+
+    @Test
+    fun insertNext_intoEmptyQueue_createsSingleTrackQueue() {
+        val t1 = createTrack("1", "Song 1")
+        val queue = PlaybackQueue.EMPTY.insertNext(t1)
+
+        assertEquals(1, queue.size)
+        assertEquals(0, queue.currentIndex)
+        assertEquals(t1, queue.currentTrack)
+    }
+
+    @Test
+    fun insertNext_whenPlayingFirstTrack_insertsAtSecondPosition() {
+        val t1 = createTrack("1", "Song 1")
+        val t2 = createTrack("2", "Song 2")
+        val tNew = createTrack("99", "New Next Song")
+
+        val queue = PlaybackQueue(tracks = listOf(t1, t2), currentIndex = 0)
+        val updated = queue.insertNext(tNew)
+
+        assertEquals(3, updated.size)
+        assertEquals(0, updated.currentIndex)
+        assertEquals(t1, updated.currentTrack)
+        assertEquals(listOf(t1, tNew, t2), updated.tracks)
+    }
+
+    @Test
+    fun insertNext_whenPlayingLastTrack_insertsAtEnd() {
+        val t1 = createTrack("1", "Song 1")
+        val t2 = createTrack("2", "Song 2")
+        val tNew = createTrack("99", "New Next Song")
+
+        val queue = PlaybackQueue(tracks = listOf(t1, t2), currentIndex = 1)
+        val updated = queue.insertNext(tNew)
+
+        assertEquals(3, updated.size)
+        assertEquals(1, updated.currentIndex)
+        assertEquals(t2, updated.currentTrack)
+        assertEquals(listOf(t1, t2, tNew), updated.tracks)
+    }
 }

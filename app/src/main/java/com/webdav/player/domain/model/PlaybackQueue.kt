@@ -19,6 +19,17 @@ data class PlaybackQueue(
         return copy(currentIndex = index)
     }
 
+    fun insertNext(track: AudioTrack): PlaybackQueue {
+        if (tracks.isEmpty()) {
+            return PlaybackQueue(listOf(track), 0)
+        }
+        val insertIndex = (currentIndex + 1).coerceIn(0, tracks.size)
+        val newTracks = tracks.toMutableList().apply {
+            add(insertIndex, track)
+        }
+        return copy(tracks = newTracks)
+    }
+
     fun removeTrackAt(index: Int): PlaybackQueue {
         if (index !in tracks.indices) return this
         val newTracks = tracks.toMutableList().apply { removeAt(index) }

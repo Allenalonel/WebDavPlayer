@@ -28,6 +28,7 @@ interface AudioPlayerEngine {
     fun seekToTrack(index: Int, positionMs: Long = 0L)
     fun setPlaybackMode(mode: PlaybackMode)
     fun removeTrack(index: Int)
+    fun insertTrack(index: Int, server: WebDavServer, track: AudioTrack) {}
     fun updateTrack(index: Int, track: AudioTrack) {}
     fun stop()
     fun release()

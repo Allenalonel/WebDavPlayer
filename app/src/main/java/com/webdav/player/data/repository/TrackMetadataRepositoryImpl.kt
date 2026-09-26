@@ -64,14 +64,41 @@ class TrackMetadataRepositoryImpl(
         val toResolve = audioFiles.filter { it.path !in cachedPaths }
         if (toResolve.isEmpty()) return@withContext
 
+        val buffer = java.util.Collections.synchronizedList(mutableListOf<TrackMetadataEntity>())
+        val batchThreshold = 6
+
         coroutineScope {
             toResolve.forEach { file ->
                 launch {
-                    semaphore.withPermit {
-                        resolveAndPersist(server, file)
+                    val metadata = semaphore.withPermit {
+                        parseAndBuildMetadata(server, file)
+                    }
+                    val entity = TrackMetadataEntity.fromDomain(metadata)
+                    var batchToWrite: List<TrackMetadataEntity>? = null
+
+                    synchronized(buffer) {
+                        buffer.add(entity)
+                        if (buffer.size >= batchThreshold) {
+                            batchToWrite = ArrayList(buffer)
+                            buffer.clear()
+                        }
+                    }
+
+                    if (batchToWrite != null && batchToWrite!!.isNotEmpty()) {
+                        trackMetadataDao.insertOrUpdateAll(batchToWrite!!)
                     }
                 }
             }
+        }
+
+        // Flush remaining entries in buffer
+        val remaining = synchronized(buffer) {
+            val copy = ArrayList(buffer)
+            buffer.clear()
+            copy
+        }
+        if (remaining.isNotEmpty()) {
+            trackMetadataDao.insertOrUpdateAll(remaining)
         }
     }
 
@@ -83,12 +110,14 @@ class TrackMetadataRepositoryImpl(
         if (cached != null) {
             return@withContext cached
         }
-        semaphore.withPermit {
-            resolveAndPersist(server, file)
+        val metadata = semaphore.withPermit {
+            parseAndBuildMetadata(server, file)
         }
+        trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
+        metadata
     }
 
-    private suspend fun resolveAndPersist(server: WebDavServer, file: RemoteFile): TrackMetadata {
+    private suspend fun parseAndBuildMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata {
         val cleanFallbackTitle = file.name.substringBeforeLast('.').ifBlank { file.name }
 
         try {
@@ -107,7 +136,7 @@ class TrackMetadataRepositoryImpl(
                 val artist = parsed.artist?.takeIf { it.isNotBlank() }
                 val album = parsed.album?.takeIf { it.isNotBlank() }
 
-                val metadata = TrackMetadata(
+                return TrackMetadata(
                     serverId = server.id,
                     remotePath = file.path,
                     title = title,
@@ -118,16 +147,13 @@ class TrackMetadataRepositoryImpl(
                     coverThumbnailPath = thumbnailPath,
                     lyrics = parsed.lyrics
                 )
-
-                trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
-                return metadata
             }
         } catch (e: Exception) {
             // Graceful fallback on network/parsing error
         }
 
-        // Fallback metadata saved in Room to avoid repetitive probing
-        val fallback = TrackMetadata(
+        // Fallback metadata saved to avoid repetitive probing
+        return TrackMetadata(
             serverId = server.id,
             remotePath = file.path,
             title = cleanFallbackTitle,
@@ -138,7 +164,5 @@ class TrackMetadataRepositoryImpl(
             coverThumbnailPath = null,
             lyrics = null
         )
-        trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(fallback))
-        return fallback
     }
 }

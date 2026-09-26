@@ -101,10 +101,10 @@ fun LyricsView(
 
                 // Smoothly scroll to active line
                 LaunchedEffect(activeIndex) {
-                    if (activeIndex >= 0 && lyrics.isSynchronized) {
+                    if (activeIndex >= 0 && lyrics.isSynchronized && !lazyListState.isScrollInProgress) {
                         lazyListState.animateScrollToItem(
                             index = activeIndex,
-                            scrollOffset = -120
+                            scrollOffset = 0
                         )
                     }
                 }
@@ -112,9 +112,9 @@ fun LyricsView(
                 LazyColumn(
                     state = lazyListState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 100.dp, bottom = 120.dp, start = 16.dp, end = 16.dp),
+                    contentPadding = PaddingValues(top = 180.dp, bottom = 220.dp, start = 16.dp, end = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     itemsIndexed(
                         items = lyrics.lines,
@@ -152,14 +152,14 @@ private fun LyricLineItem(
     val textColor by animateColorAsState(
         targetValue = when {
             isActive -> MaterialTheme.colorScheme.primary
-            isSynchronized -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+            isSynchronized -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
             else -> MaterialTheme.colorScheme.onSurface
         },
         animationSpec = tween(durationMillis = 250),
         label = "LyricTextColor"
     )
 
-    val fontSize = if (isActive) 19.sp else 16.sp
+    val fontSize = if (isActive) 20.sp else 16.sp
     val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
 
     Text(
@@ -168,7 +168,7 @@ private fun LyricLineItem(
         fontSize = fontSize,
         fontWeight = fontWeight,
         textAlign = TextAlign.Center,
-        lineHeight = 26.sp,
+        lineHeight = 28.sp,
         modifier = modifier
             .fillMaxWidth()
             .clickable(
@@ -176,6 +176,22 @@ private fun LyricLineItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 4.dp, horizontal = 12.dp)
+            .padding(vertical = 6.dp, horizontal = 16.dp)
     )
+}
+
+/**
+ * Dispatches lyric interaction (tap-to-seek or toggle cover).
+ */
+fun handleLyricLineClick(
+    line: LyricLine,
+    isSynchronized: Boolean,
+    onSeekTo: (Long) -> Unit,
+    onToggleCover: () -> Unit
+) {
+    if (isSynchronized) {
+        onSeekTo(line.timestampMs)
+    } else {
+        onToggleCover()
+    }
 }

@@ -16,12 +16,16 @@ set_target_properties(swresample PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/lib
 add_library(avcodec SHARED IMPORTED)
 set_target_properties(avcodec PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libavcodec.so")
 
-add_library(ffmpegJNI SHARED ffmpeg_jni.cc)
+add_library(avformat SHARED IMPORTED)
+set_target_properties(avformat PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/libavformat.so")
+
+add_library(ffmpegJNI SHARED ffmpeg_jni.cc ffmpeg_demuxer.cc)
 
 find_library(log-lib log)
 find_library(android-lib android)
 
 target_link_libraries(ffmpegJNI
+                      avformat
                       avcodec
                       swresample
                       avutil
@@ -29,3 +33,10 @@ target_link_libraries(ffmpegJNI
                       ${android-lib})
 
 target_link_options(ffmpegJNI PRIVATE "-Wl,-z,max-page-size=16384" "-Wl,-Bsymbolic")
+
+add_custom_command(TARGET ffmpegJNI POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:ffmpegJNI>
+    "${FFMPEG_DIR}/libffmpegJNI.so"
+    COMMENT "Auto-syncing built libffmpegJNI.so to jniLibs"
+)

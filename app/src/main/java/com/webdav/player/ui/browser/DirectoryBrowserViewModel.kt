@@ -2,6 +2,7 @@ package com.webdav.player.ui.browser
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.PlayerSessionState
@@ -12,10 +13,13 @@ import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -42,8 +46,15 @@ class DirectoryBrowserViewModel(
                     metadataObserverJob?.cancel()
                     metadataResolutionJob?.cancel()
 
-                    val initialPath = musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
-                        ?.takeIf { it.isNotBlank() } ?: "/"
+                    // If previousServer == null, this is app startup -> restore saved directory from session.
+                    // If previousServer != null, user switched servers -> reset directory to root "/".
+                    val initialPath = if (previousServer == null) {
+                        musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
+                            ?.takeIf { it.isNotBlank() } ?: "/"
+                    } else {
+                        musicPlayerAppSession?.setCurrentDirectoryPath("/")
+                        "/"
+                    }
 
                     _uiState.update {
                         it.copy(
@@ -127,10 +138,23 @@ class DirectoryBrowserViewModel(
         loadDirectory(breadcrumb.path, forceRefresh = false)
     }
 
+    fun resetToRoot() {
+        musicPlayerAppSession?.setCurrentDirectoryPath("/")
+        loadDirectory("/", forceRefresh = false)
+    }
+
     fun onAudioTrackClicked(file: RemoteFile) {
         if (!file.isAudio) return
         val dir = _uiState.value.currentDirectory ?: return
         musicPlayerAppSession?.playDirectoryTrack(dir, file)
+    }
+
+    fun playNext(file: RemoteFile) {
+        if (!file.isAudio) return
+        val server = _uiState.value.activeServer ?: return
+        val metadata = _uiState.value.metadataMap[file.path]
+        val track = AudioTrack.fromRemoteFile(server, file, metadata) ?: return
+        musicPlayerAppSession?.playNext(track)
     }
 
     fun togglePlayPause() {
@@ -163,18 +187,7 @@ class DirectoryBrowserViewModel(
 
     fun onNavigateUp(): Boolean {
         val current = _uiState.value.currentPath
-        if (current == "/" || current.isBlank()) {
-            return false
-        }
-
-        val trimmed = current.trim('/')
-        val segments = trimmed.split('/')
-        val parentPath = if (segments.size <= 1) {
-            "/"
-        } else {
-            "/" + segments.dropLast(1).joinToString("/") + "/"
-        }
-
+        val parentPath = BreadcrumbNavigationHelper.getParentPath(current) ?: return false
         loadDirectory(parentPath, forceRefresh = false)
         return true
     }
@@ -189,13 +202,13 @@ class DirectoryBrowserViewModel(
 
     private fun loadDirectory(path: String, forceRefresh: Boolean) {
         val server = _uiState.value.activeServer ?: return
-        val normalizedPath = normalizeDirectoryPath(path)
+        val normalizedPath = BreadcrumbNavigationHelper.normalizeDirectoryPath(path)
 
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     currentPath = normalizedPath,
-                    breadcrumbs = buildBreadcrumbs(server, normalizedPath),
+                    breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(server, normalizedPath),
                     canNavigateUp = normalizedPath != "/",
                     isLoading = !forceRefresh,
                     isRefreshing = forceRefresh,
@@ -237,24 +250,10 @@ class DirectoryBrowserViewModel(
     }
 
     private fun buildBreadcrumbs(server: WebDavServer?, path: String): List<Breadcrumb> {
-        val rootName = server?.name?.ifBlank { "根目录" } ?: "根目录"
-        val list = mutableListOf(Breadcrumb(name = rootName, path = "/"))
-        val cleanPath = path.trim('/')
-        if (cleanPath.isEmpty()) return list
-
-        val segments = cleanPath.split('/')
-        var accumulated = ""
-        for (segment in segments) {
-            accumulated += "/$segment"
-            list.add(Breadcrumb(name = segment, path = "$accumulated/"))
-        }
-        return list
+        return BreadcrumbNavigationHelper.buildBreadcrumbs(server, path)
     }
 
     private fun normalizeDirectoryPath(path: String): String {
-        var p = path.replace('\\', '/')
-        if (!p.startsWith("/")) p = "/$p"
-        if (!p.endsWith("/")) p = "$p/"
-        return p
+        return BreadcrumbNavigationHelper.normalizeDirectoryPath(path)
     }
 }

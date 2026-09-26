@@ -55,3 +55,26 @@ _Avoid_: Lyric File, Lrc Text
 **Audio Focus**:
 Android 系统级音频焦点协商状态，用于响应来电暂停、挂断恢复及系统提示音时的临时音量压低（Ducking）。
 _Avoid_: Sound Priority, Volume Interrupt
+
+### UI & Navigation
+
+**Primary Navigation Bar**:
+应用底部的顶层导航容器，承载「曲库浏览」（Directory Browser）与「服务器管理」（Server Management）顶层核心目的地。
+_Avoid_: Bottom Bar, Tab Bar, Footer Menu
+
+**Docked Mini-Player**:
+悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊，具备曲目摘要、播放控制与上滑/点击呼出全屏播放器的能力，在应用内任何页面导航切换时均不中断。
+_Avoid_: Bottom Player, Small Player, Playback Bar
+
+**Full Player Sheet**:
+沉浸式大播放器视图，采用自适应封面氛围渐变背景，集成封面唱片、进度拖拽、播放模式控制，并支持左右滑动无缝切换至逐行同步高亮歌词页。
+_Avoid_: Player Activity, Big Player, Music Detail
+
+**Directory Breadcrumb Strip**:
+由 Material Design 3 胶囊 Chip 构成的可水平滑动的目录路径条，直观展示自活跃服务器根目录至当前层级的继承关系，支持点选任意祖先目录瞬时跳转。
+_Avoid_: Path Bar, Folder Tree, Location Bar
+
+**Audio Quality Badge**:
+音频曲目列表中标识音频编码格式（如 FLAC、MP3、WAV、WMA）及无损/高解析度层级的视觉标签胶囊。
+_Avoid_: Format Icon, Audio Tag
+

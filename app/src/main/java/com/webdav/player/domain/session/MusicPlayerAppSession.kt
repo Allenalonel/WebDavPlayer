@@ -23,6 +23,8 @@ interface MusicPlayerAppSession {
 
     fun playTrack(track: AudioTrack)
 
+    fun playNext(track: AudioTrack)
+
     fun togglePlayPause()
 
     fun play()

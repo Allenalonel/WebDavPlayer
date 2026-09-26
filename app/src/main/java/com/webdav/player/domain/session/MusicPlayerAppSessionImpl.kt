@@ -300,6 +300,20 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
+    override fun playNext(track: AudioTrack) {
+        val server = _sessionState.value.activeServer ?: return
+        val currentQueue = _sessionState.value.queue
+        if (currentQueue.isEmpty) {
+            playTrack(track)
+            return
+        }
+        val insertIndex = (currentQueue.currentIndex + 1).coerceIn(0, currentQueue.tracks.size)
+        val updatedQueue = currentQueue.insertNext(track)
+        _sessionState.update { it.copy(queue = updatedQueue) }
+        playerEngine.insertTrack(insertIndex, server, track)
+        coroutineScope.launch { flushSession() }
+    }
+
     override fun togglePlayPause() {
         val current = _sessionState.value
         when {
