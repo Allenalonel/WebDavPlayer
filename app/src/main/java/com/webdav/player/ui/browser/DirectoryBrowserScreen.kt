@@ -503,12 +503,29 @@ fun FileItemRow(
     val isLyrics = file.isLyrics
     val isOther = !isAudio && !isLyrics
 
-    val displayTitle = metadata?.displayTitle(file.name) ?: file.name
-    val displayArtist = metadata?.displayArtist()
-    val displayAlbum = metadata?.album?.takeIf { it.isNotBlank() }
-    val durationStr = if ((metadata?.durationMs ?: 0L) > 0L) {
-        PlayerTimeFormatter.formatMs(metadata?.durationMs ?: 0L)
-    } else null
+    val displayTitle = remember(file.name, metadata?.title) {
+        metadata?.displayTitle(file.name) ?: file.name
+    }
+    val displayArtist = remember(metadata?.artist) {
+        metadata?.displayArtist()
+    }
+    val displayAlbum = remember(metadata?.album) {
+        metadata?.album?.takeIf { it.isNotBlank() }
+    }
+    val durationStr = remember(metadata?.durationMs) {
+        if ((metadata?.durationMs ?: 0L) > 0L) {
+            PlayerTimeFormatter.formatMs(metadata?.durationMs ?: 0L)
+        } else null
+    }
+    val fallbackSubtitle = remember(displayArtist, durationStr, file.size, file.lastModified) {
+        if (displayArtist == null) {
+            val subtitleParts = mutableListOf<String>()
+            if (durationStr != null) subtitleParts.add(durationStr)
+            if (file.size > 0) subtitleParts.add(formatFileSize(file.size))
+            if (file.lastModified != null && subtitleParts.isEmpty()) subtitleParts.add(file.lastModified)
+            subtitleParts.joinToString(" · ").ifEmpty { "音频文件" }
+        } else null
+    }
 
     val badgeInfo = remember(file, metadata) {
         AudioQualityBadgeHelper.getBadge(file, metadata)
@@ -639,12 +656,8 @@ fun FileItemRow(
                         )
                     }
                 } else {
-                    val subtitleParts = mutableListOf<String>()
-                    if (durationStr != null) subtitleParts.add(durationStr)
-                    if (file.size > 0) subtitleParts.add(formatFileSize(file.size))
-                    if (file.lastModified != null && subtitleParts.isEmpty()) subtitleParts.add(file.lastModified)
                     Text(
-                        text = subtitleParts.joinToString(" · ").ifEmpty { "音频文件" },
+                        text = fallbackSubtitle ?: "音频文件",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
