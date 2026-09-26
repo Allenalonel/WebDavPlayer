@@ -5,7 +5,7 @@ A unified top-level Material Design 3 Scaffold with a persistent `Primary Naviga
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-review
+**Status:** resolved
 
 - [x] Top-level layout replaced with a persistent Material 3 `Scaffold` featuring a `Primary Navigation Bar` with [Browser] and [Servers] tabs.
 - [x] Tab switching preserves existing directory browsing depth, scroll positions, and view states without reloading.

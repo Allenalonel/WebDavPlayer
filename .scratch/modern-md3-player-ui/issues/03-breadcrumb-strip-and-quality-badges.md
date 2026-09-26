@@ -5,7 +5,7 @@ A modernized Directory Browser experience featuring an interactive horizontal sc
 
 **Blocked by:** 01: Scaffold Navigation and Docked Mini-Player
 
-**Status:** ready-for-review
+**Status:** resolved
 
 - [x] Directory path rendered as a `Directory Breadcrumb Strip` using horizontally scrollable MD3 `AssistChip` components, auto-scrolling to the active tail.
 - [x] Tapping any chip in the breadcrumb strip navigates directly back to that ancestor directory level.
