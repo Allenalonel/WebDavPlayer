@@ -32,6 +32,7 @@ extern "C" {
 #include <libswresample/swresample.h>
 
 void avcodec_register_all(void);
+void av_register_all(void);
 }
 
 #define LOG_TAG "ffmpeg_jni"
@@ -73,7 +74,8 @@ AVCodec *getCodecByName(JNIEnv *env, jstring codecName);
 
 AVCodecContext *createContext(JNIEnv *env, AVCodec *codec, jbyteArray extraData,
                               jboolean outputFloat, jint rawSampleRate,
-                              jint rawChannelCount);
+                              jint rawChannelCount, jint rawBitrate,
+                              jint rawBlockAlign);
 
 int decodePacket(AVCodecContext *context, AVPacket *packet,
                  uint8_t *outputBuffer, int outputSize);
@@ -90,8 +92,8 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     LOGE("JNI_OnLoad: GetEnv failed");
     return -1;
   }
-  avcodec_register_all();
-  LOGI("JNI_OnLoad: avcodec_register_all called successfully!");
+  av_register_all();
+  LOGI("JNI_OnLoad: av_register_all called successfully!");
   return JNI_VERSION_1_6;
 }
 
@@ -115,14 +117,16 @@ LIBRARY_FUNC(jboolean, ffmpegHasDecoder, jstring codecName) {
 
 AUDIO_DECODER_FUNC(jlong, ffmpegInitialize, jstring codecName,
                    jbyteArray extraData, jboolean outputFloat,
-                   jint rawSampleRate, jint rawChannelCount) {
+                   jint rawSampleRate, jint rawChannelCount,
+                   jint rawBitrate, jint rawBlockAlign) {
   AVCodec *codec = getCodecByName(env, codecName);
   if (!codec) {
     LOGE("Codec not found.");
     return 0L;
   }
   AVCodecContext *ctx = createContext(env, codec, extraData, outputFloat,
-                                      rawSampleRate, rawChannelCount);
+                                      rawSampleRate, rawChannelCount,
+                                      rawBitrate, rawBlockAlign);
   return (jlong)ctx;
 }
 
@@ -188,7 +192,9 @@ AUDIO_DECODER_FUNC(jlong, ffmpegReset, jlong jContext, jbyteArray extraData) {
         (jboolean)(context->request_sample_fmt == OUTPUT_FORMAT_PCM_FLOAT);
     return (jlong)createContext(env, codec, extraData, outputFloat,
                                 /* rawSampleRate= */ -1,
-                                /* rawChannelCount= */ -1);
+                                /* rawChannelCount= */ -1,
+                                /* rawBitrate= */ 0,
+                                /* rawBlockAlign= */ 0);
   }
 
   avcodec_flush_buffers(context);
@@ -213,7 +219,8 @@ AVCodec *getCodecByName(JNIEnv *env, jstring codecName) {
 
 AVCodecContext *createContext(JNIEnv *env, AVCodec *codec, jbyteArray extraData,
                               jboolean outputFloat, jint rawSampleRate,
-                              jint rawChannelCount) {
+                              jint rawChannelCount, jint rawBitrate,
+                              jint rawBlockAlign) {
   AVCodecContext *context = avcodec_alloc_context3(codec);
   if (!context) {
     LOGE("Failed to allocate context.");
@@ -232,6 +239,7 @@ AVCodecContext *createContext(JNIEnv *env, AVCodec *codec, jbyteArray extraData,
       return NULL;
     }
     env->GetByteArrayRegion(extraData, 0, size, (jbyte *)context->extradata);
+    memset(context->extradata + size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
   }
   if (rawSampleRate > 0) {
     context->sample_rate = rawSampleRate;
@@ -240,8 +248,12 @@ AVCodecContext *createContext(JNIEnv *env, AVCodec *codec, jbyteArray extraData,
     context->channels = rawChannelCount;
     context->channel_layout = av_get_default_channel_layout(rawChannelCount);
   }
-  // WMA decoders require block_align to be set
-  if (codec->id == AV_CODEC_ID_WMAV1 || codec->id == AV_CODEC_ID_WMAV2 || codec->id == AV_CODEC_ID_WMAPRO) {
+  if (rawBitrate > 0) {
+    context->bit_rate = rawBitrate;
+  }
+  if (rawBlockAlign > 0) {
+    context->block_align = rawBlockAlign;
+  } else if (codec->id == AV_CODEC_ID_WMAV1 || codec->id == AV_CODEC_ID_WMAV2 || codec->id == AV_CODEC_ID_WMAPRO) {
     if (context->block_align == 0) {
       context->block_align = 3200;
     }
@@ -323,15 +335,16 @@ int decodePacket(AVCodecContext *context, AVPacket *packet,
       av_frame_free(&frame);
       return AUDIO_DECODER_ERROR_INVALID_DATA;
     }
-    result = swr_convert(resampleContext, &outputBuffer, bufferOutSize,
+    result = swr_convert(resampleContext, &outputBuffer, outSamples,
                          (const uint8_t **)frame->data, frame->nb_samples);
     av_frame_free(&frame);
     if (result < 0) {
       logError("swr_convert", result);
       return AUDIO_DECODER_ERROR_INVALID_DATA;
     }
-    outputBuffer += bufferOutSize;
-    outSize += bufferOutSize;
+    int convertedBytes = result * channelCount * outSampleSize;
+    outputBuffer += convertedBytes;
+    outSize += convertedBytes;
   }
   return outSize;
 }

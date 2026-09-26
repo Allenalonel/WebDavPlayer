@@ -31,6 +31,7 @@ object FfmpegLibrary {
                     System.loadLibrary("avutil")
                     System.loadLibrary("swresample")
                     System.loadLibrary("avcodec")
+                    System.loadLibrary("avformat")
                 } catch (t: Throwable) {
                     Log.w(TAG, "Optional FFmpeg component load notice: ${t.message}")
                 }
@@ -77,6 +78,10 @@ object FfmpegLibrary {
     fun getCodecName(mimeType: String): String? {
         return when (mimeType.lowercase()) {
             "audio/x-ms-wma" -> "wmav2"
+            "audio/x-ms-wmav1" -> "wmav1"
+            "audio/x-ms-wmav2" -> "wmav2"
+            "audio/x-ms-wmapro" -> "wmapro"
+            "audio/x-ms-wmalossless" -> "wmalossless"
             "audio/mp4a-latm", "audio/aac" -> "aac"
             "audio/mpeg", "audio/mpeg-l1", "audio/mpeg-l2", "audio/mp3" -> "mp3"
             "audio/ac3" -> "ac3"

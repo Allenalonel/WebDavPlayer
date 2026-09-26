@@ -232,4 +232,28 @@ class AsfExtractorTest {
         assertEquals(expectedOffset, points.first.position)
         assertEquals(100_000_000L, points.first.timeUs)
     }
+
+    @Test
+    fun nativeAsfExtractor_sniffAndRead_workIdentically() {
+        val data = ByteArray(1024)
+        System.arraycopy(NativeAsfExtractor.ASF_HEADER_GUID, 0, data, 0, 16)
+        for (i in 16 until 1024) {
+            data[i] = (i % 256).toByte()
+        }
+
+        val input = FakeExtractorInput(data)
+        val output = FakeExtractorOutput()
+        val extractor = NativeAsfExtractor()
+        assertTrue(extractor.sniff(input))
+
+        extractor.init(output)
+        val result = extractor.read(input, PositionHolder())
+        assertEquals(Extractor.RESULT_CONTINUE, result)
+        assertTrue(output.tracksEnded)
+        assertNotNull(output.seekMap)
+        val track = output.tracks[0]
+        assertNotNull(track)
+        assertEquals(AudioFormat.WMA.mimeType, track?.format?.sampleMimeType)
+        assertTrue(track!!.sampleData.isNotEmpty())
+    }
 }

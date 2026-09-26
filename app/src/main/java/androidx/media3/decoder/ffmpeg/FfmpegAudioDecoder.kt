@@ -65,8 +65,10 @@ class FfmpegAudioDecoder(
     init {
         setInitialInputBufferSize(initialInputBufferSize)
         if (FfmpegLibrary.isAvailable()) {
+            val bitrate = if (format.averageBitrate != Format.NO_VALUE) format.averageBitrate else (if (format.bitrate != Format.NO_VALUE) format.bitrate else 0)
+            val blockAlign = if (format.maxInputSize != Format.NO_VALUE) format.maxInputSize else 0
             nativeContext = try {
-                ffmpegInitialize(codecName, extraData, outputFloat, format.sampleRate, format.channelCount)
+                ffmpegInitialize(codecName, extraData, outputFloat, format.sampleRate, format.channelCount, bitrate, blockAlign)
             } catch (e: UnsatisfiedLinkError) {
                 0L
             }
@@ -197,7 +199,9 @@ class FfmpegAudioDecoder(
         extraData: ByteArray?,
         outputFloat: Boolean,
         rawSampleRate: Int,
-        rawChannelCount: Int
+        rawChannelCount: Int,
+        bitrate: Int,
+        blockAlign: Int
     ): Long
 
     private external fun ffmpegDecode(
