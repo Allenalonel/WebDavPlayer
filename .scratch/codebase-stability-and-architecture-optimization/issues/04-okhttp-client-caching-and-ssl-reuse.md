@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** complete
+**Status:** completed
 
 - [x] Inside `OkHttpWebDavClient`, introduce an internal thread-safe client cache keyed by server connection parameters (id, endpointUrl, username, allowSelfSigned).
 - [x] Subsequent calls to `testConnection`, `listDirectory`, `fetchRange`, and `fetchText` for the same server configuration reuse the cached client instance.

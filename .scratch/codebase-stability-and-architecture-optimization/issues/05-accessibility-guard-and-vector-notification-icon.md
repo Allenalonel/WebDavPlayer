@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Decompose Directory Browser Composable Components
 
-**Status:** closed
+**Status:** completed
 
 - [x] In `MainActivity.kt`, guard inactive tab containers with `Modifier.clearAndSetSemantics { }` (or `invisibleToUser()`) so off-screen UI elements are hidden from accessibility focus while retaining their internal scroll/composition state.
 - [x] Add `res/drawable/ic_notification_playback.xml` containing a clean, compliant 24dp monochrome vector icon.

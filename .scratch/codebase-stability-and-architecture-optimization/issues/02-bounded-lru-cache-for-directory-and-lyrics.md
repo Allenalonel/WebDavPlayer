@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
 - [x] `DirectoryRepositoryImpl` replaces the unbounded `ConcurrentHashMap` with a synchronized LRU memory cache with a max capacity of 50 directories.
 - [x] When a directory is evicted from the L1 memory cache, querying it transparently falls back to the L2 Room database cache (`DirectoryCacheDao`), returning instantly without requiring a network call.
