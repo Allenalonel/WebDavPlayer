@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: completed
 
 # Feature Specification: Core WebDAV Music Player for Android
 
