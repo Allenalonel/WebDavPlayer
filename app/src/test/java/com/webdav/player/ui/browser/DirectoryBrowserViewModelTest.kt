@@ -90,6 +90,7 @@ class DirectoryBrowserViewModelTest {
         fakeMusicPlayerAppSession = FakeMusicPlayerAppSession()
         fakeTrackMetadataRepository = FakeTrackMetadataRepository()
         fakeServerRepository.setActiveServerSync(sampleServer)
+        fakeMusicPlayerAppSession.setActiveServer(sampleServer)
 
         fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(rootDir))
         fakeDirectoryRepository.setResult("/Music/", ListDirectoryResult.Success(musicDir))
@@ -508,6 +509,110 @@ class DirectoryBrowserViewModelTest {
         assertFalse(viewModel.uiState.value.canNavigateUp)
     }
 
+    @Test
+    fun swr_instantCacheHit_rendersImmediatelyAndUpdatesOnNetworkSuccess() = runTest {
+        advanceUntilIdle()
+
+        val cachedDir = RemoteDirectory(
+            path = "/CachedDir/",
+            name = "CachedDir",
+            files = listOf(RemoteFile(name = "old.mp3", path = "/CachedDir/old.mp3"))
+        )
+        val freshDir = RemoteDirectory(
+            path = "/CachedDir/",
+            name = "CachedDir",
+            files = listOf(
+                RemoteFile(name = "old.mp3", path = "/CachedDir/old.mp3"),
+                RemoteFile(name = "new.mp3", path = "/CachedDir/new.mp3")
+            )
+        )
+
+        fakeDirectoryRepository.setCached("/CachedDir/", cachedDir)
+        fakeDirectoryRepository.setResult("/CachedDir/", ListDirectoryResult.Success(freshDir))
+
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/CachedDir/", name = "CachedDir"))
+
+        // After initial coroutine execution, cache is loaded and network also completes
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("/CachedDir/", state.currentPath)
+        assertEquals(2, state.currentDirectory?.files?.size)
+        assertFalse(state.isLoading)
+        assertNull(state.errorMessage)
+    }
+
+    @Test
+    fun swr_gracefulDegradation_preservesCacheWhenNetworkFails() = runTest {
+        advanceUntilIdle()
+
+        val cachedDir = RemoteDirectory(
+            path = "/OfflineDir/",
+            name = "OfflineDir",
+            files = listOf(RemoteFile(name = "local.mp3", path = "/OfflineDir/local.mp3"))
+        )
+        fakeDirectoryRepository.setCached("/OfflineDir/", cachedDir)
+        fakeDirectoryRepository.setResult("/OfflineDir/", ListDirectoryResult.Failure("Network timeout", 408))
+
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/OfflineDir/", name = "OfflineDir"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // Cached directory is preserved despite network failure
+        assertEquals("/OfflineDir/", state.currentPath)
+        assertEquals(cachedDir, state.currentDirectory)
+        assertEquals(1, state.currentDirectory?.files?.size)
+        assertFalse(state.isLoading)
+        // Does not disrupt screen with full page error
+        assertNull(state.errorMessage)
+    }
+
+    @Test
+    fun multiServer_independentDirectoryMemory_switchesSeamlessly() = runTest {
+        advanceUntilIdle()
+
+        val server1 = sampleServer
+        val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://server2.local", port = 80)
+
+        val server2RootDir = RemoteDirectory(path = "/", name = "Server 2 Root")
+        val server2PopDir = RemoteDirectory(path = "/Pop/", name = "Pop")
+        fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(server2RootDir))
+        fakeDirectoryRepository.setResult("/Pop/", ListDirectoryResult.Success(server2PopDir))
+
+        // 1. On server 1, navigate to /Music/Rock/
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/", name = "Music"))
+        advanceUntilIdle()
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Music/Rock/", name = "Rock"))
+        advanceUntilIdle()
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+
+        // 2. Switch to server 2 -> enters server 2 root "/"
+        fakeServerRepository.setActiveServerSync(server2)
+        fakeMusicPlayerAppSession.setActiveServer(server2)
+        advanceUntilIdle()
+        assertEquals(server2, viewModel.uiState.value.activeServer)
+        assertEquals("/", viewModel.uiState.value.currentPath)
+
+        // 3. On server 2, navigate to /Pop/
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/Pop/", name = "Pop"))
+        advanceUntilIdle()
+        assertEquals("/Pop/", viewModel.uiState.value.currentPath)
+
+        // 4. Switch back to server 1 -> should remember /Music/Rock/!
+        fakeServerRepository.setActiveServerSync(server1)
+        fakeMusicPlayerAppSession.setActiveServer(server1)
+        advanceUntilIdle()
+        assertEquals(server1, viewModel.uiState.value.activeServer)
+        assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+
+        // 5. Switch back to server 2 -> should remember /Pop/!
+        fakeServerRepository.setActiveServerSync(server2)
+        fakeMusicPlayerAppSession.setActiveServer(server2)
+        advanceUntilIdle()
+        assertEquals(server2, viewModel.uiState.value.activeServer)
+        assertEquals("/Pop/", viewModel.uiState.value.currentPath)
+    }
+
     private class FakeServerRepository : ServerRepository {
         private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
         private val activeServerFlow = MutableStateFlow<WebDavServer?>(null)
@@ -529,11 +634,23 @@ class DirectoryBrowserViewModelTest {
 
     private class FakeDirectoryRepository : DirectoryRepository {
         private val results = mutableMapOf<String, ListDirectoryResult>()
+        private val cachedDirectories = mutableMapOf<String, RemoteDirectory>()
         val forceRefreshCount = mutableMapOf<String, Int>()
         var listCalls = 0
 
         fun setResult(path: String, result: ListDirectoryResult) {
             results[path] = result
+        }
+
+        fun setCached(path: String, directory: RemoteDirectory) {
+            cachedDirectories[path] = directory
+        }
+
+        override suspend fun getCachedDirectory(
+            server: WebDavServer,
+            path: String
+        ): RemoteDirectory? {
+            return cachedDirectories[path]
         }
 
         override suspend fun listDirectory(
@@ -548,7 +665,7 @@ class DirectoryBrowserViewModelTest {
             return results[path] ?: ListDirectoryResult.Failure("Not found")
         }
 
-        override fun clearCache() {
+        override suspend fun clearCache() {
             results.clear()
         }
     }

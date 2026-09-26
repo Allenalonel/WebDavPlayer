@@ -19,6 +19,15 @@ class FakeMusicPlayerAppSession(
     val _sessionState = MutableStateFlow(initialState)
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
 
+    private val _isRestored = MutableStateFlow(true)
+    override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
+
+    val serverLastDirectories = mutableMapOf<Long, String>()
+
+    override fun getLastDirectoryForServer(serverId: Long): String {
+        return serverLastDirectories[serverId] ?: "/"
+    }
+
     var lastPlayDirectory: RemoteDirectory? = null
     var lastPlaySelectedFile: RemoteFile? = null
     var togglePlayPauseCount = 0
@@ -36,6 +45,10 @@ class FakeMusicPlayerAppSession(
     }
 
     override fun setCurrentDirectoryPath(path: String) {
+        val serverId = _sessionState.value.activeServer?.id
+        if (serverId != null) {
+            serverLastDirectories[serverId] = path
+        }
         _sessionState.update { it.copy(currentDirectoryPath = path) }
     }
 

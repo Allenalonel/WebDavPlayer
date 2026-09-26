@@ -189,4 +189,31 @@ class DataStorePlaybackSessionStoreTest {
         assertEquals(25000L, restored?.positionMs)
         assertEquals(PlaybackMode.SINGLE_LOOP, restored?.playbackMode)
     }
+
+    @Test
+    fun saveSession_withServerLastDirectories_roundTripsCorrectly() = runTest(testDispatcher) {
+        val original = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Pop/",
+            queueTracks = emptyList(),
+            currentTrackIndex = -1,
+            positionMs = 0L,
+            playbackMode = PlaybackMode.LIST_LOOP,
+            serverLastDirectories = mapOf(
+                1L to "/Music/Pop/",
+                2L to "/Jazz/Miles/",
+                3L to "/Classical/Bach/"
+            )
+        )
+
+        repository.saveSession(original)
+
+        val restored = repository.getSavedSession()
+        assertNotNull(restored)
+        assertEquals(1L, restored?.activeServerId)
+        assertEquals(3, restored?.serverLastDirectories?.size)
+        assertEquals("/Music/Pop/", restored?.serverLastDirectories?.get(1L))
+        assertEquals("/Jazz/Miles/", restored?.serverLastDirectories?.get(2L))
+        assertEquals("/Classical/Bach/", restored?.serverLastDirectories?.get(3L))
+    }
 }

@@ -11,6 +11,11 @@ import kotlinx.coroutines.flow.StateFlow
 interface MusicPlayerAppSession {
     val sessionState: StateFlow<PlayerSessionState>
 
+    val isRestored: StateFlow<Boolean>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(true)
+
+    fun getLastDirectoryForServer(serverId: Long): String = "/"
+
     fun setActiveServer(server: WebDavServer?)
 
     fun setCurrentDirectoryPath(path: String)

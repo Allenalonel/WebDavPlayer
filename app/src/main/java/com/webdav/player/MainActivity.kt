@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -76,25 +77,16 @@ class MainActivity : ComponentActivity() {
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
                 var destination by rememberSaveable {
-                    mutableStateOf(AppDestination.SERVER_LIST)
+                    mutableStateOf(AppDestination.DIRECTORY_BROWSER)
                 }
 
                 var isFullPlayerExpanded by rememberSaveable { mutableStateOf(false) }
 
-                // Auto-enter browser on first launch if there is an active server
-                var hasCheckedInitialActiveServer by rememberSaveable { mutableStateOf(false) }
+                // If active server is confirmed absent once loaded, fall back to server list
                 LaunchedEffect(serverState.isLoading, serverState.activeServer) {
-                    if (!serverState.isLoading && !hasCheckedInitialActiveServer) {
-                        hasCheckedInitialActiveServer = true
-                        if (serverState.activeServer != null) {
-                            destination = AppDestination.DIRECTORY_BROWSER
-                        }
+                    if (!serverState.isLoading && serverState.activeServer == null && destination == AppDestination.DIRECTORY_BROWSER) {
+                        destination = AppDestination.SERVER_LIST
                     }
-                }
-
-                // If active server was deleted/unset while on browser, return to server list
-                if (serverState.activeServer == null && destination == AppDestination.DIRECTORY_BROWSER && !serverState.isLoading) {
-                    destination = AppDestination.SERVER_LIST
                 }
 
                 LaunchedEffect(playerSessionState.hasTrack) {
@@ -211,7 +203,6 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onSelectServerAndNavigate = { server ->
                                         serverViewModel.onSelectActiveServer(server.id)
-                                        browserViewModel.resetToRoot()
                                         destination = AppDestination.DIRECTORY_BROWSER
                                     }
                                 )

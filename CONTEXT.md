@@ -22,6 +22,10 @@ _Avoid_: Folder, Remote Path
 WebDAV 服务器上的文件实体，具备 URL、大小及最后修改时间等元数据。
 _Avoid_: Resource, Item
 
+**Directory Cache**:
+WebDAV 远程目录在本地持久化数据库中的结构化镜像快照，包含子目录与文件元数据，用于秒级渲染并支持弱网与离线浏览。
+_Avoid_: Folder Cache, File Index, Offline Copy
+
 ### Playback & Library
 
 **Audio Track**:
@@ -47,6 +51,10 @@ _Avoid_: Local Cache, Download File, Offline Storage
 **Playback Session State**:
 本地持久化保存的播放会话现场，记录活跃服务器、播放队列、当前曲目索引及毫秒级播放进度，用于冷启动无缝续播。
 _Avoid_: Last Song, Resume Info, History Record
+
+**Directory Session State**:
+针对各个 WebDAV Server 独立持久化记录的最后浏览目录路径，用于在切换服务器或重启应用时无缝还原上次停留的目录层级。
+_Avoid_: Last Folder, Recent Path, Navigation History
 
 **Lyrics Source**:
 与曲目关联的歌词提供方，支持从远程同目录同名 `.lrc` 文件解析或从音频内嵌标签中提取时间轴文本。

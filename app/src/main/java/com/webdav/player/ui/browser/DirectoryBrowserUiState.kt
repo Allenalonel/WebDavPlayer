@@ -7,6 +7,7 @@ import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 
 data class DirectoryBrowserUiState(
+    val isInitializing: Boolean = true,
     val activeServer: WebDavServer? = null,
     val currentPath: String = "/",
     val breadcrumbs: List<Breadcrumb> = listOf(Breadcrumb(name = "根目录", path = "/")),

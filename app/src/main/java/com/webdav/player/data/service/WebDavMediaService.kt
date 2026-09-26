@@ -80,7 +80,17 @@ class WebDavMediaService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val session = activeSession ?: (application as? WebDavApplication)?.let {
+        val app = application as? WebDavApplication
+        app?.let {
+            kotlinx.coroutines.runBlocking {
+                try {
+                    it.musicPlayerAppSession.flushSession()
+                } catch (e: Throwable) {
+                    // Ignore on shutdown
+                }
+            }
+        }
+        val session = activeSession ?: app?.let {
             (it.playerEngine as? Media3AudioPlayerEngine)?.mediaSession
         }
         val player = session?.player

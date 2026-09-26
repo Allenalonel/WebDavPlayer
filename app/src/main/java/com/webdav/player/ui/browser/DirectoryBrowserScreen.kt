@@ -127,7 +127,9 @@ fun DirectoryBrowserScreen(
             TopAppBar(
                 title = {
                     Column {
-                        val titleText = if (uiState.currentPath == "/") {
+                        val titleText = if (uiState.isInitializing) {
+                            "媒体库"
+                        } else if (uiState.currentPath == "/") {
                             uiState.activeServer?.name ?: "远程目录"
                         } else {
                             uiState.currentDirectory?.name
@@ -140,17 +142,19 @@ fun DirectoryBrowserScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = uiState.currentPath,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (!uiState.isInitializing) {
+                            Text(
+                                text = uiState.currentPath,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
-                    if (uiState.canNavigateUp) {
+                    if (uiState.canNavigateUp && !uiState.isInitializing) {
                         IconButton(onClick = { viewModel.onNavigateUp() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -160,11 +164,13 @@ fun DirectoryBrowserScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.onRefresh() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新目录"
-                        )
+                    if (!uiState.isInitializing) {
+                        IconButton(onClick = { viewModel.onRefresh() }) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "刷新目录"
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -178,14 +184,16 @@ fun DirectoryBrowserScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Breadcrumb navigation bar (MD3 AssistChip Strip)
-            DirectoryBreadcrumbStrip(
-                breadcrumbs = uiState.breadcrumbs,
-                currentPath = uiState.currentPath,
-                onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) }
-            )
+            if (!uiState.isInitializing && uiState.activeServer != null) {
+                // Breadcrumb navigation bar (MD3 AssistChip Strip)
+                DirectoryBreadcrumbStrip(
+                    breadcrumbs = uiState.breadcrumbs,
+                    currentPath = uiState.currentPath,
+                    onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) }
+                )
 
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            }
 
             // Content Area with Pull-to-Refresh
             Box(
@@ -195,6 +203,16 @@ fun DirectoryBrowserScreen(
                     .clipToBounds()
             ) {
                 when {
+                    uiState.isInitializing -> {
+                        // Cold-start initialization in progress: wait quietly without flashing NoActiveServerState
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Clean background during the brief cold-start initialization
+                        }
+                    }
+
                     uiState.activeServer == null -> {
                         NoActiveServerState(onNavigateToServerManagement = onNavigateToServerManagement)
                     }

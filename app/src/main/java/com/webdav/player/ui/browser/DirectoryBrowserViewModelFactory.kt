@@ -19,7 +19,13 @@ class DirectoryBrowserViewModelFactory(private val context: Context) : ViewModel
                 ServerRepositoryImpl(database.webDavServerDao())
             }
             val client = OkHttpWebDavClient()
-            val directoryRepository = DirectoryRepositoryImpl(client)
+            val directoryRepository = app?.directoryRepository ?: run {
+                val database = AppDatabase.getInstance(context)
+                DirectoryRepositoryImpl(
+                    webDavClient = client,
+                    directoryCacheDao = database.directoryCacheDao()
+                )
+            }
             val session = app?.musicPlayerAppSession
             val metadataRepository = app?.trackMetadataRepository ?: run {
                 val database = AppDatabase.getInstance(context)

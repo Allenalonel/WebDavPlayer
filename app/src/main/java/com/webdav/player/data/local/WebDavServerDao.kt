@@ -32,15 +32,6 @@ interface WebDavServerDao {
     @Query("DELETE FROM webdav_servers WHERE id = :id")
     suspend fun deleteServerById(id: Long): Int
 
-    @Query("UPDATE webdav_servers SET isDefault = 0")
-    suspend fun clearActiveServer()
-
-    @Query("UPDATE webdav_servers SET isDefault = 1 WHERE id = :id")
-    suspend fun markServerActive(id: Long)
-
-    @Transaction
-    suspend fun setActiveServer(id: Long) {
-        clearActiveServer()
-        markServerActive(id)
-    }
+    @Query("UPDATE webdav_servers SET isDefault = CASE WHEN id = :id THEN 1 ELSE 0 END")
+    suspend fun setActiveServer(id: Long)
 }

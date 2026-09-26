@@ -27,13 +27,10 @@ private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataS
 
 class DataStorePlaybackSessionStore(
     private val dataStore: DataStore<Preferences>,
-    private val fileProvider: (() -> File)? = null
+    private val testFileProvider: (() -> File)? = null
 ) : PlaybackSessionStore {
 
-    constructor(context: Context) : this(
-        context.sessionDataStore,
-        { context.preferencesDataStoreFile("playback_session_prefs") }
-    )
+    constructor(context: Context) : this(context.sessionDataStore, null)
 
     companion object {
         private val KEY_ACTIVE_SERVER_ID = longPreferencesKey("active_server_id")
@@ -42,12 +39,14 @@ class DataStorePlaybackSessionStore(
         private val KEY_CURRENT_TRACK_INDEX = intPreferencesKey("current_track_index")
         private val KEY_POSITION_MS = longPreferencesKey("position_ms")
         private val KEY_PLAYBACK_MODE = stringPreferencesKey("playback_mode")
+        private val KEY_SERVER_LAST_DIRS_JSON = stringPreferencesKey("server_last_dirs_json")
     }
 
     override suspend fun saveSession(sessionData: PlaybackSessionData) {
         val tracksJson = serializeTracks(sessionData.queueTracks)
+        val serverLastDirsJson = serializeServerLastDirs(sessionData.serverLastDirectories)
         dataStore.edit { prefs ->
-            fileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
+            testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
             if (sessionData.activeServerId != null) {
                 prefs[KEY_ACTIVE_SERVER_ID] = sessionData.activeServerId
             } else {
@@ -58,6 +57,7 @@ class DataStorePlaybackSessionStore(
             prefs[KEY_CURRENT_TRACK_INDEX] = sessionData.currentTrackIndex
             prefs[KEY_POSITION_MS] = sessionData.positionMs
             prefs[KEY_PLAYBACK_MODE] = sessionData.playbackMode.name
+            prefs[KEY_SERVER_LAST_DIRS_JSON] = serverLastDirsJson
         }
     }
 
@@ -92,6 +92,7 @@ class DataStorePlaybackSessionStore(
                 PlaybackMode.LIST_LOOP
             }
         } ?: PlaybackMode.LIST_LOOP
+        val serverLastDirs = deserializeServerLastDirs(prefs[KEY_SERVER_LAST_DIRS_JSON])
 
         return PlaybackSessionData(
             activeServerId = serverId,
@@ -99,13 +100,14 @@ class DataStorePlaybackSessionStore(
             queueTracks = tracks,
             currentTrackIndex = trackIndex,
             positionMs = positionMs,
-            playbackMode = mode
+            playbackMode = mode,
+            serverLastDirectories = serverLastDirs
         )
     }
 
     override suspend fun clearSession() {
         dataStore.edit { prefs ->
-            fileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
+            testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
             prefs.clear()
         }
     }
@@ -120,7 +122,7 @@ class DataStorePlaybackSessionStore(
         mode: String
     ) {
         dataStore.edit { prefs ->
-            fileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
+            testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
             prefs[KEY_ACTIVE_SERVER_ID] = serverId
             prefs[KEY_CURRENT_DIRECTORY_PATH] = dirPath
             prefs[KEY_QUEUE_TRACKS_JSON] = tracksJson
@@ -183,6 +185,33 @@ class DataStorePlaybackSessionStore(
             list
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    private fun serializeServerLastDirs(map: Map<Long, String>): String {
+        val obj = JSONObject()
+        for ((k, v) in map) {
+            obj.put(k.toString(), v)
+        }
+        return obj.toString()
+    }
+
+    private fun deserializeServerLastDirs(json: String?): Map<Long, String> {
+        if (json.isNullOrBlank()) return emptyMap()
+        return try {
+            val obj = JSONObject(json)
+            val map = mutableMapOf<Long, String>()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val id = key.toLongOrNull()
+                if (id != null) {
+                    map[id] = obj.getString(key)
+                }
+            }
+            map
+        } catch (e: Exception) {
+            emptyMap()
         }
     }
 }

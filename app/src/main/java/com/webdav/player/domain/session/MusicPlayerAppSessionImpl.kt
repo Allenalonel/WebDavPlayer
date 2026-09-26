@@ -42,25 +42,33 @@ class MusicPlayerAppSessionImpl(
     private val _sessionState = MutableStateFlow(PlayerSessionState())
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
 
+    private val _isRestored = MutableStateFlow(sessionStore == null)
+    override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
+
+    private val serverLastDirectories = java.util.concurrent.ConcurrentHashMap<Long, String>()
     private var periodicFlushJob: Job? = null
 
     init {
-        // Observe active server from repository if provided
-        if (serverRepository != null) {
-            coroutineScope.launch {
+        coroutineScope.launch {
+            // Restore cold start state first if store is provided
+            if (sessionStore != null) {
+                try {
+                    restoreSession()
+                } finally {
+                    _isRestored.value = true
+                }
+            } else {
+                _isRestored.value = true
+            }
+
+            // Observe active server from repository after initial restoration
+            if (serverRepository != null) {
                 serverRepository.getActiveServer().collect { server ->
                     val current = _sessionState.value
                     if (current.activeServer?.id != server?.id) {
                         setActiveServer(server)
                     }
                 }
-            }
-        }
-
-        // Restore cold start state if store is provided
-        if (sessionStore != null) {
-            coroutineScope.launch {
-                restoreSession()
             }
         }
 
@@ -202,18 +210,38 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
+    override fun getLastDirectoryForServer(serverId: Long): String {
+        return serverLastDirectories[serverId] ?: "/"
+    }
+
     override fun setActiveServer(server: WebDavServer?) {
         _sessionState.update { current ->
             if (current.activeServer?.id != server?.id) {
+                // If on cold start activeServer was null and we already have a restored session/queue,
+                // do NOT clear the queue or playback state! Attach the server and keep the restored session.
+                if (current.activeServer == null && current.hasTrack) {
+                    val path = if (current.currentDirectoryPath.isNotBlank() && current.currentDirectoryPath != "/") {
+                        current.currentDirectoryPath
+                    } else {
+                        if (server != null) getLastDirectoryForServer(server.id) else "/"
+                    }
+                    return@update current.copy(
+                        activeServer = server,
+                        currentDirectoryPath = path
+                    )
+                }
+
                 if (current.playbackState !is PlaybackState.Idle) {
                     playerEngine.stop()
                 }
+                val lastPath = if (server != null) getLastDirectoryForServer(server.id) else "/"
                 current.copy(
                     activeServer = server,
                     queue = PlaybackQueue.EMPTY,
                     playbackState = PlaybackState.Idle,
                     currentPositionMs = 0L,
                     durationMs = 0L,
+                    currentDirectoryPath = lastPath,
                     errorMessage = null,
                     lyrics = null,
                     isLoadingLyrics = false
@@ -460,73 +488,113 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun setCurrentDirectoryPath(path: String) {
+        val serverId = _sessionState.value.activeServer?.id
+        if (serverId != null) {
+            serverLastDirectories[serverId] = path
+        }
         _sessionState.update { it.copy(currentDirectoryPath = path) }
+        coroutineScope.launch { flushSession() }
     }
 
     override suspend fun restoreSession() {
         val store = sessionStore ?: return
-        val savedSession = store.getSavedSession() ?: return
-        val serverId = savedSession.activeServerId
+        try {
+            val savedSession = store.getSavedSession() ?: return
+            savedSession.serverLastDirectories.forEach { (id, path) ->
+                serverLastDirectories[id] = path
+            }
+            val serverId = savedSession.activeServerId
+            if (serverId != null && savedSession.currentDirectoryPath.isNotBlank()) {
+                serverLastDirectories[serverId] = savedSession.currentDirectoryPath
+            }
 
-        val server = if (serverId != null) {
-            serverRepository?.getServerById(serverId)
-        } else null
+            val server = if (serverId != null) {
+                serverRepository?.getServerById(serverId)
+            } else null
 
-        // If server ID was specified but server no longer exists in repository, gracefully do not restore
-        if (serverId != null && server == null) {
-            return
-        }
+            // If server ID was specified but server no longer exists in repository, gracefully do not restore
+            if (serverId != null && server == null) {
+                return
+            }
 
-        val current = _sessionState.value
-        val active = current.activeServer
-        // If active server is already different from saved server, don't overwrite
-        if (active != null && server != null && active.id != server.id) {
-            return
-        }
+            val current = _sessionState.value
+            val active = current.activeServer
+            // If active server is already different from saved server, don't overwrite
+            if (active != null && server != null && active.id != server.id) {
+                return
+            }
 
-        // Don't overwrite if playback is actively happening
-        if (current.hasTrack && current.isPlaying) {
-            return
-        }
+            // Don't overwrite if playback is actively happening
+            if (current.hasTrack && current.isPlaying) {
+                return
+            }
 
-        val restoredQueue = PlaybackQueue(
-            tracks = savedSession.queueTracks,
-            currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex)
-        )
-        val restoredTrack = restoredQueue.currentTrack
-        val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
-        val durationMs = restoredTrack?.durationMs ?: 0L
-
-        _sessionState.update {
-            it.copy(
-                activeServer = server ?: it.activeServer,
-                queue = restoredQueue,
-                playbackState = restoredPlaybackState,
-                playbackMode = savedSession.playbackMode,
-                currentPositionMs = savedSession.positionMs,
-                durationMs = durationMs,
-                currentDirectoryPath = savedSession.currentDirectoryPath,
-                errorMessage = null
+            val restoredQueue = PlaybackQueue(
+                tracks = savedSession.queueTracks,
+                currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex)
             )
-        }
+            val restoredTrack = restoredQueue.currentTrack
+            val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
+            var durationMs = restoredTrack?.durationMs ?: 0L
 
-        playerEngine.setPlaybackMode(savedSession.playbackMode)
+            var finalQueue = restoredQueue
+            if (durationMs <= 0L && server != null && restoredTrack != null) {
+                val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, restoredTrack.remotePath)
+                if (cachedMeta != null && cachedMeta.durationMs > 0L) {
+                    durationMs = cachedMeta.durationMs
+                    val updatedTracks = savedSession.queueTracks.mapIndexed { index, track ->
+                        if (index == savedSession.currentTrackIndex) track.withMetadata(cachedMeta) else track
+                    }
+                    finalQueue = PlaybackQueue(tracks = updatedTracks, currentIndex = savedSession.currentTrackIndex)
+                }
+            }
+
+            _sessionState.update {
+                it.copy(
+                    activeServer = server ?: it.activeServer,
+                    queue = finalQueue,
+                    playbackState = restoredPlaybackState,
+                    playbackMode = savedSession.playbackMode,
+                    currentPositionMs = savedSession.positionMs,
+                    durationMs = durationMs,
+                    currentDirectoryPath = savedSession.currentDirectoryPath,
+                    errorMessage = null
+                )
+            }
+
+            playerEngine.setPlaybackMode(savedSession.playbackMode)
+        } finally {
+            _isRestored.value = true
+        }
     }
 
     override suspend fun flushSession() {
         val store = sessionStore ?: return
         val current = _sessionState.value
-        if (current.activeServer == null && current.queue.isEmpty) {
+        val currentServerId = current.activeServer?.id
+        if (currentServerId != null && current.currentDirectoryPath.isNotBlank()) {
+            serverLastDirectories[currentServerId] = current.currentDirectoryPath
+        }
+        if (current.activeServer == null && current.queue.isEmpty && serverLastDirectories.isEmpty()) {
             store.clearSession()
             return
         }
+
+        // Query live engine position if active
+        val livePositionMs = if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+            playerEngine.currentPositionMs.value.takeIf { it > 0L } ?: current.currentPositionMs
+        } else {
+            current.currentPositionMs
+        }
+
         val sessionData = PlaybackSessionData(
             activeServerId = current.activeServer?.id,
             currentDirectoryPath = current.currentDirectoryPath,
             queueTracks = current.queue.tracks,
             currentTrackIndex = current.queue.currentIndex,
-            positionMs = current.currentPositionMs,
-            playbackMode = current.playbackMode
+            positionMs = livePositionMs,
+            playbackMode = current.playbackMode,
+            serverLastDirectories = serverLastDirectories.toMap()
         )
         store.saveSession(sessionData)
     }
