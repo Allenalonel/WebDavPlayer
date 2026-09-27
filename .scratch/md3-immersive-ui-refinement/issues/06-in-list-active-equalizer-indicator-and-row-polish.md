@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 (Immersive Edge-to-Edge System Chrome and Top Bar Harmonization)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `AudioTrackItemRow` observes active track identity and playback state (playing vs paused).
-- [ ] When an item matches the currently playing track, an animated three-bar equalizer wave overlay displays over its thumbnail.
-- [ ] Equalizer bars bounce dynamically when audio is playing, freeze at fixed heights when audio is paused, and disappear when another track is selected.
-- [ ] Active tracks feature subtle `surfaceContainerHigh` background tinting and primary-colored title text.
-- [ ] Overlength audio track titles scroll with smooth horizontal marquee animations instead of harsh ellipsis clipping.
+- [x] `AudioTrackItemRow` observes active track identity and playback state (playing vs paused).
+- [x] When an item matches the currently playing track, an animated three-bar equalizer wave overlay displays over its thumbnail.
+- [x] Equalizer bars bounce dynamically when audio is playing, freeze at fixed heights when audio is paused, and disappear when another track is selected.
+- [x] Active tracks feature subtle `surfaceContainerHigh` background tinting and primary-colored title text.
+- [x] Overlength audio track titles scroll with smooth horizontal marquee animations instead of harsh ellipsis clipping.

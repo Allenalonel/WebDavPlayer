@@ -1,8 +1,11 @@
 package com.webdav.player.ui.browser
 
 import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.ListDirectoryResult
+import com.webdav.player.domain.model.PlaybackQueue
+import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
@@ -721,6 +724,169 @@ class DirectoryBrowserViewModelTest {
             advanceUntilIdle()
             assertEquals(server2, viewModel.uiState.value.activeServer)
             assertEquals("/Pop/", viewModel.uiState.value.currentPath)
+        }
+
+    @Test
+    fun sessionState_whenPlayingTrackOnActiveServer_updatesActiveTrackPathAndIsPlaying() =
+        runTest {
+            advanceUntilIdle()
+
+            val playingTrack = AudioTrack(
+                id = "1:/root_track.mp3",
+                serverId = sampleServer.id,
+                remotePath = "/root_track.mp3",
+                title = "Root Track",
+                format = AudioFormat.MP3,
+            )
+
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                queue = PlaybackQueue(tracks = listOf(playingTrack), currentIndex = 0),
+                playbackState = PlaybackState.Playing,
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("/root_track.mp3", state.activeTrackPath)
+            assertTrue(state.isPlaying)
+            assertTrue(state.isTrackActive("/root_track.mp3"))
+            assertFalse(state.isTrackActive("/other.mp3"))
+        }
+
+    @Test
+    fun sessionState_whenPaused_preservesActiveTrackPathWithIsPlayingFalse() =
+        runTest {
+            advanceUntilIdle()
+
+            val activeTrack = AudioTrack(
+                id = "1:/root_track.mp3",
+                serverId = sampleServer.id,
+                remotePath = "/root_track.mp3",
+                title = "Root Track",
+                format = AudioFormat.MP3,
+            )
+
+            // First playing
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                queue = PlaybackQueue(tracks = listOf(activeTrack), currentIndex = 0),
+                playbackState = PlaybackState.Playing,
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isPlaying)
+
+            // Then paused
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                playbackState = PlaybackState.Paused,
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("/root_track.mp3", state.activeTrackPath)
+            assertFalse(state.isPlaying)
+            assertTrue(state.isTrackActive("/root_track.mp3"))
+        }
+
+    @Test
+    fun sessionState_whenIdleOrStopped_clearsActiveTrackPath() =
+        runTest {
+            advanceUntilIdle()
+
+            val activeTrack = AudioTrack(
+                id = "1:/root_track.mp3",
+                serverId = sampleServer.id,
+                remotePath = "/root_track.mp3",
+                title = "Root Track",
+                format = AudioFormat.MP3,
+            )
+
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                queue = PlaybackQueue(tracks = listOf(activeTrack), currentIndex = 0),
+                playbackState = PlaybackState.Playing,
+            )
+            advanceUntilIdle()
+            assertEquals("/root_track.mp3", viewModel.uiState.value.activeTrackPath)
+
+            // Track stopped / queue cleared
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                queue = PlaybackQueue.EMPTY,
+                playbackState = PlaybackState.Idle,
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertNull(state.activeTrackPath)
+            assertFalse(state.isPlaying)
+            assertFalse(state.isTrackActive("/root_track.mp3"))
+        }
+
+    @Test
+    fun sessionState_whenTrackOnDifferentServer_doesNotSetActiveTrack() =
+        runTest {
+            advanceUntilIdle()
+
+            // Active track belongs to server id 999, but browser is viewing sampleServer (id = 1)
+            val otherServerTrack = AudioTrack(
+                id = "999:/root_track.mp3",
+                serverId = 999L,
+                remotePath = "/root_track.mp3",
+                title = "Root Track",
+                format = AudioFormat.MP3,
+            )
+
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                queue = PlaybackQueue(tracks = listOf(otherServerTrack), currentIndex = 0),
+                playbackState = PlaybackState.Playing,
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertNull(state.activeTrackPath)
+            assertFalse(state.isPlaying)
+        }
+
+    @Test
+    fun switchingServer_updatesActiveTrackMatchingNewServer() =
+        runTest {
+            advanceUntilIdle()
+
+            val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://server2.local", port = 80)
+            val server2RootDir = RemoteDirectory(path = "/", name = "Server 2 Root")
+            fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(server2RootDir))
+
+            val server1Track = AudioTrack(
+                id = "1:/root_track.mp3",
+                serverId = sampleServer.id,
+                remotePath = "/root_track.mp3",
+                title = "Server 1 Track",
+                format = AudioFormat.MP3,
+            )
+
+            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
+                queue = PlaybackQueue(tracks = listOf(server1Track), currentIndex = 0),
+                playbackState = PlaybackState.Playing,
+            )
+            advanceUntilIdle()
+
+            // On Server 1, track is active
+            assertEquals("/root_track.mp3", viewModel.uiState.value.activeTrackPath)
+            assertTrue(viewModel.uiState.value.isPlaying)
+
+            // Switch to Server 2 -> track from Server 1 should no longer be active in browser
+            fakeServerRepository.setActiveServerSync(server2)
+            fakeMusicPlayerAppSession.setActiveServer(server2)
+            advanceUntilIdle()
+
+            assertEquals(server2, viewModel.uiState.value.activeServer)
+            assertNull(viewModel.uiState.value.activeTrackPath)
+            assertFalse(viewModel.uiState.value.isPlaying)
+
+            // Switch back to Server 1 -> active track is recognized again
+            fakeServerRepository.setActiveServerSync(sampleServer)
+            fakeMusicPlayerAppSession.setActiveServer(sampleServer)
+            advanceUntilIdle()
+
+            assertEquals(sampleServer, viewModel.uiState.value.activeServer)
+            assertEquals("/root_track.mp3", viewModel.uiState.value.activeTrackPath)
+            assertTrue(viewModel.uiState.value.isPlaying)
         }
 
     private class FakeServerRepository : ServerRepository {

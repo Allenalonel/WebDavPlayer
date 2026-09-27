@@ -5,8 +5,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,11 +18,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -29,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -48,8 +52,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -160,63 +162,33 @@ fun FullPlayerView(
             modifier =
                 Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
                     .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // MD3 Drag Handle at the top of the sheet
+            // Minimalist Centered Drag Handle Zone: width 36dp, height 4dp, rounded corners 2dp
             Box(
                 modifier =
                     Modifier
-                        .padding(top = 10.dp, bottom = 4.dp)
-                        .size(width = 38.dp, height = 4.5.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        .fillMaxWidth()
+                        .padding(top = 10.dp, bottom = 8.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onCollapse,
+                        )
                         .then(downwardSwipeModifier),
-            )
-
-            // Top Bar with Collapse Arrow and Subtitle Header
-            TopAppBar(
-                title = {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .then(downwardSwipeModifier),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            text = if (pagerState.currentPage == 1) "歌词" else "正在播放",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        if (currentTrack?.album != null && currentTrack.album.isNotBlank()) {
-                            Text(
-                                text = currentTrack.album,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onCollapse) {
-                        Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
-                            contentDescription = "收起播放器",
-                            modifier = Modifier.size(28.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                    ),
-                modifier = downwardSwipeModifier,
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+                )
+            }
 
             // Upper Main Area: Horizontal Pager between Artwork and Lyrics
             HorizontalPager(
@@ -291,7 +263,7 @@ fun FullPlayerView(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Scrubbing Seek Slider & Real-time Timestamps
+            // Dual-Layer Buffered Progress Slider & Real-time Timestamps
             Column(modifier = Modifier.fillMaxWidth()) {
                 val maxDuration =
                     if (playbackProgress.durationMs > 0L) {
@@ -306,26 +278,58 @@ fun FullPlayerView(
                         0f
                     }
 
-                Slider(
-                    value = sliderValue,
-                    onValueChange = { newPos ->
-                        isScrubbing = true
-                        scrubbedPositionMs = newPos.toLong()
-                    },
-                    onValueChangeFinished = {
-                        onSeek(scrubbedPositionMs)
-                        isScrubbing = false
-                    },
-                    valueRange = 0f..(if (maxDuration > 0L) maxDuration.toFloat() else 1f),
-                    enabled = maxDuration > 0L,
-                    colors =
-                        SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(36.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    // Layer 1 (bottom): Translucent secondary track/indicator showing WebDAV remote buffer progress
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
+                    ) {
+                        val bufferedFraction = playbackProgress.bufferedFraction.coerceIn(0f, 1f)
+                        if (bufferedFraction > 0f) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth(fraction = bufferedFraction)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)),
+                            )
+                        }
+                    }
+
+                    // Layer 2 (top): Interactive M3 Slider with thumb showing elapsed playback progress
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = { newPos ->
+                            isScrubbing = true
+                            scrubbedPositionMs = newPos.toLong()
+                        },
+                        onValueChangeFinished = {
+                            onSeek(scrubbedPositionMs)
+                            isScrubbing = false
+                        },
+                        valueRange = 0f..(if (maxDuration > 0L) maxDuration.toFloat() else 1f),
+                        enabled = maxDuration > 0L,
+                        colors =
+                            SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = Color.Transparent,
+                            ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
 
                 Row(
                     modifier =
@@ -496,6 +500,7 @@ fun FullPlayerView(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ArtworkPage(
     currentTrack: AudioTrack?,
@@ -536,33 +541,80 @@ private fun ArtworkPage(
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Track Title
+        // Track Title with basicMarquee for long titles
         Text(
             text = currentTrack?.title ?: "无正在播放曲目",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .basicMarquee(),
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        // Artist and Format Subtitle
+        // Artist Name
         Text(
-            text = formatTrackArtistAndFormat(currentTrack),
+            text = currentTrack?.artist?.trim()?.takeIf { it.isNotBlank() } ?: "未知艺术家",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+
+        // Audiophile Specification Capsule
+        val specs = currentTrack?.audiophileSpecsModel
+        if (specs != null && specs.formatted.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            val isHiRes = specs.isHiRes
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color =
+                    if (isHiRes) {
+                        Color(0x26FFB703) // Subtle gold tint for Hi-Res
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f)
+                    },
+                border =
+                    BorderStroke(
+                        width = 1.dp,
+                        color =
+                            if (isHiRes) {
+                                Color(0x4DFFB703) // Subtle gold border for Hi-Res
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            },
+                    ),
+            ) {
+                Text(
+                    text = specs.formatted,
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                        ),
+                    color =
+                        if (isHiRes) {
+                            Color(0xFFFFB703)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LyricsPage(
     sessionState: PlayerSessionState,
@@ -590,6 +642,10 @@ private fun LyricsPage(
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .basicMarquee(),
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(

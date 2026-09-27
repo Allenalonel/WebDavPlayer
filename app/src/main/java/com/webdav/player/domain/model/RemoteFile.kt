@@ -17,9 +17,14 @@ data class RemoteFile(
     val qualitySummary: String
         get() = formatQualitySummary(null)
 
+    val audiophileSpecs: String
+        get() = formatAudiophileSpecs(null)
+
     fun resolveBadge(metadata: TrackMetadata? = null): AudioQualityBadge? = AudioQuality.resolveBadge(this, metadata)
 
     fun formatQualitySummary(metadata: TrackMetadata? = null): String = AudioQuality.formatQualitySummary(this, metadata)
+
+    fun formatAudiophileSpecs(metadata: TrackMetadata? = null): String = AudioQuality.formatAudiophileSpecs(this, metadata)
 
     fun estimateBitrateKbps(durationMs: Long = 0L): Int? = AudioQuality.estimateBitrateKbps(name, size, durationMs)
 }

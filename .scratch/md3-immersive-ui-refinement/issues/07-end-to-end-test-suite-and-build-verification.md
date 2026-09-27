@@ -4,9 +4,9 @@
 
 **Blocked by:** 01, 02, 03, 04, 05, 06
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Unit tests verify audio quality specification string generation (format, sample rate, bit depth, bitrate) across all supported codecs.
-- [ ] Equalizer indicator state logic is tested for active, paused, and idle transitions.
-- [ ] Full project compiles cleanly via `./gradlew compileDebugSources` and `./gradlew test` with zero build or resource errors.
-- [ ] No regression in background audio playback, notification controls, or WebDAV directory caching.
+- [x] Unit tests verify audio quality specification string generation (format, sample rate, bit depth, bitrate) across all supported codecs.
+- [x] Equalizer indicator state logic is tested for active, paused, and idle transitions.
+- [x] Full project compiles cleanly via `./gradlew compileDebugSources` and `./gradlew test` with zero build or resource errors.
+- [x] No regression in background audio playback, notification controls, or WebDAV directory caching.

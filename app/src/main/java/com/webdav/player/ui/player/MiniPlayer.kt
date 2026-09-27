@@ -4,7 +4,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -24,9 +26,10 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,12 +41,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
 
+object MiniPlayerDefaults {
+    val CapsuleCornerRadius: Dp = 20.dp
+    val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
+    val ProgressMicroBarShape =
+        RoundedCornerShape(bottomStart = CapsuleCornerRadius, bottomEnd = CapsuleCornerRadius)
+    val PlayPauseButtonSize: Dp = 42.dp
+    val SkipNextButtonSize: Dp = 38.dp
+    val ButtonSpacing: Dp = 8.dp
+    val MicroBarHeight: Dp = 2.dp
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MiniPlayer(
     sessionState: PlayerSessionState,
@@ -59,7 +75,7 @@ fun MiniPlayer(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(MaterialTheme.shapes.medium)
+                .clip(MiniPlayerDefaults.CapsuleShape)
                 .pointerInput(Unit) {
                     var upwardDrag = 0f
                     detectVerticalDragGestures(
@@ -75,7 +91,7 @@ fun MiniPlayer(
                         onDragCancel = { upwardDrag = 0f },
                     )
                 }.clickable { onMiniPlayerClick() },
-        shape = MaterialTheme.shapes.medium,
+        shape = MiniPlayerDefaults.CapsuleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
         shadowElevation = 8.dp,
@@ -119,10 +135,10 @@ fun MiniPlayer(
                 ) {
                     Text(
                         text = currentTrack.title,
+                        modifier = Modifier.basicMarquee(),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     PlaybackStateIndicator(
@@ -131,7 +147,7 @@ fun MiniPlayer(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
 
                 // Play / Pause / Buffering Toggle Button
                 PlayPauseToggleButton(
@@ -139,15 +155,15 @@ fun MiniPlayer(
                     onTogglePlayPause = onTogglePlayPause,
                 )
 
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
 
                 // Skip Next Button
                 IconButton(
                     onClick = onSkipToNext,
                     modifier =
                         Modifier
-                            .size(40.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f), CircleShape),
+                            .size(MiniPlayerDefaults.SkipNextButtonSize)
+                            .clip(CircleShape),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipNext,
@@ -158,17 +174,16 @@ fun MiniPlayer(
                 }
             }
 
-            if (playbackProgress.durationMs > 0L) {
-                LinearProgressIndicator(
-                    progress = playbackProgress.progressFraction,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(2.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                )
-            }
+            LinearProgressIndicator(
+                progress = { playbackProgress.progressFraction },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(MiniPlayerDefaults.MicroBarHeight)
+                        .clip(MiniPlayerDefaults.ProgressMicroBarShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            )
         }
     }
 }
@@ -278,12 +293,14 @@ private fun PlayPauseToggleButton(
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    IconButton(
+    FilledTonalIconButton(
         onClick = onTogglePlayPause,
-        modifier =
-            modifier
-                .size(40.dp)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+        modifier = modifier.size(MiniPlayerDefaults.PlayPauseButtonSize),
+        colors =
+            IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
     ) {
         AnimatedContent(
             targetState = sessionState.playbackState,
@@ -295,7 +312,7 @@ private fun PlayPauseToggleButton(
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
 
@@ -303,7 +320,6 @@ private fun PlayPauseToggleButton(
                     Icon(
                         imageVector = Icons.Filled.Pause,
                         contentDescription = "暂停",
-                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp),
                     )
                 }
@@ -312,7 +328,6 @@ private fun PlayPauseToggleButton(
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
                         contentDescription = "播放",
-                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp),
                     )
                 }

@@ -33,6 +33,12 @@ data class AudioTrack(
     val qualitySummary: String
         get() = AudioQuality.formatQualitySummary(qualityBadge)
 
+    val audiophileSpecs: String
+        get() = audiophileSpecsModel.formatted
+
+    val audiophileSpecsModel: AudiophileSpecs
+        get() = AudioQuality.resolveAudiophileSpecs(format, fileName, size, durationMs)
+
     fun resolveBadge(): AudioQualityBadge = qualityBadge
 
     fun formatQualitySummary(): String = qualitySummary

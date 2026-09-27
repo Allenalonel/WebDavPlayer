@@ -148,4 +148,81 @@ class DirectoryBrowserPresentationTest {
         assertEquals(2, audioDir.audioFiles.size)
         assertTrue(emptyDir.isEmpty)
     }
+
+    @Test
+    fun headerTitle_initializing_returnsMediaLibrary() {
+        val state = DirectoryBrowserUiState(isInitializing = true)
+        assertEquals("媒体库", state.headerTitle)
+    }
+
+    @Test
+    fun headerTitle_rootWithActiveServer_returnsServerName() {
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = sampleServer,
+            currentPath = "/"
+        )
+        assertEquals("Synology NAS", state.headerTitle)
+    }
+
+    @Test
+    fun headerTitle_rootWithoutActiveServer_returnsFallback() {
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = null,
+            currentPath = "/"
+        )
+        assertEquals("远程目录", state.headerTitle)
+    }
+
+    @Test
+    fun headerTitle_subDirectory_returnsDirectoryName() {
+        val dir = RemoteDirectory(path = "/Music/Lossless/", name = "Lossless")
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = sampleServer,
+            currentPath = "/Music/Lossless/",
+            currentDirectory = dir
+        )
+        assertEquals("Lossless", state.headerTitle)
+    }
+
+    @Test
+    fun headerTitle_subDirectoryWithoutCurrentDirectoryObject_derivesFromPath() {
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = sampleServer,
+            currentPath = "/Music/Jazz/",
+            currentDirectory = null
+        )
+        assertEquals("Jazz", state.headerTitle)
+    }
+
+    @Test
+    fun activeTrack_uiState_evaluatesActiveTrackCorrectly() {
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = sampleServer,
+            currentPath = "/Music/",
+            activeTrackPath = "/Music/song.flac",
+            isPlaying = true
+        )
+        assertTrue(state.isTrackActive("/Music/song.flac"))
+        assertFalse(state.isTrackActive("/Music/other.mp3"))
+        assertTrue(state.isPlaying)
+    }
+
+    @Test
+    fun activeTrack_uiState_whenNoActiveTrack_returnsFalse() {
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = sampleServer,
+            currentPath = "/Music/",
+            activeTrackPath = null,
+            isPlaying = false
+        )
+        assertFalse(state.isTrackActive("/Music/song.flac"))
+        assertFalse(state.isPlaying)
+    }
 }
+

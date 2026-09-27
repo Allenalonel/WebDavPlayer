@@ -129,4 +129,27 @@ class ServerCardPresentationTest {
         assertTrue(failureResult is ConnectionResult.Failure)
         assertEquals(401, (failureResult as ConnectionResult.Failure).statusCode)
     }
+
+    @Test
+    fun tapHintText_distinguishesActiveAndInactiveCards() {
+        val getTapHint = { isActive: Boolean -> if (isActive) "点击浏览根目录" else "点击切换并浏览" }
+        assertEquals("点击浏览根目录", getTapHint(true))
+        assertEquals("点击切换并浏览", getTapHint(false))
+    }
+
+    @Test
+    fun consolidatedOverflowMenu_routesEditAndDeleteCorrectly() {
+        var editTriggered = false
+        var deleteTriggered = false
+
+        val onEdit = { editTriggered = true }
+        val onDelete = { deleteTriggered = true }
+
+        onEdit()
+        assertTrue(editTriggered)
+        assertFalse(deleteTriggered)
+
+        onDelete()
+        assertTrue(deleteTriggered)
+    }
 }

@@ -82,32 +82,14 @@ fun DirectoryBrowserScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        val titleText = if (uiState.isInitializing) {
-                            "媒体库"
-                        } else if (uiState.currentPath == "/") {
-                            uiState.activeServer?.name ?: "远程目录"
-                        } else {
-                            uiState.currentDirectory?.name
-                                ?: uiState.currentPath.trimEnd('/').substringAfterLast('/')
-                        }
-                        Text(
-                            text = titleText,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (!uiState.isInitializing) {
-                            Text(
-                                text = uiState.currentPath,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+                    val titleText = uiState.headerTitle
+                    Text(
+                        text = titleText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 },
                 navigationIcon = {
                     if (uiState.canNavigateUp && !uiState.isInitializing) {
@@ -130,7 +112,7 @@ fun DirectoryBrowserScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         }
@@ -208,6 +190,8 @@ fun DirectoryBrowserScreen(
                             directories = uiState.subDirectories,
                             files = uiState.files,
                             metadataMap = uiState.metadataMap,
+                            activeTrackPath = uiState.activeTrackPath,
+                            isPlaying = uiState.isPlaying,
                             onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
                             onFileClicked = onFileClicked,
                             onPlayNext = { viewModel.playNext(it) }
@@ -231,6 +215,8 @@ fun DirectoryContentList(
     directories: List<RemoteDirectory>,
     files: List<RemoteFile>,
     metadataMap: Map<String, TrackMetadata> = emptyMap(),
+    activeTrackPath: String? = null,
+    isPlaying: Boolean = false,
     onDirectoryClicked: (RemoteDirectory) -> Unit,
     onFileClicked: (RemoteFile) -> Unit,
     onPlayNext: (RemoteFile) -> Unit = {},
@@ -258,9 +244,12 @@ fun DirectoryContentList(
         // Files next (MD3 ListItems)
         items(files, key = { "file_${it.path}" }) { file ->
             val metadata = metadataMap[file.path]
+            val isActive = file.isAudio && file.path == activeTrackPath
             AudioTrackItemRow(
                 file = file,
                 metadata = metadata,
+                isActive = isActive,
+                isPlaying = isPlaying,
                 onClick = { onFileClicked(file) },
                 onPlayNext = { onPlayNext(file) }
             )

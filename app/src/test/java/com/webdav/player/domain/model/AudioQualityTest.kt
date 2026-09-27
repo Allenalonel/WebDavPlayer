@@ -289,4 +289,335 @@ class AudioQualityTest {
         assertEquals(320, updatedTrack.estimatedBitrateKbps)
         assertEquals("MP3 320k", updatedTrack.badge.label)
     }
+
+    @Test
+    fun formatAudiophileSpecs_flacHiResWithExplicitTags() {
+        val track =
+            AudioTrack(
+                id = "1:/music/track.flac",
+                serverId = 1L,
+                remotePath = "/music/Hotel California [96kHz-24bit].flac",
+                title = "Hotel California",
+                durationMs = 240_000L,
+                size = 73_500_000L,
+                format = AudioFormat.FLAC,
+            )
+        val specs = formatAudiophileSpecs(track)
+        assertEquals("⚡ FLAC · 96kHz / 24-bit · 2450 kbps", specs)
+        assertEquals(specs, track.audiophileSpecs)
+        assertEquals(specs, track.audiophileSpecsModel.formatted)
+    }
+
+    @Test
+    fun formatAudiophileSpecs_flacHiResFromBitrate() {
+        val track =
+            AudioTrack(
+                id = "1:/music/track.flac",
+                serverId = 1L,
+                remotePath = "/music/Track.flac",
+                title = "Track",
+                durationMs = 240_000L,
+                size = 73_500_000L,
+                format = AudioFormat.FLAC,
+            )
+        val specs = formatAudiophileSpecs(track)
+        assertEquals("⚡ FLAC · 96kHz / 24-bit · 2450 kbps", specs)
+    }
+
+    @Test
+    fun formatAudiophileSpecs_flacStandardCd() {
+        val track =
+            AudioTrack(
+                id = "1:/music/track.flac",
+                serverId = 1L,
+                remotePath = "/music/Track.flac",
+                title = "Track",
+                durationMs = 240_000L,
+                size = 25_500_000L,
+                format = AudioFormat.FLAC,
+            )
+        val specs = formatAudiophileSpecs(track)
+        assertEquals("FLAC · 44.1kHz / 16-bit · 850 kbps", specs)
+    }
+
+    @Test
+    fun formatAudiophileSpecs_wavStandardCd() {
+        val track =
+            AudioTrack(
+                id = "1:/music/track.wav",
+                serverId = 1L,
+                remotePath = "/music/Symphony.wav",
+                title = "Symphony",
+                durationMs = 240_000L,
+                size = 42_336_000L,
+                format = AudioFormat.WAV,
+            )
+        val specs = formatAudiophileSpecs(track)
+        assertEquals("WAV · 44.1kHz / 16-bit · 1411 kbps", specs)
+    }
+
+    @Test
+    fun formatAudiophileSpecs_wavHiRes() {
+        val track =
+            AudioTrack(
+                id = "1:/music/track.wav",
+                serverId = 1L,
+                remotePath = "/music/Symphony [96kHz-24bit].wav",
+                title = "Symphony",
+                durationMs = 240_000L,
+                size = 138_240_000L,
+                format = AudioFormat.WAV,
+            )
+        val specs = formatAudiophileSpecs(track)
+        assertEquals("⚡ WAV · 96kHz / 24-bit · 4608 kbps", specs)
+    }
+
+    @Test
+    fun formatAudiophileSpecs_mp3WithBitrateTag() {
+        val track =
+            AudioTrack(
+                id = "1:/music/song.mp3",
+                serverId = 1L,
+                remotePath = "/music/Artist - Song [320k].mp3",
+                title = "Song",
+                durationMs = 240_000L,
+                size = 9_600_000L,
+                format = AudioFormat.MP3,
+            )
+        val specs = formatAudiophileSpecs(track)
+        assertEquals("MP3 · 320 kbps", specs)
+    }
+
+    @Test
+    fun formatAudiophileSpecs_lossyFormats() {
+        val aacTrack =
+            AudioTrack(
+                id = "1:/music/song.aac",
+                serverId = 1L,
+                remotePath = "/music/song.aac",
+                title = "AAC Song",
+                durationMs = 240_000L,
+                size = 7_680_000L,
+                format = AudioFormat.AAC,
+            )
+        assertEquals("AAC · 256 kbps", formatAudiophileSpecs(aacTrack))
+
+        val oggTrack =
+            AudioTrack(
+                id = "1:/music/song.ogg",
+                serverId = 1L,
+                remotePath = "/music/song.ogg",
+                title = "OGG Song",
+                durationMs = 240_000L,
+                size = 5_760_000L,
+                format = AudioFormat.OGG,
+            )
+        assertEquals("OGG · 192 kbps", formatAudiophileSpecs(oggTrack))
+
+        val m4aTrack =
+            AudioTrack(
+                id = "1:/music/song.m4a",
+                serverId = 1L,
+                remotePath = "/music/song.m4a",
+                title = "M4A Song",
+                durationMs = 240_000L,
+                size = 7_680_000L,
+                format = AudioFormat.M4A,
+            )
+        assertEquals("M4A · 256 kbps", formatAudiophileSpecs(m4aTrack))
+
+        val wmaTrack =
+            AudioTrack(
+                id = "1:/music/song.wma",
+                serverId = 1L,
+                remotePath = "/music/song.wma",
+                title = "WMA Song",
+                durationMs = 240_000L,
+                size = 3_840_000L,
+                format = AudioFormat.WMA,
+            )
+        assertEquals("WMA · 128 kbps", formatAudiophileSpecs(wmaTrack))
+    }
+
+    @Test
+    fun formatAudiophileSpecs_nullTrack_returnsEmpty() {
+        assertEquals("", formatAudiophileSpecs(null))
+    }
+
+    @Test
+    fun formatAudiophileSpecs_remoteFile() {
+        val flacFile =
+            RemoteFile(
+                name = "test [96kHz-24bit].flac",
+                path = "/music/test [96kHz-24bit].flac",
+                size = 73_500_000L,
+            )
+        val metadata =
+            TrackMetadata(
+                serverId = 1L,
+                remotePath = flacFile.path,
+                durationMs = 240_000L,
+            )
+        val specs = formatAudiophileSpecs(flacFile, metadata)
+        assertEquals("⚡ FLAC · 96kHz / 24-bit · 2450 kbps", specs)
+        assertEquals(specs, flacFile.formatAudiophileSpecs(metadata))
+    }
+
+    @Test
+    fun audiophileSpecs_allSevenCodecs_verifiesFormatSampleRateBitDepthAndBitrate() {
+        // 1. FLAC (Hi-Res audiophile master)
+        val flacSpecs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.FLAC,
+            fileName = "Master [96kHz-24bit] [2450k].flac",
+            fileSize = 73_500_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.FLAC, flacSpecs.format)
+        assertEquals("96kHz", flacSpecs.sampleRate)
+        assertEquals("24-bit", flacSpecs.bitDepth)
+        assertEquals(2450, flacSpecs.bitrateKbps)
+        assertTrue(flacSpecs.isHiRes)
+        assertTrue(flacSpecs.isLossless)
+        assertEquals("⚡ FLAC · 96kHz / 24-bit · 2450 kbps", flacSpecs.formatted)
+
+        // 2. WAV (Standard Redbook CD)
+        val wavSpecs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.WAV,
+            fileName = "Redbook [44.1kHz-16bit].wav",
+            fileSize = 42_336_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.WAV, wavSpecs.format)
+        assertEquals("44.1kHz", wavSpecs.sampleRate)
+        assertEquals("16-bit", wavSpecs.bitDepth)
+        assertEquals(1411, wavSpecs.bitrateKbps)
+        assertFalse(wavSpecs.isHiRes)
+        assertTrue(wavSpecs.isLossless)
+        assertEquals("WAV · 44.1kHz / 16-bit · 1411 kbps", wavSpecs.formatted)
+
+        // 3. MP3 (Lossy CBR/VBR)
+        val mp3Specs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.MP3,
+            fileName = "Broadcast [320k].mp3",
+            fileSize = 9_600_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.MP3, mp3Specs.format)
+        assertNull(mp3Specs.sampleRate)
+        assertNull(mp3Specs.bitDepth)
+        assertEquals(320, mp3Specs.bitrateKbps)
+        assertFalse(mp3Specs.isHiRes)
+        assertFalse(mp3Specs.isLossless)
+        assertEquals("MP3 · 320 kbps", mp3Specs.formatted)
+
+        // 4. AAC (Advanced Audio Coding)
+        val aacSpecs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.AAC,
+            fileName = "Stream [256k].aac",
+            fileSize = 7_680_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.AAC, aacSpecs.format)
+        assertNull(aacSpecs.sampleRate)
+        assertNull(aacSpecs.bitDepth)
+        assertEquals(256, aacSpecs.bitrateKbps)
+        assertFalse(aacSpecs.isHiRes)
+        assertFalse(aacSpecs.isLossless)
+        assertEquals("AAC · 256 kbps", aacSpecs.formatted)
+
+        // 5. OGG (Vorbis Stream)
+        val oggSpecs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.OGG,
+            fileName = "Stream [192k].ogg",
+            fileSize = 5_760_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.OGG, oggSpecs.format)
+        assertNull(oggSpecs.sampleRate)
+        assertNull(oggSpecs.bitDepth)
+        assertEquals(192, oggSpecs.bitrateKbps)
+        assertFalse(oggSpecs.isHiRes)
+        assertFalse(oggSpecs.isLossless)
+        assertEquals("OGG · 192 kbps", oggSpecs.formatted)
+
+        // 6. M4A (MPEG-4 Audio)
+        val m4aSpecs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.M4A,
+            fileName = "Track [256k].m4a",
+            fileSize = 7_680_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.M4A, m4aSpecs.format)
+        assertNull(m4aSpecs.sampleRate)
+        assertNull(m4aSpecs.bitDepth)
+        assertEquals(256, m4aSpecs.bitrateKbps)
+        assertFalse(m4aSpecs.isHiRes)
+        assertFalse(m4aSpecs.isLossless)
+        assertEquals("M4A · 256 kbps", m4aSpecs.formatted)
+
+        // 7. WMA (Windows Media Audio)
+        val wmaSpecs = AudioQuality.resolveAudiophileSpecs(
+            format = AudioFormat.WMA,
+            fileName = "Legacy [128k].wma",
+            fileSize = 3_840_000L,
+            durationMs = 240_000L,
+        )
+        assertEquals(AudioFormat.WMA, wmaSpecs.format)
+        assertNull(wmaSpecs.sampleRate)
+        assertNull(wmaSpecs.bitDepth)
+        assertEquals(128, wmaSpecs.bitrateKbps)
+        assertFalse(wmaSpecs.isHiRes)
+        assertFalse(wmaSpecs.isLossless)
+        assertEquals("WMA · 128 kbps", wmaSpecs.formatted)
+    }
+
+    @Test
+    fun audiophileSpecs_lossyCodecsFallbackWithoutBitrate_returnsBareFormat() {
+        val lossyFormats = listOf(
+            AudioFormat.MP3,
+            AudioFormat.AAC,
+            AudioFormat.OGG,
+            AudioFormat.M4A,
+            AudioFormat.WMA,
+        )
+        for (format in lossyFormats) {
+            val specs = AudioQuality.resolveAudiophileSpecs(
+                format = format,
+                fileName = "unknown.${format.extension}",
+                fileSize = 0L,
+                durationMs = 0L,
+            )
+            assertEquals(format.extension.uppercase(), specs.formatted)
+            assertNull(specs.bitrateKbps)
+            assertFalse(specs.isHiRes)
+            assertFalse(specs.isLossless)
+        }
+    }
+
+    @Test
+    fun parseSampleRateAndBitDepth_comprehensivePatterns() {
+        // Sample rates in kHz
+        assertEquals("44.1kHz", AudioQuality.parseSampleRate("track 44.1kHz.flac"))
+        assertEquals("48kHz", AudioQuality.parseSampleRate("track 48kHz.flac"))
+        assertEquals("88.2kHz", AudioQuality.parseSampleRate("track 88.2kHz.flac"))
+        assertEquals("96kHz", AudioQuality.parseSampleRate("track 96kHz.flac"))
+        assertEquals("176.4kHz", AudioQuality.parseSampleRate("track 176.4kHz.flac"))
+        assertEquals("192kHz", AudioQuality.parseSampleRate("track 192kHz.flac"))
+        assertEquals("352.8kHz", AudioQuality.parseSampleRate("track 352.8kHz.flac"))
+        assertEquals("384kHz", AudioQuality.parseSampleRate("track 384kHz.flac"))
+
+        // Sample rates in Hz
+        assertEquals("44.1kHz", AudioQuality.parseSampleRate("track 44100Hz.flac"))
+        assertEquals("48kHz", AudioQuality.parseSampleRate("track 48000Hz.flac"))
+        assertEquals("88.2kHz", AudioQuality.parseSampleRate("track 88200Hz.flac"))
+        assertEquals("96kHz", AudioQuality.parseSampleRate("track 96000Hz.flac"))
+        assertEquals("176.4kHz", AudioQuality.parseSampleRate("track 176400Hz.flac"))
+        assertEquals("192kHz", AudioQuality.parseSampleRate("track 192000Hz.flac"))
+
+        // Bit depths
+        assertEquals("16-bit", AudioQuality.parseBitDepth("track 16-bit.flac"))
+        assertEquals("24-bit", AudioQuality.parseBitDepth("track 24-bit.flac"))
+        assertEquals("32-bit", AudioQuality.parseBitDepth("track 32-bit.flac"))
+        assertEquals("24-bit", AudioQuality.parseBitDepth("track 96k 24b.flac"))
+    }
 }

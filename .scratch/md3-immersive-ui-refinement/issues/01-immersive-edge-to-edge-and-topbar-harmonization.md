@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Activity activates edge-to-edge system decor on startup (`enableEdgeToEdge()`).
-- [ ] Status bar icons automatically adjust between light and dark contrast based on the active Material 3 theme and content surfaces.
-- [ ] The top app bar container background paints seamlessly behind the status bar icons with no color discrepancy or dividing seam.
-- [ ] The bottom navigation bar background extends smoothly behind the system gesture navigation bar.
-- [ ] The directory browser top app bar displays only the current folder or server title, without duplicating the full directory path text.
-- [ ] The directory breadcrumb strip continues to function correctly beneath the streamlined header for ancestor navigation.
+- [x] Activity activates edge-to-edge system decor on startup (`enableEdgeToEdge()`).
+- [x] Status bar icons automatically adjust between light and dark contrast based on the active Material 3 theme and content surfaces.
+- [x] The top app bar container background paints seamlessly behind the status bar icons with no color discrepancy or dividing seam.
+- [x] The bottom navigation bar background extends smoothly behind the system gesture navigation bar.
+- [x] The directory browser top app bar displays only the current folder or server title, without duplicating the full directory path text.
+- [x] The directory breadcrumb strip continues to function correctly beneath the streamlined header for ancestor navigation.

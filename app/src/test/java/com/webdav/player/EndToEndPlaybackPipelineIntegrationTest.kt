@@ -251,6 +251,11 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals("02-Allegro.mp3", mp3File.name)
             assertEquals("03-Sonata.wma", wmaFile.name)
 
+            // Step 2b: Verify WebDAV directory caching persists and returns cached results without additional network calls
+            val cachedResult = directoryRepository.listDirectory(testServer, "/Music/", forceRefresh = false)
+            assertTrue("Cached directory must succeed without new network calls", cachedResult is ListDirectoryResult.Success)
+            assertEquals(3, (cachedResult as ListDirectoryResult.Success).directory.files.size)
+
             // Step 3: Enqueue tracks and start playback through MusicPlayerAppSessionImpl
             val engine =
                 Media3AudioPlayerEngine(

@@ -5,6 +5,7 @@ import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.ui.browser.components.EqualizerStateHelper
 
 data class DirectoryBrowserUiState(
     val isInitializing: Boolean = true,
@@ -16,7 +17,9 @@ data class DirectoryBrowserUiState(
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
     val canNavigateUp: Boolean = false,
-    val metadataMap: Map<String, TrackMetadata> = emptyMap()
+    val metadataMap: Map<String, TrackMetadata> = emptyMap(),
+    val activeTrackPath: String? = null,
+    val isPlaying: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = currentDirectory?.isEmpty == true
@@ -26,4 +29,17 @@ data class DirectoryBrowserUiState(
 
     val files: List<RemoteFile>
         get() = currentDirectory?.files ?: emptyList()
+
+    val headerTitle: String
+        get() = if (isInitializing) {
+            "媒体库"
+        } else if (currentPath == "/") {
+            activeServer?.name ?: "远程目录"
+        } else {
+            currentDirectory?.name
+                ?: currentPath.trimEnd('/').substringAfterLast('/')
+        }
+
+    fun isTrackActive(filePath: String): Boolean =
+        EqualizerStateHelper.isTrackActive(filePath, activeTrackPath)
 }

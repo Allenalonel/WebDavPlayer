@@ -38,6 +38,24 @@ class DirectoryBrowserViewModel(
     private var currentLoadJob: Job? = null
 
     init {
+        if (musicPlayerAppSession != null) {
+            viewModelScope.launch {
+                musicPlayerAppSession.isRestored.first { it }
+                musicPlayerAppSession.sessionState.collect { sessionState ->
+                    val currentTrack = sessionState.currentTrack
+                    val isPlaying = sessionState.isPlaying
+                    _uiState.update { current ->
+                        val (activeTrackPath, trackIsPlaying) =
+                            resolveActivePlayback(current.activeServer, currentTrack, isPlaying)
+                        current.copy(
+                            activeTrackPath = activeTrackPath,
+                            isPlaying = trackIsPlaying,
+                        )
+                    }
+                }
+            }
+        }
+
         viewModelScope.launch {
             if (musicPlayerAppSession != null) {
                 musicPlayerAppSession.isRestored.first { it }
@@ -76,6 +94,10 @@ class DirectoryBrowserViewModel(
                             }
                         }
 
+                    val session = musicPlayerAppSession?.sessionState?.value
+                    val (activeTrackPath, isPlaying) =
+                        resolveActivePlayback(server, session?.currentTrack, session?.isPlaying == true)
+
                     _uiState.update {
                         it.copy(
                             isInitializing = false,
@@ -86,6 +108,8 @@ class DirectoryBrowserViewModel(
                             currentDirectory = null,
                             errorMessage = null,
                             metadataMap = emptyMap(),
+                            activeTrackPath = activeTrackPath,
+                            isPlaying = isPlaying,
                         )
                     }
 
@@ -111,6 +135,8 @@ class DirectoryBrowserViewModel(
                                 currentDirectory = null,
                                 errorMessage = null,
                                 metadataMap = emptyMap(),
+                                activeTrackPath = null,
+                                isPlaying = false,
                             )
                         }
                     }
@@ -239,6 +265,19 @@ class DirectoryBrowserViewModel(
                     }
                 }
             }
+    }
+
+    private fun resolveActivePlayback(
+        server: WebDavServer?,
+        track: AudioTrack?,
+        isPlaying: Boolean,
+    ): Pair<String?, Boolean> {
+        val matchesServer = track != null && server != null && track.serverId == server.id
+        return if (matchesServer) {
+            Pair(track?.remotePath, isPlaying)
+        } else {
+            Pair(null, false)
+        }
     }
 
     private fun buildBreadcrumbs(

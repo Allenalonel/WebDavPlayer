@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Vinyl Outer Rim -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 29.49,74.57 A 32,32 0 1,1 84.07,64.94" />
+
+    <!-- Minimalist Vinyl Grooves -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeAlpha="0.65"
+        android:strokeWidth="1.0"
+        android:strokeLineCap="round"
+        android:pathData="M 33.32,71.36 A 27,27 0 1,1 79.37,63.23" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeAlpha="0.8"
+        android:strokeWidth="1.0"
+        android:strokeLineCap="round"
+        android:pathData="M 37.15,68.14 A 22,22 0 1,1 74.67,61.52" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeAlpha="0.65"
+        android:strokeWidth="1.0"
+        android:strokeLineCap="round"
+        android:pathData="M 40.98,64.93 A 17,17 0 1,1 69.97,59.81" />
+
+    <!-- Vinyl Center Hub Ring & Spindle Hole -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:pathData="M 46,54 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 51.2,54 a 2.8,2.8 0 1,0 5.6,0 a 2.8,2.8 0 1,0 -5.6,0" />
+
+    <!-- Cloud Motif Silhouette -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillAlpha="0.22"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineJoin="round"
+        android:pathData="M 42,68 c -4,0 -7,-3 -7,-7 0,-3.6 2.6,-6.4 6,-6.8 1.2,-5 5.6,-8.2 11,-8.2 4.6,0 8.6,2.6 10.2,6.4 3.6,0.4 6.8,3.4 6.8,7.6 0,4.4 -3.6,8 -8,8 H 42 z" />
+
+    <!-- Cloud Streaming Wave Lines -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 43,59 c 2.2,-2.2 5,-2.2 7.2,0 s 5,2.2 7.2,0" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 45,63.5 c 1.8,-1.8 4,-1.8 5.8,0 s 4,1.8 5.8,0" />
+</vector>
