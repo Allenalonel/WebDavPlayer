@@ -10,9 +10,8 @@ import okhttp3.OkHttpClient
 
 @OptIn(UnstableApi::class)
 class WebDavDataSourceFactory(
-    private val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient()
+    val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
 ) : DataSource.Factory {
-
     @Volatile
     private var currentServer: WebDavServer? = null
 
@@ -23,9 +22,11 @@ class WebDavDataSourceFactory(
         synchronized(this) {
             if (currentServer != server) {
                 currentServer = server
-                val client = webDavClient.buildClientForServer(server)
-                currentFactory = OkHttpDataSource.Factory(client)
-                    .setUserAgent("WebDavPlayer/1.0")
+                val client = webDavClient.buildStreamingClientForServer(server)
+                currentFactory =
+                    OkHttpDataSource
+                        .Factory(client)
+                        .setUserAgent("WebDavPlayer/1.0")
             }
         }
     }
@@ -33,14 +34,21 @@ class WebDavDataSourceFactory(
     fun getCurrentServer(): WebDavServer? = currentServer
 
     override fun createDataSource(): DataSource {
-        val factory = currentFactory ?: synchronized(this) {
-            currentFactory ?: run {
-                val defaultFactory = OkHttpDataSource.Factory(OkHttpClient())
-                    .setUserAgent("WebDavPlayer/1.0")
-                currentFactory = defaultFactory
-                defaultFactory
+        val factory =
+            currentFactory ?: synchronized(this) {
+                currentFactory ?: run {
+                    val fallbackClient =
+                        webDavClient.buildStreamingClientForServer(
+                            WebDavServer(name = "Default", url = "http://localhost"),
+                        )
+                    val defaultFactory =
+                        OkHttpDataSource
+                            .Factory(fallbackClient)
+                            .setUserAgent("WebDavPlayer/1.0")
+                    currentFactory = defaultFactory
+                    defaultFactory
+                }
             }
-        }
         return factory.createDataSource()
     }
 }
