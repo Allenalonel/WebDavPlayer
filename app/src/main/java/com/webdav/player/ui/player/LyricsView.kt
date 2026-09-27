@@ -36,16 +36,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.LyricLine
 import com.webdav.player.domain.model.Lyrics
+import com.webdav.player.domain.model.PlaybackProgress
 
 @Composable
 fun LyricsView(
     lyrics: Lyrics?,
     isLoading: Boolean,
-    currentPositionMs: Long,
+    currentPositionMs: Long = 0L,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
     onToggleCover: () -> Unit = {}
 ) {
+    val effectivePositionMs =
+        if (playbackProgress.durationMs > 0L || playbackProgress.currentPositionMs > 0L) {
+            playbackProgress.currentPositionMs
+        } else {
+            currentPositionMs
+        }
+
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -97,7 +106,7 @@ fun LyricsView(
             }
             else -> {
                 val lazyListState = rememberLazyListState()
-                val activeIndex = lyrics.findActiveLineIndex(currentPositionMs)
+                val activeIndex = lyrics.findActiveLineIndex(effectivePositionMs)
 
                 // Smoothly scroll to active line
                 LaunchedEffect(activeIndex) {

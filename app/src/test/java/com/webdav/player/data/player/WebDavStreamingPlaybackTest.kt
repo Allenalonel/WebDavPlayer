@@ -1,5 +1,6 @@
 package com.webdav.player.data.player
 
+import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -8,6 +9,7 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.WebDavServer
 import okhttp3.OkHttpClient
@@ -66,13 +68,13 @@ class WebDavStreamingPlaybackTest {
     }
 
     @Test
-    fun webDavDataSourceFactory_usesStreamingClient() {
-        val factory = WebDavDataSourceFactory()
-        factory.setServer(testServer)
+    fun webDavMediaSourceAdapter_usesStreamingClient() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val adapter = DefaultWebDavMediaSourceAdapter(context)
 
-        val streamingClient = factory.webDavClient.buildStreamingClientForServer(testServer)
+        val streamingClient = adapter.getStreamingClientForServer(testServer)
         assertEquals(30_000, streamingClient.readTimeoutMillis)
-        val dataSource = factory.createDataSource()
+        val dataSource = adapter.getDataSourceFactory(testServer).createDataSource()
         assertNotNull(dataSource)
     }
 

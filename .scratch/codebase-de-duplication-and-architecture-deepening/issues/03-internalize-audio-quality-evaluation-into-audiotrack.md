@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Audio quality level categorization (`LOSSLESS`, `HIGH_QUALITY`, `STANDARD`, `COMPRESSED`) is defined as a domain enumeration.
-- [ ] Bitrate extraction from filename patterns and bitrate estimation from file size and track duration are internalized into `AudioTrack` and `RemoteFile`.
-- [ ] Quality badge data and summary formatting become intrinsic domain properties of `AudioTrack`.
-- [ ] `AudioQualityBadgeHelper` is pruned into a lightweight presentation composable mapping domain quality levels to Material Design 3 Badge styling.
-- [ ] Unit tests for quality evaluation run cleanly against domain models without requiring Android UI framework context.
+- [x] Audio quality level categorization (`LOSSLESS`, `HIGH_QUALITY`, `STANDARD`, `COMPRESSED`) is defined as a domain enumeration.
+- [x] Bitrate extraction from filename patterns and bitrate estimation from file size and track duration are internalized into `AudioTrack` and `RemoteFile`.
+- [x] Quality badge data and summary formatting become intrinsic domain properties of `AudioTrack`.
+- [x] `AudioQualityBadgeHelper` is pruned into a lightweight presentation composable mapping domain quality levels to Material Design 3 Badge styling.
+- [x] Unit tests for quality evaluation run cleanly against domain models without requiring Android UI framework context.

@@ -27,7 +27,9 @@ class DirectoryBrowserPresentationTest {
     @Test
     fun breadcrumbStrip_generatesHierarchyWithActiveTail() {
         val path = "/Music/Lossless/Pink Floyd/"
-        val breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(sampleServer, path)
+        val breadcrumbs = RemoteDirectory.buildBreadcrumbs(sampleServer, path)
+        val helperBreadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(sampleServer, path)
+        assertEquals(breadcrumbs, helperBreadcrumbs)
 
         assertEquals(4, breadcrumbs.size)
         assertEquals(Breadcrumb("Synology NAS", "/"), breadcrumbs[0])
@@ -44,10 +46,12 @@ class DirectoryBrowserPresentationTest {
         val currentPath = "/Music/Lossless/Pink Floyd/"
         val ancestorBreadcrumb = Breadcrumb("Music", "/Music/")
 
+        assertTrue(RemoteDirectory.isAncestor(ancestorBreadcrumb.path, currentPath))
         assertTrue(BreadcrumbNavigationHelper.isAncestor(ancestorBreadcrumb.path, currentPath))
         assertEquals("/Music/", ancestorBreadcrumb.path)
 
         val rootBreadcrumb = Breadcrumb("Synology NAS", "/")
+        assertTrue(RemoteDirectory.isAncestor(rootBreadcrumb.path, currentPath))
         assertTrue(BreadcrumbNavigationHelper.isAncestor(rootBreadcrumb.path, currentPath))
     }
 
@@ -56,6 +60,7 @@ class DirectoryBrowserPresentationTest {
         val currentPath = "/Music/Lossless/Pink Floyd/"
         val tailBreadcrumb = Breadcrumb("Pink Floyd", "/Music/Lossless/Pink Floyd/")
 
+        assertFalse(RemoteDirectory.isAncestor(tailBreadcrumb.path, currentPath))
         assertFalse(BreadcrumbNavigationHelper.isAncestor(tailBreadcrumb.path, currentPath))
     }
 

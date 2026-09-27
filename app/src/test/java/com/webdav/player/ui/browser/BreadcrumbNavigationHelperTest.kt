@@ -1,6 +1,7 @@
 package com.webdav.player.ui.browser
 
 import com.webdav.player.domain.model.Breadcrumb
+import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.WebDavServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +25,7 @@ class BreadcrumbNavigationHelperTest {
         assertEquals(1, crumbs.size)
         assertEquals("My NAS", crumbs[0].name)
         assertEquals("/", crumbs[0].path)
+        assertEquals(RemoteDirectory.buildBreadcrumbs(sampleServer, "/"), crumbs)
     }
 
     @Test
@@ -32,6 +34,7 @@ class BreadcrumbNavigationHelperTest {
         assertEquals(1, crumbs.size)
         assertEquals("根目录", crumbs[0].name)
         assertEquals("/", crumbs[0].path)
+        assertEquals(RemoteDirectory.buildBreadcrumbs(null, "/"), crumbs)
     }
 
     @Test
@@ -50,6 +53,7 @@ class BreadcrumbNavigationHelperTest {
 
         assertEquals("Queen", crumbs[3].name)
         assertEquals("/Music/Rock/Queen/", crumbs[3].path)
+        assertEquals(RemoteDirectory.buildBreadcrumbs(sampleServer, "/Music/Rock/Queen/"), crumbs)
     }
 
     @Test
@@ -59,6 +63,7 @@ class BreadcrumbNavigationHelperTest {
         assertEquals("/", crumbs[0].path)
         assertEquals("/Music/", crumbs[1].path)
         assertEquals("/Music/Rock/", crumbs[2].path)
+        assertEquals(RemoteDirectory.buildBreadcrumbs(sampleServer, "//Music///Rock//"), crumbs)
     }
 
     @Test
@@ -68,6 +73,10 @@ class BreadcrumbNavigationHelperTest {
         assertEquals("/", BreadcrumbNavigationHelper.getParentPath("/Music/"))
         assertNull(BreadcrumbNavigationHelper.getParentPath("/"))
         assertNull(BreadcrumbNavigationHelper.getParentPath(""))
+
+        assertEquals(RemoteDirectory.getParentPath("/Music/Rock/Queen/"), BreadcrumbNavigationHelper.getParentPath("/Music/Rock/Queen/"))
+        assertEquals(RemoteDirectory.getParentPath("/Music/"), BreadcrumbNavigationHelper.getParentPath("/Music/"))
+        assertEquals(RemoteDirectory.getParentPath("/"), BreadcrumbNavigationHelper.getParentPath("/"))
     }
 
     @Test
@@ -76,5 +85,8 @@ class BreadcrumbNavigationHelperTest {
         assertTrue(BreadcrumbNavigationHelper.isAncestor("/Music/", "/Music/Rock/Queen/"))
         assertFalse(BreadcrumbNavigationHelper.isAncestor("/Music/Rock/", "/Music/Rock/"))
         assertFalse(BreadcrumbNavigationHelper.isAncestor("/Music/Rock/", "/Music/Jazz/"))
+
+        assertEquals(RemoteDirectory.isAncestor("/", "/Music/Rock/"), BreadcrumbNavigationHelper.isAncestor("/", "/Music/Rock/"))
+        assertEquals(RemoteDirectory.isAncestor("/Music/Rock/", "/Music/Jazz/"), BreadcrumbNavigationHelper.isAncestor("/Music/Rock/", "/Music/Jazz/"))
     }
 }

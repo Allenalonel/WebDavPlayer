@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: completed
 
 # Spec: Codebase De-duplication and Architecture Deepening
 

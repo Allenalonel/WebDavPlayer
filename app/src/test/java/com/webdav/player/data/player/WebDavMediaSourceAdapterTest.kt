@@ -1,6 +1,7 @@
 package com.webdav.player.data.player
 
 import android.content.Context
+import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -28,6 +29,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 import java.io.IOException
 import java.net.SocketException
 import java.net.SocketTimeoutException
@@ -78,6 +80,27 @@ class WebDavMediaSourceAdapterTest {
     @After
     fun tearDown() {
         mockWebServer.shutdown()
+    }
+
+    @Test
+    fun createMediaItem_producesValidMediaItem_withCompleteMetadataAndStreamUri() {
+        val mediaItem = adapter.createMediaItem(testServer, testTrack)
+        assertNotNull(mediaItem)
+        assertEquals(testTrack.id, mediaItem.mediaId)
+        assertEquals("Test MP3", mediaItem.mediaMetadata.title.toString())
+        assertEquals("Test Artist", mediaItem.mediaMetadata.artist.toString())
+        assertEquals("Test Album", mediaItem.mediaMetadata.albumTitle.toString())
+        assertEquals(AudioFormat.MP3.mimeType, mediaItem.localConfiguration?.mimeType)
+        assertEquals(testTrack.streamUrl(testServer), mediaItem.localConfiguration?.uri.toString())
+    }
+
+    @Test
+    fun createMediaItem_withCoverThumbnail_attachesArtworkUri() {
+        val coverPath = "/local/path/cover.jpg"
+        val trackWithArt = testTrack.copy(coverThumbnailPath = coverPath)
+        val mediaItem = adapter.createMediaItem(testServer, trackWithArt)
+        assertNotNull(mediaItem.mediaMetadata.artworkUri)
+        assertEquals(Uri.fromFile(File(coverPath)), mediaItem.mediaMetadata.artworkUri)
     }
 
     @Test
@@ -143,62 +166,69 @@ class WebDavMediaSourceAdapterTest {
         val policy = defaultAdapter.loadErrorHandlingPolicy
 
         val testDataSpec = DataSpec.Builder().setUri(testServer.resolveFileUrl(testTrack.remotePath)).build()
-        val socketTimeoutException = HttpDataSource.HttpDataSourceException(
-            "Read timeout",
-            SocketTimeoutException("Read timed out"),
-            testDataSpec,
-            HttpDataSource.HttpDataSourceException.TYPE_READ
-        )
+        val socketTimeoutException =
+            HttpDataSource.HttpDataSourceException(
+                "Read timeout",
+                SocketTimeoutException("Read timed out"),
+                testDataSpec,
+                HttpDataSource.HttpDataSourceException.TYPE_READ,
+            )
 
         // Attempt 1: 1000ms delay
-        val info1 = LoadErrorHandlingPolicy.LoadErrorInfo(
-            LoadEventInfo(0L, testDataSpec, 0L),
-            MediaLoadData(C.DATA_TYPE_MEDIA),
-            socketTimeoutException,
-            1
-        )
+        val info1 =
+            LoadErrorHandlingPolicy.LoadErrorInfo(
+                LoadEventInfo(0L, testDataSpec, 0L),
+                MediaLoadData(C.DATA_TYPE_MEDIA),
+                socketTimeoutException,
+                1,
+            )
         assertEquals(1000L, policy.getRetryDelayMsFor(info1))
 
         // Attempt 2: 2000ms delay
-        val info2 = LoadErrorHandlingPolicy.LoadErrorInfo(
-            LoadEventInfo(0L, testDataSpec, 0L),
-            MediaLoadData(C.DATA_TYPE_MEDIA),
-            socketTimeoutException,
-            2
-        )
+        val info2 =
+            LoadErrorHandlingPolicy.LoadErrorInfo(
+                LoadEventInfo(0L, testDataSpec, 0L),
+                MediaLoadData(C.DATA_TYPE_MEDIA),
+                socketTimeoutException,
+                2,
+            )
         assertEquals(2000L, policy.getRetryDelayMsFor(info2))
 
         // Attempt 3: 4000ms delay
-        val info3 = LoadErrorHandlingPolicy.LoadErrorInfo(
-            LoadEventInfo(0L, testDataSpec, 0L),
-            MediaLoadData(C.DATA_TYPE_MEDIA),
-            socketTimeoutException,
-            3
-        )
+        val info3 =
+            LoadErrorHandlingPolicy.LoadErrorInfo(
+                LoadEventInfo(0L, testDataSpec, 0L),
+                MediaLoadData(C.DATA_TYPE_MEDIA),
+                socketTimeoutException,
+                3,
+            )
         assertEquals(4000L, policy.getRetryDelayMsFor(info3))
 
         // Attempt 4: Exceeded 3 retries -> TIME_UNSET (escalate to unrecoverable error)
-        val info4 = LoadErrorHandlingPolicy.LoadErrorInfo(
-            LoadEventInfo(0L, testDataSpec, 0L),
-            MediaLoadData(C.DATA_TYPE_MEDIA),
-            socketTimeoutException,
-            4
-        )
+        val info4 =
+            LoadErrorHandlingPolicy.LoadErrorInfo(
+                LoadEventInfo(0L, testDataSpec, 0L),
+                MediaLoadData(C.DATA_TYPE_MEDIA),
+                socketTimeoutException,
+                4,
+            )
         assertEquals(C.TIME_UNSET, policy.getRetryDelayMsFor(info4))
 
         // Verify broken pipe and connection reset also retry
-        val brokenPipeException = HttpDataSource.HttpDataSourceException(
-            "Broken pipe",
-            SocketException("Broken pipe"),
-            testDataSpec,
-            HttpDataSource.HttpDataSourceException.TYPE_READ
-        )
-        val brokenPipeInfo = LoadErrorHandlingPolicy.LoadErrorInfo(
-            LoadEventInfo(0L, testDataSpec, 0L),
-            MediaLoadData(C.DATA_TYPE_MEDIA),
-            brokenPipeException,
-            1
-        )
+        val brokenPipeException =
+            HttpDataSource.HttpDataSourceException(
+                "Broken pipe",
+                SocketException("Broken pipe"),
+                testDataSpec,
+                HttpDataSource.HttpDataSourceException.TYPE_READ,
+            )
+        val brokenPipeInfo =
+            LoadErrorHandlingPolicy.LoadErrorInfo(
+                LoadEventInfo(0L, testDataSpec, 0L),
+                MediaLoadData(C.DATA_TYPE_MEDIA),
+                brokenPipeException,
+                1,
+            )
         assertEquals(1000L, policy.getRetryDelayMsFor(brokenPipeInfo))
     }
 
@@ -211,20 +241,22 @@ class WebDavMediaSourceAdapterTest {
 
         val nonRecoverableCodes = listOf(401, 403, 404, 410)
         for (code in nonRecoverableCodes) {
-            val httpException = HttpDataSource.InvalidResponseCodeException(
-                code,
-                "HTTP $code Error",
-                null,
-                emptyMap(),
-                testDataSpec,
-                byteArrayOf()
-            )
-            val errorInfo = LoadErrorHandlingPolicy.LoadErrorInfo(
-                LoadEventInfo(0L, testDataSpec, 0L),
-                MediaLoadData(C.DATA_TYPE_MEDIA),
-                httpException,
-                1
-            )
+            val httpException =
+                HttpDataSource.InvalidResponseCodeException(
+                    code,
+                    "HTTP $code Error",
+                    null,
+                    emptyMap(),
+                    testDataSpec,
+                    byteArrayOf(),
+                )
+            val errorInfo =
+                LoadErrorHandlingPolicy.LoadErrorInfo(
+                    LoadEventInfo(0L, testDataSpec, 0L),
+                    MediaLoadData(C.DATA_TYPE_MEDIA),
+                    httpException,
+                    1,
+                )
             assertEquals("HTTP $code must fail fast without retrying", C.TIME_UNSET, policy.getRetryDelayMsFor(errorInfo))
         }
     }
@@ -236,15 +268,17 @@ class WebDavMediaSourceAdapterTest {
                 .setResponseCode(200)
                 .setHeader("Content-Type", "audio/mpeg")
                 .setHeader("Content-Length", "1024")
-                .setBody("streaming-chunk-data")
+                .setBody("streaming-chunk-data"),
         )
 
         val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
         val dataSource = defaultAdapter.getDataSourceFactory(testServer).createDataSource()
 
-        val dataSpec = DataSpec.Builder()
-            .setUri(testServer.resolveFileUrl(testTrack.remotePath))
-            .build()
+        val dataSpec =
+            DataSpec
+                .Builder()
+                .setUri(testServer.resolveFileUrl(testTrack.remotePath))
+                .build()
 
         dataSource.open(dataSpec)
         val buffer = ByteArray(64)
@@ -270,21 +304,27 @@ class WebDavMediaSourceAdapterTest {
                 .setResponseCode(200)
                 .setHeader("Content-Type", "audio/mpeg")
                 .setHeader("Content-Length", "1024")
-                .setBody("recovered-after-retry")
+                .setBody("recovered-after-retry"),
         )
 
         val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val dataSpec = DataSpec.Builder()
-            .setUri(testServer.resolveFileUrl(testTrack.remotePath))
-            .build()
+        val dataSpec =
+            DataSpec
+                .Builder()
+                .setUri(testServer.resolveFileUrl(testTrack.remotePath))
+                .build()
 
         // Create a short-timeout client to quickly trigger SocketTimeoutException in test
-        val shortTimeoutClient = okhttp3.OkHttpClient.Builder()
-            .readTimeout(200, TimeUnit.MILLISECONDS)
-            .callTimeout(500, TimeUnit.MILLISECONDS)
-            .build()
-        val shortTimeoutDataSource = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(shortTimeoutClient)
-            .createDataSource()
+        val shortTimeoutClient =
+            okhttp3.OkHttpClient
+                .Builder()
+                .readTimeout(200, TimeUnit.MILLISECONDS)
+                .callTimeout(500, TimeUnit.MILLISECONDS)
+                .build()
+        val shortTimeoutDataSource =
+            androidx.media3.datasource.okhttp.OkHttpDataSource
+                .Factory(shortTimeoutClient)
+                .createDataSource()
 
         var caughtTimeoutException: IOException? = null
         try {
@@ -292,18 +332,22 @@ class WebDavMediaSourceAdapterTest {
         } catch (e: IOException) {
             caughtTimeoutException = e
         } finally {
-            try { shortTimeoutDataSource.close() } catch (_: Exception) {}
+            try {
+                shortTimeoutDataSource.close()
+            } catch (_: Exception) {
+            }
         }
 
         assertNotNull("Should catch socket timeout exception", caughtTimeoutException)
 
         // Verify adapter's retry policy grants retry with exponential backoff
-        val errorInfo = LoadErrorHandlingPolicy.LoadErrorInfo(
-            LoadEventInfo(0L, dataSpec, 0L),
-            MediaLoadData(C.DATA_TYPE_MEDIA),
-            caughtTimeoutException!!,
-            1
-        )
+        val errorInfo =
+            LoadErrorHandlingPolicy.LoadErrorInfo(
+                LoadEventInfo(0L, dataSpec, 0L),
+                MediaLoadData(C.DATA_TYPE_MEDIA),
+                caughtTimeoutException!!,
+                1,
+            )
         val retryDelayMs = defaultAdapter.loadErrorHandlingPolicy.getRetryDelayMsFor(errorInfo)
         assertNotEquals("Should retry transient socket timeout", C.TIME_UNSET, retryDelayMs)
         assertEquals("First retry delay should be 1000ms", 1000L, retryDelayMs)
@@ -360,14 +404,15 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun createMediaSource_wmaTrack_configuresWmaMediaItemAndAsfExtractor() {
-        val wmaTrack = AudioTrack(
-            id = "1:/Music/test.wma",
-            serverId = 1L,
-            remotePath = "/Music/test.wma",
-            title = "Test WMA",
-            format = AudioFormat.WMA,
-            size = 2048L
-        )
+        val wmaTrack =
+            AudioTrack(
+                id = "1:/Music/test.wma",
+                serverId = 1L,
+                remotePath = "/Music/test.wma",
+                title = "Test WMA",
+                format = AudioFormat.WMA,
+                size = 2048L,
+            )
         val mediaSource = adapter.createMediaSource(testServer, wmaTrack)
         assertNotNull(mediaSource)
         assertEquals("audio/x-ms-wma", mediaSource.mediaItem.localConfiguration?.mimeType)

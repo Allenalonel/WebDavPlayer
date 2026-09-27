@@ -27,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +39,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
@@ -49,6 +51,7 @@ fun MiniPlayer(
     modifier: Modifier = Modifier,
     onSkipToNext: () -> Unit = {},
     onMiniPlayerClick: () -> Unit = {},
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) {
     val currentTrack = sessionState.currentTrack ?: return
 
@@ -122,7 +125,10 @@ fun MiniPlayer(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    PlaybackStateIndicator(sessionState = sessionState)
+                    PlaybackStateIndicator(
+                        sessionState = sessionState,
+                        playbackProgress = playbackProgress,
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(6.dp))
@@ -151,6 +157,18 @@ fun MiniPlayer(
                     )
                 }
             }
+
+            if (playbackProgress.durationMs > 0L) {
+                LinearProgressIndicator(
+                    progress = playbackProgress.progressFraction,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(2.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                )
+            }
         }
     }
 }
@@ -162,6 +180,7 @@ fun DockedMiniPlayer(
     modifier: Modifier = Modifier,
     onSkipToNext: () -> Unit = {},
     onMiniPlayerClick: () -> Unit = {},
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) {
     MiniPlayer(
         sessionState = sessionState,
@@ -169,6 +188,7 @@ fun DockedMiniPlayer(
         modifier = modifier,
         onSkipToNext = onSkipToNext,
         onMiniPlayerClick = onMiniPlayerClick,
+        playbackProgress = playbackProgress,
     )
 }
 
@@ -176,6 +196,7 @@ fun DockedMiniPlayer(
 private fun PlaybackStateIndicator(
     sessionState: PlayerSessionState,
     modifier: Modifier = Modifier,
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) {
     Row(
         modifier = modifier,
@@ -197,18 +218,34 @@ private fun PlaybackStateIndicator(
             }
 
             sessionState.isPlaying -> {
+                val text =
+                    if (playbackProgress.durationMs > 0L) {
+                        "正在播放 · ${playbackProgress.formattedCurrentPosition} / ${playbackProgress.formattedDuration}"
+                    } else {
+                        "正在播放"
+                    }
                 Text(
-                    text = "正在播放",
+                    text = text,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 
             sessionState.isPaused -> {
+                val text =
+                    if (playbackProgress.durationMs > 0L) {
+                        "已暂停 · ${playbackProgress.formattedCurrentPosition} / ${playbackProgress.formattedDuration}"
+                    } else {
+                        "已暂停"
+                    }
                 Text(
-                    text = "已暂停",
+                    text = text,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 

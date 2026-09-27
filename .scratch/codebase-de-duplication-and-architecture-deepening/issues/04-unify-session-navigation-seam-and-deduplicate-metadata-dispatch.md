@@ -4,9 +4,9 @@
 
 **Blocked by:** 02: Deepen Domain Models for Paths and Progress
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] `DirectoryBrowserViewModel` consumes active server and directory navigation state unidirectionally from `MusicPlayerAppSession`, eliminating manual double-writing of active servers and directory paths.
-- [ ] Redundant `trackMetadataRepository.resolveMetadata` trigger inside `MusicPlayerAppSession.playDirectoryTrack` is removed.
-- [ ] Background metadata resolution for directory files is coordinated strictly upon directory load completion, eliminating redundant network competition and lock contention.
-- [ ] Directory navigation, server switching, and audio playback startup pass all integration and regression tests without latency spikes or missing metadata.
+- [x] `DirectoryBrowserViewModel` consumes active server and directory navigation state unidirectionally from `MusicPlayerAppSession`, eliminating manual double-writing of active servers and directory paths.
+- [x] Redundant `trackMetadataRepository.resolveMetadata` trigger inside `MusicPlayerAppSession.playDirectoryTrack` is removed.
+- [x] Background metadata resolution for directory files is coordinated strictly upon directory load completion, eliminating redundant network competition and lock contention.
+- [x] Directory navigation, server switching, and audio playback startup pass all integration and regression tests without latency spikes or missing metadata.

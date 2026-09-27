@@ -77,6 +77,10 @@ class MainActivity : ComponentActivity() {
                     musicSession?.sessionState?.collectAsStateWithLifecycle()
                         ?: remember { mutableStateOf(PlayerSessionState()) }
                 )
+                val playbackProgress by (
+                    musicSession?.playbackProgress?.collectAsStateWithLifecycle()
+                        ?: remember { mutableStateOf(PlaybackProgress.ZERO) }
+                )
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
                 var destination by rememberSaveable {
@@ -120,6 +124,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     DockedMiniPlayer(
                                         sessionState = playerSessionState,
+                                        playbackProgress = playbackProgress,
                                         onTogglePlayPause = { musicSession?.togglePlayPause() },
                                         onSkipToNext = { musicSession?.skipToNext() },
                                         onMiniPlayerClick = { isFullPlayerExpanded = true },
@@ -236,11 +241,6 @@ class MainActivity : ComponentActivity() {
                                 animationSpec = tween(300),
                             ) + fadeOut(animationSpec = tween(300)),
                     ) {
-                        val playbackProgress by (
-                            musicSession?.playbackProgress?.collectAsStateWithLifecycle()
-                                ?: remember { mutableStateOf(PlaybackProgress.ZERO) }
-                        )
-
                         FullPlayerView(
                             sessionState = playerSessionState,
                             playbackProgress = playbackProgress,

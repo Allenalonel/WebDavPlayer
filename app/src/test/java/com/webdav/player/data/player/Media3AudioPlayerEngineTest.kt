@@ -22,59 +22,63 @@ import org.robolectric.RobolectricTestRunner
 @OptIn(UnstableApi::class)
 @RunWith(RobolectricTestRunner::class)
 class Media3AudioPlayerEngineTest {
-
     private lateinit var context: Context
     private lateinit var engine: Media3AudioPlayerEngine
 
-    private val testServer = WebDavServer(
-        id = 1L,
-        name = "Local Test",
-        url = "http://127.0.0.1:8080/dav",
-        port = 8080,
-        pathPrefix = "/dav"
-    )
+    private val testServer =
+        WebDavServer(
+            id = 1L,
+            name = "Local Test",
+            url = "http://127.0.0.1:8080/dav",
+            port = 8080,
+            pathPrefix = "/dav",
+        )
 
-    private val track1 = AudioTrack(
-        id = "1:/Music/01.mp3",
-        serverId = 1L,
-        remotePath = "/Music/01.mp3",
-        title = "01.mp3",
-        format = AudioFormat.MP3,
-        size = 1000L
-    )
+    private val track1 =
+        AudioTrack(
+            id = "1:/Music/01.mp3",
+            serverId = 1L,
+            remotePath = "/Music/01.mp3",
+            title = "01.mp3",
+            format = AudioFormat.MP3,
+            size = 1000L,
+        )
 
-    private val track2 = AudioTrack(
-        id = "1:/Music/02.flac",
-        serverId = 1L,
-        remotePath = "/Music/02.flac",
-        title = "02.flac",
-        format = AudioFormat.FLAC,
-        size = 2000L
-    )
+    private val track2 =
+        AudioTrack(
+            id = "1:/Music/02.flac",
+            serverId = 1L,
+            remotePath = "/Music/02.flac",
+            title = "02.flac",
+            format = AudioFormat.FLAC,
+            size = 2000L,
+        )
 
-    private val track3 = AudioTrack(
-        id = "1:/Music/03.wav",
-        serverId = 1L,
-        remotePath = "/Music/03.wav",
-        title = "03.wav",
-        format = AudioFormat.WAV,
-        size = 3000L
-    )
+    private val track3 =
+        AudioTrack(
+            id = "1:/Music/03.wav",
+            serverId = 1L,
+            remotePath = "/Music/03.wav",
+            title = "03.wav",
+            format = AudioFormat.WAV,
+            size = 3000L,
+        )
 
-    private val trackWma = AudioTrack(
-        id = "1:/Music/04.wma",
-        serverId = 1L,
-        remotePath = "/Music/04.wma",
-        title = "04.wma",
-        format = AudioFormat.WMA,
-        size = 4000L
-    )
+    private val trackWma =
+        AudioTrack(
+            id = "1:/Music/04.wma",
+            serverId = 1L,
+            remotePath = "/Music/04.wma",
+            title = "04.wma",
+            format = AudioFormat.WMA,
+            size = 4000L,
+        )
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        val factory = WebDavDataSourceFactory()
-        engine = Media3AudioPlayerEngine(context, factory)
+        val adapter = DefaultWebDavMediaSourceAdapter(context)
+        engine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
     }
 
     @After
@@ -97,11 +101,11 @@ class Media3AudioPlayerEngineTest {
             server = testServer,
             tracks = listOf(track1, track2),
             startIndex = 1,
-            startPositionMs = 0L
+            startPositionMs = 0L,
         )
 
         assertEquals(1, engine.currentTrackIndex.value)
-        assertEquals(testServer, engine.dataSourceFactory.getCurrentServer())
+        assertEquals(2, engine.player.mediaItemCount)
     }
 
     @Test
@@ -113,12 +117,24 @@ class Media3AudioPlayerEngineTest {
                 server = testServer,
                 tracks = listOf(track1, trackWma),
                 startIndex = 0,
-                startPositionMs = 0L
+                startPositionMs = 0L,
             )
             assertEquals(0, customEngine.currentTrackIndex.value)
             assertEquals(2, customEngine.player.mediaItemCount)
-            assertEquals("audio/mpeg", customEngine.player.getMediaItemAt(0).localConfiguration?.mimeType)
-            assertEquals("audio/x-ms-wma", customEngine.player.getMediaItemAt(1).localConfiguration?.mimeType)
+            assertEquals(
+                "audio/mpeg",
+                customEngine.player
+                    .getMediaItemAt(0)
+                    .localConfiguration
+                    ?.mimeType,
+            )
+            assertEquals(
+                "audio/x-ms-wma",
+                customEngine.player
+                    .getMediaItemAt(1)
+                    .localConfiguration
+                    ?.mimeType,
+            )
         } finally {
             customEngine.release()
         }
@@ -132,13 +148,19 @@ class Media3AudioPlayerEngineTest {
             customEngine.playTracks(
                 server = testServer,
                 tracks = listOf(track1),
-                startIndex = 0
+                startIndex = 0,
             )
             assertEquals(1, customEngine.player.mediaItemCount)
 
             customEngine.insertTrack(1, testServer, trackWma)
             assertEquals(2, customEngine.player.mediaItemCount)
-            assertEquals("audio/x-ms-wma", customEngine.player.getMediaItemAt(1).localConfiguration?.mimeType)
+            assertEquals(
+                "audio/x-ms-wma",
+                customEngine.player
+                    .getMediaItemAt(1)
+                    .localConfiguration
+                    ?.mimeType,
+            )
         } finally {
             customEngine.release()
         }
@@ -149,7 +171,7 @@ class Media3AudioPlayerEngineTest {
         engine.playTracks(
             server = testServer,
             tracks = listOf(trackWma),
-            startIndex = 0
+            startIndex = 0,
         )
 
         assertEquals(0, engine.currentTrackIndex.value)
@@ -163,7 +185,7 @@ class Media3AudioPlayerEngineTest {
         engine.playTracks(
             server = testServer,
             tracks = listOf(track1, track2),
-            startIndex = 0
+            startIndex = 0,
         )
 
         engine.seekTo(3000L)
@@ -191,7 +213,7 @@ class Media3AudioPlayerEngineTest {
         engine.playTracks(
             server = testServer,
             tracks = listOf(track1, track2, track3),
-            startIndex = 1
+            startIndex = 1,
         )
         assertEquals(1, engine.currentTrackIndex.value)
 
@@ -225,7 +247,7 @@ class Media3AudioPlayerEngineTest {
         engine.playTracks(
             server = testServer,
             tracks = listOf(track1),
-            startIndex = 0
+            startIndex = 0,
         )
 
         val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist")
@@ -243,7 +265,7 @@ class Media3AudioPlayerEngineTest {
         engine.playTracks(
             server = testServer,
             tracks = listOf(track1),
-            startIndex = 0
+            startIndex = 0,
         )
 
         // Calling updateTrack with the exact same track should be a no-op

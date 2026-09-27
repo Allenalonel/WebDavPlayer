@@ -40,13 +40,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.AudioQualityBadge
+import com.webdav.player.domain.model.AudioQualityLevel
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
-import com.webdav.player.ui.browser.AudioQualityBadge
-import com.webdav.player.ui.browser.AudioQualityBadgeHelper
-import com.webdav.player.ui.browser.AudioQualityLevel
 import com.webdav.player.ui.common.CoverThumbnailImage
-import com.webdav.player.ui.player.PlayerTimeFormatter
 
 @Composable
 fun AudioTrackItemRow(
@@ -54,7 +53,7 @@ fun AudioTrackItemRow(
     metadata: TrackMetadata? = null,
     onClick: () -> Unit,
     onPlayNext: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
@@ -63,33 +62,43 @@ fun AudioTrackItemRow(
     val isLyrics = file.isLyrics
     val isOther = !isAudio && !isLyrics
 
-    val displayTitle = remember(file.name, metadata?.title) {
-        metadata?.displayTitle(file.name) ?: file.name
-    }
-    val displayArtist = remember(metadata?.artist) {
-        metadata?.displayArtist()
-    }
-    val displayAlbum = remember(metadata?.album) {
-        metadata?.album?.takeIf { it.isNotBlank() }
-    }
-    val durationStr = remember(metadata?.durationMs) {
-        if ((metadata?.durationMs ?: 0L) > 0L) {
-            PlayerTimeFormatter.formatMs(metadata?.durationMs ?: 0L)
-        } else null
-    }
-    val fallbackSubtitle = remember(displayArtist, durationStr, file.size, file.lastModified) {
-        if (displayArtist == null) {
-            val subtitleParts = mutableListOf<String>()
-            if (durationStr != null) subtitleParts.add(durationStr)
-            if (file.size > 0) subtitleParts.add(formatFileSize(file.size))
-            if (file.lastModified != null && subtitleParts.isEmpty()) subtitleParts.add(file.lastModified)
-            subtitleParts.joinToString(" · ").ifEmpty { "音频文件" }
-        } else null
-    }
+    val displayTitle =
+        remember(file.name, metadata?.title) {
+            metadata?.displayTitle(file.name) ?: file.name
+        }
+    val displayArtist =
+        remember(metadata?.artist) {
+            metadata?.displayArtist()
+        }
+    val displayAlbum =
+        remember(metadata?.album) {
+            metadata?.album?.takeIf { it.isNotBlank() }
+        }
+    val durationStr =
+        remember(metadata?.durationMs) {
+            if ((metadata?.durationMs ?: 0L) > 0L) {
+                PlaybackProgress.formatMs(metadata?.durationMs ?: 0L)
+            } else {
+                null
+            }
+        }
+    val fallbackSubtitle =
+        remember(displayArtist, durationStr, file.size, file.lastModified) {
+            if (displayArtist == null) {
+                val subtitleParts = mutableListOf<String>()
+                if (durationStr != null) subtitleParts.add(durationStr)
+                if (file.size > 0) subtitleParts.add(formatFileSize(file.size))
+                if (file.lastModified != null && subtitleParts.isEmpty()) subtitleParts.add(file.lastModified)
+                subtitleParts.joinToString(" · ").ifEmpty { "音频文件" }
+            } else {
+                null
+            }
+        }
 
-    val badgeInfo = remember(file, metadata) {
-        AudioQualityBadgeHelper.getBadge(file, metadata)
-    }
+    val badgeInfo =
+        remember(file, metadata) {
+            file.resolveBadge(metadata)
+        }
 
     if (showInfoDialog) {
         FileInfoDialog(
@@ -100,74 +109,78 @@ fun AudioTrackItemRow(
             onPlay = {
                 showInfoDialog = false
                 onClick()
-            }
+            },
         )
     }
 
     ListItem(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(enabled = isAudio) { onClick() }
-            .alpha(if (isOther) 0.5f else 1f),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable(enabled = isAudio) { onClick() }
+                .alpha(if (isOther) 0.5f else 1f),
         leadingContent = {
             when {
                 isAudio -> {
                     Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(MaterialTheme.shapes.small),
-                        contentAlignment = Alignment.Center
+                        modifier =
+                            Modifier
+                                .size(46.dp)
+                                .clip(MaterialTheme.shapes.small),
+                        contentAlignment = Alignment.Center,
                     ) {
                         CoverThumbnailImage(
                             thumbnailPath = metadata?.coverThumbnailPath,
                             contentDescription = "封面",
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
                         ) {
                             Surface(
                                 shape = MaterialTheme.shapes.small,
                                 color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = Icons.Filled.Audiotrack,
                                         contentDescription = "音频",
                                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(24.dp),
                                     )
                                 }
                             }
                         }
                     }
                 }
+
                 isLyrics -> {
                     Surface(
                         shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.tertiaryContainer,
-                        modifier = Modifier.size(46.dp)
+                        modifier = Modifier.size(46.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Filled.Description,
                                 contentDescription = "歌词",
                                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(24.dp),
                             )
                         }
                     }
                 }
+
                 else -> {
                     Surface(
                         shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.size(46.dp)
+                        modifier = Modifier.size(46.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
                                 contentDescription = "其他文件",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(24.dp),
                             )
                         }
                     }
@@ -180,13 +193,13 @@ fun AudioTrackItemRow(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = if (isAudio) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
         },
         supportingContent = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 2.dp)
+                modifier = Modifier.padding(top = 2.dp),
             ) {
                 if (displayArtist != null) {
                     Text(
@@ -196,7 +209,7 @@ fun AudioTrackItemRow(
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     if (displayAlbum != null) {
                         Text(
@@ -205,14 +218,14 @@ fun AudioTrackItemRow(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            modifier = Modifier.weight(1f, fill = false),
                         )
                     }
                     if (durationStr != null) {
                         Text(
                             text = " · $durationStr",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 } else {
@@ -221,7 +234,7 @@ fun AudioTrackItemRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -229,7 +242,7 @@ fun AudioTrackItemRow(
         trailingContent = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 // Quality Badge Pill
                 if (badgeInfo != null) {
@@ -241,19 +254,19 @@ fun AudioTrackItemRow(
                     Box {
                         IconButton(
                             onClick = { showMenu = true },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(36.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.MoreVert,
                                 contentDescription = "更多操作",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(20.dp),
                             )
                         }
 
                         DropdownMenu(
                             expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
+                            onDismissRequest = { showMenu = false },
                         ) {
                             DropdownMenuItem(
                                 text = { Text("下一首播放") },
@@ -261,13 +274,13 @@ fun AudioTrackItemRow(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 },
                                 onClick = {
                                     showMenu = false
                                     onPlayNext()
-                                }
+                                },
                             )
                             DropdownMenuItem(
                                 text = { Text("查看详细信息") },
@@ -275,27 +288,28 @@ fun AudioTrackItemRow(
                                     Icon(
                                         imageVector = Icons.Filled.Info,
                                         contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 },
                                 onClick = {
                                     showMenu = false
                                     showInfoDialog = true
-                                }
+                                },
                             )
                         }
                     }
                 }
             }
         },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent
-        )
+        colors =
+            ListItemDefaults.colors(
+                containerColor = Color.Transparent,
+            ),
     )
     HorizontalDivider(
         modifier = Modifier.padding(start = 72.dp, end = 16.dp),
         thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
     )
 }
 
@@ -308,48 +322,52 @@ fun FileItemRow(
     metadata: TrackMetadata? = null,
     onClick: () -> Unit,
     onPlayNext: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     AudioTrackItemRow(
         file = file,
         metadata = metadata,
         onClick = onClick,
         onPlayNext = onPlayNext,
-        modifier = modifier
+        modifier = modifier,
     )
 }
 
 @Composable
 fun AudioQualityBadgePill(
     badge: AudioQualityBadge,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val (containerColor, contentColor) = when (badge.qualityLevel) {
-        AudioQualityLevel.LOSSLESS -> {
-            MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    val (containerColor, contentColor) =
+        when (badge.qualityLevel) {
+            AudioQualityLevel.LOSSLESS -> {
+                MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+            }
+
+            AudioQualityLevel.HIGH_QUALITY -> {
+                MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+            }
+
+            AudioQualityLevel.STANDARD -> {
+                MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+            }
+
+            AudioQualityLevel.COMPRESSED -> {
+                MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+            }
         }
-        AudioQualityLevel.HIGH_QUALITY -> {
-            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        }
-        AudioQualityLevel.STANDARD -> {
-            MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        }
-        AudioQualityLevel.COMPRESSED -> {
-            MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        }
-    }
 
     Surface(
         modifier = modifier,
         color = containerColor,
-        shape = MaterialTheme.shapes.extraSmall
+        shape = MaterialTheme.shapes.extraSmall,
     ) {
         Text(
             text = badge.label,
             color = contentColor,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
         )
     }
 }
@@ -358,18 +376,23 @@ fun AudioQualityBadgePill(
  * Backward compatibility alias for AudioBadge
  */
 @Composable
-fun AudioBadge(format: AudioFormat, modifier: Modifier = Modifier) {
-    val badge = AudioQualityBadge(
-        label = format.extension.uppercase(),
-        format = format,
-        isLossless = format == AudioFormat.FLAC || format == AudioFormat.WAV,
-        qualityLevel = when (format) {
-            AudioFormat.FLAC, AudioFormat.WAV -> AudioQualityLevel.LOSSLESS
-            AudioFormat.MP3 -> AudioQualityLevel.HIGH_QUALITY
-            AudioFormat.WMA -> AudioQualityLevel.COMPRESSED
-            else -> AudioQualityLevel.STANDARD
-        }
-    )
+fun AudioBadge(
+    format: AudioFormat,
+    modifier: Modifier = Modifier,
+) {
+    val badge =
+        AudioQualityBadge(
+            label = format.extension.uppercase(),
+            format = format,
+            isLossless = format == AudioFormat.FLAC || format == AudioFormat.WAV,
+            qualityLevel =
+                when (format) {
+                    AudioFormat.FLAC, AudioFormat.WAV -> AudioQualityLevel.LOSSLESS
+                    AudioFormat.MP3 -> AudioQualityLevel.HIGH_QUALITY
+                    AudioFormat.WMA -> AudioQualityLevel.COMPRESSED
+                    else -> AudioQualityLevel.STANDARD
+                },
+        )
     AudioQualityBadgePill(badge = badge, modifier = modifier)
 }
 
@@ -378,30 +401,33 @@ fun LyricBadge(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.extraSmall
+        shape = MaterialTheme.shapes.extraSmall,
     ) {
         Text(
             text = "LRC",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )
     }
 }
 
 @Composable
-fun OtherBadge(extension: String, modifier: Modifier = Modifier) {
+fun OtherBadge(
+    extension: String,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        shape = MaterialTheme.shapes.extraSmall
+        shape = MaterialTheme.shapes.extraSmall,
     ) {
         Text(
             text = extension.take(4),
             color = MaterialTheme.colorScheme.outline,
             style = MaterialTheme.typography.labelSmall,
             fontSize = 9.sp,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
         )
     }
 }

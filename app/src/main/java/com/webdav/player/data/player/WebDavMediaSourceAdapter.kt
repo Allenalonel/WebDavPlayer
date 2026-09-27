@@ -25,6 +25,15 @@ import java.util.concurrent.ConcurrentHashMap
 @OptIn(UnstableApi::class)
 interface WebDavMediaSourceAdapter {
     /**
+     * Creates a fully configured MediaItem for a single AudioTrack on the given WebDAV server.
+     * Encapsulates stream URL, media ID, MIME type, and metadata mapping.
+     */
+    fun createMediaItem(
+        server: WebDavServer,
+        track: AudioTrack,
+    ): MediaItem
+
+    /**
      * Creates a fully configured MediaSource for a single AudioTrack on the given WebDAV server.
      * Encapsulates authentication, timeouts, retries, and format-specific extractor binding.
      */
@@ -69,7 +78,7 @@ class DefaultWebDavMediaSourceAdapter(
         server: WebDavServer,
         track: AudioTrack,
     ): MediaSource {
-        val mediaItem = buildMediaItem(server, track)
+        val mediaItem = createMediaItem(server, track)
         val dataSourceFactory = getOrCreateDataSourceFactory(server)
         val extractorsFactory = resolveExtractorsFactory(track.format)
 
@@ -95,7 +104,8 @@ class DefaultWebDavMediaSourceAdapter(
             AudioFormat.FLAC -> {
                 ExtractorsFactory {
                     arrayOf(
-                        androidx.media3.extractor.flac.FlacExtractor(),
+                        androidx.media3.extractor.flac
+                            .FlacExtractor(),
                         *DefaultExtractorsFactory().createExtractors(),
                     )
                 }
@@ -104,7 +114,8 @@ class DefaultWebDavMediaSourceAdapter(
             AudioFormat.MP3 -> {
                 ExtractorsFactory {
                     arrayOf(
-                        androidx.media3.extractor.mp3.Mp3Extractor(),
+                        androidx.media3.extractor.mp3
+                            .Mp3Extractor(),
                         *DefaultExtractorsFactory().createExtractors(),
                     )
                 }
@@ -113,7 +124,8 @@ class DefaultWebDavMediaSourceAdapter(
             AudioFormat.WAV -> {
                 ExtractorsFactory {
                     arrayOf(
-                        androidx.media3.extractor.wav.WavExtractor(),
+                        androidx.media3.extractor.wav
+                            .WavExtractor(),
                         *DefaultExtractorsFactory().createExtractors(),
                     )
                 }
@@ -129,7 +141,7 @@ class DefaultWebDavMediaSourceAdapter(
             }
         }
 
-    private fun buildMediaItem(
+    override fun createMediaItem(
         server: WebDavServer,
         track: AudioTrack,
     ): MediaItem {

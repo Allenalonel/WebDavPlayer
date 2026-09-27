@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.Breadcrumb
+import com.webdav.player.domain.model.RemoteDirectory
 
 @Composable
 fun DirectoryBreadcrumbStrip(
@@ -49,7 +50,7 @@ fun DirectoryBreadcrumbStrip(
         breadcrumbs.forEachIndexed { index, breadcrumb ->
             val isTail = index == breadcrumbs.lastIndex ||
                     breadcrumb.path == currentPath ||
-                    breadcrumb.path.trimEnd('/') == currentPath.trimEnd('/')
+                    RemoteDirectory.normalizePath(breadcrumb.path) == RemoteDirectory.normalizePath(currentPath)
 
             AssistChip(
                 onClick = { onBreadcrumbClicked(breadcrumb) },

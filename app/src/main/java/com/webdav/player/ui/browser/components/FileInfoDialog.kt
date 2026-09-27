@@ -20,11 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.webdav.player.domain.model.AudioQualityBadge
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
-import com.webdav.player.ui.browser.AudioQualityBadge
-import com.webdav.player.ui.browser.AudioQualityBadgeHelper
-import com.webdav.player.ui.player.PlayerTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -33,37 +32,39 @@ fun FileInfoDialog(
     metadata: TrackMetadata? = null,
     badgeInfo: AudioQualityBadge? = null,
     onDismiss: () -> Unit,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
 ) {
     val displayTitle = metadata?.displayTitle(file.name) ?: file.name
-    val qualitySummary = remember(file, metadata) {
-        AudioQualityBadgeHelper.formatQualitySummary(file, metadata)
-    }
+    val qualitySummary =
+        remember(file, metadata) {
+            file.formatQualitySummary(metadata)
+        }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Info,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = MaterialTheme.colorScheme.primary,
                 )
                 Text(
                     text = "音频详情",
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
                 )
             }
         },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 InfoRow(label = "歌曲标题", value = displayTitle)
                 if (!metadata?.artist.isNullOrBlank()) {
@@ -77,7 +78,7 @@ fun FileInfoDialog(
                     InfoRow(label = "预估码率", value = "${badgeInfo.estimatedBitrateKbps} kbps")
                 }
                 if ((metadata?.durationMs ?: 0L) > 0L) {
-                    InfoRow(label = "曲目时长", value = PlayerTimeFormatter.formatMs(metadata!!.durationMs))
+                    InfoRow(label = "曲目时长", value = PlaybackProgress.formatMs(metadata!!.durationMs))
                 }
                 if (file.size > 0L) {
                     InfoRow(label = "文件大小", value = formatFileSize(file.size))
@@ -97,25 +98,28 @@ fun FileInfoDialog(
             OutlinedButton(onClick = onDismiss) {
                 Text("关闭")
             }
-        }
+        },
     )
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+private fun InfoRow(
+    label: String,
+    value: String,
+) {
     Column {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

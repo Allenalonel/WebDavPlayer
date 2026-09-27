@@ -342,7 +342,9 @@ class EndToEndMusicPlayerPipelineTest {
     @Test
     fun e2e_breadcrumbNavigationHierarchy() {
         val fullPath = "/Music/Lossless/Symphonies/Beethoven"
-        val breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(sampleServer, fullPath)
+        val breadcrumbs = RemoteDirectory.buildBreadcrumbs(sampleServer, fullPath)
+        val helperBreadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(sampleServer, fullPath)
+        assertEquals(breadcrumbs, helperBreadcrumbs)
 
         assertEquals(5, breadcrumbs.size)
         assertEquals("Synology NAS", breadcrumbs[0].name)
@@ -356,8 +358,9 @@ class EndToEndMusicPlayerPipelineTest {
 
         // Ancestor jump to /Music
         val targetBreadcrumb = breadcrumbs[1]
-        val isAncestor = BreadcrumbNavigationHelper.isAncestor(targetBreadcrumb.path, fullPath)
+        val isAncestor = RemoteDirectory.isAncestor(targetBreadcrumb.path, fullPath)
         assertTrue("Target is ancestor of current path", isAncestor)
+        assertTrue(BreadcrumbNavigationHelper.isAncestor(targetBreadcrumb.path, fullPath))
     }
 
     @Test

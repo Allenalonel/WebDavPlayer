@@ -41,28 +41,10 @@ import java.io.File
 class Media3AudioPlayerEngine(
     private val context: Context,
     val mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
-    @Deprecated("Use mediaSourceAdapter instead. Kept for backward compatibility.")
-    val dataSourceFactory: WebDavDataSourceFactory = WebDavDataSourceFactory(),
     customPlayer: Player? = null,
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
 ) : AudioPlayerEngine {
-    @Deprecated("Use constructor with WebDavMediaSourceAdapter instead")
-    constructor(
-        context: Context,
-        dataSourceFactory: WebDavDataSourceFactory,
-        customPlayer: Player? = null,
-        customMediaSession: MediaSession? = null,
-        coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
-    ) : this(
-        context = context,
-        mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, dataSourceFactory.webDavClient),
-        dataSourceFactory = dataSourceFactory,
-        customPlayer = customPlayer,
-        customMediaSession = customMediaSession,
-        coroutineScope = coroutineScope,
-    )
-
     val player: Player =
         customPlayer ?: run {
             val loadControl =
@@ -94,7 +76,6 @@ class Media3AudioPlayerEngine(
 
             val mediaSourceFactory =
                 DefaultMediaSourceFactory(context, extractorsFactory)
-                    .setDataSourceFactory(dataSourceFactory)
                     .setLoadErrorHandlingPolicy(WebDavLoadErrorHandlingPolicy())
 
             ExoPlayer
@@ -221,7 +202,6 @@ class Media3AudioPlayerEngine(
         startPositionMs: Long,
     ) {
         if (tracks.isEmpty()) return
-        dataSourceFactory.setServer(server)
 
         val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
         _currentTrackIndex.value = validStartIndex
@@ -232,7 +212,7 @@ class Media3AudioPlayerEngine(
         if (player is ExoPlayer) {
             player.setMediaSources(mediaSources, validStartIndex, startPositionMs)
         } else {
-            val mediaItems = tracks.map { track -> buildMediaItem(server, track) }
+            val mediaItems = tracks.map { track -> mediaSourceAdapter.createMediaItem(server, track) }
             player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
         }
         player.prepare()
@@ -308,35 +288,10 @@ class Media3AudioPlayerEngine(
                 val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
                 player.addMediaSource(index, mediaSource)
             } else {
-                val mediaItem = buildMediaItem(server, track)
+                val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
                 player.addMediaItem(index, mediaItem)
             }
         }
-    }
-
-    private fun buildMediaItem(
-        server: WebDavServer,
-        track: AudioTrack,
-    ): MediaItem {
-        val uri = Uri.parse(track.streamUrl(server))
-        val metaBuilder =
-            MediaMetadata
-                .Builder()
-                .setTitle(track.title)
-                .setArtist(track.artist)
-                .setAlbumTitle(track.album)
-
-        track.coverThumbnailPath?.let { path ->
-            metaBuilder.setArtworkUri(Uri.fromFile(File(path)))
-        }
-
-        return MediaItem
-            .Builder()
-            .setUri(uri)
-            .setMediaId(track.id)
-            .setMimeType(track.format.mimeType)
-            .setMediaMetadata(metaBuilder.build())
-            .build()
     }
 
     override fun updateTrack(

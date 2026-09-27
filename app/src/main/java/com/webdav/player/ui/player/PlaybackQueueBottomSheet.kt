@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.ui.common.CoverThumbnailImage
 
@@ -66,6 +67,7 @@ fun PlaybackQueueBottomSheet(
     onCyclePlaybackMode: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     ModalBottomSheet(
@@ -181,6 +183,7 @@ fun PlaybackQueueBottomSheet(
                             track = track,
                             index = index,
                             isActive = isActive,
+                            playbackProgress = if (isActive) playbackProgress else PlaybackProgress.ZERO,
                             onClick = { onTrackClick(index) },
                             onRemove = { onRemoveTrack(index) }
                         )
@@ -199,7 +202,8 @@ private fun QueueTrackItemRow(
     isActive: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -307,8 +311,15 @@ private fun QueueTrackItemRow(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
+                    val artistText = track.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家"
+                    val subtitle =
+                        if (isActive && playbackProgress.durationMs > 0L) {
+                            "$artistText · ${playbackProgress.formattedCurrentPosition} / ${playbackProgress.formattedDuration}"
+                        } else {
+                            artistText
+                        }
                     Text(
-                        text = track.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家",
+                        text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

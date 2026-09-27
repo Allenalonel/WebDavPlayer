@@ -13,20 +13,23 @@ import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class DirectoryBrowserViewModel(
-    private val serverRepository: ServerRepository,
+    private val serverRepository: ServerRepository? = null,
     private val directoryRepository: DirectoryRepository,
     val musicPlayerAppSession: MusicPlayerAppSession? = null,
-    val trackMetadataRepository: TrackMetadataRepository? = null
+    val trackMetadataRepository: TrackMetadataRepository? = null,
 ) : ViewModel() {
-
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
     val uiState: StateFlow<DirectoryBrowserUiState> = _uiState.asStateFlow()
 
@@ -40,36 +43,38 @@ class DirectoryBrowserViewModel(
                 musicPlayerAppSession.isRestored.first { it }
             }
 
-            serverRepository.getActiveServer().collect { server ->
+            val activeServerFlow: Flow<WebDavServer?> =
+                musicPlayerAppSession?.sessionState?.map { it.activeServer }?.distinctUntilChanged()
+                    ?: serverRepository?.getActiveServer()?.distinctUntilChanged()
+                    ?: emptyFlow()
+
+            activeServerFlow.collect { server ->
                 val previousServer = _uiState.value.activeServer
                 if (server != previousServer) {
                     metadataObserverJob?.cancel()
                     metadataResolutionJob?.cancel()
                     currentLoadJob?.cancel()
 
-                    if (previousServer != null) {
-                        musicPlayerAppSession?.setActiveServer(server)
-                    }
-
                     // If previousServer == null, this is app startup -> restore saved directory from session.
                     // If previousServer != null, user switched servers -> restore target server's last visited directory.
-                    val initialPath = if (previousServer == null) {
-                        val savedForServer = server?.let { musicPlayerAppSession?.getLastDirectoryForServer(it.id) }
-                        val sessionPath = musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
-                        if (savedForServer != null && savedForServer != "/") {
-                            savedForServer
-                        } else if (!sessionPath.isNullOrBlank() && sessionPath != "/") {
-                            sessionPath
+                    val initialPath =
+                        if (previousServer == null) {
+                            val sessionPath = musicPlayerAppSession?.sessionState?.value?.currentDirectoryPath
+                            val savedForServer = server?.let { musicPlayerAppSession?.getLastDirectoryForServer(it.id) }
+                            if (!sessionPath.isNullOrBlank() && sessionPath != "/") {
+                                sessionPath
+                            } else if (savedForServer != null && savedForServer != "/") {
+                                savedForServer
+                            } else {
+                                sessionPath ?: savedForServer ?: "/"
+                            }
                         } else {
-                            savedForServer ?: sessionPath ?: "/"
+                            if (server != null) {
+                                musicPlayerAppSession?.getLastDirectoryForServer(server.id) ?: "/"
+                            } else {
+                                "/"
+                            }
                         }
-                    } else {
-                        if (server != null) {
-                            musicPlayerAppSession?.getLastDirectoryForServer(server.id) ?: "/"
-                        } else {
-                            "/"
-                        }
-                    }
 
                     _uiState.update {
                         it.copy(
@@ -80,20 +85,34 @@ class DirectoryBrowserViewModel(
                             canNavigateUp = initialPath != "/",
                             currentDirectory = null,
                             errorMessage = null,
-                            metadataMap = emptyMap()
+                            metadataMap = emptyMap(),
                         )
                     }
 
                     if (server != null) {
                         if (trackMetadataRepository != null) {
-                            metadataObserverJob = viewModelScope.launch {
-                                trackMetadataRepository.getAllMetadataFlow(server.id).collect { list ->
-                                    val map = list.associateBy { it.remotePath }
-                                    _uiState.update { it.copy(metadataMap = map) }
+                            metadataObserverJob =
+                                viewModelScope.launch {
+                                    trackMetadataRepository.getAllMetadataFlow(server.id).collect { list ->
+                                        val map = list.associateBy { it.remotePath }
+                                        _uiState.update { it.copy(metadataMap = map) }
+                                    }
                                 }
-                            }
                         }
                         loadDirectory(initialPath, forceRefresh = false, fallbackToRoot = true)
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isInitializing = false,
+                                activeServer = null,
+                                currentPath = "/",
+                                breadcrumbs = emptyList(),
+                                canNavigateUp = false,
+                                currentDirectory = null,
+                                errorMessage = null,
+                                metadataMap = emptyMap(),
+                            )
+                        }
                     }
                 }
             }
@@ -110,7 +129,6 @@ class DirectoryBrowserViewModel(
     }
 
     fun resetToRoot() {
-        musicPlayerAppSession?.setCurrentDirectoryPath("/")
         loadDirectory("/", forceRefresh = false)
     }
 
@@ -130,7 +148,7 @@ class DirectoryBrowserViewModel(
 
     fun onNavigateUp(): Boolean {
         val current = _uiState.value.currentPath
-        val parentPath = BreadcrumbNavigationHelper.getParentPath(current) ?: return false
+        val parentPath = RemoteDirectory.getParentPath(current) ?: return false
         loadDirectory(parentPath, forceRefresh = false)
         return true
     }
@@ -146,81 +164,85 @@ class DirectoryBrowserViewModel(
     private fun loadDirectory(
         path: String,
         forceRefresh: Boolean,
-        fallbackToRoot: Boolean = false
+        fallbackToRoot: Boolean = false,
     ) {
         val server = _uiState.value.activeServer ?: return
-        val normalizedPath = BreadcrumbNavigationHelper.normalizeDirectoryPath(path)
+        val normalizedPath = RemoteDirectory.normalizePath(path)
 
         currentLoadJob?.cancel()
-        currentLoadJob = viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    currentPath = normalizedPath,
-                    breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(server, normalizedPath),
-                    canNavigateUp = normalizedPath != "/",
-                    isLoading = !forceRefresh,
-                    isRefreshing = forceRefresh,
-                    errorMessage = null
-                )
-            }
+        currentLoadJob =
+            viewModelScope.launch {
+                _uiState.update {
+                    it.copy(
+                        currentPath = normalizedPath,
+                        breadcrumbs = RemoteDirectory.buildBreadcrumbs(server, normalizedPath),
+                        canNavigateUp = normalizedPath != "/",
+                        isLoading = !forceRefresh,
+                        isRefreshing = forceRefresh,
+                        errorMessage = null,
+                    )
+                }
 
-            var hasEmittedContent = false
+                var hasEmittedContent = false
 
-            directoryRepository.observeDirectory(server, normalizedPath, forceRefresh).collect { result ->
-                when (result) {
-                    is ListDirectoryResult.Success -> {
-                        hasEmittedContent = true
-                        musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
-                        val audioFiles = result.directory.files.filter { it.isAudio }
-                        if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
-                            metadataResolutionJob?.cancel()
-                            metadataResolutionJob = viewModelScope.launch {
-                                trackMetadataRepository.resolveMetadata(server, audioFiles)
+                directoryRepository.observeDirectory(server, normalizedPath, forceRefresh).collect { result ->
+                    when (result) {
+                        is ListDirectoryResult.Success -> {
+                            hasEmittedContent = true
+                            musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
+                            val audioFiles = result.directory.files.filter { it.isAudio }
+                            if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
+                                metadataResolutionJob?.cancel()
+                                metadataResolutionJob =
+                                    viewModelScope.launch {
+                                        trackMetadataRepository.resolveMetadata(server, audioFiles)
+                                    }
                             }
-                        }
 
-                        _uiState.update { current ->
-                            current.copy(
-                                currentDirectory = result.directory,
-                                isLoading = false,
-                                isRefreshing = false,
-                                errorMessage = null
-                            )
-                        }
-                    }
-                    is ListDirectoryResult.Failure -> {
-                        _uiState.update { current ->
-                            if (hasEmittedContent) {
+                            _uiState.update { current ->
                                 current.copy(
-                                    isLoading = false,
-                                    isRefreshing = false
-                                )
-                            } else if (fallbackToRoot && normalizedPath != "/") {
-                                loadDirectory("/", forceRefresh = false)
-                                current
-                            } else {
-                                current.copy(
+                                    currentDirectory = result.directory,
                                     isLoading = false,
                                     isRefreshing = false,
-                                    errorMessage = result.message
+                                    errorMessage = null,
                                 )
+                            }
+                        }
+
+                        is ListDirectoryResult.Failure -> {
+                            _uiState.update { current ->
+                                if (hasEmittedContent) {
+                                    current.copy(
+                                        isLoading = false,
+                                        isRefreshing = false,
+                                    )
+                                } else if (fallbackToRoot && normalizedPath != "/") {
+                                    loadDirectory("/", forceRefresh = false)
+                                    current
+                                } else {
+                                    current.copy(
+                                        isLoading = false,
+                                        isRefreshing = false,
+                                        errorMessage = result.message,
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            _uiState.update { current ->
-                if (current.isLoading || current.isRefreshing) {
-                    current.copy(isLoading = false, isRefreshing = false)
-                } else {
-                    current
+                _uiState.update { current ->
+                    if (current.isLoading || current.isRefreshing) {
+                        current.copy(isLoading = false, isRefreshing = false)
+                    } else {
+                        current
+                    }
                 }
             }
-        }
     }
 
-    private fun buildBreadcrumbs(server: WebDavServer?, path: String): List<Breadcrumb> {
-        return BreadcrumbNavigationHelper.buildBreadcrumbs(server, path)
-    }
+    private fun buildBreadcrumbs(
+        server: WebDavServer?,
+        path: String,
+    ): List<Breadcrumb> = RemoteDirectory.buildBreadcrumbs(server, path)
 }

@@ -335,13 +335,6 @@ class MusicPlayerAppSessionImpl(
         )
 
         coroutineScope.launch { flushSession() }
-
-        // Asynchronously resolve metadata for the directory's tracks
-        if (trackMetadataRepository != null) {
-            coroutineScope.launch {
-                trackMetadataRepository.resolveMetadata(server, audioFiles)
-            }
-        }
     }
 
     override fun playTrack(track: AudioTrack) {

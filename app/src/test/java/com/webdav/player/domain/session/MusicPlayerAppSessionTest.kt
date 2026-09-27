@@ -602,6 +602,33 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun playDirectoryTrack_doesNotTriggerRedundantMetadataResolution() =
+        runTest(testDispatcher) {
+            val fakeMetadataRepo = FakeTrackMetadataRepo()
+            val sessionWithRepo =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = null,
+                    trackMetadataRepository = fakeMetadataRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            sessionWithRepo.setActiveServer(testServer)
+            val file1 = RemoteFile(name = "song1.mp3", path = "/music/song1.mp3")
+            val file2 = RemoteFile(name = "song2.flac", path = "/music/song2.flac")
+            val dir = RemoteDirectory(path = "/music/", name = "music", files = listOf(file1, file2))
+
+            sessionWithRepo.playDirectoryTrack(dir, file1)
+            advanceUntilIdle()
+
+            // Verification: resolveMetadata must NOT be triggered during on-demand playback,
+            // as metadata resolution is strictly owned and coordinated by directory load completion.
+            assertEquals(0, fakeMetadataRepo.resolveMetadataCalls)
+
+            sessionWithRepo.release()
+        }
+
+    @Test
     fun sessionState_lyricsLoadedAutomatically_whenTrackStartsPlaying() =
         runTest(testDispatcher) {
             val fakeLyricsRepo = FakeLyricsRepo()
@@ -664,6 +691,8 @@ class MusicPlayerAppSessionTest {
 
     private class FakeTrackMetadataRepo : TrackMetadataRepository {
         val flow = MutableStateFlow<List<TrackMetadata>>(emptyList())
+        var resolveMetadataCalls = 0
+        var resolvedFiles: List<RemoteFile> = emptyList()
 
         fun emit(list: List<TrackMetadata>) {
             flow.value = list
@@ -689,7 +718,10 @@ class MusicPlayerAppSessionTest {
         override suspend fun resolveMetadata(
             server: WebDavServer,
             files: List<RemoteFile>,
-        ) {}
+        ) {
+            resolveMetadataCalls++
+            resolvedFiles = files
+        }
 
         override suspend fun resolveSingleTrackMetadata(
             server: WebDavServer,

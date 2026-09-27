@@ -244,6 +244,7 @@ fun FullPlayerView(
                         // Page 1: Synchronized Lyrics view with Tap-to-Seek
                         LyricsPage(
                             sessionState = sessionState,
+                            playbackProgress = playbackProgress,
                             currentPositionMs = displayPositionMs,
                             onSeekTo = onSeek,
                             onReturnToArtwork = {
@@ -334,16 +335,23 @@ fun FullPlayerView(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = PlayerTimeFormatter.formatMs(displayPositionMs),
+                        text =
+                            if (isScrubbing) {
+                                PlaybackProgress.formatMs(displayPositionMs)
+                            } else {
+                                playbackProgress.formattedCurrentPosition
+                            },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         text =
                             if (showRemainingTime && maxDuration > displayPositionMs) {
-                                "-${PlayerTimeFormatter.formatMs(maxDuration - displayPositionMs)}"
+                                "-${PlaybackProgress.formatMs(maxDuration - displayPositionMs)}"
+                            } else if (!isScrubbing) {
+                                playbackProgress.formattedDuration
                             } else {
-                                PlayerTimeFormatter.formatMs(maxDuration)
+                                PlaybackProgress.formatMs(maxDuration)
                             },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -475,6 +483,7 @@ fun FullPlayerView(
         PlaybackQueueBottomSheet(
             queue = sessionState.queue,
             playbackMode = sessionState.playbackMode,
+            playbackProgress = playbackProgress,
             onTrackClick = { index ->
                 onPlayQueueIndex(index)
             },
@@ -557,7 +566,8 @@ private fun ArtworkPage(
 @Composable
 private fun LyricsPage(
     sessionState: PlayerSessionState,
-    currentPositionMs: Long,
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
+    currentPositionMs: Long = 0L,
     onSeekTo: (Long) -> Unit,
     onReturnToArtwork: () -> Unit,
     modifier: Modifier = Modifier,
@@ -596,6 +606,7 @@ private fun LyricsPage(
         LyricsView(
             lyrics = sessionState.lyrics,
             isLoading = sessionState.isLoadingLyrics,
+            playbackProgress = playbackProgress,
             currentPositionMs = currentPositionMs,
             onSeekTo = onSeekTo,
             onToggleCover = onReturnToArtwork,

@@ -1,5 +1,6 @@
 package com.webdav.player.ui.player
 
+import com.webdav.player.domain.model.PlaybackProgress
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -9,6 +10,8 @@ class PlayerTimeFormatterTest {
     fun formatMs_zeroAndNegative_returnsZeroTime() {
         assertEquals("00:00", PlayerTimeFormatter.formatMs(0L))
         assertEquals("00:00", PlayerTimeFormatter.formatMs(-500L))
+        assertEquals(PlaybackProgress.formatMs(0L), PlayerTimeFormatter.formatMs(0L))
+        assertEquals(PlaybackProgress.formatMs(-500L), PlayerTimeFormatter.formatMs(-500L))
     }
 
     @Test
@@ -17,6 +20,10 @@ class PlayerTimeFormatterTest {
         assertEquals("01:23", PlayerTimeFormatter.formatMs(83_000L))
         assertEquals("04:05", PlayerTimeFormatter.formatMs(245_000L))
         assertEquals("59:59", PlayerTimeFormatter.formatMs(3_599_000L))
+        assertEquals(PlaybackProgress.formatMs(5_000L), PlayerTimeFormatter.formatMs(5_000L))
+        assertEquals(PlaybackProgress.formatMs(83_000L), PlayerTimeFormatter.formatMs(83_000L))
+        assertEquals(PlaybackProgress.formatMs(245_000L), PlayerTimeFormatter.formatMs(245_000L))
+        assertEquals(PlaybackProgress.formatMs(3_599_000L), PlayerTimeFormatter.formatMs(3_599_000L))
     }
 
     @Test
@@ -24,5 +31,8 @@ class PlayerTimeFormatterTest {
         assertEquals("1:00:00", PlayerTimeFormatter.formatMs(3_600_000L))
         assertEquals("1:05:20", PlayerTimeFormatter.formatMs(3_920_000L))
         assertEquals("10:00:01", PlayerTimeFormatter.formatMs(36_001_000L))
+        assertEquals(PlaybackProgress.formatMs(3_600_000L), PlayerTimeFormatter.formatMs(3_600_000L))
+        assertEquals(PlaybackProgress.formatMs(3_920_000L), PlayerTimeFormatter.formatMs(3_920_000L))
+        assertEquals(PlaybackProgress.formatMs(36_001_000L), PlayerTimeFormatter.formatMs(36_001_000L))
     }
 }

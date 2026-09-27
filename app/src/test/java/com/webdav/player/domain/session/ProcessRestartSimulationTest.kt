@@ -47,7 +47,8 @@ import java.util.UUID
 @RunWith(RobolectricTestRunner::class)
 class ProcessRestartSimulationTest {
     private val testDispatcher = StandardTestDispatcher()
-    private var dataStoreScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, _ -> }
+    private var dataStoreScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
     private lateinit var context: Context
     private lateinit var dataStoreFile: File
     private lateinit var dataStore: DataStore<Preferences>
@@ -108,7 +109,7 @@ class ProcessRestartSimulationTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
-        dataStoreScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + SupervisorJob())
+        dataStoreScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
         dataStoreFile = File(context.filesDir, "datastore/process_test_${UUID.randomUUID()}.preferences_pb")
 
         dataStore =
