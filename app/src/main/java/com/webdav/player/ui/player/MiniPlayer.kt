@@ -27,7 +27,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,74 +48,62 @@ fun MiniPlayer(
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
     onSkipToNext: () -> Unit = {},
-    onMiniPlayerClick: () -> Unit = {}
+    onMiniPlayerClick: () -> Unit = {},
 ) {
     val currentTrack = sessionState.currentTrack ?: return
 
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .pointerInput(Unit) {
-                var upwardDrag = 0f
-                detectVerticalDragGestures(
-                    onVerticalDrag = { change, dragAmount ->
-                        upwardDrag += dragAmount
-                        if (upwardDrag < -20f) {
-                            change.consume()
-                            onMiniPlayerClick()
-                            upwardDrag = 0f
-                        }
-                    },
-                    onDragEnd = { upwardDrag = 0f },
-                    onDragCancel = { upwardDrag = 0f }
-                )
-            }
-            .clickable { onMiniPlayerClick() },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .pointerInput(Unit) {
+                    var upwardDrag = 0f
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount ->
+                            upwardDrag += dragAmount
+                            if (upwardDrag < -20f) {
+                                change.consume()
+                                onMiniPlayerClick()
+                                upwardDrag = 0f
+                            }
+                        },
+                        onDragEnd = { upwardDrag = 0f },
+                        onDragCancel = { upwardDrag = 0f },
+                    )
+                }.clickable { onMiniPlayerClick() },
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
-        shadowElevation = 8.dp
+        shadowElevation = 8.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Optional thin progress bar if duration is available
-            if (sessionState.durationMs > 0) {
-                val progress = (sessionState.currentPositionMs.toFloat() / sessionState.durationMs.toFloat())
-                    .coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.5.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            }
-
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Album Art / Audio Icon Box
                 Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
+                    modifier =
+                        Modifier
+                            .size(44.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
                 ) {
                     CoverThumbnailImage(
                         thumbnailPath = currentTrack.coverThumbnailPath,
                         contentDescription = "封面",
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Audiotrack,
                             contentDescription = "音轨",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 }
@@ -125,14 +112,14 @@ fun MiniPlayer(
 
                 // Title and State Column
                 Column(
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(
                         text = currentTrack.title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     PlaybackStateIndicator(sessionState = sessionState)
@@ -143,7 +130,7 @@ fun MiniPlayer(
                 // Play / Pause / Buffering Toggle Button
                 PlayPauseToggleButton(
                     sessionState = sessionState,
-                    onTogglePlayPause = onTogglePlayPause
+                    onTogglePlayPause = onTogglePlayPause,
                 )
 
                 Spacer(modifier = Modifier.width(4.dp))
@@ -151,15 +138,16 @@ fun MiniPlayer(
                 // Skip Next Button
                 IconButton(
                     onClick = onSkipToNext,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f), CircleShape)
+                    modifier =
+                        Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f), CircleShape),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipNext,
                         contentDescription = "下一首",
                         tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
@@ -173,70 +161,74 @@ fun DockedMiniPlayer(
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
     onSkipToNext: () -> Unit = {},
-    onMiniPlayerClick: () -> Unit = {}
+    onMiniPlayerClick: () -> Unit = {},
 ) {
     MiniPlayer(
         sessionState = sessionState,
         onTogglePlayPause = onTogglePlayPause,
         modifier = modifier,
         onSkipToNext = onSkipToNext,
-        onMiniPlayerClick = onMiniPlayerClick
+        onMiniPlayerClick = onMiniPlayerClick,
     )
 }
 
 @Composable
 private fun PlaybackStateIndicator(
     sessionState: PlayerSessionState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         when {
             sessionState.isBuffering -> {
                 CircularProgressIndicator(
                     strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(10.dp)
+                    modifier = Modifier.size(10.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "正在缓冲...",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
+
             sessionState.isPlaying -> {
                 Text(
                     text = "正在播放",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = MaterialTheme.colorScheme.secondary,
                 )
             }
+
             sessionState.isPaused -> {
                 Text(
                     text = "已暂停",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
             sessionState.playbackState is PlaybackState.Error -> {
                 Text(
                     text = sessionState.errorMessage ?: "播放出错",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+
             else -> {
                 Text(
                     text = formatMiniPlayerSubtitle(sessionState),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -247,41 +239,44 @@ private fun PlaybackStateIndicator(
 private fun PlayPauseToggleButton(
     sessionState: PlayerSessionState,
     onTogglePlayPause: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     IconButton(
         onClick = onTogglePlayPause,
-        modifier = modifier
-            .size(40.dp)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape)
+        modifier =
+            modifier
+                .size(40.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
     ) {
         AnimatedContent(
             targetState = sessionState.playbackState,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "PlayPauseTransition"
+            label = "PlayPauseTransition",
         ) { state ->
             when (state) {
                 is PlaybackState.Buffering -> {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
+
                 is PlaybackState.Playing -> {
                     Icon(
                         imageVector = Icons.Filled.Pause,
                         contentDescription = "暂停",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
+
                 else -> {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
                         contentDescription = "播放",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }

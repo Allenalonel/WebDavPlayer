@@ -10,6 +10,8 @@ interface AudioPlayerEngine {
     val playbackState: StateFlow<PlaybackState>
     val currentPositionMs: StateFlow<Long>
     val durationMs: StateFlow<Long>
+    val bufferedPositionMs: StateFlow<Long>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(0L)
     val currentTrackIndex: StateFlow<Int>
     val playbackMode: StateFlow<PlaybackMode>
 
@@ -17,19 +19,40 @@ interface AudioPlayerEngine {
         server: WebDavServer,
         tracks: List<AudioTrack>,
         startIndex: Int = 0,
-        startPositionMs: Long = 0L
+        startPositionMs: Long = 0L,
     )
 
     fun play()
+
     fun pause()
+
     fun seekTo(positionMs: Long)
+
     fun skipToNext()
+
     fun skipToPrevious()
-    fun seekToTrack(index: Int, positionMs: Long = 0L)
+
+    fun seekToTrack(
+        index: Int,
+        positionMs: Long = 0L,
+    )
+
     fun setPlaybackMode(mode: PlaybackMode)
+
     fun removeTrack(index: Int)
-    fun insertTrack(index: Int, server: WebDavServer, track: AudioTrack) {}
-    fun updateTrack(index: Int, track: AudioTrack) {}
+
+    fun insertTrack(
+        index: Int,
+        server: WebDavServer,
+        track: AudioTrack,
+    ) {}
+
+    fun updateTrack(
+        index: Int,
+        track: AudioTrack,
+    ) {}
+
     fun stop()
+
     fun release()
 }

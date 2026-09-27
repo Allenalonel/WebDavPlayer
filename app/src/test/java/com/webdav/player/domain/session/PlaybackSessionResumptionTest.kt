@@ -35,7 +35,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackSessionResumptionTest {
-
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var fakeStore: FakePlaybackSessionStore
@@ -44,42 +43,45 @@ class PlaybackSessionResumptionTest {
     private lateinit var sessionScope: kotlinx.coroutines.CoroutineScope
     private lateinit var session: MusicPlayerAppSessionImpl
 
-    private val testServer = WebDavServer(
-        id = 1L,
-        name = "Home NAS",
-        url = "http://192.168.1.100:8080/webdav",
-        port = 8080,
-        pathPrefix = "/webdav",
-        username = "admin",
-        password = "password123",
-        isDefault = true
-    )
+    private val testServer =
+        WebDavServer(
+            id = 1L,
+            name = "Home NAS",
+            url = "http://192.168.1.100:8080/webdav",
+            port = 8080,
+            pathPrefix = "/webdav",
+            username = "admin",
+            password = "password123",
+            isDefault = true,
+        )
 
-    private val track1 = AudioTrack(
-        id = "1:/Music/Jazz/track1.mp3",
-        serverId = 1L,
-        remotePath = "/Music/Jazz/track1.mp3",
-        title = "Autumn Leaves",
-        artist = "Bill Evans",
-        album = "Portrait in Jazz",
-        durationMs = 210000L,
-        size = 8000000L,
-        format = AudioFormat.MP3,
-        coverThumbnailPath = "/covers/1.png"
-    )
+    private val track1 =
+        AudioTrack(
+            id = "1:/Music/Jazz/track1.mp3",
+            serverId = 1L,
+            remotePath = "/Music/Jazz/track1.mp3",
+            title = "Autumn Leaves",
+            artist = "Bill Evans",
+            album = "Portrait in Jazz",
+            durationMs = 210000L,
+            size = 8000000L,
+            format = AudioFormat.MP3,
+            coverThumbnailPath = "/covers/1.png",
+        )
 
-    private val track2 = AudioTrack(
-        id = "1:/Music/Jazz/track2.flac",
-        serverId = 1L,
-        remotePath = "/Music/Jazz/track2.flac",
-        title = "Blue in Green",
-        artist = "Miles Davis",
-        album = "Kind of Blue",
-        durationMs = 330000L,
-        size = 25000000L,
-        format = AudioFormat.FLAC,
-        coverThumbnailPath = "/covers/2.png"
-    )
+    private val track2 =
+        AudioTrack(
+            id = "1:/Music/Jazz/track2.flac",
+            serverId = 1L,
+            remotePath = "/Music/Jazz/track2.flac",
+            title = "Blue in Green",
+            artist = "Miles Davis",
+            album = "Kind of Blue",
+            durationMs = 330000L,
+            size = 25000000L,
+            format = AudioFormat.FLAC,
+            coverThumbnailPath = "/covers/2.png",
+        )
 
     @Before
     fun setUp() {
@@ -100,403 +102,434 @@ class PlaybackSessionResumptionTest {
         Dispatchers.resetMain()
     }
 
-    private fun createSession(store: FakePlaybackSessionStore = fakeStore): MusicPlayerAppSessionImpl {
-        return MusicPlayerAppSessionImpl(
+    private fun createSession(store: FakePlaybackSessionStore = fakeStore): MusicPlayerAppSessionImpl =
+        MusicPlayerAppSessionImpl(
             playerEngine = fakeEngine,
             serverRepository = fakeServerRepo,
             sessionStore = store,
-            coroutineScope = sessionScope
-        )
-    }
-
-    @Test
-    fun coldStart_restoresStateAndRendersMiniPlayerInPausedStateAtSavedPosition() = runTest(testDispatcher) {
-        val savedSession = PlaybackSessionData(
-            activeServerId = 1L,
-            currentDirectoryPath = "/Music/Jazz/",
-            queueTracks = listOf(track1, track2),
-            currentTrackIndex = 1,
-            positionMs = 75000L,
-            playbackMode = PlaybackMode.SINGLE_LOOP
-        )
-        fakeStore.savedSession = savedSession
-
-        session = createSession()
-        advanceUntilIdle()
-
-        val state = session.sessionState.value
-        assertEquals(testServer, state.activeServer)
-        assertEquals(2, state.queue.size)
-        assertEquals(1, state.queue.currentIndex)
-        assertEquals(track2, state.currentTrack)
-        assertTrue("Restored mini-player must be in paused state", state.isPaused)
-        assertEquals(75000L, state.currentPositionMs)
-        assertEquals(track2.durationMs, state.durationMs)
-        assertEquals(PlaybackMode.SINGLE_LOOP, state.playbackMode)
-        assertEquals("/Music/Jazz/", state.currentDirectoryPath)
-
-        // Engine should still be idle - no network streaming has started yet
-        assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
-        assertEquals(-1, fakeEngine.lastStartIndex)
-    }
-
-    @Test
-    fun flushSession_beforeRestorationCompletes_doesNotOverwriteSavedPositionOrState() = runTest(testDispatcher) {
-        val savedSession = PlaybackSessionData(
-            activeServerId = 1L,
-            currentDirectoryPath = "/Music/Jazz/",
-            queueTracks = listOf(track1, track2),
-            currentTrackIndex = 1,
-            positionMs = 75000L,
-            playbackMode = PlaybackMode.LIST_LOOP
-        )
-        fakeStore.savedSession = savedSession
-
-        // Create session without advanceUntilIdle, immediately call flushSession
-        session = createSession()
-        session.flushSession() // Simulates onPause firing on app launch before restore completes
-
-        // Saved session in store must NOT be overwritten with 0 or empty!
-        val inStore = fakeStore.savedSession
-        assertNotNull(inStore)
-        assertEquals(1, inStore?.currentTrackIndex)
-        assertEquals(75000L, inStore?.positionMs)
-    }
-
-    @Test
-    fun tappingPlayOnRestoredMiniPlayer_seamlesslyStreamsFromSavedOffset() = runTest(testDispatcher) {
-        val savedSession = PlaybackSessionData(
-            activeServerId = 1L,
-            currentDirectoryPath = "/Music/Jazz/",
-            queueTracks = listOf(track1, track2),
-            currentTrackIndex = 1,
-            positionMs = 75000L,
-            playbackMode = PlaybackMode.SINGLE_LOOP
-        )
-        fakeStore.savedSession = savedSession
-
-        session = createSession()
-        advanceUntilIdle()
-
-        assertTrue(session.sessionState.value.isPaused)
-
-        // User taps play on the restored mini-player
-        session.togglePlayPause()
-        runCurrent()
-
-        // Engine starts streaming at the exact saved millisecond offset
-        assertEquals(testServer, fakeEngine.lastServer)
-        assertEquals(2, fakeEngine.lastTracks.size)
-        assertEquals(1, fakeEngine.lastStartIndex)
-        assertEquals(75000L, fakeEngine.lastStartPositionMs)
-        assertTrue(session.sessionState.value.isPlaying)
-
-        session.pause()
-        advanceUntilIdle()
-    }
-
-    @Test
-    fun seekingWhileInRestoredPausedState_updatesPositionAndStreamsFromNewOffsetOnPlay() = runTest(testDispatcher) {
-        val savedSession = PlaybackSessionData(
-            activeServerId = 1L,
-            currentDirectoryPath = "/Music/Jazz/",
-            queueTracks = listOf(track1, track2),
-            currentTrackIndex = 0,
-            positionMs = 20000L,
-            playbackMode = PlaybackMode.LIST_LOOP
-        )
-        fakeStore.savedSession = savedSession
-
-        session = createSession()
-        advanceUntilIdle()
-
-        // User scrubs progress bar to 90000ms
-        session.seekTo(90000L)
-        advanceUntilIdle()
-
-        assertEquals(90000L, session.sessionState.value.currentPositionMs)
-        assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
-
-        // User taps play
-        session.play()
-        runCurrent()
-
-        assertEquals(0, fakeEngine.lastStartIndex)
-        assertEquals(90000L, fakeEngine.lastStartPositionMs)
-        assertTrue(session.sessionState.value.isPlaying)
-
-        session.pause()
-        advanceUntilIdle()
-    }
-
-    @Test
-    fun flushSession_persistsCurrentDirectoryPathAndAllFields() = runTest(testDispatcher) {
-        session = createSession()
-        session.setActiveServer(testServer)
-        session.setCurrentDirectoryPath("/Music/Jazz/")
-        advanceUntilIdle()
-
-        val directory = RemoteDirectory(
-            path = "/Music/Jazz/",
-            name = "Jazz",
-            files = listOf(
-                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
-                RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L)
-            )
-        )
-        session.playDirectoryTrack(directory, directory.files[1])
-        fakeEngine.seekTo(42000L)
-        session.setPlaybackMode(PlaybackMode.SHUFFLE)
-        runCurrent()
-
-        session.flushSession()
-        runCurrent()
-
-        val saved = fakeStore.savedSession
-        assertNotNull(saved)
-        assertEquals(1L, saved?.activeServerId)
-        assertEquals("/Music/Jazz/", saved?.currentDirectoryPath)
-        assertEquals(2, saved?.queueTracks?.size)
-        assertEquals(1, saved?.currentTrackIndex)
-        assertEquals(42000L, saved?.positionMs)
-        assertEquals(PlaybackMode.SHUFFLE, saved?.playbackMode)
-    }
-
-    @Test
-    fun periodicFlushing_periodicallySavesStateToStore() = runTest(testDispatcher) {
-        session = MusicPlayerAppSessionImpl(
-            playerEngine = fakeEngine,
-            serverRepository = fakeServerRepo,
-            sessionStore = fakeStore,
             coroutineScope = sessionScope,
-            periodicDispatcher = testDispatcher
         )
-        session.setActiveServer(testServer)
-        session.setCurrentDirectoryPath("/Music/Jazz/")
-        advanceUntilIdle()
-
-        val directory = RemoteDirectory(
-            path = "/Music/Jazz/",
-            name = "Jazz",
-            files = listOf(
-                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L)
-            )
-        )
-        session.playDirectoryTrack(directory, directory.files[0])
-        runCurrent()
-
-        fakeEngine.seekTo(15000L)
-        val initialCount = fakeStore.saveSessionCount
-
-        // Advance 5 seconds (periodic ticker)
-        advanceTimeBy(5100L)
-        runCurrent()
-
-        assertTrue(fakeStore.saveSessionCount > initialCount)
-        assertEquals(15000L, fakeStore.savedSession?.positionMs)
-
-        session.pause()
-        runCurrent()
-    }
 
     @Test
-    fun skipToNext_automaticallyPersistsUpdatedTrackIndexToSessionStore() = runTest(testDispatcher) {
-        session = createSession()
-        session.setActiveServer(testServer)
-        advanceUntilIdle()
+    fun coldStart_restoresStateAndRendersMiniPlayerInPausedStateAtSavedPosition() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1, track2),
+                    currentTrackIndex = 1,
+                    positionMs = 75000L,
+                    playbackMode = PlaybackMode.SINGLE_LOOP,
+                )
+            fakeStore.savedSession = savedSession
 
-        val directory = RemoteDirectory(
-            path = "/Music/Jazz/",
-            name = "Jazz",
-            files = listOf(
-                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
-                RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L)
-            )
-        )
-        // 1. User starts playing track 1
-        session.playDirectoryTrack(directory, directory.files[0])
-        runCurrent()
-        assertEquals(0, session.sessionState.value.queue.currentIndex)
-        assertEquals(0, fakeStore.savedSession?.currentTrackIndex)
+            session = createSession()
+            advanceUntilIdle()
 
-        // 2. User taps "next track"
-        session.skipToNext()
-        runCurrent()
+            val state = session.sessionState.value
+            assertEquals(testServer, state.activeServer)
+            assertEquals(2, state.queue.size)
+            assertEquals(1, state.queue.currentIndex)
+            assertEquals(track2, state.currentTrack)
+            assertTrue("Restored mini-player must be in paused state", state.isPaused)
+            assertEquals(75000L, session.playbackProgress.value.currentPositionMs)
+            assertEquals(track2.durationMs, state.durationMs)
+            assertEquals(PlaybackMode.SINGLE_LOOP, state.playbackMode)
+            assertEquals("/Music/Jazz/", state.currentDirectoryPath)
 
-        // 3. The state in memory is track 2
-        assertEquals(1, session.sessionState.value.queue.currentIndex)
-
-        // 4. Session store must automatically record track 2 without waiting for periodic timer or manual flush
-        assertEquals(1, fakeStore.savedSession?.currentTrackIndex)
-    }
-
-    @Test
-    fun skipToPrevious_automaticallyPersistsUpdatedTrackIndexToSessionStore() = runTest(testDispatcher) {
-        session = createSession()
-        session.setActiveServer(testServer)
-        advanceUntilIdle()
-
-        val directory = RemoteDirectory(
-            path = "/Music/Jazz/",
-            name = "Jazz",
-            files = listOf(
-                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
-                RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L)
-            )
-        )
-        // Start playing track 2 (index 1)
-        session.playDirectoryTrack(directory, directory.files[1])
-        runCurrent()
-        assertEquals(1, fakeStore.savedSession?.currentTrackIndex)
-
-        // User taps "previous track"
-        session.skipToPrevious()
-        runCurrent()
-
-        assertEquals(0, session.sessionState.value.queue.currentIndex)
-        assertEquals(0, fakeStore.savedSession?.currentTrackIndex)
-    }
+            // Engine should still be idle - no network streaming has started yet
+            assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
+            assertEquals(-1, fakeEngine.lastStartIndex)
+        }
 
     @Test
-    fun playQueueIndex_automaticallyPersistsUpdatedTrackIndexToSessionStore() = runTest(testDispatcher) {
-        session = createSession()
-        session.setActiveServer(testServer)
-        advanceUntilIdle()
+    fun flushSession_beforeRestorationCompletes_doesNotOverwriteSavedPositionOrState() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1, track2),
+                    currentTrackIndex = 1,
+                    positionMs = 75000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
 
-        val directory = RemoteDirectory(
-            path = "/Music/Jazz/",
-            name = "Jazz",
-            files = listOf(
-                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
-                RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L),
-                RemoteFile(name = "track3.mp3", path = "/Music/Jazz/track3.mp3", size = 12000000L)
-            )
-        )
-        session.playDirectoryTrack(directory, directory.files[0])
-        runCurrent()
-        assertEquals(0, fakeStore.savedSession?.currentTrackIndex)
+            // Create session without advanceUntilIdle, immediately call flushSession
+            session = createSession()
+            session.flushSession() // Simulates onPause firing on app launch before restore completes
 
-        // Jump directly to track 3 (index 2) via playlist
-        session.playQueueIndex(2)
-        runCurrent()
-
-        assertEquals(2, session.sessionState.value.queue.currentIndex)
-        assertEquals(2, fakeStore.savedSession?.currentTrackIndex)
-    }
+            // Saved session in store must NOT be overwritten with 0 or empty!
+            val inStore = fakeStore.savedSession
+            assertNotNull(inStore)
+            assertEquals(1, inStore?.currentTrackIndex)
+            assertEquals(75000L, inStore?.positionMs)
+        }
 
     @Test
-    fun seekTo_immediatelyPersistsUpdatedPositionToStore() = runTest(testDispatcher) {
-        session = createSession()
-        session.setActiveServer(testServer)
-        advanceUntilIdle()
+    fun tappingPlayOnRestoredMiniPlayer_seamlesslyStreamsFromSavedOffset() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1, track2),
+                    currentTrackIndex = 1,
+                    positionMs = 75000L,
+                    playbackMode = PlaybackMode.SINGLE_LOOP,
+                )
+            fakeStore.savedSession = savedSession
 
-        val directory = RemoteDirectory(
-            path = "/Music/Jazz/",
-            name = "Jazz",
-            files = listOf(
-                RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
-                RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L)
-            )
-        )
-        session.playDirectoryTrack(directory, directory.files[0])
-        runCurrent()
-        assertEquals(0L, fakeStore.savedSession?.positionMs)
+            session = createSession()
+            advanceUntilIdle()
 
-        // User scrubs slider to 871673L
-        session.seekTo(871673L)
-        runCurrent()
+            assertTrue(session.sessionState.value.isPaused)
 
-        assertEquals(871673L, session.sessionState.value.currentPositionMs)
-        assertEquals(871673L, fakeStore.savedSession?.positionMs)
-    }
+            // User taps play on the restored mini-player
+            session.togglePlayPause()
+            runCurrent()
 
-    @Test
-    fun coldStart_whenSavedServerDoesNotExist_handlesGracefullyWithoutCrashing() = runTest(testDispatcher) {
-        val nonExistentSession = PlaybackSessionData(
-            activeServerId = 9999L,
-            currentDirectoryPath = "/Unknown/",
-            queueTracks = listOf(track1),
-            currentTrackIndex = 0,
-            positionMs = 10000L,
-            playbackMode = PlaybackMode.LIST_LOOP
-        )
-        fakeStore.savedSession = nonExistentSession
+            // Engine starts streaming at the exact saved millisecond offset
+            assertEquals(testServer, fakeEngine.lastServer)
+            assertEquals(2, fakeEngine.lastTracks.size)
+            assertEquals(1, fakeEngine.lastStartIndex)
+            assertEquals(75000L, fakeEngine.lastStartPositionMs)
+            assertTrue(session.sessionState.value.isPlaying)
 
-        // Repo without any matching server
-        val emptyServerRepo = TestServerRepository(emptyList())
-        session = MusicPlayerAppSessionImpl(
-            playerEngine = fakeEngine,
-            serverRepository = emptyServerRepo,
-            sessionStore = fakeStore,
-            coroutineScope = sessionScope
-        )
-        advanceUntilIdle()
-
-        val state = session.sessionState.value
-        assertNull(state.activeServer)
-        assertTrue(state.queue.isEmpty)
-        assertTrue(state.isIdle)
-        assertNull(state.errorMessage)
-    }
+            session.pause()
+            advanceUntilIdle()
+        }
 
     @Test
-    fun coldStart_whenStoreIsEmpty_leavesSessionClean() = runTest(testDispatcher) {
-        fakeStore.savedSession = null
+    fun seekingWhileInRestoredPausedState_updatesPositionAndStreamsFromNewOffsetOnPlay() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1, track2),
+                    currentTrackIndex = 0,
+                    positionMs = 20000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
 
-        session = createSession()
-        advanceUntilIdle()
+            session = createSession()
+            advanceUntilIdle()
 
-        val state = session.sessionState.value
-        assertNotNull(state.activeServer) // From fakeServerRepo default server
-        assertTrue(state.queue.isEmpty)
-        assertTrue(state.isIdle)
-        assertEquals(0L, state.currentPositionMs)
-    }
+            // User scrubs progress bar to 90000ms
+            session.seekTo(90000L)
+            advanceUntilIdle()
+
+            assertEquals(90000L, session.playbackProgress.value.currentPositionMs)
+            assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
+
+            // User taps play
+            session.play()
+            runCurrent()
+
+            assertEquals(0, fakeEngine.lastStartIndex)
+            assertEquals(90000L, fakeEngine.lastStartPositionMs)
+            assertTrue(session.sessionState.value.isPlaying)
+
+            session.pause()
+            advanceUntilIdle()
+        }
 
     @Test
-    fun coldStart_whenRemoteFileIsNoLongerAccessible_handlesErrorGracefully() = runTest(testDispatcher) {
-        val savedSession = PlaybackSessionData(
-            activeServerId = 1L,
-            currentDirectoryPath = "/Music/Jazz/",
-            queueTracks = listOf(track1),
-            currentTrackIndex = 0,
-            positionMs = 10000L,
-            playbackMode = PlaybackMode.LIST_LOOP
-        )
-        fakeStore.savedSession = savedSession
+    fun flushSession_persistsCurrentDirectoryPathAndAllFields() =
+        runTest(testDispatcher) {
+            session = createSession()
+            session.setActiveServer(testServer)
+            session.setCurrentDirectoryPath("/Music/Jazz/")
+            advanceUntilIdle()
 
-        session = createSession()
-        advanceUntilIdle()
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Jazz/",
+                    name = "Jazz",
+                    files =
+                        listOf(
+                            RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                            RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L),
+                        ),
+                )
+            session.playDirectoryTrack(directory, directory.files[1])
+            fakeEngine.seekTo(42000L)
+            session.setPlaybackMode(PlaybackMode.SHUFFLE)
+            runCurrent()
 
-        // User taps play
-        session.play()
-        runCurrent()
+            session.flushSession()
+            runCurrent()
 
-        // Remote server returns 404 / error
-        fakeEngine._playbackState.value = PlaybackState.Error("HTTP 404: File not found")
-        advanceUntilIdle()
+            val saved = fakeStore.savedSession
+            assertNotNull(saved)
+            assertEquals(1L, saved?.activeServerId)
+            assertEquals("/Music/Jazz/", saved?.currentDirectoryPath)
+            assertEquals(2, saved?.queueTracks?.size)
+            assertEquals(1, saved?.currentTrackIndex)
+            assertEquals(42000L, saved?.positionMs)
+            assertEquals(PlaybackMode.SHUFFLE, saved?.playbackMode)
+        }
 
-        val state = session.sessionState.value
-        assertTrue(state.playbackState is PlaybackState.Error)
-        assertEquals("HTTP 404: File not found", state.errorMessage)
-        // Ensure no crash occurred and state still holds the track metadata
-        assertEquals(track1, state.currentTrack)
-    }
+    @Test
+    fun periodicFlushing_periodicallySavesStateToStore() =
+        runTest(testDispatcher) {
+            session =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = fakeServerRepo,
+                    sessionStore = fakeStore,
+                    coroutineScope = sessionScope,
+                    periodicDispatcher = testDispatcher,
+                )
+            session.setActiveServer(testServer)
+            session.setCurrentDirectoryPath("/Music/Jazz/")
+            advanceUntilIdle()
+
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Jazz/",
+                    name = "Jazz",
+                    files =
+                        listOf(
+                            RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                        ),
+                )
+            session.playDirectoryTrack(directory, directory.files[0])
+            runCurrent()
+
+            fakeEngine.seekTo(15000L)
+            val initialCount = fakeStore.saveSessionCount
+
+            // Advance 5 seconds (periodic ticker)
+            advanceTimeBy(5100L)
+            runCurrent()
+
+            assertTrue(fakeStore.saveSessionCount > initialCount)
+            assertEquals(15000L, fakeStore.savedSession?.positionMs)
+
+            session.pause()
+            runCurrent()
+        }
+
+    @Test
+    fun skipToNext_automaticallyPersistsUpdatedTrackIndexToSessionStore() =
+        runTest(testDispatcher) {
+            session = createSession()
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Jazz/",
+                    name = "Jazz",
+                    files =
+                        listOf(
+                            RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                            RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L),
+                        ),
+                )
+            // 1. User starts playing track 1
+            session.playDirectoryTrack(directory, directory.files[0])
+            runCurrent()
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals(0, fakeStore.savedSession?.currentTrackIndex)
+
+            // 2. User taps "next track"
+            session.skipToNext()
+            runCurrent()
+
+            // 3. The state in memory is track 2
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+
+            // 4. Session store must automatically record track 2 without waiting for periodic timer or manual flush
+            assertEquals(1, fakeStore.savedSession?.currentTrackIndex)
+        }
+
+    @Test
+    fun skipToPrevious_automaticallyPersistsUpdatedTrackIndexToSessionStore() =
+        runTest(testDispatcher) {
+            session = createSession()
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Jazz/",
+                    name = "Jazz",
+                    files =
+                        listOf(
+                            RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                            RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L),
+                        ),
+                )
+            // Start playing track 2 (index 1)
+            session.playDirectoryTrack(directory, directory.files[1])
+            runCurrent()
+            assertEquals(1, fakeStore.savedSession?.currentTrackIndex)
+
+            // User taps "previous track"
+            session.skipToPrevious()
+            runCurrent()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals(0, fakeStore.savedSession?.currentTrackIndex)
+        }
+
+    @Test
+    fun playQueueIndex_automaticallyPersistsUpdatedTrackIndexToSessionStore() =
+        runTest(testDispatcher) {
+            session = createSession()
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Jazz/",
+                    name = "Jazz",
+                    files =
+                        listOf(
+                            RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                            RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L),
+                            RemoteFile(name = "track3.mp3", path = "/Music/Jazz/track3.mp3", size = 12000000L),
+                        ),
+                )
+            session.playDirectoryTrack(directory, directory.files[0])
+            runCurrent()
+            assertEquals(0, fakeStore.savedSession?.currentTrackIndex)
+
+            // Jump directly to track 3 (index 2) via playlist
+            session.playQueueIndex(2)
+            runCurrent()
+
+            assertEquals(2, session.sessionState.value.queue.currentIndex)
+            assertEquals(2, fakeStore.savedSession?.currentTrackIndex)
+        }
+
+    @Test
+    fun seekTo_immediatelyPersistsUpdatedPositionToStore() =
+        runTest(testDispatcher) {
+            session = createSession()
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Jazz/",
+                    name = "Jazz",
+                    files =
+                        listOf(
+                            RemoteFile(name = "track1.mp3", path = "/Music/Jazz/track1.mp3", size = 8000000L),
+                            RemoteFile(name = "track2.flac", path = "/Music/Jazz/track2.flac", size = 25000000L),
+                        ),
+                )
+            session.playDirectoryTrack(directory, directory.files[0])
+            runCurrent()
+            assertEquals(0L, fakeStore.savedSession?.positionMs)
+
+            // User scrubs slider to 871673L
+            session.seekTo(871673L)
+            runCurrent()
+
+            assertEquals(871673L, session.playbackProgress.value.currentPositionMs)
+            assertEquals(871673L, fakeStore.savedSession?.positionMs)
+        }
+
+    @Test
+    fun coldStart_whenSavedServerDoesNotExist_handlesGracefullyWithoutCrashing() =
+        runTest(testDispatcher) {
+            val nonExistentSession =
+                PlaybackSessionData(
+                    activeServerId = 9999L,
+                    currentDirectoryPath = "/Unknown/",
+                    queueTracks = listOf(track1),
+                    currentTrackIndex = 0,
+                    positionMs = 10000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = nonExistentSession
+
+            // Repo without any matching server
+            val emptyServerRepo = TestServerRepository(emptyList())
+            session =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = emptyServerRepo,
+                    sessionStore = fakeStore,
+                    coroutineScope = sessionScope,
+                )
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertNull(state.activeServer)
+            assertTrue(state.queue.isEmpty)
+            assertTrue(state.isIdle)
+            assertNull(state.errorMessage)
+        }
+
+    @Test
+    fun coldStart_whenStoreIsEmpty_leavesSessionClean() =
+        runTest(testDispatcher) {
+            fakeStore.savedSession = null
+
+            session = createSession()
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertNotNull(state.activeServer) // From fakeServerRepo default server
+            assertTrue(state.queue.isEmpty)
+            assertTrue(state.isIdle)
+            assertEquals(0L, session.playbackProgress.value.currentPositionMs)
+        }
+
+    @Test
+    fun coldStart_whenRemoteFileIsNoLongerAccessible_handlesErrorGracefully() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1),
+                    currentTrackIndex = 0,
+                    positionMs = 10000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session = createSession()
+            advanceUntilIdle()
+
+            // User taps play
+            session.play()
+            runCurrent()
+
+            // Remote server returns 404 / error
+            fakeEngine._playbackState.value = PlaybackState.Error("HTTP 404: File not found")
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertTrue(state.playbackState is PlaybackState.Error)
+            assertEquals("HTTP 404: File not found", state.errorMessage)
+            // Ensure no crash occurred and state still holds the track metadata
+            assertEquals(track1, state.currentTrack)
+        }
 
     private class TestServerRepository(
-        servers: List<WebDavServer>
+        servers: List<WebDavServer>,
     ) : ServerRepository {
         private val serversFlow = MutableStateFlow(servers)
 
         override fun getAllServers(): Flow<List<WebDavServer>> = serversFlow
 
-        override fun getActiveServer(): Flow<WebDavServer?> = serversFlow.map { list ->
-            list.firstOrNull { it.isDefault }
-        }
+        override fun getActiveServer(): Flow<WebDavServer?> =
+            serversFlow.map { list ->
+                list.firstOrNull { it.isDefault }
+            }
 
-        override suspend fun getServerById(id: Long): WebDavServer? {
-            return serversFlow.value.firstOrNull { it.id == id }
-        }
+        override suspend fun getServerById(id: Long): WebDavServer? = serversFlow.value.firstOrNull { it.id == id }
 
         override suspend fun saveServer(server: WebDavServer): Long {
             serversFlow.value = serversFlow.value + server
@@ -508,9 +541,10 @@ class PlaybackSessionResumptionTest {
         }
 
         override suspend fun setActiveServer(id: Long) {
-            serversFlow.value = serversFlow.value.map {
-                it.copy(isDefault = it.id == id)
-            }
+            serversFlow.value =
+                serversFlow.value.map {
+                    it.copy(isDefault = it.id == id)
+                }
         }
     }
 }

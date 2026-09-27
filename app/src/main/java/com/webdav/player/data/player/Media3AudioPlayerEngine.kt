@@ -48,7 +48,6 @@ class Media3AudioPlayerEngine(
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
 ) : AudioPlayerEngine {
-
     @Deprecated("Use constructor with WebDavMediaSourceAdapter instead")
     constructor(
         context: Context,
@@ -64,6 +63,7 @@ class Media3AudioPlayerEngine(
         customMediaSession = customMediaSession,
         coroutineScope = coroutineScope,
     )
+
     val player: Player =
         customPlayer ?: run {
             val loadControl =
@@ -149,6 +149,9 @@ class Media3AudioPlayerEngine(
 
     private val _durationMs = MutableStateFlow(0L)
     override val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    private val _bufferedPositionMs = MutableStateFlow(0L)
+    override val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
 
     private val _currentTrackIndex = MutableStateFlow(-1)
     override val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
@@ -383,6 +386,7 @@ class Media3AudioPlayerEngine(
         player.stop()
         _playbackState.value = PlaybackState.Idle
         _currentPositionMs.value = 0L
+        _bufferedPositionMs.value = 0L
     }
 
     override fun release() {
@@ -453,6 +457,7 @@ class Media3AudioPlayerEngine(
         if (dur != C.TIME_UNSET && dur > 0) {
             _durationMs.value = dur
         }
+        _bufferedPositionMs.value = player.bufferedPosition.coerceAtLeast(0L)
     }
 
     private fun startPositionTicker() {

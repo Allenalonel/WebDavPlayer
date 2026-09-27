@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
@@ -79,6 +80,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun FullPlayerView(
     sessionState: PlayerSessionState,
+    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
     onCollapse: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -87,16 +89,17 @@ fun FullPlayerView(
     onCyclePlaybackMode: () -> Unit,
     onPlayQueueIndex: (Int) -> Unit,
     onRemoveQueueTrack: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     var showQueueSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     // 2-page Horizontal Pager: Page 0 = Artwork & Info, Page 1 = Synchronized Lyrics
-    val pagerState = rememberPagerState(
-        initialPage = 0,
-        pageCount = { 2 }
-    )
+    val pagerState =
+        rememberPagerState(
+            initialPage = 0,
+            pageCount = { 2 },
+        )
 
     // Intercept back button to close sheet or collapse to mini-player
     BackHandler {
@@ -113,7 +116,7 @@ fun FullPlayerView(
     val artworkColors by rememberArtworkColors(
         thumbnailPath = currentTrack?.coverThumbnailPath,
         defaultSurfaceColor = MaterialTheme.colorScheme.surfaceContainer,
-        defaultBackgroundColor = MaterialTheme.colorScheme.surface
+        defaultBackgroundColor = MaterialTheme.colorScheme.surface,
     )
 
     // Interactive scrubbing state
@@ -121,65 +124,71 @@ fun FullPlayerView(
     var scrubbedPositionMs by remember { mutableLongStateOf(0L) }
     var showRemainingTime by remember { mutableStateOf(false) }
 
-    val displayPositionMs = if (isScrubbing) {
-        scrubbedPositionMs
-    } else {
-        sessionState.currentPositionMs
-    }
+    val displayPositionMs =
+        if (isScrubbing) {
+            scrubbedPositionMs
+        } else {
+            playbackProgress.currentPositionMs
+        }
 
     // Downward swipe modifier to collapse player sheet smoothly
-    val downwardSwipeModifier = Modifier.pointerInput(Unit) {
-        var downwardDrag = 0f
-        detectVerticalDragGestures(
-            onVerticalDrag = { change, dragAmount ->
-                downwardDrag += dragAmount
-                if (downwardDrag > 24f) {
-                    change.consume()
-                    onCollapse()
-                    downwardDrag = 0f
-                }
-            },
-            onDragEnd = { downwardDrag = 0f },
-            onDragCancel = { downwardDrag = 0f }
-        )
-    }
+    val downwardSwipeModifier =
+        Modifier.pointerInput(Unit) {
+            var downwardDrag = 0f
+            detectVerticalDragGestures(
+                onVerticalDrag = { change, dragAmount ->
+                    downwardDrag += dragAmount
+                    if (downwardDrag > 24f) {
+                        change.consume()
+                        onCollapse()
+                        downwardDrag = 0f
+                    }
+                },
+                onDragEnd = { downwardDrag = 0f },
+                onDragCancel = { downwardDrag = 0f },
+            )
+        }
 
     Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .background(artworkColors.gradientBrush),
-        color = Color.Transparent
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(artworkColors.gradientBrush),
+        color = Color.Transparent,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // MD3 Drag Handle at the top of the sheet
             Box(
-                modifier = Modifier
-                    .padding(top = 10.dp, bottom = 4.dp)
-                    .size(width = 38.dp, height = 4.5.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                    .then(downwardSwipeModifier)
+                modifier =
+                    Modifier
+                        .padding(top = 10.dp, bottom = 4.dp)
+                        .size(width = 38.dp, height = 4.5.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        .then(downwardSwipeModifier),
             )
 
             // Top Bar with Collapse Arrow and Subtitle Header
             TopAppBar(
                 title = {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(downwardSwipeModifier),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .then(downwardSwipeModifier),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
                             text = if (pagerState.currentPage == 1) "歌词" else "正在播放",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         if (currentTrack?.album != null && currentTrack.album.isNotBlank()) {
                             Text(
@@ -187,7 +196,7 @@ fun FullPlayerView(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
@@ -198,22 +207,24 @@ fun FullPlayerView(
                             imageVector = Icons.Filled.KeyboardArrowDown,
                             contentDescription = "收起播放器",
                             modifier = Modifier.size(28.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                ),
-                modifier = downwardSwipeModifier
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                    ),
+                modifier = downwardSwipeModifier,
             )
 
             // Upper Main Area: Horizontal Pager between Artwork and Lyrics
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
             ) { page ->
                 when (page) {
                     0 -> {
@@ -225,9 +236,10 @@ fun FullPlayerView(
                                     pagerState.animateScrollToPage(1)
                                 }
                             },
-                            modifier = downwardSwipeModifier
+                            modifier = downwardSwipeModifier,
                         )
                     }
+
                     1 -> {
                         // Page 1: Synchronized Lyrics view with Tap-to-Seek
                         LyricsPage(
@@ -238,7 +250,7 @@ fun FullPlayerView(
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(0)
                                 }
-                            }
+                            },
                         )
                     }
                 }
@@ -246,32 +258,32 @@ fun FullPlayerView(
 
             // Page Indicator Dots (Pill indicators)
             Row(
-                modifier = Modifier
-                    .padding(vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 repeat(2) { index ->
                     val isSelected = pagerState.currentPage == index
                     Box(
-                        modifier = Modifier
-                            .size(
-                                width = if (isSelected) 18.dp else 6.dp,
-                                height = 6.dp
-                            )
-                            .clip(CircleShape)
-                            .background(
-                                if (isSelected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                }
-                            )
-                            .clickable {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(index)
-                                }
-                            }
+                        modifier =
+                            Modifier
+                                .size(
+                                    width = if (isSelected) 18.dp else 6.dp,
+                                    height = 6.dp,
+                                ).clip(CircleShape)
+                                .background(
+                                    if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                    },
+                                ).clickable {
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(index)
+                                    }
+                                },
                     )
                 }
             }
@@ -280,12 +292,18 @@ fun FullPlayerView(
 
             // Scrubbing Seek Slider & Real-time Timestamps
             Column(modifier = Modifier.fillMaxWidth()) {
-                val maxDuration = sessionState.durationMs.coerceAtLeast(0L)
-                val sliderValue = if (maxDuration > 0L) {
-                    displayPositionMs.coerceIn(0L, maxDuration).toFloat()
-                } else {
-                    0f
-                }
+                val maxDuration =
+                    if (playbackProgress.durationMs > 0L) {
+                        playbackProgress.durationMs
+                    } else {
+                        sessionState.durationMs.coerceAtLeast(0L)
+                    }
+                val sliderValue =
+                    if (maxDuration > 0L) {
+                        displayPositionMs.coerceIn(0L, maxDuration).toFloat()
+                    } else {
+                        0f
+                    }
 
                 Slider(
                     value = sliderValue,
@@ -299,36 +317,40 @@ fun FullPlayerView(
                     },
                     valueRange = 0f..(if (maxDuration > 0L) maxDuration.toFloat() else 1f),
                     enabled = maxDuration > 0L,
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    colors =
+                        SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        ),
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
                         text = PlayerTimeFormatter.formatMs(displayPositionMs),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = if (showRemainingTime && maxDuration > displayPositionMs) {
-                            "-${PlayerTimeFormatter.formatMs(maxDuration - displayPositionMs)}"
-                        } else {
-                            PlayerTimeFormatter.formatMs(maxDuration)
-                        },
+                        text =
+                            if (showRemainingTime && maxDuration > displayPositionMs) {
+                                "-${PlayerTimeFormatter.formatMs(maxDuration - displayPositionMs)}"
+                            } else {
+                                PlayerTimeFormatter.formatMs(maxDuration)
+                            },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable {
-                            showRemainingTime = !showRemainingTime
-                        }
+                        modifier =
+                            Modifier.clickable {
+                                showRemainingTime = !showRemainingTime
+                            },
                     )
                 }
             }
@@ -337,33 +359,35 @@ fun FullPlayerView(
 
             // Expressive Controls Bar: Mode, Prev, Play/Pause/Buffering, Next, Queue
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 28.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 // Playback Mode Button
                 PlaybackModeButton(
                     mode = sessionState.playbackMode,
-                    onClick = onCyclePlaybackMode
+                    onClick = onCyclePlaybackMode,
                 )
 
                 // Previous Track Button
                 IconButton(
                     onClick = onSkipToPrevious,
                     enabled = sessionState.queue.isNotEmpty,
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(52.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipPrevious,
                         contentDescription = "上一首",
                         modifier = Modifier.size(36.dp),
-                        tint = if (sessionState.queue.isNotEmpty) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.outlineVariant
-                        }
+                        tint =
+                            if (sessionState.queue.isNotEmpty) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            },
                     )
                 }
 
@@ -372,36 +396,39 @@ fun FullPlayerView(
                     onClick = onTogglePlayPause,
                     modifier = Modifier.size(72.dp),
                     shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                    colors =
+                        IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
                 ) {
                     AnimatedContent(
                         targetState = sessionState.playbackState,
                         transitionSpec = { fadeIn() togetherWith fadeOut() },
-                        label = "FullPlayerPlayPause"
+                        label = "FullPlayerPlayPause",
                     ) { state ->
                         when (state) {
                             is PlaybackState.Buffering -> {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(32.dp),
                                     strokeWidth = 3.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                 )
                             }
+
                             is PlaybackState.Playing -> {
                                 Icon(
                                     imageVector = Icons.Filled.Pause,
                                     contentDescription = "暂停",
-                                    modifier = Modifier.size(38.dp)
+                                    modifier = Modifier.size(38.dp),
                                 )
                             }
+
                             else -> {
                                 Icon(
                                     imageVector = Icons.Filled.PlayArrow,
                                     contentDescription = "播放",
-                                    modifier = Modifier.size(38.dp)
+                                    modifier = Modifier.size(38.dp),
                                 )
                             }
                         }
@@ -412,30 +439,31 @@ fun FullPlayerView(
                 IconButton(
                     onClick = onSkipToNext,
                     enabled = sessionState.queue.isNotEmpty,
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(52.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipNext,
                         contentDescription = "下一首",
                         modifier = Modifier.size(36.dp),
-                        tint = if (sessionState.queue.isNotEmpty) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.outlineVariant
-                        }
+                        tint =
+                            if (sessionState.queue.isNotEmpty) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            },
                     )
                 }
 
                 // Queue Sheet Button
                 IconButton(
                     onClick = { showQueueSheet = true },
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                         contentDescription = "播放队列",
                         modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -454,7 +482,7 @@ fun FullPlayerView(
                 onRemoveQueueTrack(index)
             },
             onCyclePlaybackMode = onCyclePlaybackMode,
-            onDismissRequest = { showQueueSheet = false }
+            onDismissRequest = { showQueueSheet = false },
         )
     }
 }
@@ -463,36 +491,38 @@ fun FullPlayerView(
 private fun ArtworkPage(
     currentTrack: AudioTrack?,
     onArtworkClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         // Large Album Artwork Card with Soft Shadow
         Box(
-            modifier = Modifier
-                .fillMaxWidth(0.88f)
-                .aspectRatio(1f)
-                .shadow(elevation = 20.dp, shape = MaterialTheme.shapes.extraLarge)
-                .clip(MaterialTheme.shapes.extraLarge)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .clickable { onArtworkClick() },
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.88f)
+                    .aspectRatio(1f)
+                    .shadow(elevation = 20.dp, shape = MaterialTheme.shapes.extraLarge)
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onArtworkClick() },
+            contentAlignment = Alignment.Center,
         ) {
             CoverThumbnailImage(
                 thumbnailPath = currentTrack?.coverThumbnailPath,
                 contentDescription = "专辑封面",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Audiotrack,
                     contentDescription = "专辑封面",
                     modifier = Modifier.size(100.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
             }
         }
@@ -507,7 +537,7 @@ private fun ArtworkPage(
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -519,7 +549,7 @@ private fun ArtworkPage(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -530,15 +560,16 @@ private fun LyricsPage(
     currentPositionMs: Long,
     onSeekTo: (Long) -> Unit,
     onReturnToArtwork: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val currentTrack = sessionState.currentTrack
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Song Header in lyrics view
         Text(
@@ -548,7 +579,7 @@ private fun LyricsPage(
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
@@ -557,7 +588,7 @@ private fun LyricsPage(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -568,7 +599,7 @@ private fun LyricsPage(
             currentPositionMs = currentPositionMs,
             onSeekTo = onSeekTo,
             onToggleCover = onReturnToArtwork,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -577,26 +608,28 @@ private fun LyricsPage(
 private fun PlaybackModeButton(
     mode: PlaybackMode,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val icon = when (mode) {
-        PlaybackMode.LIST_LOOP -> Icons.Filled.Repeat
-        PlaybackMode.SINGLE_LOOP -> Icons.Filled.RepeatOne
-        PlaybackMode.SHUFFLE -> Icons.Filled.Shuffle
-    }
+    val icon =
+        when (mode) {
+            PlaybackMode.LIST_LOOP -> Icons.Filled.Repeat
+            PlaybackMode.SINGLE_LOOP -> Icons.Filled.RepeatOne
+            PlaybackMode.SHUFFLE -> Icons.Filled.Shuffle
+        }
 
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(48.dp)
+        modifier = modifier.size(48.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = mode.label,
             modifier = Modifier.size(26.dp),
-            tint = when (mode) {
-                PlaybackMode.LIST_LOOP -> MaterialTheme.colorScheme.onSurfaceVariant
-                PlaybackMode.SINGLE_LOOP, PlaybackMode.SHUFFLE -> MaterialTheme.colorScheme.primary
-            }
+            tint =
+                when (mode) {
+                    PlaybackMode.LIST_LOOP -> MaterialTheme.colorScheme.onSurfaceVariant
+                    PlaybackMode.SINGLE_LOOP, PlaybackMode.SHUFFLE -> MaterialTheme.colorScheme.primary
+                },
         )
     }
 }

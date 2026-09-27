@@ -5,12 +5,11 @@ data class PlayerSessionState(
     val queue: PlaybackQueue = PlaybackQueue.EMPTY,
     val playbackState: PlaybackState = PlaybackState.Idle,
     val playbackMode: PlaybackMode = PlaybackMode.LIST_LOOP,
-    val currentPositionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
     val lyrics: Lyrics? = null,
     val isLoadingLyrics: Boolean = false,
-    val currentDirectoryPath: String = "/"
+    val currentDirectoryPath: String = "/",
 ) {
     val currentTrack: AudioTrack? get() = queue.currentTrack
     val isPlaying: Boolean get() = playbackState is PlaybackState.Playing

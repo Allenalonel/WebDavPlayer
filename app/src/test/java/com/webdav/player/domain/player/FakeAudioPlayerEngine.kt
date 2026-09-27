@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class FakeAudioPlayerEngine : AudioPlayerEngine {
-
     val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
@@ -18,6 +17,9 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     val _durationMs = MutableStateFlow(0L)
     override val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    val _bufferedPositionMs = MutableStateFlow(0L)
+    override val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
 
     val _currentTrackIndex = MutableStateFlow(-1)
     override val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
@@ -41,7 +43,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         server: WebDavServer,
         tracks: List<AudioTrack>,
         startIndex: Int,
-        startPositionMs: Long
+        startPositionMs: Long,
     ) {
         lastServer = server
         lastTracks = tracks
@@ -69,61 +71,68 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     override fun skipToNext() {
         if (lastTracks.isEmpty()) return
-        val next = when (_playbackMode.value) {
-            PlaybackMode.SINGLE_LOOP, PlaybackMode.LIST_LOOP -> {
-                if (_currentTrackIndex.value < lastTracks.size - 1) {
-                    _currentTrackIndex.value + 1
-                } else {
-                    0
-                }
-            }
-            PlaybackMode.SHUFFLE -> {
-                val perm = shufflePermutation
-                if (!perm.isNullOrEmpty()) {
-                    val currPos = perm.indexOf(_currentTrackIndex.value)
-                    if (currPos in 0 until perm.lastIndex) {
-                        perm[currPos + 1]
+        val next =
+            when (_playbackMode.value) {
+                PlaybackMode.SINGLE_LOOP, PlaybackMode.LIST_LOOP -> {
+                    if (_currentTrackIndex.value < lastTracks.size - 1) {
+                        _currentTrackIndex.value + 1
                     } else {
-                        perm.first()
+                        0
                     }
-                } else {
-                    (lastTracks.indices.filter { it != _currentTrackIndex.value }.randomOrNull()) ?: 0
+                }
+
+                PlaybackMode.SHUFFLE -> {
+                    val perm = shufflePermutation
+                    if (!perm.isNullOrEmpty()) {
+                        val currPos = perm.indexOf(_currentTrackIndex.value)
+                        if (currPos in 0 until perm.lastIndex) {
+                            perm[currPos + 1]
+                        } else {
+                            perm.first()
+                        }
+                    } else {
+                        (lastTracks.indices.filter { it != _currentTrackIndex.value }.randomOrNull()) ?: 0
+                    }
                 }
             }
-        }
         _currentTrackIndex.value = next
         _currentPositionMs.value = 0L
     }
 
     override fun skipToPrevious() {
         if (lastTracks.isEmpty()) return
-        val prev = when (_playbackMode.value) {
-            PlaybackMode.SINGLE_LOOP, PlaybackMode.LIST_LOOP -> {
-                if (_currentTrackIndex.value > 0) {
-                    _currentTrackIndex.value - 1
-                } else {
-                    lastTracks.lastIndex
-                }
-            }
-            PlaybackMode.SHUFFLE -> {
-                val perm = shufflePermutation
-                if (!perm.isNullOrEmpty()) {
-                    val currPos = perm.indexOf(_currentTrackIndex.value)
-                    if (currPos > 0) {
-                        perm[currPos - 1]
+        val prev =
+            when (_playbackMode.value) {
+                PlaybackMode.SINGLE_LOOP, PlaybackMode.LIST_LOOP -> {
+                    if (_currentTrackIndex.value > 0) {
+                        _currentTrackIndex.value - 1
                     } else {
-                        perm.last()
+                        lastTracks.lastIndex
                     }
-                } else {
-                    (lastTracks.indices.filter { it != _currentTrackIndex.value }.randomOrNull()) ?: 0
+                }
+
+                PlaybackMode.SHUFFLE -> {
+                    val perm = shufflePermutation
+                    if (!perm.isNullOrEmpty()) {
+                        val currPos = perm.indexOf(_currentTrackIndex.value)
+                        if (currPos > 0) {
+                            perm[currPos - 1]
+                        } else {
+                            perm.last()
+                        }
+                    } else {
+                        (lastTracks.indices.filter { it != _currentTrackIndex.value }.randomOrNull()) ?: 0
+                    }
                 }
             }
-        }
         _currentTrackIndex.value = prev
         _currentPositionMs.value = 0L
     }
 
-    override fun seekToTrack(index: Int, positionMs: Long) {
+    override fun seekToTrack(
+        index: Int,
+        positionMs: Long,
+    ) {
         if (index in lastTracks.indices) {
             _currentTrackIndex.value = index
             _currentPositionMs.value = positionMs
@@ -142,13 +151,20 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
                 stop()
                 _currentTrackIndex.value = -1
             } else {
-                val newIndex = when {
-                    index < _currentTrackIndex.value -> _currentTrackIndex.value - 1
-                    index == _currentTrackIndex.value -> {
-                        if (index < mutable.size) index else mutable.lastIndex
+                val newIndex =
+                    when {
+                        index < _currentTrackIndex.value -> {
+                            _currentTrackIndex.value - 1
+                        }
+
+                        index == _currentTrackIndex.value -> {
+                            if (index < mutable.size) index else mutable.lastIndex
+                        }
+
+                        else -> {
+                            _currentTrackIndex.value
+                        }
                     }
-                    else -> _currentTrackIndex.value
-                }
                 _currentTrackIndex.value = newIndex
             }
         }
@@ -157,7 +173,10 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var updateTrackCalls = 0
     val updatedTrackIndices = mutableListOf<Int>()
 
-    override fun updateTrack(index: Int, track: AudioTrack) {
+    override fun updateTrack(
+        index: Int,
+        track: AudioTrack,
+    ) {
         updateTrackCalls++
         updatedTrackIndices.add(index)
         if (index in lastTracks.indices) {
@@ -174,6 +193,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
                 // Replays the same track
                 _currentPositionMs.value = 0L
             }
+
             PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> {
                 skipToNext()
             }
@@ -183,6 +203,8 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     override fun stop() {
         stopCount++
         _playbackState.value = PlaybackState.Idle
+        _currentPositionMs.value = 0L
+        _bufferedPositionMs.value = 0L
     }
 
     override fun release() {

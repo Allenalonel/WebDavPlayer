@@ -2,6 +2,7 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface MusicPlayerAppSession {
     val sessionState: StateFlow<PlayerSessionState>
+
+    val playbackProgress: StateFlow<PlaybackProgress>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(PlaybackProgress.ZERO)
 
     val isRestored: StateFlow<Boolean>
         get() = kotlinx.coroutines.flow.MutableStateFlow(true)
@@ -26,7 +30,10 @@ interface MusicPlayerAppSession {
 
     fun flushSessionAsync() {}
 
-    fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile)
+    fun playDirectoryTrack(
+        directory: RemoteDirectory,
+        selectedFile: RemoteFile,
+    )
 
     fun playTrack(track: AudioTrack)
 

@@ -2,6 +2,7 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
@@ -13,20 +14,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 class FakeMusicPlayerAppSession(
-    initialState: PlayerSessionState = PlayerSessionState()
+    initialState: PlayerSessionState = PlayerSessionState(),
+    initialProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) : MusicPlayerAppSession {
-
     val _sessionState = MutableStateFlow(initialState)
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
+
+    val _playbackProgress = MutableStateFlow(initialProgress)
+    override val playbackProgress: StateFlow<PlaybackProgress> = _playbackProgress.asStateFlow()
 
     private val _isRestored = MutableStateFlow(true)
     override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
 
     val serverLastDirectories = mutableMapOf<Long, String>()
 
-    override fun getLastDirectoryForServer(serverId: Long): String {
-        return serverLastDirectories[serverId] ?: "/"
-    }
+    override fun getLastDirectoryForServer(serverId: Long): String = serverLastDirectories[serverId] ?: "/"
 
     var lastPlayDirectory: RemoteDirectory? = null
     var lastPlaySelectedFile: RemoteFile? = null
@@ -70,7 +72,10 @@ class FakeMusicPlayerAppSession(
     var lastPlayTrack: AudioTrack? = null
     var lastPlayNextTrack: AudioTrack? = null
 
-    override fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile) {
+    override fun playDirectoryTrack(
+        directory: RemoteDirectory,
+        selectedFile: RemoteFile,
+    ) {
         lastPlayDirectory = directory
         lastPlaySelectedFile = selectedFile
     }
@@ -102,7 +107,7 @@ class FakeMusicPlayerAppSession(
 
     override fun seekTo(positionMs: Long) {
         lastSeekPosition = positionMs
-        _sessionState.update { it.copy(currentPositionMs = positionMs) }
+        _playbackProgress.update { it.copy(currentPositionMs = positionMs) }
     }
 
     override fun skipToNext() {

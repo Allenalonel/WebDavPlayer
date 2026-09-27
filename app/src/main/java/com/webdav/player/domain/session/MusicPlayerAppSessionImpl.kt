@@ -2,6 +2,7 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
@@ -23,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -36,11 +38,18 @@ class MusicPlayerAppSessionImpl(
     private val lyricsRepository: LyricsRepository? = null,
     private val sessionStore: PlaybackSessionStore? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
-    private val periodicDispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val progressDispatcher: CoroutineDispatcher =
+        (coroutineScope.coroutineContext[kotlin.coroutines.ContinuationInterceptor] as? CoroutineDispatcher)?.takeIf {
+            it !is kotlinx.coroutines.MainCoroutineDispatcher
+        }
+            ?: Dispatchers.Default,
+    private val periodicDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : MusicPlayerAppSession {
-
     private val _sessionState = MutableStateFlow(PlayerSessionState())
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
+
+    private val _playbackProgress = MutableStateFlow(PlaybackProgress.ZERO)
+    override val playbackProgress: StateFlow<PlaybackProgress> = _playbackProgress.asStateFlow()
 
     private val _isRestored = MutableStateFlow(sessionStore == null)
     override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
@@ -76,14 +85,17 @@ class MusicPlayerAppSessionImpl(
         coroutineScope.launch {
             playerEngine.playbackState.collect { state ->
                 _sessionState.update { current ->
-                    val targetState = if (state is PlaybackState.Idle && current.isPaused && current.hasTrack && playerEngine.currentTrackIndex.value == -1) {
-                        current.playbackState
-                    } else {
-                        state
-                    }
+                    val targetState =
+                        if (state is PlaybackState.Idle && current.isPaused && current.hasTrack &&
+                            playerEngine.currentTrackIndex.value == -1
+                        ) {
+                            current.playbackState
+                        } else {
+                            state
+                        }
                     current.copy(
                         playbackState = targetState,
-                        errorMessage = if (state is PlaybackState.Error) state.message else current.errorMessage
+                        errorMessage = if (state is PlaybackState.Error) state.message else current.errorMessage,
                     )
                 }
                 if (state is PlaybackState.Playing) {
@@ -94,12 +106,26 @@ class MusicPlayerAppSessionImpl(
             }
         }
 
-        coroutineScope.launch {
-            playerEngine.currentPositionMs.collect { pos ->
-                if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                    _sessionState.update { it.copy(currentPositionMs = pos) }
+        // High-frequency playback progress pipeline calculated and throttled off the main thread
+        coroutineScope.launch(progressDispatcher) {
+            combine(
+                playerEngine.currentPositionMs,
+                playerEngine.durationMs,
+                playerEngine.bufferedPositionMs,
+            ) { pos, dur, buf ->
+                val fallbackDur = _sessionState.value.currentTrack?.durationMs ?: 0L
+                val effectiveDur = if (dur > 0L) dur else fallbackDur
+                PlaybackProgress(
+                    currentPositionMs = pos,
+                    durationMs = effectiveDur,
+                    bufferedPositionMs = buf,
+                )
+            }.distinctUntilChanged()
+                .collect { progress ->
+                    if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                        _playbackProgress.value = progress
+                    }
                 }
-            }
         }
 
         coroutineScope.launch {
@@ -120,7 +146,6 @@ class MusicPlayerAppSessionImpl(
                                 indexChanged = true
                                 current.copy(
                                     queue = current.queue.copy(currentIndex = index),
-                                    currentPositionMs = 0L
                                 )
                             } else {
                                 current
@@ -130,6 +155,12 @@ class MusicPlayerAppSessionImpl(
                         }
                     }
                     if (indexChanged) {
+                        _playbackProgress.value =
+                            PlaybackProgress(
+                                currentPositionMs = 0L,
+                                durationMs = _sessionState.value.currentTrack?.durationMs ?: 0L,
+                                bufferedPositionMs = 0L,
+                            )
                         flushSession()
                     }
                 }
@@ -152,43 +183,45 @@ class MusicPlayerAppSessionImpl(
                     .collect { serverId ->
                         currentMetadataJob?.cancel()
                         if (serverId != null) {
-                            currentMetadataJob = coroutineScope.launch {
-                                trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
-                                    if (metadataList.isNotEmpty()) {
-                                        val metaMap = metadataList.associateBy { it.remotePath }
-                                        val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
+                            currentMetadataJob =
+                                coroutineScope.launch {
+                                    trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
+                                        if (metadataList.isNotEmpty()) {
+                                            val metaMap = metadataList.associateBy { it.remotePath }
+                                            val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
 
-                                        _sessionState.update { current ->
-                                            var anyChanged = false
-                                            val updatedTracks = current.queue.tracks.mapIndexed { index, track ->
-                                                val meta = metaMap[track.remotePath]
-                                                if (meta != null) {
-                                                    val enriched = track.withMetadata(meta)
-                                                    if (enriched != track) {
-                                                        anyChanged = true
-                                                        tracksToUpdate.add(index to enriched)
-                                                        enriched
-                                                    } else {
-                                                        track
+                                            _sessionState.update { current ->
+                                                var anyChanged = false
+                                                val updatedTracks =
+                                                    current.queue.tracks.mapIndexed { index, track ->
+                                                        val meta = metaMap[track.remotePath]
+                                                        if (meta != null) {
+                                                            val enriched = track.withMetadata(meta)
+                                                            if (enriched != track) {
+                                                                anyChanged = true
+                                                                tracksToUpdate.add(index to enriched)
+                                                                enriched
+                                                            } else {
+                                                                track
+                                                            }
+                                                        } else {
+                                                            track
+                                                        }
                                                     }
+                                                if (anyChanged) {
+                                                    current.copy(queue = current.queue.copy(tracks = updatedTracks))
                                                 } else {
-                                                    track
+                                                    current
                                                 }
                                             }
-                                            if (anyChanged) {
-                                                current.copy(queue = current.queue.copy(tracks = updatedTracks))
-                                            } else {
-                                                current
-                                            }
-                                        }
 
-                                        // Dispatch side-effects (playerEngine updates) outside the StateFlow reducer
-                                        tracksToUpdate.forEach { (index, enriched) ->
-                                            playerEngine.updateTrack(index, enriched)
+                                            // Dispatch side-effects (playerEngine updates) outside the StateFlow reducer
+                                            tracksToUpdate.forEach { (index, enriched) ->
+                                                playerEngine.updateTrack(index, enriched)
+                                            }
                                         }
                                     }
                                 }
-                            }
                         }
                     }
             }
@@ -203,8 +236,7 @@ class MusicPlayerAppSessionImpl(
                         val server = state.activeServer
                         val track = state.currentTrack
                         if (server != null && track != null) server to track else null
-                    }
-                    .distinctUntilChanged()
+                    }.distinctUntilChanged()
                     .collect { pair ->
                         lyricJob?.cancel()
                         if (pair == null) {
@@ -212,19 +244,18 @@ class MusicPlayerAppSessionImpl(
                         } else {
                             val (server, track) = pair
                             _sessionState.update { it.copy(lyrics = null, isLoadingLyrics = true) }
-                            lyricJob = coroutineScope.launch {
-                                val resolved = lyricsRepository.resolveLyrics(server, track)
-                                _sessionState.update { it.copy(lyrics = resolved, isLoadingLyrics = false) }
-                            }
+                            lyricJob =
+                                coroutineScope.launch {
+                                    val resolved = lyricsRepository.resolveLyrics(server, track)
+                                    _sessionState.update { it.copy(lyrics = resolved, isLoadingLyrics = false) }
+                                }
                         }
                     }
             }
         }
     }
 
-    override fun getLastDirectoryForServer(serverId: Long): String {
-        return serverLastDirectories[serverId] ?: "/"
-    }
+    override fun getLastDirectoryForServer(serverId: Long): String = serverLastDirectories[serverId] ?: "/"
 
     override fun setActiveServer(server: WebDavServer?) {
         _sessionState.update { current ->
@@ -232,31 +263,32 @@ class MusicPlayerAppSessionImpl(
                 // If on cold start activeServer was null and we already have a restored session/queue,
                 // do NOT clear the queue or playback state! Attach the server and keep the restored session.
                 if (current.activeServer == null && current.hasTrack) {
-                    val path = if (current.currentDirectoryPath.isNotBlank() && current.currentDirectoryPath != "/") {
-                        current.currentDirectoryPath
-                    } else {
-                        if (server != null) getLastDirectoryForServer(server.id) else "/"
-                    }
+                    val path =
+                        if (current.currentDirectoryPath.isNotBlank() && current.currentDirectoryPath != "/") {
+                            current.currentDirectoryPath
+                        } else {
+                            if (server != null) getLastDirectoryForServer(server.id) else "/"
+                        }
                     return@update current.copy(
                         activeServer = server,
-                        currentDirectoryPath = path
+                        currentDirectoryPath = path,
                     )
                 }
 
                 if (current.playbackState !is PlaybackState.Idle) {
                     playerEngine.stop()
                 }
+                _playbackProgress.value = PlaybackProgress.ZERO
                 val lastPath = if (server != null) getLastDirectoryForServer(server.id) else "/"
                 current.copy(
                     activeServer = server,
                     queue = PlaybackQueue.EMPTY,
                     playbackState = PlaybackState.Idle,
-                    currentPositionMs = 0L,
                     durationMs = 0L,
                     currentDirectoryPath = lastPath,
                     errorMessage = null,
                     lyrics = null,
-                    isLoadingLyrics = false
+                    isLoadingLyrics = false,
                 )
             } else {
                 current.copy(activeServer = server)
@@ -264,7 +296,10 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
-    override fun playDirectoryTrack(directory: RemoteDirectory, selectedFile: RemoteFile) {
+    override fun playDirectoryTrack(
+        directory: RemoteDirectory,
+        selectedFile: RemoteFile,
+    ) {
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         val audioFiles = directory.files.filter { it.isAudio }
@@ -273,22 +308,30 @@ class MusicPlayerAppSessionImpl(
         val tracks = audioFiles.mapNotNull { AudioTrack.fromRemoteFile(server, it) }
         if (tracks.isEmpty()) return
 
-        val selectedIndex = tracks.indexOfFirst { it.remotePath == selectedFile.path }
-            .takeIf { it >= 0 } ?: 0
+        val selectedIndex =
+            tracks
+                .indexOfFirst { it.remotePath == selectedFile.path }
+                .takeIf { it >= 0 } ?: 0
 
         val queue = PlaybackQueue(tracks = tracks, currentIndex = selectedIndex)
+        _playbackProgress.value =
+            PlaybackProgress(
+                currentPositionMs = 0L,
+                durationMs = tracks.getOrNull(selectedIndex)?.durationMs ?: 0L,
+                bufferedPositionMs = 0L,
+            )
         _sessionState.update {
             it.copy(
                 queue = queue,
                 currentDirectoryPath = directory.path,
-                errorMessage = null
+                errorMessage = null,
             )
         }
 
         playerEngine.playTracks(
             server = server,
             tracks = tracks,
-            startIndex = selectedIndex
+            startIndex = selectedIndex,
         )
 
         coroutineScope.launch { flushSession() }
@@ -305,6 +348,12 @@ class MusicPlayerAppSessionImpl(
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
+        _playbackProgress.value =
+            PlaybackProgress(
+                currentPositionMs = 0L,
+                durationMs = track.durationMs,
+                bufferedPositionMs = 0L,
+            )
         _sessionState.update { it.copy(queue = queue, errorMessage = null) }
         playerEngine.playTracks(server = server, tracks = listOf(track), startIndex = 0)
 
@@ -317,21 +366,22 @@ class MusicPlayerAppSessionImpl(
 
                 _sessionState.update { current ->
                     var changed = false
-                    val updated = current.queue.tracks.mapIndexed { index, t ->
-                        if (t.id == track.id) {
-                            val enriched = t.withMetadata(meta)
-                            if (enriched != t) {
-                                changed = true
-                                updatedIndex = index
-                                enrichedTrack = enriched
-                                enriched
+                    val updated =
+                        current.queue.tracks.mapIndexed { index, t ->
+                            if (t.id == track.id) {
+                                val enriched = t.withMetadata(meta)
+                                if (enriched != t) {
+                                    changed = true
+                                    updatedIndex = index
+                                    enrichedTrack = enriched
+                                    enriched
+                                } else {
+                                    t
+                                }
                             } else {
                                 t
                             }
-                        } else {
-                            t
                         }
-                    }
                     if (changed) current.copy(queue = current.queue.copy(tracks = updated)) else current
                 }
 
@@ -371,25 +421,29 @@ class MusicPlayerAppSessionImpl(
                     flushSession()
                 }
             }
+
             current.isPaused -> {
-                if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null && current.activeServer != null) {
+                if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null &&
+                    current.activeServer != null
+                ) {
                     playerEngine.playTracks(
                         server = current.activeServer,
                         tracks = current.queue.tracks,
                         startIndex = current.queue.currentIndex.coerceAtLeast(0),
-                        startPositionMs = current.currentPositionMs
+                        startPositionMs = _playbackProgress.value.currentPositionMs,
                     )
                 } else {
                     playerEngine.play()
                 }
             }
+
             current.currentTrack != null -> {
                 val server = current.activeServer ?: return
                 playerEngine.playTracks(
                     server = server,
                     tracks = current.queue.tracks,
                     startIndex = current.queue.currentIndex.coerceAtLeast(0),
-                    startPositionMs = current.currentPositionMs
+                    startPositionMs = _playbackProgress.value.currentPositionMs,
                 )
             }
         }
@@ -403,7 +457,7 @@ class MusicPlayerAppSessionImpl(
                     server = current.activeServer,
                     tracks = current.queue.tracks,
                     startIndex = current.queue.currentIndex.coerceAtLeast(0),
-                    startPositionMs = current.currentPositionMs
+                    startPositionMs = _playbackProgress.value.currentPositionMs,
                 )
             } else {
                 playerEngine.play()
@@ -413,7 +467,7 @@ class MusicPlayerAppSessionImpl(
                 server = current.activeServer,
                 tracks = current.queue.tracks,
                 startIndex = current.queue.currentIndex.coerceAtLeast(0),
-                startPositionMs = current.currentPositionMs
+                startPositionMs = _playbackProgress.value.currentPositionMs,
             )
         }
     }
@@ -433,7 +487,7 @@ class MusicPlayerAppSessionImpl(
 
     override fun seekTo(positionMs: Long) {
         val clamped = positionMs.coerceAtLeast(0L)
-        _sessionState.update { it.copy(currentPositionMs = clamped) }
+        _playbackProgress.update { it.copy(currentPositionMs = clamped) }
         if (playerEngine.playbackState.value !is PlaybackState.Idle) {
             playerEngine.seekTo(clamped)
         }
@@ -478,14 +532,14 @@ class MusicPlayerAppSessionImpl(
         playerEngine.removeTrack(index)
 
         if (updatedQueue.isEmpty) {
+            _playbackProgress.value = PlaybackProgress.ZERO
             _sessionState.update {
                 it.copy(
                     queue = PlaybackQueue.EMPTY,
                     playbackState = PlaybackState.Idle,
-                    currentPositionMs = 0L,
                     durationMs = 0L,
                     lyrics = null,
-                    isLoadingLyrics = false
+                    isLoadingLyrics = false,
                 )
             }
         } else {
@@ -499,12 +553,14 @@ class MusicPlayerAppSessionImpl(
     override fun stop() {
         stopPeriodicFlush()
         playerEngine.stop()
+        _playbackProgress.value = PlaybackProgress.ZERO
         coroutineScope.launch { flushSession() }
     }
 
     override fun release() {
         stopPeriodicFlush()
         playerEngine.release()
+        _playbackProgress.value = PlaybackProgress.ZERO
     }
 
     override fun flushSessionAsync() {
@@ -515,17 +571,18 @@ class MusicPlayerAppSessionImpl(
 
     private fun startPeriodicFlush() {
         if (sessionStore == null || periodicFlushJob?.isActive == true) return
-        periodicFlushJob = coroutineScope.launch(periodicDispatcher) {
-            while (isActive) {
-                delay(1000L)
-                if (_isRestored.value && playerEngine.playbackState.value is PlaybackState.Playing) {
-                    val pos = playerEngine.currentPositionMs.value
-                    if (pos > 0L) {
-                        sessionStore.savePosition(pos)
+        periodicFlushJob =
+            coroutineScope.launch(periodicDispatcher) {
+                while (isActive) {
+                    delay(1000L)
+                    if (_isRestored.value && playerEngine.playbackState.value is PlaybackState.Playing) {
+                        val pos = playerEngine.currentPositionMs.value
+                        if (pos > 0L) {
+                            sessionStore.savePosition(pos)
+                        }
                     }
                 }
             }
-        }
     }
 
     private fun stopPeriodicFlush() {
@@ -554,9 +611,12 @@ class MusicPlayerAppSessionImpl(
                 serverLastDirectories[serverId] = savedSession.currentDirectoryPath
             }
 
-            val server = if (serverId != null) {
-                serverRepository?.getServerById(serverId)
-            } else null
+            val server =
+                if (serverId != null) {
+                    serverRepository?.getServerById(serverId)
+                } else {
+                    null
+                }
 
             // If server ID was specified but server no longer exists in repository, gracefully do not restore
             if (serverId != null && server == null) {
@@ -575,10 +635,11 @@ class MusicPlayerAppSessionImpl(
                 return
             }
 
-            val restoredQueue = PlaybackQueue(
-                tracks = savedSession.queueTracks,
-                currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex)
-            )
+            val restoredQueue =
+                PlaybackQueue(
+                    tracks = savedSession.queueTracks,
+                    currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
+                )
             val restoredTrack = restoredQueue.currentTrack
             val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
             var durationMs = restoredTrack?.durationMs ?: 0L
@@ -588,9 +649,10 @@ class MusicPlayerAppSessionImpl(
                 val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, restoredTrack.remotePath)
                 if (cachedMeta != null && cachedMeta.durationMs > 0L) {
                     durationMs = cachedMeta.durationMs
-                    val updatedTracks = savedSession.queueTracks.mapIndexed { index, track ->
-                        if (index == savedSession.currentTrackIndex) track.withMetadata(cachedMeta) else track
-                    }
+                    val updatedTracks =
+                        savedSession.queueTracks.mapIndexed { index, track ->
+                            if (index == savedSession.currentTrackIndex) track.withMetadata(cachedMeta) else track
+                        }
                     finalQueue = PlaybackQueue(tracks = updatedTracks, currentIndex = savedSession.currentTrackIndex)
                 }
             }
@@ -601,12 +663,17 @@ class MusicPlayerAppSessionImpl(
                     queue = finalQueue,
                     playbackState = restoredPlaybackState,
                     playbackMode = savedSession.playbackMode,
-                    currentPositionMs = savedSession.positionMs,
                     durationMs = durationMs,
                     currentDirectoryPath = savedSession.currentDirectoryPath,
-                    errorMessage = null
+                    errorMessage = null,
                 )
             }
+            _playbackProgress.value =
+                PlaybackProgress(
+                    currentPositionMs = savedSession.positionMs,
+                    durationMs = durationMs,
+                    bufferedPositionMs = 0L,
+                )
 
             playerEngine.setPlaybackMode(savedSession.playbackMode)
         } finally {
@@ -628,22 +695,24 @@ class MusicPlayerAppSessionImpl(
         }
 
         // Query live engine position if active
-        val livePositionMs = if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-            val enginePos = playerEngine.currentPositionMs.value
-            if (enginePos > 0L) enginePos else current.currentPositionMs
-        } else {
-            current.currentPositionMs
-        }
+        val livePositionMs =
+            if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                val enginePos = playerEngine.currentPositionMs.value
+                if (enginePos > 0L) enginePos else _playbackProgress.value.currentPositionMs
+            } else {
+                _playbackProgress.value.currentPositionMs
+            }
 
-        val sessionData = PlaybackSessionData(
-            activeServerId = current.activeServer?.id,
-            currentDirectoryPath = current.currentDirectoryPath,
-            queueTracks = current.queue.tracks,
-            currentTrackIndex = current.queue.currentIndex,
-            positionMs = livePositionMs,
-            playbackMode = current.playbackMode,
-            serverLastDirectories = serverLastDirectories.toMap()
-        )
+        val sessionData =
+            PlaybackSessionData(
+                activeServerId = current.activeServer?.id,
+                currentDirectoryPath = current.currentDirectoryPath,
+                queueTracks = current.queue.tracks,
+                currentTrackIndex = current.queue.currentIndex,
+                positionMs = livePositionMs,
+                playbackMode = current.playbackMode,
+                serverLastDirectories = serverLastDirectories.toMap(),
+            )
         store.saveSession(sessionData)
     }
 }

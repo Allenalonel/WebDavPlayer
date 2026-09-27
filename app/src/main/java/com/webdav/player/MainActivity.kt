@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
@@ -56,7 +57,6 @@ import com.webdav.player.ui.theme.WebDavPlayerTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
     private val serverViewModel: ServerManagementViewModel by viewModels {
         ServerManagementViewModelFactory(applicationContext)
     }
@@ -73,8 +73,10 @@ class MainActivity : ComponentActivity() {
 
                 val app = applicationContext as? WebDavApplication
                 val musicSession = app?.musicPlayerAppSession ?: browserViewModel.musicPlayerAppSession
-                val playerSessionState by (musicSession?.sessionState?.collectAsStateWithLifecycle()
-                    ?: remember { mutableStateOf(PlayerSessionState()) })
+                val playerSessionState by (
+                    musicSession?.sessionState?.collectAsStateWithLifecycle()
+                        ?: remember { mutableStateOf(PlayerSessionState()) }
+                )
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
                 var destination by rememberSaveable {
@@ -105,23 +107,26 @@ class MainActivity : ComponentActivity() {
                                 // Hoisted Docked Mini-Player floating above navigation bar
                                 AnimatedVisibility(
                                     visible = playerSessionState.hasTrack,
-                                    enter = slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250)
-                                    ) + fadeIn(animationSpec = tween(250)),
-                                    exit = slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(200)
-                                    ) + fadeOut(animationSpec = tween(200))
+                                    enter =
+                                        slideInVertically(
+                                            initialOffsetY = { it },
+                                            animationSpec = tween(250),
+                                        ) + fadeIn(animationSpec = tween(250)),
+                                    exit =
+                                        slideOutVertically(
+                                            targetOffsetY = { it },
+                                            animationSpec = tween(200),
+                                        ) + fadeOut(animationSpec = tween(200)),
                                 ) {
                                     DockedMiniPlayer(
                                         sessionState = playerSessionState,
                                         onTogglePlayPause = { musicSession?.togglePlayPause() },
                                         onSkipToNext = { musicSession?.skipToNext() },
                                         onMiniPlayerClick = { isFullPlayerExpanded = true },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
                                     )
                                 }
 
@@ -129,22 +134,23 @@ class MainActivity : ComponentActivity() {
                                 NavigationBar(
                                     modifier = Modifier.fillMaxWidth(),
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                    tonalElevation = 3.dp
+                                    tonalElevation = 3.dp,
                                 ) {
                                     NavigationBarItem(
                                         selected = destination == AppDestination.DIRECTORY_BROWSER,
                                         onClick = { destination = AppDestination.DIRECTORY_BROWSER },
                                         icon = {
                                             Icon(
-                                                imageVector = if (destination == AppDestination.DIRECTORY_BROWSER) {
-                                                    Icons.Filled.FolderOpen
-                                                } else {
-                                                    Icons.Filled.Folder
-                                                },
-                                                contentDescription = "媒体库"
+                                                imageVector =
+                                                    if (destination == AppDestination.DIRECTORY_BROWSER) {
+                                                        Icons.Filled.FolderOpen
+                                                    } else {
+                                                        Icons.Filled.Folder
+                                                    },
+                                                contentDescription = "媒体库",
                                             )
                                         },
-                                        label = { Text("媒体库") }
+                                        label = { Text("媒体库") },
                                     )
                                     NavigationBarItem(
                                         selected = destination == AppDestination.SERVER_LIST,
@@ -152,30 +158,32 @@ class MainActivity : ComponentActivity() {
                                         icon = {
                                             Icon(
                                                 imageVector = Icons.Filled.Storage,
-                                                contentDescription = "服务器"
+                                                contentDescription = "服务器",
                                             )
                                         },
-                                        label = { Text("服务器") }
+                                        label = { Text("服务器") },
                                     )
                                 }
                             }
-                        }
+                        },
                     ) { innerPadding ->
                         // Preserved view hierarchy across tab transitions
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(bottom = innerPadding.calculateBottomPadding())
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(bottom = innerPadding.calculateBottomPadding()),
                         ) {
                             val isBrowser = destination == AppDestination.DIRECTORY_BROWSER
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .tabAccessibilityGuard(isBrowser)
-                                    .graphicsLayer {
-                                        alpha = if (isBrowser) 1f else 0f
-                                        translationX = if (isBrowser) 0f else 99999f
-                                    }
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .tabAccessibilityGuard(isBrowser)
+                                        .graphicsLayer {
+                                            alpha = if (isBrowser) 1f else 0f
+                                            translationX = if (isBrowser) 0f else 99999f
+                                        },
                             ) {
                                 DirectoryBrowserScreen(
                                     viewModel = browserViewModel,
@@ -185,19 +193,20 @@ class MainActivity : ComponentActivity() {
                                     isCurrentTab = isBrowser,
                                     onOpenFullPlayer = {
                                         isFullPlayerExpanded = true
-                                    }
+                                    },
                                 )
                             }
 
                             val isServers = destination == AppDestination.SERVER_LIST
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .tabAccessibilityGuard(isServers)
-                                    .graphicsLayer {
-                                        alpha = if (isServers) 1f else 0f
-                                        translationX = if (isServers) 0f else 99999f
-                                    }
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .tabAccessibilityGuard(isServers)
+                                        .graphicsLayer {
+                                            alpha = if (isServers) 1f else 0f
+                                            translationX = if (isServers) 0f else 99999f
+                                        },
                             ) {
                                 ServerListScreen(
                                     viewModel = serverViewModel,
@@ -207,7 +216,7 @@ class MainActivity : ComponentActivity() {
                                     onSelectServerAndNavigate = { server ->
                                         serverViewModel.onSelectActiveServer(server.id)
                                         destination = AppDestination.DIRECTORY_BROWSER
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -216,17 +225,25 @@ class MainActivity : ComponentActivity() {
                     // Hoisted Full Player View Overlay
                     AnimatedVisibility(
                         visible = isFullPlayerExpanded && playerSessionState.hasTrack,
-                        enter = slideInVertically(
-                            initialOffsetY = { it },
-                            animationSpec = tween(300)
-                        ) + fadeIn(animationSpec = tween(300)),
-                        exit = slideOutVertically(
-                            targetOffsetY = { it },
-                            animationSpec = tween(300)
-                        ) + fadeOut(animationSpec = tween(300))
+                        enter =
+                            slideInVertically(
+                                initialOffsetY = { it },
+                                animationSpec = tween(300),
+                            ) + fadeIn(animationSpec = tween(300)),
+                        exit =
+                            slideOutVertically(
+                                targetOffsetY = { it },
+                                animationSpec = tween(300),
+                            ) + fadeOut(animationSpec = tween(300)),
                     ) {
+                        val playbackProgress by (
+                            musicSession?.playbackProgress?.collectAsStateWithLifecycle()
+                                ?: remember { mutableStateOf(PlaybackProgress.ZERO) }
+                        )
+
                         FullPlayerView(
                             sessionState = playerSessionState,
+                            playbackProgress = playbackProgress,
                             onCollapse = { isFullPlayerExpanded = false },
                             onTogglePlayPause = { musicSession?.togglePlayPause() },
                             onSeek = { musicSession?.seekTo(it) },
@@ -234,7 +251,7 @@ class MainActivity : ComponentActivity() {
                             onSkipToPrevious = { musicSession?.skipToPrevious() },
                             onCyclePlaybackMode = { musicSession?.cyclePlaybackMode() },
                             onPlayQueueIndex = { musicSession?.playQueueIndex(it) },
-                            onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) }
+                            onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) },
                         )
                     }
                 }
