@@ -75,8 +75,12 @@ _Avoid_: Bottom Bar, Tab Bar, Footer Menu
 _Avoid_: Bottom Player, Small Player, Playback Bar
 
 **Full Player Sheet**:
-沉浸式大播放器视图，采用自适应封面氛围渐变背景，集成封面唱片、进度拖拽、播放模式控制，并支持左右滑动无缝切换至逐行同步高亮歌词页。
+全屏沉浸式大播放器视图，采用极致纯净留白顶栏（轻量拖拽手柄，无冗余缩小按钮与标题文本）与自适应封面氛围渐变背景，集成大封面唱片、进度拖拽、播放模式控制与高保真音频规格详情（Hi-Res / 解码采样率 / 码率胶囊），通过轻量顶部拖拽条及下滑手势收起，并支持左右滑动无缝切换至逐行同步高亮歌词页。
 _Avoid_: Player Activity, Big Player, Music Detail
+
+**Immersive Chrome**:
+基于 Android Edge-to-Edge 规范的全沉浸式系统窗口体系，应用内容完整延伸至状态栏与手势导航条后方，并根据当前主题色调与封面氛围光晕自适应反转状态栏与导航栏图标明暗反差。
+_Avoid_: Transparent Bars, Fullscreen Hack
 
 **Directory Breadcrumb Strip**:
 由 Material Design 3 胶囊 Chip 构成的可水平滑动的目录路径条，直观展示自活跃服务器根目录至当前层级的继承关系，支持点选任意祖先目录瞬时跳转。
@@ -85,4 +89,12 @@ _Avoid_: Path Bar, Folder Tree, Location Bar
 **Audio Quality Badge**:
 音频曲目列表中标识音频编码格式（如 FLAC、MP3、WAV、WMA）及无损/高解析度层级的视觉标签胶囊。
 _Avoid_: Format Icon, Audio Tag
+
+**Equalizer Track Indicator**:
+媒体库列表中标识当前回放状态曲目的动态三柱等化器跳动脉冲视觉指示，用于在切回目录浏览时秒级定位当前正在播放的音轨。
+_Avoid_: Playing Icon, Waveform GIF
+
+**Adaptive Themed Icon**:
+遵循 Android Material You 规范的自适应启动图标体系，由极简黑胶唱片与云端流媒体意象前景、自适应背景及单色主题层（Monochrome）构成，自适应跟随系统壁纸动态调色板着色。
+_Avoid_: App Logo, Static Icon
 

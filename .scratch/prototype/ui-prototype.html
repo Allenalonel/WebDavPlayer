@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebDavPlayer MD3 UI Prototype</title>
+  <style>
+    :root {
+      --md-sys-color-primary: #a8c7fa;
+      --md-sys-color-on-primary: #062e6f;
+      --md-sys-color-primary-container: #21438a;
+      --md-sys-color-on-primary-container: #d3e3fd;
+      --md-sys-color-surface: #121316;
+      --md-sys-color-on-surface: #e2e2e6;
+      --md-sys-color-surface-variant: #44474f;
+      --md-sys-color-on-surface-variant: #c4c6d0;
+      --md-sys-color-surface-container: #1e1f23;
+      --md-sys-color-surface-container-high: #282a2f;
+      --md-sys-color-surface-container-highest: #33353a;
+      --md-sys-color-surface-container-low: #1a1b1f;
+      --md-sys-color-outline: #8e9099;
+      --md-sys-color-outline-variant: #44474f;
+      --md-sys-color-secondary-container: #3d4758;
+      --md-sys-color-on-secondary-container: #d9e3f9;
+      --md-sys-color-gold: #ffb703;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background: #090a0d;
+      color: var(--md-sys-color-on-surface);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 16px 100px;
+    }
+
+    .proto-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .proto-header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      color: #e2e2e6;
+      margin-bottom: 6px;
+    }
+    .proto-header p {
+      font-size: 13px;
+      color: #9094a0;
+      max-width: 480px;
+      line-height: 1.5;
+    }
+
+    /* Phone Shell */
+    .device-frame {
+      width: 380px;
+      height: 780px;
+      background: #121316;
+      border-radius: 46px;
+      border: 4px solid #2b2e36;
+      box-shadow: 0 25px 60px -15px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Edge-to-Edge Status Bar */
+    .status-bar {
+      height: 44px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px 0;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      z-index: 100;
+      pointer-events: none;
+      background: var(--md-sys-color-surface-container); /* Perfectly matching top app bar! */
+      transition: background 0.3s;
+    }
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-icons svg {
+      width: 15px;
+      height: 15px;
+      fill: currentColor;
+    }
+
+    /* Main Viewport Container */
+    .viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 140px; /* Space for miniplayer + nav */
+      overflow-y: auto;
+      scrollbar-width: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .screen::-webkit-scrollbar { display: none; }
+    .screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(12px);
+    }
+
+    /* Top App Bar */
+    .top-app-bar {
+      padding: 6px 16px 12px;
+      background: var(--md-sys-color-surface-container);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .top-bar-title h2 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+    /* Breadcrumbs */
+    .breadcrumb-strip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      background: var(--md-sys-color-surface);
+    }
+    .chip {
+      padding: 4px 10px;
+      background: var(--md-sys-color-surface-container);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      white-space: nowrap;
+    }
+    .chip.active {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+      border-color: transparent;
+      font-weight: 500;
+    }
+
+    /* Track List */
+    .track-list {
+      padding: 8px 0;
+    }
+    .track-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      gap: 12px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+    }
+    .track-item:hover {
+      background: rgba(255,255,255,0.03);
+    }
+    .track-item.playing {
+      background: rgba(168, 199, 250, 0.08);
+    }
+
+    .cover-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: #2a2c33;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .cover-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Jumping Equalizer Animation */
+    .eq-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5px;
+    }
+    .eq-bar {
+      width: 3px;
+      background: var(--md-sys-color-primary);
+      border-radius: 1.5px;
+      animation: bounce 0.9s infinite ease-in-out alternate;
+    }
+    .eq-bar:nth-child(1) { height: 14px; animation-duration: 0.7s; }
+    .eq-bar:nth-child(2) { height: 20px; animation-duration: 0.9s; animation-delay: 0.15s; }
+    .eq-bar:nth-child(3) { height: 10px; animation-duration: 0.6s; animation-delay: 0.3s; }
+    .paused .eq-bar { animation-play-state: paused; height: 4px; }
+    @keyframes bounce {
+      0% { height: 4px; }
+      100% { height: 20px; }
+    }
+
+    .track-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .track-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .track-item.playing .track-title {
+      color: var(--md-sys-color-primary);
+      font-weight: 600;
+    }
+    .track-sub {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--md-sys-color-surface-container-highest);
+      color: #93a3c2;
+      letter-spacing: 0.3px;
+    }
+    .badge-pill.hires {
+      background: rgba(255, 183, 3, 0.15);
+      color: #ffb703;
+      border: 1px solid rgba(255, 183, 3, 0.3);
+    }
+
+    /* Server Cards (Refactored) */
+    .server-card {
+      margin: 12px 16px;
+      background: var(--md-sys-color-surface-container);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .server-card.active {
+      background: rgba(33, 67, 138, 0.22);
+      border: 1px solid rgba(168, 199, 250, 0.4);
+    }
+    .server-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .server-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--md-sys-color-surface-container-highest);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .server-card.active .server-icon {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+    .server-title-group {
+      flex: 1;
+      min-width: 0;
+    }
+    .server-name {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .server-host {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 1px;
+    }
+    .server-chips {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge-chip {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 6px;
+      border-radius: 6px;
+      background: var(--md-sys-color-surface-container-highest);
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .badge-chip.active-badge {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+
+    .server-meta-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .meta-tag {
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+      background: rgba(255,255,255,0.04);
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .server-footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .server-status {
+      font-size: 12px;
+      color: #79d290;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .server-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tonal-icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--md-sys-color-surface-container-highest);
+      border: none;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .tonal-icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+    /* Docked Mini-Player (Floating Capsule) */
+    .mini-player-container {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 70px; /* Above nav bar */
+      background: var(--md-sys-color-surface-container-high);
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+      z-index: 50;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+    }
+    .mini-player-container:hover {
+      transform: translateY(-2px);
+    }
+    .mini-content {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      gap: 10px;
+    }
+    .mini-cover {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: #343740;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .mini-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .mini-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .mini-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mini-sub {
+      font-size: 11px;
+      color: var(--md-sys-color-primary);
+      margin-top: 1px;
+    }
+    .mini-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px; /* Clean gap without touch overlap! */
+    }
+    .play-pause-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .play-pause-btn svg { width: 20px; height: 20px; fill: currentColor; }
+    .skip-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--md-sys-color-on-surface-variant);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .skip-btn svg { width: 20px; height: 20px; fill: currentColor; }
+    .mini-progress {
+      height: 2px;
+      background: rgba(255,255,255,0.08);
+      position: relative;
+    }
+    .mini-progress-bar {
+      height: 100%;
+      background: var(--md-sys-color-primary);
+      width: 42%;
+    }
+
+    /* Bottom Navigation Bar */
+    .primary-nav-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 64px;
+      background: var(--md-sys-color-surface-container);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      border-top: 1px solid rgba(255,255,255,0.04);
+      z-index: 40;
+      padding-bottom: 8px; /* Padding for gesture nav bar */
+    }
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 18px;
+      border-radius: 16px;
+      transition: all 0.2s;
+    }
+    .nav-item svg { width: 22px; height: 22px; fill: currentColor; }
+    .nav-item.active {
+      color: var(--md-sys-color-primary);
+    }
+    .nav-item.active .nav-icon-pill {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      padding: 3px 18px;
+      border-radius: 12px;
+    }
+
+    /* Gesture Navigation Bar (Edge-to-Edge indicator) */
+    .gesture-nav-bar {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 128px;
+      height: 4.5px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 3px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    /* ========================================================
+       Full Player Sheet Overlay
+       ======================================================== */
+    .full-player-sheet {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, #1b263b 0%, #0d131f 65%, #080a0f 100%);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      padding: 44px 24px 28px; /* Status bar + safe padding */
+      transform: translateY(100%);
+      transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+    }
+    .full-player-sheet.open {
+      transform: translateY(0);
+    }
+
+    /* Drag Handle at top */
+    .drag-handle-zone {
+      width: 100%;
+      padding: 6px 0 16px;
+      display: flex;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .drag-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.35);
+      transition: background 0.2s;
+    }
+    .drag-handle-zone:hover .drag-handle {
+      background: rgba(255,255,255,0.6);
+    }
+
+    /* Top Bar Variants */
+    .sheet-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 32px;
+      margin-bottom: 8px;
+    }
+    .sheet-subtitle {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-weight: 500;
+      text-align: center;
+      flex: 1;
+    }
+
+    /* Artwork Page */
+    .player-artwork-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .large-cover {
+      width: 270px;
+      height: 270px;
+      border-radius: 20px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    .large-cover:hover { transform: scale(1.02); }
+    .large-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* Lyrics Page (Toggleable) */
+    .lyrics-view {
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 19, 31, 0.95);
+      border-radius: 20px;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .lyrics-view.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .lyric-line {
+      font-size: 15px;
+      color: rgba(255,255,255,0.4);
+      filter: blur(0.5px);
+      transition: all 0.3s;
+    }
+    .lyric-line.active {
+      font-size: 19px;
+      font-weight: 700;
+      color: #fff;
+      filter: none;
+      transform: scale(1.05);
+    }
+
+    /* Track Metadata */
+    .full-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .full-meta-texts {
+      min-width: 0;
+      flex: 1;
+    }
+    .full-song-title {
+      font-size: 19px;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .full-artist-name {
+      font-size: 14px;
+      color: var(--md-sys-color-primary);
+      margin-top: 3px;
+    }
+    .hires-detail-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 183, 3, 0.15);
+      color: #ffb703;
+      border: 1px solid rgba(255, 183, 3, 0.3);
+      margin-top: 6px;
+    }
+
+    /* Dual-layer Progress Slider */
+    .slider-container {
+      margin-bottom: 18px;
+    }
+    .progress-track-wrapper {
+      position: relative;
+      height: 6px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .buffered-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.25); /* Buffer Cache from WebDAV */
+      border-radius: 3px;
+      width: 78%;
+      transition: width 0.3s;
+    }
+    .played-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      background: var(--md-sys-color-primary);
+      border-radius: 3px;
+      width: 42%;
+    }
+    .slider-thumb {
+      position: absolute;
+      top: 50%;
+      left: 42%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--md-sys-color-primary);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    .time-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    /* Controls Bar */
+    .full-controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px 14px;
+    }
+    .ctrl-btn {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      color: var(--md-sys-color-on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .ctrl-btn svg { width: 24px; height: 24px; fill: currentColor; }
+    .main-play-btn {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(168, 199, 250, 0.3);
+      transition: transform 0.15s;
+    }
+    .main-play-btn:active { transform: scale(0.95); }
+    .main-play-btn svg { width: 34px; height: 34px; fill: currentColor; }
+
+    /* Page Switch Dots */
+    .page-indicator-dots {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.25);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dot.active {
+      width: 18px;
+      background: var(--md-sys-color-primary);
+    }
+
+    /* ========================================================
+       Floating Prototype Switcher (matt-engineering/prototype)
+       ======================================================== */
+    .prototype-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e2025;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 28px;
+      padding: 6px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 9999;
+    }
+    .proto-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .proto-btn:hover { background: rgba(255,255,255,0.18); }
+    .proto-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #a8c7fa;
+      min-width: 170px;
+      text-align: center;
+    }
+    .proto-hint {
+      font-size: 11px;
+      color: #8a8d98;
+    }
+
+    /* Icon Preview Card */
+    .icon-preview-box {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #18191d;
+      padding: 12px 18px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .icon-symbol {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #1b263b 0%, #2a3b5c 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="proto-header">
+    <h1>WebDavPlayer · MD3 UI 原型交互体验</h1>
+    <p>可自由点击：点击 MiniPlayer 展开全屏、点击手柄下滑收起、切换 Tab、拖动进度条、并在底部切换 3 套布局方案。</p>
+  </div>
+
+  <!-- Mobile Device Simulation -->
+  <div class="device-frame" id="device">
+    
+    <!-- Transparent Status Bar -->
+    <div class="status-bar">
+      <span>09:41</span>
+      <div class="status-icons">
+        <!-- 5G icon -->
+        <svg viewBox="0 0 24 24"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98C20.93 5.9 16.69 4 12 4zm0 3.3c3.78 0 7.22 1.48 9.77 3.91L12 18.98 2.23 11.21C4.78 8.78 8.22 7.3 12 7.3z"/></svg>
+        <!-- Battery icon -->
+        <svg viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+      </div>
+    </div>
+
+    <!-- Main Viewport -->
+    <div class="viewport">
+      
+      <!-- SCREEN 1: Directory Browser -->
+      <div class="screen" id="screen-browser">
+        <div class="top-app-bar">
+          <div class="top-bar-title">
+            <h2>周杰伦</h2>
+          </div>
+          <button class="icon-btn" title="刷新">
+            <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          </button>
+        </div>
+
+        <div class="breadcrumb-strip">
+          <div class="chip">/ 根目录</div>
+          <div class="chip">音频</div>
+          <div class="chip">华语无损</div>
+          <div class="chip active">周杰伦</div>
+        </div>
+
+        <div class="track-list">
+          <!-- Active playing item with Equalizer Jump Wave -->
+          <div class="track-item playing" onclick="openPlayer()">
+            <div class="cover-box">
+              <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=120&auto=format&fit=crop&q=80" alt="cover">
+              <div class="eq-overlay" id="list-eq">
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+              </div>
+            </div>
+            <div class="track-info">
+              <div class="track-title">01. 晴天 (Qing Tian)</div>
+              <div class="track-sub">周杰伦 · 叶惠美 · 04:29</div>
+            </div>
+            <span class="badge-pill hires">Hi-Res 24b</span>
+          </div>
+
+          <div class="track-item" onclick="openPlayer()">
+            <div class="cover-box">
+              <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=120&auto=format&fit=crop&q=80" alt="cover">
+            </div>
+            <div class="track-info">
+              <div class="track-title">02. 梯田 (Terraces)</div>
+              <div class="track-sub">周杰伦 · 叶惠美 · 03:33</div>
+            </div>
+            <span class="badge-pill">FLAC</span>
+          </div>
+
+          <div class="track-item" onclick="openPlayer()">
+            <div class="cover-box">
+              <img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=120&auto=format&fit=crop&q=80" alt="cover">
+            </div>
+            <div class="track-info">
+              <div class="track-title">03. 她的睫毛 (Her Eyelashes)</div>
+              <div class="track-sub">周杰伦 · 叶惠美 · 03:52</div>
+            </div>
+            <span class="badge-pill">FLAC</span>
+          </div>
+
+          <div class="track-item" onclick="openPlayer()">
+            <div class="cover-box">
+              <img src="https://images.unsplash.com/photo-1445985543469-433ecdd62977?w=120&auto=format&fit=crop&q=80" alt="cover">
+            </div>
+            <div class="track-info">
+              <div class="track-title">04. 爱情悬崖 (Cliff of Love)</div>
+              <div class="track-sub">周杰伦 · 叶惠美 · 04:22</div>
+            </div>
+            <span class="badge-pill">320K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 2: Server List -->
+      <div class="screen hidden" id="screen-servers">
+        <div class="top-app-bar">
+          <div class="top-bar-title">
+            <h2>WebDAV 服务器</h2>
+            <p>已接入 2 个远程节点</p>
+          </div>
+          <button class="icon-btn">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </button>
+        </div>
+
+        <!-- Refactored Clean Server Card -->
+        <div class="server-card active">
+          <div class="server-header">
+            <div class="server-icon">
+              <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:currentColor;"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+            </div>
+            <div class="server-title-group">
+              <div class="server-name">群晖私有 NAS 影音库</div>
+              <div class="server-host">nas.home.local:5006/webdav</div>
+            </div>
+            <div class="server-chips">
+              <span class="badge-chip">HTTPS</span>
+              <span class="badge-chip active-badge">活跃</span>
+            </div>
+          </div>
+
+          <div class="server-meta-row">
+            <span class="meta-tag">👤 admin_music</span>
+            <span class="meta-tag">🔒 信任自签证书</span>
+          </div>
+
+          <div class="server-footer">
+            <div class="server-status">
+              <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+              <span>连接正常 (28ms)</span>
+            </div>
+            <div class="server-actions">
+              <button class="tonal-icon-btn" title="测试连接">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              </button>
+              <button class="tonal-icon-btn" title="更多">
+                <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="server-card">
+          <div class="server-header">
+            <div class="server-icon">
+              <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:currentColor;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            </div>
+            <div class="server-title-group">
+              <div class="server-name">AlpCloud 备用节点</div>
+              <div class="server-host">dav.cloud.me:443/music</div>
+            </div>
+            <div class="server-chips">
+              <span class="badge-chip">HTTPS</span>
+            </div>
+          </div>
+          <div class="server-footer">
+            <span style="font-size:11px;color:#8a8d98;">点击切换并浏览</span>
+            <div class="server-actions">
+              <button class="tonal-icon-btn">
+                <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Docked Mini-Player (Floating Capsule) -->
+      <div class="mini-player-container" onclick="openPlayer()">
+        <div class="mini-content">
+          <div class="mini-cover">
+            <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=120&auto=format&fit=crop&q=80" alt="cover">
+          </div>
+          <div class="mini-info">
+            <div class="mini-title">01. 晴天 (Qing Tian)</div>
+            <div class="mini-sub" id="mini-state-text">正在播放 · 01:52 / 04:29</div>
+          </div>
+          <div class="mini-controls" onclick="event.stopPropagation()">
+            <button class="play-pause-btn" id="mini-play-btn" onclick="togglePlay(event)">
+              <svg viewBox="0 0 24 24"><path id="mini-play-path" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button class="skip-btn" onclick="event.stopPropagation()" title="下一首">
+              <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="mini-progress">
+          <div class="mini-progress-bar"></div>
+        </div>
+      </div>
+
+      <!-- Persistent Bottom Navigation Bar -->
+      <div class="primary-nav-bar">
+        <div class="nav-item active" id="tab-browser" onclick="switchTab('browser')">
+          <div class="nav-icon-pill">
+            <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+          </div>
+          <span>媒体库</span>
+        </div>
+        <div class="nav-item" id="tab-servers" onclick="switchTab('servers')">
+          <div class="nav-icon-pill">
+            <svg viewBox="0 0 24 24"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/></svg>
+          </div>
+          <span>服务器</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================
+         Full Player Sheet Overlay
+         ======================================================== -->
+    <div class="full-player-sheet" id="full-player">
+      
+      <!-- Drag Handle (Click or Drag to close) -->
+      <div class="drag-handle-zone" onclick="closePlayer()">
+        <div class="drag-handle"></div>
+      </div>
+
+      <!-- Variant-specific Header -->
+      <div class="sheet-top-row" id="sheet-header">
+        <div id="header-b" style="display:none;width:100%;align-items:center;justify-content:space-between;">
+          <div style="width:32px;"></div>
+          <div class="sheet-subtitle">叶惠美 · 周杰伦</div>
+          <button class="icon-btn" style="width:32px;height:32px;">
+            <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Artwork / Lyrics Area -->
+      <div class="player-artwork-area">
+        <div class="large-cover" onclick="toggleLyrics()">
+          <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80" alt="cover">
+          
+          <!-- Synchronized Lyrics View -->
+          <div class="lyrics-view" id="lyrics-view">
+            <div class="lyric-line">为你翘课的那一天</div>
+            <div class="lyric-line">花落的那一天</div>
+            <div class="lyric-line active">教室的门前 下雨天的屋檐</div>
+            <div class="lyric-line">从前从前 有个人爱你很久</div>
+            <div class="lyric-line">但偏偏 风渐渐 把距离吹得好远</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page Indicator Dots -->
+      <div class="page-indicator-dots">
+        <div class="dot active" id="dot-cover" onclick="showCover()"></div>
+        <div class="dot" id="dot-lyrics" onclick="showLyrics()"></div>
+      </div>
+
+      <!-- Track Metadata Row -->
+      <div class="full-meta-row">
+        <div class="full-meta-texts">
+          <div class="full-song-title">晴天 (Qing Tian)</div>
+          <div class="full-artist-name">周杰伦 · 叶惠美 (2003)</div>
+          <div id="variant-c-spec" style="display:none;">
+            <span class="hires-detail-pill">⚡ FLAC · 96kHz / 24-bit · 2450 kbps</span>
+          </div>
+        </div>
+        <button class="icon-btn" onclick="toggleLyrics()" title="歌词">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </button>
+      </div>
+
+      <!-- Dual-layer Streaming Buffer Progress Slider -->
+      <div class="slider-container">
+        <div class="progress-track-wrapper" onclick="seek(event)">
+          <div class="buffered-track" title="WebDAV 远程音频流缓冲进度"></div>
+          <div class="played-track" id="full-played-track"></div>
+          <div class="slider-thumb" id="full-slider-thumb"></div>
+        </div>
+        <div class="time-labels">
+          <span id="curr-time">01:52</span>
+          <span>04:29</span>
+        </div>
+      </div>
+
+      <!-- Expressive Controls -->
+      <div class="full-controls-row">
+        <button class="ctrl-btn" title="随机播放">
+          <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+        </button>
+        <button class="ctrl-btn" title="上一首">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button class="main-play-btn" id="full-play-btn" onclick="togglePlay(event)">
+          <svg viewBox="0 0 24 24"><path id="full-play-path" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button class="ctrl-btn" title="下一首">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+        <button class="ctrl-btn" title="播放队列">
+          <svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Gesture Bar -->
+    <div class="gesture-nav-bar"></div>
+  </div>
+
+  <!-- App Icon Preview -->
+  <div class="icon-preview-box">
+    <div class="icon-symbol">
+      <!-- Vinyl + Cloud SVG -->
+      <svg viewBox="0 0 48 48" style="width:34px;height:34px;fill:none;stroke:#a8c7fa;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;">
+        <!-- Vinyl grooves -->
+        <circle cx="24" cy="24" r="18" stroke-opacity="0.3"/>
+        <circle cx="24" cy="24" r="12" stroke-opacity="0.6"/>
+        <circle cx="24" cy="24" r="4" fill="#a8c7fa"/>
+        <!-- Stylized Cloud / Streaming wave -->
+        <path d="M16 28c-2 0-3.5-1.5-3.5-3.5 0-1.8 1.3-3.2 3-3.4.6-2.5 2.8-4.1 5.5-4.1 2.3 0 4.3 1.3 5.1 3.2 1.8.2 3.4 1.7 3.4 3.8 0 2.2-1.8 4-4 4H16z" fill="#21438a" stroke="#d3e3fd" stroke-width="2"/>
+      </svg>
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:#fff;">MD3 Adaptive Icon: 极简黑胶与云端</div>
+      <div style="font-size:11px;color:#9094a0;margin-top:2px;">支持 Android 13+ Material You 单色主题随壁纸实时取色</div>
+    </div>
+  </div>
+
+  <!-- Floating Prototype Switcher (matt-engineering/prototype) -->
+  <div class="prototype-bar">
+    <button class="proto-btn" onclick="prevVariant()" title="上一个方案 (←)">◀</button>
+    <div class="proto-label" id="proto-label">Variant A: 极致纯净留白</div>
+    <button class="proto-btn" onclick="nextVariant()" title="下一个方案 (→)">▶</button>
+    <span class="proto-hint">按键盘 ← → 快速切换</span>
+  </div>
+
+  <script>
+    const VARIANTS = [
+      {
+        id: 'A',
+        name: 'Variant A: 极致纯净留白',
+        desc: '仅顶部轻量拖拽条，大封面呼吸感最大化，无任何文字噪音',
+        apply() {
+          document.querySelector('#header-b').style.display = 'none';
+          document.querySelector('#variant-c-spec').style.display = 'none';
+        }
+      },
+      {
+        id: 'B',
+        name: 'Variant B: 极简副标与操作',
+        desc: '保留拖拽手柄，下方微弱居中显示专辑名，右上角微型更多菜单',
+        apply() {
+          document.querySelector('#header-b').style.display = 'flex';
+          document.querySelector('#variant-c-spec').style.display = 'none';
+        }
+      },
+      {
+        id: 'C',
+        name: 'Variant C: 发烧友音质强化',
+        desc: '纯净顶栏，在歌曲信息区突出呈现 Hi-Res 金标与 96kHz/24-bit 解码规格',
+        apply() {
+          document.querySelector('#header-b').style.display = 'none';
+          document.querySelector('#variant-c-spec').style.display = 'block';
+        }
+      }
+    ];
+
+    let currentVariantIdx = 0;
+    let isPlaying = true;
+    let isLyricsOpen = false;
+
+    function renderVariant(idx) {
+      currentVariantIdx = (idx + VARIANTS.length) % VARIANTS.length;
+      const v = VARIANTS[currentVariantIdx];
+      document.querySelector('#proto-label').textContent = v.name;
+      v.apply();
+      window.location.hash = 'variant=' + v.id;
+    }
+
+    function prevVariant() { renderVariant(currentVariantIdx - 1); }
+    function nextVariant() { renderVariant(currentVariantIdx + 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowLeft') prevVariant();
+      if (e.key === 'ArrowRight') nextVariant();
+    });
+
+    // Check initial hash (Default to Variant C as chosen by user)
+    if (window.location.hash.includes('variant=A')) currentVariantIdx = 0;
+    else if (window.location.hash.includes('variant=B')) currentVariantIdx = 1;
+    else currentVariantIdx = 2; // Default to Variant C (Hi-Res Audiophile)
+    renderVariant(currentVariantIdx);
+
+    // Interactive Functions
+    function openPlayer() {
+      document.querySelector('#full-player').classList.add('open');
+      document.querySelector('.status-bar').style.background = 'transparent';
+    }
+    function closePlayer() {
+      document.querySelector('#full-player').classList.remove('open');
+      document.querySelector('.status-bar').style.background = 'var(--md-sys-color-surface-container)';
+    }
+
+    function togglePlay(e) {
+      if (e) e.stopPropagation();
+      isPlaying = !isPlaying;
+      const pauseD = 'M6 19h4V5H6v14zm8-14v14h4V5h-4z';
+      const playD = 'M8 5v14l11-7z';
+
+      document.querySelector('#mini-play-path').setAttribute('d', isPlaying ? pauseD : playD);
+      document.querySelector('#full-play-path').setAttribute('d', isPlaying ? pauseD : playD);
+      document.querySelector('#mini-state-text').textContent = isPlaying ? '正在播放 · 01:52 / 04:29' : '已暂停 · 01:52 / 04:29';
+
+      const eq = document.querySelector('#list-eq');
+      if (isPlaying) {
+        eq.classList.remove('paused');
+      } else {
+        eq.classList.add('paused');
+      }
+    }
+
+    function switchTab(tab) {
+      if (tab === 'browser') {
+        document.querySelector('#screen-browser').classList.remove('hidden');
+        document.querySelector('#screen-servers').classList.add('hidden');
+        document.querySelector('#tab-browser').classList.add('active');
+        document.querySelector('#tab-servers').classList.remove('active');
+      } else {
+        document.querySelector('#screen-browser').classList.add('hidden');
+        document.querySelector('#screen-servers').classList.remove('hidden');
+        document.querySelector('#tab-browser').classList.remove('active');
+        document.querySelector('#tab-servers').classList.add('active');
+      }
+    }
+
+    function toggleLyrics() {
+      if (isLyricsOpen) showCover(); else showLyrics();
+    }
+    function showLyrics() {
+      isLyricsOpen = true;
+      document.querySelector('#lyrics-view').classList.add('active');
+      document.querySelector('#dot-lyrics').classList.add('active');
+      document.querySelector('#dot-cover').classList.remove('active');
+    }
+    function showCover() {
+      isLyricsOpen = false;
+      document.querySelector('#lyrics-view').classList.remove('active');
+      document.querySelector('#dot-cover').classList.add('active');
+      document.querySelector('#dot-lyrics').classList.remove('active');
+    }
+
+    function seek(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      document.querySelector('#full-played-track').style.width = (pct * 100) + '%';
+      document.querySelector('#full-slider-thumb').style.left = (pct * 100) + '%';
+      const totalSec = 269;
+      const curSec = Math.floor(totalSec * pct);
+      const m = String(Math.floor(curSec / 60)).padStart(2, '0');
+      const s = String(curSec % 60).padStart(2, '0');
+      document.querySelector('#curr-time').textContent = `${m}:${s}`;
+    }
+  </script>
+</body>
+</html>
