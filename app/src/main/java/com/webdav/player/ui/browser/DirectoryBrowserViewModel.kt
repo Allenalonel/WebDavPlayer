@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.ListDirectoryResult
-import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
@@ -13,14 +12,11 @@ import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,8 +29,6 @@ class DirectoryBrowserViewModel(
 
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
     val uiState: StateFlow<DirectoryBrowserUiState> = _uiState.asStateFlow()
-
-    val playerSessionState: StateFlow<PlayerSessionState>? = musicPlayerAppSession?.sessionState
 
     private var metadataObserverJob: Job? = null
     private var metadataResolutionJob: Job? = null
@@ -134,34 +128,6 @@ class DirectoryBrowserViewModel(
         musicPlayerAppSession?.playNext(track)
     }
 
-    fun togglePlayPause() {
-        musicPlayerAppSession?.togglePlayPause()
-    }
-
-    fun seekTo(positionMs: Long) {
-        musicPlayerAppSession?.seekTo(positionMs)
-    }
-
-    fun skipToNext() {
-        musicPlayerAppSession?.skipToNext()
-    }
-
-    fun skipToPrevious() {
-        musicPlayerAppSession?.skipToPrevious()
-    }
-
-    fun cyclePlaybackMode() {
-        musicPlayerAppSession?.cyclePlaybackMode()
-    }
-
-    fun playQueueIndex(index: Int) {
-        musicPlayerAppSession?.playQueueIndex(index)
-    }
-
-    fun removeQueueTrack(index: Int) {
-        musicPlayerAppSession?.removeQueueTrack(index)
-    }
-
     fun onNavigateUp(): Boolean {
         val current = _uiState.value.currentPath
         val parentPath = BreadcrumbNavigationHelper.getParentPath(current) ?: return false
@@ -187,52 +153,23 @@ class DirectoryBrowserViewModel(
 
         currentLoadJob?.cancel()
         currentLoadJob = viewModelScope.launch {
-            var cachedDir: RemoteDirectory? = null
-            if (!forceRefresh) {
-                cachedDir = directoryRepository.getCachedDirectory(server, normalizedPath)
+            _uiState.update {
+                it.copy(
+                    currentPath = normalizedPath,
+                    breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(server, normalizedPath),
+                    canNavigateUp = normalizedPath != "/",
+                    isLoading = !forceRefresh,
+                    isRefreshing = forceRefresh,
+                    errorMessage = null
+                )
             }
 
-            if (cachedDir != null) {
-                // Instant cache hit: render immediately (0ms delay)
-                musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
-                _uiState.update {
-                    it.copy(
-                        currentPath = normalizedPath,
-                        breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(server, normalizedPath),
-                        canNavigateUp = normalizedPath != "/",
-                        currentDirectory = cachedDir,
-                        isLoading = false,
-                        isRefreshing = false,
-                        errorMessage = null
-                    )
-                }
+            var hasEmittedContent = false
 
-                val audioFiles = cachedDir.files.filter { it.isAudio }
-                if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
-                    metadataResolutionJob?.cancel()
-                    metadataResolutionJob = viewModelScope.launch {
-                        trackMetadataRepository.resolveMetadata(server, audioFiles)
-                    }
-                }
-            } else {
-                _uiState.update {
-                    it.copy(
-                        currentPath = normalizedPath,
-                        breadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(server, normalizedPath),
-                        canNavigateUp = normalizedPath != "/",
-                        isLoading = !forceRefresh,
-                        isRefreshing = forceRefresh,
-                        errorMessage = null
-                    )
-                }
-            }
-
-            // SWR: Fetch fresh data from remote server
-            val result = directoryRepository.listDirectory(server, normalizedPath, forceRefresh)
-
-            _uiState.update { current ->
+            directoryRepository.observeDirectory(server, normalizedPath, forceRefresh).collect { result ->
                 when (result) {
                     is ListDirectoryResult.Success -> {
+                        hasEmittedContent = true
                         musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
                         val audioFiles = result.directory.files.filter { it.isAudio }
                         if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
@@ -242,31 +179,42 @@ class DirectoryBrowserViewModel(
                             }
                         }
 
-                        current.copy(
-                            currentDirectory = result.directory,
-                            isLoading = false,
-                            isRefreshing = false,
-                            errorMessage = null
-                        )
-                    }
-                    is ListDirectoryResult.Failure -> {
-                        if (cachedDir != null) {
-                            // SWR graceful degradation: keep cached content visible
+                        _uiState.update { current ->
                             current.copy(
-                                isLoading = false,
-                                isRefreshing = false
-                            )
-                        } else if (fallbackToRoot && normalizedPath != "/") {
-                            loadDirectory("/", forceRefresh = false)
-                            current
-                        } else {
-                            current.copy(
+                                currentDirectory = result.directory,
                                 isLoading = false,
                                 isRefreshing = false,
-                                errorMessage = result.message
+                                errorMessage = null
                             )
                         }
                     }
+                    is ListDirectoryResult.Failure -> {
+                        _uiState.update { current ->
+                            if (hasEmittedContent) {
+                                current.copy(
+                                    isLoading = false,
+                                    isRefreshing = false
+                                )
+                            } else if (fallbackToRoot && normalizedPath != "/") {
+                                loadDirectory("/", forceRefresh = false)
+                                current
+                            } else {
+                                current.copy(
+                                    isLoading = false,
+                                    isRefreshing = false,
+                                    errorMessage = result.message
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            _uiState.update { current ->
+                if (current.isLoading || current.isRefreshing) {
+                    current.copy(isLoading = false, isRefreshing = false)
+                } else {
+                    current
                 }
             }
         }
@@ -274,9 +222,5 @@ class DirectoryBrowserViewModel(
 
     private fun buildBreadcrumbs(server: WebDavServer?, path: String): List<Breadcrumb> {
         return BreadcrumbNavigationHelper.buildBreadcrumbs(server, path)
-    }
-
-    private fun normalizeDirectoryPath(path: String): String {
-        return BreadcrumbNavigationHelper.normalizeDirectoryPath(path)
     }
 }

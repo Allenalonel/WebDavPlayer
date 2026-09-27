@@ -4,10 +4,10 @@
 
 **Blocked by:** 02: Deepen DirectoryRepository SWR Stream
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] All eight pass-through playback methods (`togglePlayPause`, `seekTo`, `skipToNext`, `skipToPrevious`, `cyclePlaybackMode`, `playQueueIndex`, `removeQueueTrack`) and the `playerSessionState` property are removed from `DirectoryBrowserViewModel`.
-- [ ] `DirectoryBrowserViewModel` subscribes directly to `DirectoryRepository.observeDirectory(...)`, eliminating manual two-step cache and remote orchestration from the ViewModel.
-- [ ] Directory navigation, breadcrumb navigation, audio track click queueing, and playNext continue working seamlessly from `DirectoryBrowserScreen`.
-- [ ] Obsolete unit tests asserting ViewModel-to-player pass-through in `DirectoryBrowserViewModelTest` are pruned, with directory navigation and track dispatch tests fully passing.
-- [ ] Full suite unit tests pass via `./gradlew.bat testDebugUnitTest`.
+- [x] All eight pass-through playback methods (`togglePlayPause`, `seekTo`, `skipToNext`, `skipToPrevious`, `cyclePlaybackMode`, `playQueueIndex`, `removeQueueTrack`) and the `playerSessionState` property are removed from `DirectoryBrowserViewModel`.
+- [x] `DirectoryBrowserViewModel` subscribes directly to `DirectoryRepository.observeDirectory(...)`, eliminating manual two-step cache and remote orchestration from the ViewModel.
+- [x] Directory navigation, breadcrumb navigation, audio track click queueing, and playNext continue working seamlessly from `DirectoryBrowserScreen`.
+- [x] Obsolete unit tests asserting ViewModel-to-player pass-through in `DirectoryBrowserViewModelTest` are pruned, with directory navigation and track dispatch tests fully passing.
+- [x] Full suite unit tests pass via `./gradlew.bat testDebugUnitTest`.

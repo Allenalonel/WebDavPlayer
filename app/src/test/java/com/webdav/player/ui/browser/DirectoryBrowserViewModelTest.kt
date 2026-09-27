@@ -3,7 +3,6 @@ package com.webdav.player.ui.browser
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.ListDirectoryResult
-import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
@@ -291,35 +290,41 @@ class DirectoryBrowserViewModelTest {
     }
 
     @Test
-    fun togglePlayPause_dispatchesToMusicPlayerAppSession() = runTest {
+    fun loadDirectory_subscribesToObserveDirectory_andEmitsCachedThenRemoteUpdate() = runTest {
         advanceUntilIdle()
 
-        viewModel.togglePlayPause()
+        val cachedDir = RemoteDirectory(
+            path = "/StreamTest/",
+            name = "StreamTest",
+            files = listOf(RemoteFile(name = "track1.mp3", path = "/StreamTest/track1.mp3"))
+        )
+        val remoteUpdatedDir = RemoteDirectory(
+            path = "/StreamTest/",
+            name = "StreamTest",
+            files = listOf(
+                RemoteFile(name = "track1.mp3", path = "/StreamTest/track1.mp3"),
+                RemoteFile(name = "track2.mp3", path = "/StreamTest/track2.mp3")
+            )
+        )
 
-        assertEquals(1, fakeMusicPlayerAppSession.togglePlayPauseCount)
-    }
+        fakeDirectoryRepository.setCached("/StreamTest/", cachedDir)
+        fakeDirectoryRepository.setResult("/StreamTest/", ListDirectoryResult.Success(remoteUpdatedDir))
 
-    @Test
-    fun playerControls_dispatchToMusicPlayerAppSession() = runTest {
+        viewModel.onDirectoryClicked(RemoteDirectory(path = "/StreamTest/", name = "StreamTest"))
         advanceUntilIdle()
 
-        viewModel.seekTo(12345L)
-        assertEquals(12345L, fakeMusicPlayerAppSession.lastSeekPosition)
+        val state = viewModel.uiState.value
+        assertEquals("/StreamTest/", state.currentPath)
+        assertEquals(remoteUpdatedDir, state.currentDirectory)
+        assertEquals(2, state.currentDirectory?.files?.size)
+        assertFalse(state.isLoading)
+        assertNull(state.errorMessage)
 
-        viewModel.skipToNext()
-        assertEquals(1, fakeMusicPlayerAppSession.skipNextCount)
-
-        viewModel.skipToPrevious()
-        assertEquals(1, fakeMusicPlayerAppSession.skipPreviousCount)
-
-        viewModel.cyclePlaybackMode()
-        assertEquals(PlaybackMode.SINGLE_LOOP, fakeMusicPlayerAppSession.sessionState.value.playbackMode)
-
-        viewModel.playQueueIndex(3)
-        assertEquals(3, fakeMusicPlayerAppSession.lastPlayedQueueIndex)
-
-        viewModel.removeQueueTrack(2)
-        assertEquals(listOf(2), fakeMusicPlayerAppSession.removedQueueIndices)
+        // Verify observeDirectory was called
+        val lastObserve = fakeDirectoryRepository.observeCalls.lastOrNull()
+        assertNotNull(lastObserve)
+        assertEquals("/StreamTest/", lastObserve?.second)
+        assertEquals(false, lastObserve?.third)
     }
 
     @Test
@@ -636,6 +641,7 @@ class DirectoryBrowserViewModelTest {
         private val results = mutableMapOf<String, ListDirectoryResult>()
         private val cachedDirectories = mutableMapOf<String, RemoteDirectory>()
         val forceRefreshCount = mutableMapOf<String, Int>()
+        val observeCalls = mutableListOf<Triple<WebDavServer, String, Boolean>>()
         var listCalls = 0
 
         fun setResult(path: String, result: ListDirectoryResult) {
@@ -674,13 +680,27 @@ class DirectoryBrowserViewModelTest {
             path: String,
             forceRefresh: Boolean
         ): Flow<ListDirectoryResult> = kotlinx.coroutines.flow.flow {
+            observeCalls.add(Triple(server, path, forceRefresh))
+            var cached: RemoteDirectory? = null
             if (!forceRefresh) {
-                val cached = cachedDirectories[path]
+                cached = cachedDirectories[path]
                 if (cached != null) {
                     emit(ListDirectoryResult.Success(cached))
                 }
             }
-            emit(listDirectory(server, path, forceRefresh))
+            val result = listDirectory(server, path, forceRefresh)
+            when (result) {
+                is ListDirectoryResult.Success -> {
+                    if (cached == null || result.directory != cached) {
+                        emit(result)
+                    }
+                }
+                is ListDirectoryResult.Failure -> {
+                    if (cached == null || forceRefresh) {
+                        emit(result)
+                    }
+                }
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: completed
 
 # Feature Specification: Architecture Deepening and Codebase Simplification
 
