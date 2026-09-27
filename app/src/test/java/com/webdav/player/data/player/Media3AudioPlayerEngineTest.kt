@@ -105,6 +105,46 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
+    fun playTracks_withMediaSourceAdapter_preparesExoPlayerMediaSources() {
+        val adapter = DefaultWebDavMediaSourceAdapter(context)
+        val customEngine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
+        try {
+            customEngine.playTracks(
+                server = testServer,
+                tracks = listOf(track1, trackWma),
+                startIndex = 0,
+                startPositionMs = 0L
+            )
+            assertEquals(0, customEngine.currentTrackIndex.value)
+            assertEquals(2, customEngine.player.mediaItemCount)
+            assertEquals("audio/mpeg", customEngine.player.getMediaItemAt(0).localConfiguration?.mimeType)
+            assertEquals("audio/x-ms-wma", customEngine.player.getMediaItemAt(1).localConfiguration?.mimeType)
+        } finally {
+            customEngine.release()
+        }
+    }
+
+    @Test
+    fun insertTrack_withMediaSourceAdapter_addsMediaSource() {
+        val adapter = DefaultWebDavMediaSourceAdapter(context)
+        val customEngine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
+        try {
+            customEngine.playTracks(
+                server = testServer,
+                tracks = listOf(track1),
+                startIndex = 0
+            )
+            assertEquals(1, customEngine.player.mediaItemCount)
+
+            customEngine.insertTrack(1, testServer, trackWma)
+            assertEquals(2, customEngine.player.mediaItemCount)
+            assertEquals("audio/x-ms-wma", customEngine.player.getMediaItemAt(1).localConfiguration?.mimeType)
+        } finally {
+            customEngine.release()
+        }
+    }
+
+    @Test
     fun playTracks_withWmaTrack_setsWmaMimeTypeAndPrepares() {
         engine.playTracks(
             server = testServer,

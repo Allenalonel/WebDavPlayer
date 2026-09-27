@@ -41,11 +41,29 @@ import java.io.File
 @OptIn(UnstableApi::class)
 class Media3AudioPlayerEngine(
     private val context: Context,
+    val mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
+    @Deprecated("Use mediaSourceAdapter instead. Kept for backward compatibility.")
     val dataSourceFactory: WebDavDataSourceFactory = WebDavDataSourceFactory(),
     customPlayer: Player? = null,
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
 ) : AudioPlayerEngine {
+
+    @Deprecated("Use constructor with WebDavMediaSourceAdapter instead")
+    constructor(
+        context: Context,
+        dataSourceFactory: WebDavDataSourceFactory,
+        customPlayer: Player? = null,
+        customMediaSession: MediaSession? = null,
+        coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
+    ) : this(
+        context = context,
+        mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, dataSourceFactory.webDavClient),
+        dataSourceFactory = dataSourceFactory,
+        customPlayer = customPlayer,
+        customMediaSession = customMediaSession,
+        coroutineScope = coroutineScope,
+    )
     val player: Player =
         customPlayer ?: run {
             val loadControl =
@@ -203,16 +221,18 @@ class Media3AudioPlayerEngine(
         if (tracks.isEmpty()) return
         dataSourceFactory.setServer(server)
 
-        val mediaItems =
-            tracks.map { track ->
-                buildMediaItem(server, track)
-            }
-
         val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
         _currentTrackIndex.value = validStartIndex
         _currentPositionMs.value = startPositionMs
         applyPlaybackMode(_playbackMode.value)
-        player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
+
+        val mediaSources = mediaSourceAdapter.createMediaSources(server, tracks)
+        if (player is ExoPlayer) {
+            player.setMediaSources(mediaSources, validStartIndex, startPositionMs)
+        } else {
+            val mediaItems = tracks.map { track -> buildMediaItem(server, track) }
+            player.setMediaItems(mediaItems, validStartIndex, startPositionMs)
+        }
         player.prepare()
         audioFocusHandler.requestAudioFocus()
         WebDavMediaService.start(context)
@@ -284,8 +304,13 @@ class Media3AudioPlayerEngine(
         track: AudioTrack,
     ) {
         if (index in 0..player.mediaItemCount) {
-            val mediaItem = buildMediaItem(server, track)
-            player.addMediaItem(index, mediaItem)
+            if (player is ExoPlayer) {
+                val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
+                player.addMediaSource(index, mediaSource)
+            } else {
+                val mediaItem = buildMediaItem(server, track)
+                player.addMediaItem(index, mediaItem)
+            }
         }
     }
 

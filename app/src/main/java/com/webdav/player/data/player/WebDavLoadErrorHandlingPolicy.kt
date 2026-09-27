@@ -32,11 +32,14 @@ class WebDavLoadErrorHandlingPolicy(
     }
 
     private fun isNonRetryable(exception: IOException): Boolean {
-        if (exception is FileNotFoundException) return true
-        if (exception is HttpDataSource.InvalidResponseCodeException) {
-            val code = exception.responseCode
-            return code == 401 || code == 403 || code == 404 || code == 410
+        return generateSequence<Throwable>(exception) { it.cause }.any { cause ->
+            cause is FileNotFoundException ||
+                (cause is HttpDataSource.InvalidResponseCodeException &&
+                    cause.responseCode in NON_RETRYABLE_STATUS_CODES)
         }
-        return false
+    }
+
+    companion object {
+        private val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 405, 410)
     }
 }

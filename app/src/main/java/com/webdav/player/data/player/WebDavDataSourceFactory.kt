@@ -8,6 +8,7 @@ import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.WebDavServer
 import okhttp3.OkHttpClient
 
+@Deprecated("Use WebDavMediaSourceAdapter instead for encapsulated streaming concerns.")
 @OptIn(UnstableApi::class)
 class WebDavDataSourceFactory(
     val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
