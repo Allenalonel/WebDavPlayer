@@ -4,13 +4,13 @@
 
 **Blocked by:** 01: Deep WebDAV MediaSource Adapter and Resilient Streaming, 02: Two-Track Reactive Playback Session State Optimization, 03: Unified Playback Session Host and Resilient Background Service
 
-**Status:** ready-for-agent
+**Status:** completed
 
 ## Acceptance criteria
 
-- [ ] End-to-end integration test suite executes the complete user journey: connecting to a WebDAV server, loading directory contents, enqueuing tracks, streaming audio, and verifying playback progress.
-- [ ] Simulated network latency and transient chunk request failures trigger automatic retries within the media source adapter without disrupting the listener's audio playback.
-- [ ] Background service execution and foreground notification updates operate continuously without receiving App Idle termination warnings from the Android system.
-- [ ] UI rendering performance is verified to ensure main-thread frame skipping during cold start and track transitions is fully resolved.
-- [ ] Ephemeral in-memory streaming buffer constraints established by ADR-0002 are strictly maintained, with zero audio chunk bytes persisting to local disk storage.
-- [ ] All existing repository, DAO, parser, engine, and UI unit test suites pass completely with 100% success rate.
+- [x] End-to-end integration test suite executes the complete user journey: connecting to a WebDAV server, loading directory contents, enqueuing tracks, streaming audio, and verifying playback progress.
+- [x] Simulated network latency and transient chunk request failures trigger automatic retries within the media source adapter without disrupting the listener's audio playback.
+- [x] Background service execution and foreground notification updates operate continuously without receiving App Idle termination warnings from the Android system.
+- [x] UI rendering performance is verified to ensure main-thread frame skipping during cold start and track transitions is fully resolved.
+- [x] Ephemeral in-memory streaming buffer constraints established by ADR-0002 are strictly maintained, with zero audio chunk bytes persisting to local disk storage.
+- [x] All existing repository, DAO, parser, engine, and UI unit test suites pass completely with 100% success rate.
