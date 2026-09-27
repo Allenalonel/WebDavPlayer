@@ -20,6 +20,7 @@ import androidx.media3.session.MediaStyleNotificationHelper
 import com.google.common.collect.ImmutableList
 import com.webdav.player.MainActivity
 import com.webdav.player.R
+import com.webdav.player.domain.model.PlaybackState
 import java.io.File
 
 @OptIn(UnstableApi::class)
@@ -80,15 +81,23 @@ class WebDavNotificationProvider(
         return false
     }
 
-    fun buildNotification(mediaSession: MediaSession): Notification {
+    fun buildNotification(
+        mediaSession: MediaSession,
+        playbackState: PlaybackState? = null
+    ): Notification {
         val player = mediaSession.player
         val metadata = player.mediaMetadata
 
+        val isError = playbackState is PlaybackState.Error
         val title = metadata.title?.toString()
             ?: (player.currentMediaItem?.mediaMetadata?.title?.toString())
-            ?: "WebDAV Player"
-        val artist = metadata.artist?.toString()
-            ?: (player.currentMediaItem?.mediaMetadata?.artist?.toString())
+            ?: if (isError) "Playback Error" else "WebDAV Player"
+        val artist = if (playbackState is PlaybackState.Error) {
+            playbackState.message
+        } else {
+            metadata.artist?.toString()
+                ?: (player.currentMediaItem?.mediaMetadata?.artist?.toString())
+        }
         val album = metadata.albumTitle?.toString()
             ?: (player.currentMediaItem?.mediaMetadata?.albumTitle?.toString())
 
@@ -101,7 +110,11 @@ class WebDavNotificationProvider(
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val isPlaying = player.isPlaying || player.playWhenReady
+        val isPlaying = when (playbackState) {
+            is PlaybackState.Playing, is PlaybackState.Buffering -> true
+            is PlaybackState.Paused, is PlaybackState.Error, is PlaybackState.Idle, is PlaybackState.Ended -> false
+            null -> player.isPlaying || player.playWhenReady
+        }
 
         val prevIntent = PendingIntent.getService(
             context,

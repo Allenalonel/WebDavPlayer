@@ -4,14 +4,13 @@ import android.app.Application
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
-import com.webdav.player.data.player.Media3AudioPlayerEngine
-import com.webdav.player.data.player.WebDavDataSourceFactory
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
 import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
+import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LyricsRepository
@@ -67,13 +66,8 @@ class WebDavApplication : Application() {
         )
 
         val mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(this, webDavClient)
-        val dataSourceFactory = WebDavDataSourceFactory(webDavClient)
-        playerEngine =
-            Media3AudioPlayerEngine(
-                context = this,
-                mediaSourceAdapter = mediaSourceAdapter,
-                dataSourceFactory = dataSourceFactory,
-            )
+        val sessionHost = PlaybackSessionHost.getInstance(this, mediaSourceAdapter)
+        playerEngine = sessionHost
 
         val sessionStore = DataStorePlaybackSessionStore(this)
         this.sessionStore = sessionStore

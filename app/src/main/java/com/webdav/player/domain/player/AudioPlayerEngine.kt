@@ -55,4 +55,8 @@ interface AudioPlayerEngine {
     fun stop()
 
     fun release()
+
+    fun setVolume(volume: Float) {}
+
+    fun getVolume(): Float = 1.0f
 }

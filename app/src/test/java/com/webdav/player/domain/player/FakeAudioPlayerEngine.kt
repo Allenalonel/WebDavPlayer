@@ -33,9 +33,12 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var lastStartPositionMs: Long = 0L
     var playCount = 0
     var pauseCount = 0
+    var nextCount = 0
+    var previousCount = 0
     var stopCount = 0
     var seekToPosition: Long? = null
     var released = false
+    private var currentVolume: Float = 1.0f
 
     var shufflePermutation: List<Int>? = null
 
@@ -70,6 +73,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     }
 
     override fun skipToNext() {
+        nextCount++
         if (lastTracks.isEmpty()) return
         val next =
             when (_playbackMode.value) {
@@ -100,6 +104,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     }
 
     override fun skipToPrevious() {
+        previousCount++
         if (lastTracks.isEmpty()) return
         val prev =
             when (_playbackMode.value) {
@@ -210,4 +215,10 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     override fun release() {
         released = true
     }
+
+    override fun setVolume(volume: Float) {
+        this.currentVolume = volume
+    }
+
+    override fun getVolume(): Float = currentVolume
 }

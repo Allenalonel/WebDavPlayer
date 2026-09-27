@@ -109,8 +109,6 @@ class AudioFocusHandler(
 
     private fun applyVolume(volume: Float) {
         onVolumeChanged?.invoke(volume)
-        if (playerEngine is Media3AudioPlayerEngine) {
-            playerEngine.setVolume(volume)
-        }
+        playerEngine.setVolume(volume)
     }
 }

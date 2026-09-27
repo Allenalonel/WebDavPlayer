@@ -20,7 +20,6 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
-import com.webdav.player.data.service.WebDavMediaService
 import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
@@ -135,11 +134,11 @@ class Media3AudioPlayerEngine(
 
     val audioFocusHandler: AudioFocusHandler = AudioFocusHandler(context, this)
 
-    fun setVolume(volume: Float) {
+    override fun setVolume(volume: Float) {
         player.volume = volume.coerceIn(0f, 1f)
     }
 
-    fun getVolume(): Float = player.volume
+    override fun getVolume(): Float = player.volume
 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -238,13 +237,11 @@ class Media3AudioPlayerEngine(
         }
         player.prepare()
         audioFocusHandler.requestAudioFocus()
-        WebDavMediaService.start(context)
         player.play()
     }
 
     override fun play() {
         audioFocusHandler.requestAudioFocus()
-        WebDavMediaService.start(context)
         player.play()
     }
 

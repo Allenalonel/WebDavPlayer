@@ -4,14 +4,14 @@
 
 **Blocked by:** 01: Deep WebDAV MediaSource Adapter and Resilient Streaming
 
-**Status:** ready-for-agent
+**Status:** completed
 
 ## Acceptance criteria
 
-- [ ] The background playback service acts as the cohesive host for the audio player engine and Media3 MediaSession, eliminating reverse application singleton downcasts.
-- [ ] Callers control playback exclusively through the clean audio player engine interface without manually invoking foreground service start or stop intents.
-- [ ] Foreground service status and ongoing system media notifications are autonomously elevated and managed in direct synchronization with playback state transitions.
-- [ ] When playback enters an error state or is paused in the background, the service gracefully synchronizes its foreground state and notification to prevent operating system App Idle terminations.
-- [ ] Android system audio focus transitions (transient ducking for navigation prompts, pauses for incoming calls, and volume restoration on completion) are negotiated seamlessly within the host.
-- [ ] Hardware media buttons (play, pause, next, previous) on headphones and Bluetooth devices dispatch directly to the media session host reliably.
-- [ ] Unit and component tests verify service lifecycle transitions, notification dispatch, and audio focus handling under Robolectric without leaking background state.
+- [x] The background playback service acts as the cohesive host for the audio player engine and Media3 MediaSession, eliminating reverse application singleton downcasts.
+- [x] Callers control playback exclusively through the clean audio player engine interface without manually invoking foreground service start or stop intents.
+- [x] Foreground service status and ongoing system media notifications are autonomously elevated and managed in direct synchronization with playback state transitions.
+- [x] When playback enters an error state or is paused in the background, the service gracefully synchronizes its foreground state and notification to prevent operating system App Idle terminations.
+- [x] Android system audio focus transitions (transient ducking for navigation prompts, pauses for incoming calls, and volume restoration on completion) are negotiated seamlessly within the host.
+- [x] Hardware media buttons (play, pause, next, previous) on headphones and Bluetooth devices dispatch directly to the media session host reliably.
+- [x] Unit and component tests verify service lifecycle transitions, notification dispatch, and audio focus handling under Robolectric without leaking background state.
