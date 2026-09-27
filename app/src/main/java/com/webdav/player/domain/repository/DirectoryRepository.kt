@@ -3,6 +3,7 @@ package com.webdav.player.domain.repository
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.WebDavServer
+import kotlinx.coroutines.flow.Flow
 
 interface DirectoryRepository {
     /**
@@ -13,6 +14,19 @@ interface DirectoryRepository {
         server: WebDavServer,
         path: String
     ): RemoteDirectory? = null
+
+    /**
+     * Observes directory contents as a reactive SWR stream.
+     * When [forceRefresh] is false and cache exists, immediately emits cached snapshot (0ms),
+     * then revalidates in the background against remote WebDAV server and emits update if remote differs.
+     * Network errors during background revalidation do not suppress already emitted cached data.
+     * When [forceRefresh] is true, cache is bypassed and remote query result is emitted directly.
+     */
+    fun observeDirectory(
+        server: WebDavServer,
+        path: String,
+        forceRefresh: Boolean = false
+    ): Flow<ListDirectoryResult>
 
     /**
      * Lists the contents of a remote directory on the given server.

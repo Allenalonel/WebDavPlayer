@@ -8,6 +8,9 @@ import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 class DirectoryRepositoryImpl(
     private val webDavClient: WebDavClient,
@@ -55,13 +58,51 @@ class DirectoryRepositoryImpl(
         return null
     }
 
+    override fun observeDirectory(
+        server: WebDavServer,
+        path: String,
+        forceRefresh: Boolean
+    ): Flow<ListDirectoryResult> = flow {
+        val normalizedPath = normalizePath(path)
+        var cachedDir: RemoteDirectory? = null
+
+        if (!forceRefresh) {
+            cachedDir = getCachedDirectory(server, normalizedPath)
+            if (cachedDir != null) {
+                emit(ListDirectoryResult.Success(cachedDir))
+            }
+        }
+
+        val remoteResult = try {
+            webDavClient.listDirectory(server, normalizedPath)
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            ListDirectoryResult.Failure(e.message ?: "Unknown error")
+        }
+
+        when (remoteResult) {
+            is ListDirectoryResult.Success -> {
+                if (cachedDir == null || remoteResult.directory != cachedDir) {
+                    persistCache(server.id, normalizedPath, remoteResult.directory)
+                    emit(remoteResult)
+                }
+            }
+            is ListDirectoryResult.Failure -> {
+                // Transient network errors during background revalidation do not suppress or crash already-rendered cached data.
+                if (cachedDir == null || forceRefresh) {
+                    emit(remoteResult)
+                }
+            }
+        }
+    }
+
     override suspend fun listDirectory(
         server: WebDavServer,
         path: String,
         forceRefresh: Boolean
     ): ListDirectoryResult {
         val normalizedPath = normalizePath(path)
-        val cacheKey = "${server.id}:$normalizedPath"
 
         if (!forceRefresh) {
             val cached = getCachedDirectory(server, normalizedPath)
@@ -72,18 +113,7 @@ class DirectoryRepositoryImpl(
 
         val result = webDavClient.listDirectory(server, normalizedPath)
         if (result is ListDirectoryResult.Success) {
-            synchronized(cacheLock) {
-                memoryCache[cacheKey] = result.directory
-            }
-            val json = RemoteDirectoryJsonSerializer.serialize(result.directory)
-            directoryCacheDao?.insertOrUpdate(
-                DirectoryCacheEntity(
-                    serverId = server.id,
-                    path = normalizedPath,
-                    dataJson = json,
-                    lastUpdatedMs = System.currentTimeMillis()
-                )
-            )
+            persistCache(server.id, normalizedPath, result.directory)
         }
         return result
     }
@@ -108,6 +138,26 @@ class DirectoryRepositoryImpl(
             keysToRemove.forEach { memoryCache.remove(it) }
         }
         directoryCacheDao?.deleteCacheByServerId(serverId)
+    }
+
+    private suspend fun persistCache(
+        serverId: Long,
+        normalizedPath: String,
+        directory: RemoteDirectory
+    ) {
+        val cacheKey = "$serverId:$normalizedPath"
+        synchronized(cacheLock) {
+            memoryCache[cacheKey] = directory
+        }
+        val json = RemoteDirectoryJsonSerializer.serialize(directory)
+        directoryCacheDao?.insertOrUpdate(
+            DirectoryCacheEntity(
+                serverId = serverId,
+                path = normalizedPath,
+                dataJson = json,
+                lastUpdatedMs = System.currentTimeMillis()
+            )
+        )
     }
 
     private fun normalizePath(path: String): String {

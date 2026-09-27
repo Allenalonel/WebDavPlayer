@@ -668,6 +668,20 @@ class DirectoryBrowserViewModelTest {
         override suspend fun clearCache() {
             results.clear()
         }
+
+        override fun observeDirectory(
+            server: WebDavServer,
+            path: String,
+            forceRefresh: Boolean
+        ): Flow<ListDirectoryResult> = kotlinx.coroutines.flow.flow {
+            if (!forceRefresh) {
+                val cached = cachedDirectories[path]
+                if (cached != null) {
+                    emit(ListDirectoryResult.Success(cached))
+                }
+            }
+            emit(listDirectory(server, path, forceRefresh))
+        }
     }
 
     private class FakeTrackMetadataRepository : TrackMetadataRepository {
