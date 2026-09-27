@@ -248,14 +248,14 @@ static int64_t seek_callback(void *opaque, int64_t offset, int whence) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeInit(
+Java_com_webdav_player_data_player_AsfExtractor_nativeInit(
     JNIEnv *env, jobject thiz) {
     NativeDemuxerContext *ctx = new (std::nothrow) NativeDemuxerContext();
     return reinterpret_cast<jlong>(ctx);
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeOpen(
+Java_com_webdav_player_data_player_AsfExtractor_nativeOpen(
     JNIEnv *env, jobject thiz, jlong handle, jobject input) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     if (!ctx) return -1;
@@ -389,49 +389,49 @@ Java_com_webdav_player_data_player_NativeAsfExtractor_nativeOpen(
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetSampleRate(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetSampleRate(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     return ctx ? ctx->sample_rate : 0;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetChannelCount(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetChannelCount(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     return ctx ? ctx->channels : 0;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetBitrate(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetBitrate(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     return ctx ? ctx->bitrate : 0;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetBlockAlign(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetBlockAlign(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     return ctx ? ctx->block_align : 0;
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetDurationUs(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetDurationUs(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     return ctx ? ctx->duration_us : 0;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetCodecName(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetCodecName(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     return (ctx && ctx->codec_name[0]) ? env->NewStringUTF(ctx->codec_name) : nullptr;
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetExtraData(
+Java_com_webdav_player_data_player_AsfExtractor_nativeGetExtraData(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     if (!ctx || !ctx->extradata || ctx->extradata_size <= 0) return nullptr;
@@ -441,7 +441,7 @@ Java_com_webdav_player_data_player_NativeAsfExtractor_nativeGetExtraData(
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeReadFrame(
+Java_com_webdav_player_data_player_AsfExtractor_nativeReadFrame(
     JNIEnv *env, jobject thiz, jlong handle, jobject input,
     jbyteArray output_array, jlongArray out_meta) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
@@ -514,7 +514,7 @@ Java_com_webdav_player_data_player_NativeAsfExtractor_nativeReadFrame(
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeSeek(
+Java_com_webdav_player_data_player_AsfExtractor_nativeSeek(
     JNIEnv *env, jobject thiz, jlong handle, jlong position, jlong time_us) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     if (!ctx || !ctx->fmt_ctx) return -1;
@@ -534,7 +534,7 @@ Java_com_webdav_player_data_player_NativeAsfExtractor_nativeSeek(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_webdav_player_data_player_NativeAsfExtractor_nativeRelease(
+Java_com_webdav_player_data_player_AsfExtractor_nativeRelease(
     JNIEnv *env, jobject thiz, jlong handle) {
     NativeDemuxerContext *ctx = reinterpret_cast<NativeDemuxerContext *>(handle);
     if (!ctx) return;
