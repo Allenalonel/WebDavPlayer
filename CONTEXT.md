@@ -33,8 +33,12 @@ _Avoid_: Folder Cache, File Index, Offline Copy
 _Avoid_: Song, Music, Audio File
 
 **Track Metadata**:
-音频曲目的描述性标签信息，包含曲目标题、艺术家、专辑名称、时长及内嵌封面图。
+音频曲目的描述性标签信息，包含曲目标题、艺术家、专辑名称、时长及封面图（优先提取内嵌标签，回退支持同目录外置封面）。
 _Avoid_: ID3, Tag, Audio Info
+
+**Folder Artwork**:
+位于 Remote Directory 下的独立专辑封面图片实体（如 cover.jpg、folder.jpg 或同名图片），在 Audio Track 无内嵌封面时作为后备封面源。
+_Avoid_: External Image, Folder Icon, Album Photo
 
 **Playback Queue**:
 当前播放会话中排队待播的有序音频曲目集合。在目录中点选曲目时，默认以当前目录的所有有效音频填充。
@@ -57,8 +61,12 @@ _Avoid_: Last Song, Resume Info, History Record
 _Avoid_: Last Folder, Recent Path, Navigation History
 
 **Lyrics Source**:
-与曲目关联的歌词提供方，支持从远程同目录同名 `.lrc` 文件解析或从音频内嵌标签中提取时间轴文本。
+与曲目关联的歌词提供方，支持从远程同目录同名 `.lrc` 文件解析或从音频内嵌标签中提取时间轴文本，具备逐行副歌展开、逐字时间戳清洗及主译双语时间对齐能力。
 _Avoid_: Lyric File, Lrc Text
+
+**Bilingual Lyric Line**:
+按毫秒级时间戳对齐的结构化单行歌词模型，聚合主歌词文本与可选的译文文本，在播放器中作为单一时间节点高亮与联动跳转。
+_Avoid_: Dual Lyrics, Translated Line, Subtitle Pair
 
 **Audio Focus**:
 Android 系统级音频焦点协商状态，用于响应来电暂停、挂断恢复及系统提示音时的临时音量压低（Ducking）。
