@@ -5,13 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.annotation.VisibleForTesting
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -36,6 +40,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 
 @OptIn(UnstableApi::class)
 class Media3AudioPlayerEngine(
@@ -45,6 +52,24 @@ class Media3AudioPlayerEngine(
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
 ) : AudioPlayerEngine {
+    private val activeServerRef = AtomicReference<WebDavServer?>(null)
+
+    val activeServer: WebDavServer?
+        get() = activeServerRef.get()
+
+    private val defaultDataSourceFactory = DefaultDataSource.Factory(context)
+
+    @VisibleForTesting
+    val delegatingDataSourceFactory: DataSource.Factory =
+        DataSource.Factory {
+            val server = activeServerRef.get()
+            if (server != null) {
+                mediaSourceAdapter.getDataSourceFactory(server).createDataSource()
+            } else {
+                defaultDataSourceFactory.createDataSource()
+            }
+        }
+
     val player: Player =
         customPlayer ?: run {
             val loadControl =
@@ -75,7 +100,7 @@ class Media3AudioPlayerEngine(
                 }
 
             val mediaSourceFactory =
-                DefaultMediaSourceFactory(context, extractorsFactory)
+                DefaultMediaSourceFactory(delegatingDataSourceFactory, extractorsFactory)
                     .setLoadErrorHandlingPolicy(WebDavLoadErrorHandlingPolicy())
 
             ExoPlayer
@@ -93,6 +118,33 @@ class Media3AudioPlayerEngine(
                 ).build()
         }
 
+    private val pendingEnrichedItems = ConcurrentHashMap<Int, MediaItem>()
+
+    private val activeTrackMetadataRef = AtomicReference<MediaMetadata?>(null)
+    private val sessionListeners = CopyOnWriteArrayList<Player.Listener>()
+
+    val sessionPlayer: Player =
+        object : ForwardingPlayer(player) {
+            override fun addListener(listener: Player.Listener) {
+                sessionListeners.add(listener)
+                super.addListener(listener)
+            }
+
+            override fun removeListener(listener: Player.Listener) {
+                sessionListeners.remove(listener)
+                super.removeListener(listener)
+            }
+
+            override fun getMediaMetadata(): MediaMetadata {
+                val active = activeTrackMetadataRef.get()
+                return if (active != null && active != MediaMetadata.EMPTY) {
+                    active
+                } else {
+                    super.getMediaMetadata()
+                }
+            }
+        }
+
     val mediaSession: MediaSession =
         customMediaSession ?: run {
             val sessionActivity =
@@ -106,7 +158,7 @@ class Media3AudioPlayerEngine(
                 )
 
             MediaSession
-                .Builder(context, player)
+                .Builder(context, sessionPlayer)
                 .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
                 .setSessionActivity(sessionActivity)
                 .setCallback(WebDavMediaSessionCallback(this))
@@ -169,7 +221,14 @@ class Media3AudioPlayerEngine(
                 mediaItem: MediaItem?,
                 reason: Int,
             ) {
-                _currentTrackIndex.value = player.currentMediaItemIndex
+                val oldIndex = _currentTrackIndex.value
+                val newIndex = player.currentMediaItemIndex
+                if (oldIndex != newIndex) {
+                    commitPendingEnrichedItem(oldIndex)
+                    activeTrackMetadataRef.set(null)
+                    player.playlistMetadata = MediaMetadata.EMPTY
+                }
+                _currentTrackIndex.value = newIndex
                 updatePositionAndDuration()
             }
 
@@ -202,6 +261,11 @@ class Media3AudioPlayerEngine(
         startPositionMs: Long,
     ) {
         if (tracks.isEmpty()) return
+
+        pendingEnrichedItems.clear()
+        activeTrackMetadataRef.set(null)
+        player.playlistMetadata = MediaMetadata.EMPTY
+        activeServerRef.set(server)
 
         val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
         _currentTrackIndex.value = validStartIndex
@@ -283,6 +347,9 @@ class Media3AudioPlayerEngine(
         server: WebDavServer,
         track: AudioTrack,
     ) {
+        if (activeServerRef.get() == null || player.mediaItemCount == 0) {
+            activeServerRef.set(server)
+        }
         if (index in 0..player.mediaItemCount) {
             if (player is ExoPlayer) {
                 val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
@@ -302,46 +369,101 @@ class Media3AudioPlayerEngine(
             val currentItem = player.getMediaItemAt(index)
             val currentMeta = currentItem.mediaMetadata
 
+            val isCurrentTrack = index == player.currentMediaItemIndex
+            val isActivelyPlayingOrBuffering =
+                isCurrentTrack && (
+                    _playbackState.value is PlaybackState.Playing ||
+                        _playbackState.value is PlaybackState.Buffering ||
+                        player.isPlaying ||
+                        player.playbackState == Player.STATE_BUFFERING ||
+                        (player.playbackState == Player.STATE_READY && player.playWhenReady)
+                )
+
+            val effectiveMeta =
+                if (isCurrentTrack && player.playlistMetadata != MediaMetadata.EMPTY) {
+                    player.playlistMetadata
+                } else {
+                    currentMeta
+                }
+
             val newArtworkUri = track.coverThumbnailPath?.let { Uri.fromFile(File(it)) }
-            val sameTitle = currentMeta.title?.toString() == track.title
-            val sameArtist = (currentMeta.artist?.toString() ?: "") == (track.artist ?: "")
-            val sameAlbum = (currentMeta.albumTitle?.toString() ?: "") == (track.album ?: "")
-            val sameArtwork = currentMeta.artworkUri == newArtworkUri
+            val sameTitle = effectiveMeta.title?.toString() == track.title
+            val sameArtist = (effectiveMeta.artist?.toString() ?: "") == (track.artist ?: "")
+            val sameAlbum = (effectiveMeta.albumTitle?.toString() ?: "") == (track.album ?: "")
+            val sameArtwork = effectiveMeta.artworkUri == newArtworkUri
 
             if (sameTitle && sameArtist && sameAlbum && sameArtwork) {
-                return // Metadata identical; bypass replaceMediaItem to prevent player re-buffering & notification churn
+                return // Metadata identical; bypass to prevent redundant churn
             }
 
             val metaBuilder =
-                currentMeta
+                currentItem.mediaMetadata
                     .buildUpon()
                     .setTitle(track.title)
                     .setArtist(track.artist)
                     .setAlbumTitle(track.album)
             if (newArtworkUri != null) {
                 metaBuilder.setArtworkUri(newArtworkUri)
-            } else if (currentMeta.artworkUri != null) {
+            } else if (currentItem.mediaMetadata.artworkUri != null) {
                 metaBuilder.setArtworkUri(null)
             }
+            val updatedMetadata = metaBuilder.build()
             val updatedItem =
                 currentItem
                     .buildUpon()
-                    .setMediaMetadata(metaBuilder.build())
+                    .setMediaMetadata(updatedMetadata)
                     .build()
-            player.replaceMediaItem(index, updatedItem)
+
+            if (isActivelyPlayingOrBuffering) {
+                // Non-disruptive metadata update for actively playing or buffering track:
+                // Update activeTrackMetadata and trigger MediaSession listeners so notification, lockscreen,
+                // and presentation flows receive enriched tags immediately without destroying decoder pipeline.
+                activeTrackMetadataRef.set(updatedMetadata)
+                player.playlistMetadata = updatedMetadata
+                pendingEnrichedItems[index] = updatedItem
+
+                for (l in sessionListeners) {
+                    try {
+                        l.onMediaMetadataChanged(updatedMetadata)
+                    } catch (_: Throwable) {
+                    }
+                }
+            } else {
+                pendingEnrichedItems.remove(index)
+                // For non-playing queue items (upcoming or historical tracks, or when player is idle),
+                // safely update the playlist item via player.replaceMediaItem() so subsequent track transitions pick up enriched metadata.
+                player.replaceMediaItem(index, updatedItem)
+            }
+        }
+    }
+
+    private fun commitPendingEnrichedItem(index: Int) {
+        val pendingItem = pendingEnrichedItems.remove(index)
+        if (pendingItem != null && index in 0 until player.mediaItemCount) {
+            try {
+                player.replaceMediaItem(index, pendingItem)
+            } catch (_: Throwable) {
+            }
         }
     }
 
     override fun stop() {
+        val currentIndex = _currentTrackIndex.value
+        commitPendingEnrichedItem(currentIndex)
+        activeTrackMetadataRef.set(null)
         audioFocusHandler.abandonAudioFocus()
         stopPositionTicker()
         player.stop()
+        player.playlistMetadata = MediaMetadata.EMPTY
         _playbackState.value = PlaybackState.Idle
         _currentPositionMs.value = 0L
         _bufferedPositionMs.value = 0L
     }
 
     override fun release() {
+        pendingEnrichedItems.clear()
+        activeTrackMetadataRef.set(null)
+        sessionListeners.clear()
         audioFocusHandler.abandonAudioFocus()
         stopPositionTicker()
         player.removeListener(listener)

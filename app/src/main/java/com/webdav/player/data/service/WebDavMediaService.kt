@@ -1,6 +1,9 @@
 package com.webdav.player.data.service
 
+import android.app.Notification
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -26,10 +29,36 @@ class WebDavMediaService : MediaSessionService() {
         super.onCreate()
         val host = PlaybackSessionHost.getInstance(applicationContext)
         sessionHost = host
+        val notification = host.buildCurrentNotification()
+        startForegroundSafely(notification, host.notificationProvider.notificationId)
         host.attachService(this)
         setMediaNotificationProvider(host.notificationProvider)
         addSession(host.mediaSession)
     }
+
+    fun startForegroundSafely(
+        notification: Notification,
+        notificationId: Int = WebDavNotificationProvider.NOTIFICATION_ID,
+    ): Boolean =
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    notificationId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+                )
+            } else {
+                startForeground(notificationId, notification)
+            }
+            true
+        } catch (e: Throwable) {
+            try {
+                startForeground(notificationId, notification)
+                true
+            } catch (fallbackError: Throwable) {
+                false
+            }
+        }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
         sessionHost?.mediaSession ?: PlaybackSessionHost.getInstance(applicationContext).mediaSession

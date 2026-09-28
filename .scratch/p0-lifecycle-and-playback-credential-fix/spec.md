@@ -1,6 +1,6 @@
 # Spec: P0 Lifecycle and Playback Credential Fix
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 

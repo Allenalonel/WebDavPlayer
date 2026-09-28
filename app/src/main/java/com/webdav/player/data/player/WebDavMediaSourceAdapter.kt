@@ -49,6 +49,12 @@ interface WebDavMediaSourceAdapter {
         server: WebDavServer,
         tracks: List<AudioTrack>,
     ): List<MediaSource>
+
+    /**
+     * Returns a DataSource.Factory configured for the given WebDAV server,
+     * including authentication credentials, timeouts, and custom SSL configuration.
+     */
+    fun getDataSourceFactory(server: WebDavServer): DataSource.Factory
 }
 
 @OptIn(UnstableApi::class)
@@ -57,15 +63,30 @@ class DefaultWebDavMediaSourceAdapter(
     val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
     val loadErrorHandlingPolicy: LoadErrorHandlingPolicy = WebDavLoadErrorHandlingPolicy(),
 ) : WebDavMediaSourceAdapter {
-    private val dataSourceFactoryCache = ConcurrentHashMap<String, DataSource.Factory>()
+    private data class DataSourceCacheKey(
+        val serverId: Long,
+        val endpointUrl: String,
+        val username: String,
+        val password: String,
+        val allowSelfSigned: Boolean,
+    )
+
+    private val dataSourceFactoryCache = ConcurrentHashMap<DataSourceCacheKey, DataSource.Factory>()
 
     @VisibleForTesting
     fun getStreamingClientForServer(server: WebDavServer): OkHttpClient = webDavClient.getStreamingClientForServer(server)
 
-    fun getDataSourceFactory(server: WebDavServer): DataSource.Factory = getOrCreateDataSourceFactory(server)
+    override fun getDataSourceFactory(server: WebDavServer): DataSource.Factory = getOrCreateDataSourceFactory(server)
 
     private fun getOrCreateDataSourceFactory(server: WebDavServer): DataSource.Factory {
-        val cacheKey = "${server.id}:${server.endpointUrl}:${server.username}:${server.password}"
+        val cacheKey =
+            DataSourceCacheKey(
+                serverId = server.id,
+                endpointUrl = server.endpointUrl,
+                username = server.username,
+                password = server.password,
+                allowSelfSigned = server.allowSelfSigned,
+            )
         return dataSourceFactoryCache.computeIfAbsent(cacheKey) {
             val client = getStreamingClientForServer(server)
             OkHttpDataSource

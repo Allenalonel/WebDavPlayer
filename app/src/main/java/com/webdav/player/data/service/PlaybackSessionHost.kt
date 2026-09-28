@@ -1,5 +1,6 @@
 package com.webdav.player.data.service
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
@@ -69,6 +70,8 @@ class PlaybackSessionHost(
     var isForegroundActive: Boolean = false
         private set
 
+    private var hasPlaybackStarted: Boolean = false
+
     private var stateObserverJob: Job? = null
 
     init {
@@ -91,66 +94,73 @@ class PlaybackSessionHost(
             is PlaybackState.Playing,
             is PlaybackState.Buffering,
             -> {
-                elevateForeground()
+                hasPlaybackStarted = true
+                elevateForeground(state)
             }
 
             is PlaybackState.Paused -> {
-                demoteForeground(removeNotification = false)
+                demoteForeground(removeNotification = false, playbackState = state)
             }
 
             is PlaybackState.Error -> {
-                demoteForeground(removeNotification = false)
+                demoteForeground(removeNotification = false, playbackState = state)
             }
 
-            is PlaybackState.Idle,
-            is PlaybackState.Ended,
-            -> {
-                demoteForeground(removeNotification = true)
+            is PlaybackState.Idle -> {
+                if (hasPlaybackStarted) {
+                    hasPlaybackStarted = false
+                    demoteForeground(removeNotification = true, playbackState = state)
+                }
+            }
+
+            is PlaybackState.Ended -> {
+                hasPlaybackStarted = false
+                demoteForeground(removeNotification = true, playbackState = state)
             }
         }
     }
 
     fun attachService(service: WebDavMediaService) {
         this.attachedService = service
-        handlePlaybackStateChanged(playerEngine.playbackState.value)
+        this.isForegroundActive = true
+        val currentState = playerEngine.playbackState.value
+        if (currentState !is PlaybackState.Idle) {
+            handlePlaybackStateChanged(currentState)
+        }
     }
 
     fun detachService(service: WebDavMediaService? = null) {
         if (service == null || this.attachedService == service) {
             this.attachedService = null
             this.isForegroundActive = false
+            this.hasPlaybackStarted = false
         }
     }
 
-    fun elevateForeground() {
+    fun buildCurrentNotification(playbackState: PlaybackState? = null): Notification {
+        val targetState = playbackState ?: playerEngine.playbackState.value
+        return notificationProvider.buildNotification(mediaSession, targetState)
+    }
+
+    fun elevateForeground(playbackState: PlaybackState? = null) {
         val service =
             attachedService ?: run {
                 startServiceInternal()
                 return
             }
 
-        val notification = notificationProvider.buildNotification(mediaSession, playerEngine.playbackState.value)
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                service.startForeground(
-                    notificationProvider.notificationId,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-                )
-            } else {
-                service.startForeground(
-                    notificationProvider.notificationId,
-                    notification,
-                )
-            }
+        val notification = buildCurrentNotification(playbackState)
+        if (service.startForegroundSafely(notification, notificationProvider.notificationId)) {
             isForegroundActive = true
-        } catch (e: Throwable) {
-            // Gracefully handle foreground service restrictions
         }
     }
 
-    fun demoteForeground(removeNotification: Boolean) {
+    fun demoteForeground(
+        removeNotification: Boolean,
+        playbackState: PlaybackState? = null,
+    ) {
         val service = attachedService
+        val targetState = playbackState ?: playerEngine.playbackState.value
         if (service != null && isForegroundActive) {
             try {
                 if (removeNotification) {
@@ -160,7 +170,7 @@ class PlaybackSessionHost(
                     val notificationManager =
                         context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                     val notification =
-                        notificationProvider.buildNotification(mediaSession, playerEngine.playbackState.value)
+                        notificationProvider.buildNotification(mediaSession, targetState)
                     notificationManager?.notify(notificationProvider.notificationId, notification)
                 }
             } catch (e: Throwable) {
@@ -213,6 +223,7 @@ class PlaybackSessionHost(
     }
 
     override fun stop() {
+        hasPlaybackStarted = false
         playerEngine.stop()
         demoteForeground(removeNotification = true)
     }
@@ -220,6 +231,7 @@ class PlaybackSessionHost(
     override fun release() {
         stateObserverJob?.cancel()
         stateObserverJob = null
+        hasPlaybackStarted = false
         playerEngine.release()
         attachedService = null
         isForegroundActive = false

@@ -3,6 +3,8 @@ package com.webdav.player.data.player
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
@@ -13,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -243,21 +246,131 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun updateTrack_updatesMediaItemMetadata() {
+    fun updateTrack_onActivelyPlayingTrack_doesNotCallReplaceMediaItem_andPreservesPositionAndTimeline() {
         engine.playTracks(
             server = testServer,
-            tracks = listOf(track1),
+            tracks = listOf(track1, track2),
             startIndex = 0,
+            startPositionMs = 5000L,
         )
+
+        val originalItem = engine.player.getMediaItemAt(0)
+        assertEquals(5000L, engine.currentPositionMs.value)
 
         val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist")
         engine.updateTrack(0, updated)
 
         // Verify mediaSession is active and intact
         assertNotNull(engine.mediaSession)
+
+        // Active playing MediaItem is NOT replaced to avoid decoder destruction / rebuffering glitches
+        val currentItem = engine.player.getMediaItemAt(0)
+        assertEquals("01.mp3", currentItem.mediaMetadata.title?.toString())
+        assertEquals(originalItem.mediaMetadata.title, currentItem.mediaMetadata.title)
+
+        // Position is preserved and not reset
+        assertEquals(5000L, engine.currentPositionMs.value)
+        assertTrue(engine.playbackState.value is PlaybackState.Playing || engine.playbackState.value is PlaybackState.Buffering)
+
+        // Playlist and mediaSession mediaMetadata must be updated non-destructively for external presentation flows
+        assertEquals(
+            "Updated Song Title",
+            engine.mediaSession.player.mediaMetadata.title
+                ?.toString(),
+        )
+        assertEquals(
+            "Updated Artist",
+            engine.mediaSession.player.mediaMetadata.artist
+                ?.toString(),
+        )
+
+        // Notification constructed from mediaSession must reflect updated metadata
+        val notificationProvider = com.webdav.player.data.service.WebDavNotificationProvider(context)
+        val notification = notificationProvider.buildNotification(engine.mediaSession, engine.playbackState.value)
+        assertEquals("Updated Song Title", notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
+        assertEquals("Updated Artist", notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
+    }
+
+    @Test
+    fun updateTrack_onActiveTrack_persistsEnrichedMetadata_whenTransitioningToNextTrack() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1, track2),
+            startIndex = 0,
+        )
+
+        val updated = track1.copy(title = "Enriched Song 1", artist = "Enriched Artist 1")
+        engine.updateTrack(0, updated)
+
+        // While active, playlist item at index 0 remains untouched to prevent timeline disruption
+        assertEquals("01.mp3", engine.player.getMediaItemAt(0).mediaMetadata.title?.toString())
+        assertEquals("Enriched Song 1", engine.mediaSession.player.mediaMetadata.title?.toString())
+
+        // Transition to next track: track 0 transitions to non-active and pending enrichment is safely committed to playlist
+        engine.skipToNext()
+        assertEquals(1, engine.currentTrackIndex.value)
+        assertEquals("Enriched Song 1", engine.player.getMediaItemAt(0).mediaMetadata.title?.toString())
+        assertEquals("Enriched Artist 1", engine.player.getMediaItemAt(0).mediaMetadata.artist?.toString())
+
+        // Return to track 0: metadata remains intact in playlist item and mediaSession
+        engine.skipToPrevious()
+        assertEquals(0, engine.currentTrackIndex.value)
+        assertEquals("Enriched Song 1", engine.player.getMediaItemAt(0).mediaMetadata.title?.toString())
+        assertEquals("Enriched Song 1", engine.mediaSession.player.mediaMetadata.title?.toString())
+    }
+
+    @Test
+    fun updateTrack_onActiveTrack_retainsMetadata_duringSingleLoopTransition() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0,
+        )
+        engine.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
+
+        val updated = track1.copy(title = "Loop Enriched Song", artist = "Loop Artist")
+        engine.updateTrack(0, updated)
+
+        assertEquals("Loop Enriched Song", engine.mediaSession.player.mediaMetadata.title?.toString())
+
+        // Simulate single loop media transition (same index transitions to itself)
+        engine.seekTo(0L)
+        assertEquals(0, engine.currentTrackIndex.value)
+        assertEquals("Loop Enriched Song", engine.mediaSession.player.mediaMetadata.title?.toString())
+    }
+
+    @Test
+    fun updateTrack_onNonPlayingTrack_updatesPlaylistItemViaReplaceMediaItem() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1, track2),
+            startIndex = 0,
+        )
+
+        val updatedQueued = track2.copy(title = "Updated Track 2", artist = "Updated Artist 2")
+        engine.updateTrack(1, updatedQueued)
+
+        // Queued / upcoming item is safely replaced in player playlist
+        val queuedItem = engine.player.getMediaItemAt(1)
+        assertEquals("Updated Track 2", queuedItem.mediaMetadata.title?.toString())
+        assertEquals("Updated Artist 2", queuedItem.mediaMetadata.artist?.toString())
+
+        // Active track item remains intact
+        val activeItem = engine.player.getMediaItemAt(0)
+        assertEquals("01.mp3", activeItem.mediaMetadata.title?.toString())
+    }
+
+    @Test
+    fun updateTrack_whenPlayerIdle_updatesPlaylistItemViaReplaceMediaItem() {
+        engine.insertTrack(0, testServer, track1)
+        assertEquals(PlaybackState.Idle, engine.playbackState.value)
+
+        val updated = track1.copy(title = "Idle Updated Title", artist = "Idle Artist")
+        engine.updateTrack(0, updated)
+
         val item = engine.player.getMediaItemAt(0)
-        assertEquals("Updated Song Title", item.mediaMetadata.title?.toString())
-        assertEquals("Updated Artist", item.mediaMetadata.artist?.toString())
+        assertEquals("Idle Updated Title", item.mediaMetadata.title?.toString())
+        assertEquals("Idle Artist", item.mediaMetadata.artist?.toString())
     }
 
     @Test
@@ -268,13 +381,73 @@ class Media3AudioPlayerEngineTest {
             startIndex = 0,
         )
 
-        // Calling updateTrack with the exact same track should be a no-op
-        val initialItem = engine.player.getMediaItemAt(0)
-        engine.updateTrack(0, track1)
-        val afterItem = engine.player.getMediaItemAt(0)
+        val updated = track1.copy(title = "Updated Title")
+        engine.updateTrack(0, updated)
+        assertEquals(
+            "Updated Title",
+            engine.player.playlistMetadata.title
+                ?.toString(),
+        )
 
-        // Verifies no exception and player state remains stable
-        assertEquals(initialItem.mediaMetadata.title, afterItem.mediaMetadata.title)
+        // Calling updateTrack with the exact same track should be a no-op
+        engine.updateTrack(0, updated)
+        assertEquals(
+            "Updated Title",
+            engine.player.playlistMetadata.title
+                ?.toString(),
+        )
+    }
+
+    @Test
+    fun reactiveSession_receivesEnrichedMetadata_whileActiveTimelineRemainsIntact() {
+        val appSession =
+            com.webdav.player.domain.session.MusicPlayerAppSessionImpl(
+                playerEngine = engine,
+                coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main),
+            )
+        appSession.setActiveServer(testServer)
+        val file1 =
+            com.webdav.player.domain.model
+                .RemoteFile(name = "01.mp3", path = "/Music/01.mp3")
+        val file2 =
+            com.webdav.player.domain.model
+                .RemoteFile(name = "02.flac", path = "/Music/02.flac")
+        val dir =
+            com.webdav.player.domain.model
+                .RemoteDirectory(path = "/Music/", name = "Music", files = listOf(file1, file2))
+        appSession.playDirectoryTrack(dir, file1)
+
+        assertEquals(
+            "01.mp3",
+            appSession.sessionState.value.currentTrack
+                ?.title,
+        )
+
+        // Enrich playing track
+        val enrichedTrack1 = track1.copy(title = "Enriched Title 1", artist = "Artist 1")
+        engine.updateTrack(0, enrichedTrack1)
+
+        // Active item timeline is continuous and not replaced
+        val activeItem = engine.player.getMediaItemAt(0)
+        assertEquals("01.mp3", activeItem.mediaMetadata.title?.toString())
+        assertEquals(
+            "Enriched Title 1",
+            engine.player.playlistMetadata.title
+                ?.toString(),
+        )
+
+        // Queued track enrichment safely updates media item
+        val enrichedTrack2 = track2.copy(title = "Enriched Title 2")
+        engine.updateTrack(1, enrichedTrack2)
+        assertEquals(
+            "Enriched Title 2",
+            engine.player
+                .getMediaItemAt(1)
+                .mediaMetadata.title
+                ?.toString(),
+        )
+
+        appSession.release()
     }
 
     @Test
@@ -289,5 +462,77 @@ class Media3AudioPlayerEngineTest {
         engine.audioFocusHandler.handleFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN)
         assertFalse(engine.audioFocusHandler.isDucked)
         assertEquals(1.0f, engine.getVolume(), 0.01f)
+    }
+
+    @Test
+    fun activeServer_initiallyNull() {
+        assertNull(engine.activeServer)
+    }
+
+    @Test
+    fun playTracks_tracksActiveServer() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0,
+            startPositionMs = 0L,
+        )
+        assertEquals(testServer, engine.activeServer)
+    }
+
+    @Test
+    fun insertTrack_whenActiveServerNull_tracksServer() {
+        assertNull(engine.activeServer)
+        engine.insertTrack(0, testServer, track1)
+        assertEquals(testServer, engine.activeServer)
+    }
+
+    @Test
+    fun delegatingDataSourceFactory_whenActiveServerNull_fallsBackToDefaultDataSource() {
+        assertNull(engine.activeServer)
+        val dataSource = engine.delegatingDataSourceFactory.createDataSource()
+        assertNotNull(dataSource)
+        assertTrue(
+            "Expected DefaultDataSource when activeServer is null, but was ${dataSource::class.java.name}",
+            dataSource is DefaultDataSource,
+        )
+    }
+
+    @Test
+    fun delegatingDataSourceFactory_whenActiveServerSet_delegatesToMediaSourceAdapter() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0,
+            startPositionMs = 0L,
+        )
+        val dataSource = engine.delegatingDataSourceFactory.createDataSource()
+        assertNotNull(dataSource)
+        assertTrue(
+            "Expected OkHttpDataSource when activeServer is set, but was ${dataSource::class.java.name}",
+            dataSource is OkHttpDataSource,
+        )
+    }
+
+    @Test
+    fun updateTrack_replacesMediaItem_andRetainsActiveServerContext() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1, track2),
+            startIndex = 0,
+        )
+        assertEquals(testServer, engine.activeServer)
+
+        val updated = track2.copy(title = "Rebuilt Title")
+        engine.updateTrack(1, updated)
+
+        // Verifies activeServer remains preserved
+        assertEquals(testServer, engine.activeServer)
+        val item = engine.player.getMediaItemAt(1)
+        assertEquals("Rebuilt Title", item.mediaMetadata.title?.toString())
+
+        // Delegating factory provides active server's OkHttpDataSource
+        val dataSource = engine.delegatingDataSourceFactory.createDataSource()
+        assertTrue(dataSource is OkHttpDataSource)
     }
 }

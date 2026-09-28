@@ -1,6 +1,7 @@
 package com.webdav.player.data.service
 
 import android.content.Intent
+import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ApplicationProvider
@@ -9,12 +10,16 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.WebDavServer
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 
 @OptIn(UnstableApi::class)
@@ -49,6 +54,7 @@ class WebDavMediaServiceTest {
     @After
     fun tearDown() {
         serviceController.destroy()
+        PlaybackSessionHost.resetForTesting()
     }
 
     @Test
@@ -57,6 +63,21 @@ class WebDavMediaServiceTest {
         // Service owns its mediaSession and playerEngine cohesively without app downcast
         assertNotNull(service.mediaSession)
         assertNotNull(service.playerEngine)
+    }
+
+    @Test
+    fun onCreate_synchronouslyInvokesStartForeground_withValidNotificationOnFirstLifecycleFrame() {
+        val shadowService = shadowOf(service)
+        val host = PlaybackSessionHost.getInstance(app)
+
+        // Verifies immediate synchronous foreground elevation on frame 0
+        assertNotNull(shadowService.lastForegroundNotification)
+        assertEquals(host.notificationProvider.notificationId, shadowService.lastForegroundNotificationId)
+        assertFalse(shadowService.isForegroundStopped)
+
+        // Lifecycle seam state is harmonized
+        assertEquals(service, host.attachedService)
+        assertTrue(host.isForegroundActive)
     }
 
     @Test

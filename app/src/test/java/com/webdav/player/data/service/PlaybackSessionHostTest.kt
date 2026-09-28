@@ -109,6 +109,45 @@ class PlaybackSessionHostTest {
         assertNotNull(host.audioFocusHandler)
         // Verify service attached to host during its onCreate
         assertEquals(service, host.attachedService)
+        assertTrue(host.isForegroundActive)
+    }
+
+    @Test
+    fun attachService_establishesIsForegroundActive_immediatelyUponServiceBinding() {
+        host.detachService(service)
+        assertFalse(host.isForegroundActive)
+        assertNull(host.attachedService)
+
+        host.attachService(service)
+        assertEquals(service, host.attachedService)
+        assertTrue(host.isForegroundActive)
+    }
+
+    @Test
+    fun initialPreparation_doesNotPrematurelyDemoteForeground() {
+        val shadowService = shadowOf(service)
+        assertTrue(host.isForegroundActive)
+        assertFalse(shadowService.isForegroundStopped)
+
+        // During initial preparation, playerEngine is in Idle state.
+        // Transitioning to Idle before active playback starts must not prematurely trigger demoteForeground()
+        host.handlePlaybackStateChanged(PlaybackState.Idle)
+        assertTrue(host.isForegroundActive)
+        assertFalse(shadowService.isForegroundStopped)
+        assertNotNull(shadowService.lastForegroundNotification)
+    }
+
+    @Test
+    fun stateTransitions_bufferingSafelyUpdatesNotification_andKeepsOngoingTrue() {
+        val shadowService = shadowOf(service)
+
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertTrue(host.isForegroundActive)
+        assertFalse(shadowService.isForegroundStopped)
+
+        val notification = shadowService.lastForegroundNotification
+        assertNotNull(notification)
+        assertTrue(notification.flags and android.app.Notification.FLAG_ONGOING_EVENT != 0)
     }
 
     @Test

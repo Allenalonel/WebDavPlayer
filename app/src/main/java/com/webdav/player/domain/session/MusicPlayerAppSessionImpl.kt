@@ -56,9 +56,10 @@ class MusicPlayerAppSessionImpl(
 
     private val serverLastDirectories = java.util.concurrent.ConcurrentHashMap<Long, String>()
     private var periodicFlushJob: Job? = null
+    private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
 
     init {
-        coroutineScope.launch {
+        internalJobs += coroutineScope.launch {
             // Restore cold start state first if store is provided
             if (sessionStore != null) {
                 try {
@@ -72,17 +73,21 @@ class MusicPlayerAppSessionImpl(
 
             // Observe active server from repository after initial restoration
             if (serverRepository != null) {
-                serverRepository.getActiveServer().collect { server ->
-                    val current = _sessionState.value
-                    if (current.activeServer?.id != server?.id) {
-                        setActiveServer(server)
+                try {
+                    serverRepository.getActiveServer().collect { server ->
+                        val current = _sessionState.value
+                        if (current.activeServer?.id != server?.id) {
+                            setActiveServer(server)
+                        }
                     }
+                } catch (e: Throwable) {
+                    // Gracefully ignore closed database or cancelled repository flow during teardown
                 }
             }
         }
 
         // Observe player engine state changes
-        coroutineScope.launch {
+        internalJobs += coroutineScope.launch {
             playerEngine.playbackState.collect { state ->
                 _sessionState.update { current ->
                     val targetState =
@@ -107,7 +112,7 @@ class MusicPlayerAppSessionImpl(
         }
 
         // High-frequency playback progress pipeline calculated and throttled off the main thread
-        coroutineScope.launch(progressDispatcher) {
+        internalJobs += coroutineScope.launch(progressDispatcher) {
             combine(
                 playerEngine.currentPositionMs,
                 playerEngine.durationMs,
@@ -128,7 +133,7 @@ class MusicPlayerAppSessionImpl(
                 }
         }
 
-        coroutineScope.launch {
+        internalJobs += coroutineScope.launch {
             playerEngine.durationMs.collect { dur ->
                 if (playerEngine.playbackState.value !is PlaybackState.Idle) {
                     _sessionState.update { it.copy(durationMs = dur) }
@@ -136,7 +141,7 @@ class MusicPlayerAppSessionImpl(
             }
         }
 
-        coroutineScope.launch {
+        internalJobs += coroutineScope.launch {
             playerEngine.currentTrackIndex.collect { index ->
                 if (playerEngine.playbackState.value !is PlaybackState.Idle) {
                     var indexChanged = false
@@ -552,6 +557,8 @@ class MusicPlayerAppSessionImpl(
 
     override fun release() {
         stopPeriodicFlush()
+        internalJobs.forEach { it.cancel() }
+        internalJobs.clear()
         playerEngine.release()
         _playbackProgress.value = PlaybackProgress.ZERO
     }
