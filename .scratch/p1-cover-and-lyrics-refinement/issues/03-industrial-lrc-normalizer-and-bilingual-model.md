@@ -4,15 +4,15 @@
 
 **Blocked by:** None (can start in parallel with 01)
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Extend `LyricLine` domain model with `translation: String? = null` while preserving backward compatibility.
-- [ ] Refactor `LrcParser` to distinguish leading timestamps from inline timestamps:
+- [x] Extend `LyricLine` domain model with `translation: String? = null` while preserving backward compatibility.
+- [x] Refactor `LrcParser` to distinguish leading timestamps from inline timestamps:
   - Leading consecutive timestamps (`[01:00.00][02:30.00] Chorus`) generate separate `LyricLine` entries at their respective timeline points.
   - Inline timestamps inside the line (`[01:00.00] Word1 [01:00.50] Word2` or `<01:00.50>`) are stripped from the text and do NOT create duplicate lines.
-- [ ] Implement deduplication: remove consecutive identical text lines whose timestamps are within a 300ms window.
-- [ ] Implement bilingual lyric merging: when consecutive lines have identical or nearly identical (<300ms) timestamps, merge the second line as the `translation` of the first rather than treating it as a disjoint line.
-- [ ] Add comprehensive unit tests in `LrcParserTest` covering:
+- [x] Implement deduplication: remove consecutive identical text lines whose timestamps are within a 300ms window.
+- [x] Implement bilingual lyric merging: when consecutive lines have identical or nearly identical (<300ms) timestamps, merge the second line as the `translation` of the first rather than treating it as a disjoint line.
+- [x] Add comprehensive unit tests in `LrcParserTest` covering:
   - Inline word-by-word karaoke timestamps without sentence repetition.
   - Standard multi-timestamp repeated choruses.
   - Bilingual paired lyrics merging into `LyricLine(mainText, translation)`.

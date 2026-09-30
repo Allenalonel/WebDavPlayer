@@ -208,15 +208,152 @@ class LrcParserTest {
     }
 
     @Test
-    fun parse_duplicateTimestamps_preservesBothLines() {
+    fun parse_duplicateIdenticalLines_within300ms_deduplicated() {
+        val lrc = """
+            [00:10.00]Echo line
+            [00:10.15]Echo line
+        """.trimIndent()
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(10000L, lyrics.lines[0].timestampMs)
+        assertEquals("Echo line", lyrics.lines[0].text)
+        assertEquals(null, lyrics.lines[0].translation)
+    }
+
+    @Test
+    fun parse_duplicateExactTimestampAndText_deduplicated() {
+        val lrc = """
+            [00:10.00]Identical line
+            [00:10.00]Identical line
+        """.trimIndent()
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(10000L, lyrics.lines[0].timestampMs)
+        assertEquals("Identical line", lyrics.lines[0].text)
+        assertEquals(null, lyrics.lines[0].translation)
+    }
+
+    @Test
+    fun parse_bilingualIdenticalTimestamp_mergesAsTranslation() {
         val lrc = """
             [00:15.00]Line A
             [00:15.00]Line B
         """.trimIndent()
         val lyrics = LrcParser.parse(lrc)
 
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(15000L, lyrics.lines[0].timestampMs)
+        assertEquals("Line A", lyrics.lines[0].text)
+        assertEquals("Line B", lyrics.lines[0].translation)
+        assertEquals("Line A", lyrics.lines[0].mainText)
+        assertTrue(lyrics.lines[0].hasTranslation)
+    }
+
+    @Test
+    fun parse_bilingualNearlyIdenticalTimestamp_within300ms_mergesAsTranslation() {
+        val lrc = """
+            [00:15.000]Hello world
+            [00:15.200]你好世界
+        """.trimIndent()
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(15000L, lyrics.lines[0].timestampMs)
+        assertEquals("Hello world", lyrics.lines[0].text)
+        assertEquals("你好世界", lyrics.lines[0].translation)
+    }
+
+    @Test
+    fun parse_bilingualTimestamps_beyond300ms_keepsSeparateLines() {
+        val lrc = """
+            [00:15.000]Line A
+            [00:15.350]Line B
+        """.trimIndent()
+        val lyrics = LrcParser.parse(lrc)
+
         assertEquals(2, lyrics.lines.size)
         assertEquals(15000L, lyrics.lines[0].timestampMs)
-        assertEquals(15000L, lyrics.lines[1].timestampMs)
+        assertEquals("Line A", lyrics.lines[0].text)
+        assertEquals(null, lyrics.lines[0].translation)
+        assertEquals(15350L, lyrics.lines[1].timestampMs)
+        assertEquals("Line B", lyrics.lines[1].text)
+        assertEquals(null, lyrics.lines[1].translation)
+    }
+
+    @Test
+    fun parse_inlineSquareBracketTimestamps_strippedWithoutLineDuplication() {
+        val lrc = "[01:00.00] Word1 [01:00.50] Word2 [01:01.00] Word3"
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(60000L, lyrics.lines[0].timestampMs)
+        assertEquals("Word1 Word2 Word3", lyrics.lines[0].text)
+    }
+
+    @Test
+    fun parse_inlineAngleBracketKaraokeTimestamps_strippedWithoutLineDuplication() {
+        val lrc = "[01:00.00]<01:00.00>Never <01:00.30>gonna <01:00.60>give <01:00.90>you <01:01.20>up"
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(60000L, lyrics.lines[0].timestampMs)
+        assertEquals("Never gonna give you up", lyrics.lines[0].text)
+    }
+
+    @Test
+    fun parse_cjkKaraokeInlineTimestamps_strippedCleanly() {
+        val lrc = "[00:01.00]我[00:01.50]爱[00:02.00]你"
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(1000L, lyrics.lines[0].timestampMs)
+        assertEquals("我爱你", lyrics.lines[0].text)
+    }
+
+    @Test
+    fun parse_multiTimestampWithInlineTimestamps_stripsInlineAndExpandsLeading() {
+        val lrc = "[01:00.00][02:30.00]Chorus [01:00.50]with [02:30.50]inline"
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(2, lyrics.lines.size)
+        assertEquals(60000L, lyrics.lines[0].timestampMs)
+        assertEquals("Chorus with inline", lyrics.lines[0].text)
+        assertEquals(150000L, lyrics.lines[1].timestampMs)
+        assertEquals("Chorus with inline", lyrics.lines[1].text)
+    }
+
+    @Test
+    fun parse_bilingualRepeatedChorus_mergesTranslationAtBothTimestamps() {
+        val lrc = """
+            [01:00.00][02:00.00]Chorus line
+            [01:00.00][02:00.00]副歌行
+        """.trimIndent()
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(2, lyrics.lines.size)
+        assertEquals(60000L, lyrics.lines[0].timestampMs)
+        assertEquals("Chorus line", lyrics.lines[0].text)
+        assertEquals("副歌行", lyrics.lines[0].translation)
+        assertEquals(120000L, lyrics.lines[1].timestampMs)
+        assertEquals("Chorus line", lyrics.lines[1].text)
+        assertEquals("副歌行", lyrics.lines[1].translation)
+    }
+
+    @Test
+    fun parse_deduplicateDuplicateBeforeBilingualMerge() {
+        val lrc = """
+            [00:10.00]Main line
+            [00:10.10]Main line
+            [00:10.15]翻译行
+            [00:10.20]翻译行
+        """.trimIndent()
+        val lyrics = LrcParser.parse(lrc)
+
+        assertEquals(1, lyrics.lines.size)
+        assertEquals(10000L, lyrics.lines[0].timestampMs)
+        assertEquals("Main line", lyrics.lines[0].text)
+        assertEquals("翻译行", lyrics.lines[0].translation)
     }
 }
