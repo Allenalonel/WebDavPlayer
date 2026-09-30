@@ -275,6 +275,37 @@ class DirectoryBrowserViewModelTest {
         }
 
     @Test
+    fun onAudioTrackClicked_propagatesCachedMetadataToMusicPlayerAppSession() =
+        runTest {
+            advanceUntilIdle()
+
+            val audioFile = rootDir.files.first()
+            val cachedMeta =
+                TrackMetadata(
+                    serverId = sampleServer.id,
+                    remotePath = audioFile.path,
+                    title = "Cached Title",
+                    artist = "Cached Artist",
+                    album = "Cached Album",
+                    durationMs = 240000L,
+                    coverThumbnailPath = "/covers/root_cover.jpg",
+                )
+            fakeTrackMetadataRepository.emitMetadata(listOf(cachedMeta))
+            advanceUntilIdle()
+
+            assertEquals(cachedMeta, viewModel.uiState.value.metadataMap[audioFile.path])
+
+            viewModel.onAudioTrackClicked(audioFile)
+
+            assertEquals(rootDir, fakeMusicPlayerAppSession.lastPlayDirectory)
+            assertEquals(audioFile, fakeMusicPlayerAppSession.lastPlaySelectedFile)
+            assertEquals(
+                cachedMeta,
+                fakeMusicPlayerAppSession.lastPlayInitialMetadata[audioFile.path],
+            )
+        }
+
+    @Test
     fun onAudioTrackClicked_ignoresNonAudioFiles() =
         runTest {
             advanceUntilIdle()

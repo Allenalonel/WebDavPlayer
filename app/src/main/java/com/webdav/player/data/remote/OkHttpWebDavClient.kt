@@ -193,10 +193,14 @@ class OkHttpWebDavClient(
                 client.newCall(requestBuilder.build()).execute().use { response ->
                     if (response.code == 206 || response.code == 200) {
                         response.body?.bytes()
-                    } else {
+                    } else if (response.code == 404) {
                         null
+                    } else {
+                        throw java.io.IOException("HTTP error ${response.code} fetching range for $remotePath")
                     }
                 }
+            } catch (e: java.io.IOException) {
+                throw e
             } catch (e: Exception) {
                 null
             }

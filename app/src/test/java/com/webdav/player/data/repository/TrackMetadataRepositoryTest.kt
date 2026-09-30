@@ -106,17 +106,87 @@ class TrackMetadataRepositoryTest {
     }
 
     @Test
-    fun resolveMetadata_failedFetch_gracefullyFallsBackToCleanFileName() = runTest {
-        // No stub registered in fake client, returns null
+    fun resolveMetadata_transientNetworkError_doesNotPoisonRoomCache_allowsRetryOnSubsequentVisit() = runTest {
+        // No stub registered in fake client, returns null (simulating transient network error)
         val file = RemoteFile(name = "broken_song.flac", path = "/music/broken_song.flac", size = 2000L)
 
         repository.resolveMetadata(testServer, listOf(file))
 
-        val cached = repository.getCachedMetadata(1L, "/music/broken_song.flac")
-        assertNotNull(cached)
-        assertEquals("broken_song", cached?.title)
+        // Must NOT poison Room with a null entry
+        val cachedAfterFailure = repository.getCachedMetadata(1L, "/music/broken_song.flac")
+        assertNull("Transient network failure must not poison Room with permanent null entry", cachedAfterFailure)
+
+        // Simulate network recovery on subsequent visit
+        val sampleFlac = buildSampleFlacBytes(title = "Healed Song", artist = "Healed Artist", album = "Healed Album")
+        fakeClient.stubFileBytes("/music/broken_song.flac", sampleFlac)
+
+        repository.resolveMetadata(testServer, listOf(file))
+
+        val cachedAfterRecovery = repository.getCachedMetadata(1L, "/music/broken_song.flac")
+        assertNotNull("Subsequent visit after network recovery must heal cache and populate Room", cachedAfterRecovery)
+        assertEquals("Healed Song", cachedAfterRecovery?.title)
+        assertEquals("Healed Artist", cachedAfterRecovery?.artist)
+    }
+
+    @Test
+    fun resolveMetadata_genuineAbsenceOfTags_persistsCleanFallbackToRoom() = runTest {
+        // Raw bytes without tags (e.g. 1024 zeroes), successfully fetched from server
+        val rawAudioWithoutTags = ByteArray(1024)
+        fakeClient.stubFileBytes("/music/clean_song.mp3", rawAudioWithoutTags)
+
+        val file = RemoteFile(name = "clean_song.mp3", path = "/music/clean_song.mp3", size = 1024L)
+
+        repository.resolveMetadata(testServer, listOf(file))
+
+        val cached = repository.getCachedMetadata(1L, "/music/clean_song.mp3")
+        assertNotNull("Genuinely tagless audio file should be cached to avoid repetitive probing", cached)
+        assertEquals("clean_song", cached?.title)
         assertNull(cached?.artist)
         assertNull(cached?.coverThumbnailPath)
+
+        val fetchCountBefore = fakeClient.fetchCount.get()
+        // Second visit should skip re-fetching because Room has the cached entry
+        repository.resolveMetadata(testServer, listOf(file))
+        assertEquals("Already cached tagless file must not be re-probed", fetchCountBefore, fakeClient.fetchCount.get())
+    }
+
+    @Test
+    fun resolveSingleTrackMetadata_transientNetworkError_doesNotPoisonRoomCache() = runTest {
+        val file = RemoteFile(name = "transient_solo.mp3", path = "/music/transient_solo.mp3", size = 2000L)
+
+        val fallbackResult = repository.resolveSingleTrackMetadata(testServer, file)
+        assertEquals("transient_solo", fallbackResult.title)
+
+        // Ephemeral result returned to caller, but Room must remain unpoisoned
+        val cached = repository.getCachedMetadata(1L, "/music/transient_solo.mp3")
+        assertNull("resolveSingleTrackMetadata must not cache transient failure in Room", cached)
+    }
+
+    @Test
+    fun resolveMetadata_artworkNetworkError_doesNotPoisonRoomCache_healsWhenArtworkAvailable() = runTest {
+        val sampleMp3 = buildSampleId3v2Bytes("Song Without Embed", "Artist", "Album", artworkBytes = null)
+        fakeClient.stubFileBytes("/music/transient/song.mp3", sampleMp3)
+
+        // Make folder cover probe fail with IOException
+        fakeClient.throwOnPaths.add("/music/transient/cover.jpg")
+
+        val file = RemoteFile(name = "song.mp3", path = "/music/transient/song.mp3", size = 1000L)
+        repository.resolveMetadata(testServer, listOf(file))
+
+        // Must NOT poison Room when folder cover retrieval hits IO error
+        val cached = repository.getCachedMetadata(1L, "/music/transient/song.mp3")
+        assertNull("Folder cover network failure must not poison Room with permanent entry", cached)
+
+        // Network recovers, cover is provided
+        fakeClient.throwOnPaths.remove("/music/transient/cover.jpg")
+        val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x00, 0x10)
+        fakeClient.stubFileBytes("/music/transient/cover.jpg", coverJpg)
+
+        repository.resolveMetadata(testServer, listOf(file))
+
+        val healed = repository.getCachedMetadata(1L, "/music/transient/song.mp3")
+        assertNotNull("Subsequent visit after network recovery must heal cache with folder artwork", healed)
+        assertNotNull(healed?.coverThumbnailPath)
     }
 
     @Test
@@ -602,6 +672,7 @@ class TrackMetadataRepositoryTest {
 
     private class FakeWebDavRangeClient : WebDavClient {
         val files = mutableMapOf<String, ByteArray>()
+        val throwOnPaths = mutableSetOf<String>()
         val fetchCount = AtomicInteger(0)
         val requestedRanges = mutableListOf<Triple<String, Long, Long>>()
 
@@ -622,6 +693,9 @@ class TrackMetadataRepositoryTest {
         ): ByteArray? {
             fetchCount.incrementAndGet()
             requestedRanges.add(Triple(remotePath, startByte, endByte))
+            if (throwOnPaths.contains(remotePath)) {
+                throw java.io.IOException("Simulated network timeout for $remotePath")
+            }
             val full = files[remotePath] ?: return null
             if (startByte >= full.size) return byteArrayOf()
             val from = startByte.toInt()

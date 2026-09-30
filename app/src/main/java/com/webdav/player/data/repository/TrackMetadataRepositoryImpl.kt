@@ -87,7 +87,8 @@ class TrackMetadataRepositoryImpl(
                 launch {
                     val metadata = semaphore.withPermit {
                         parseAndBuildMetadata(server, file)
-                    }
+                    } ?: return@launch
+
                     val entity = TrackMetadataEntity.fromDomain(metadata)
                     var batchToWrite: List<TrackMetadataEntity>? = null
 
@@ -128,79 +129,93 @@ class TrackMetadataRepositoryImpl(
         val metadata = semaphore.withPermit {
             parseAndBuildMetadata(server, file)
         }
-        trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
-        metadata
+        if (metadata != null) {
+            trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
+            metadata
+        } else {
+            // Transient error: do NOT write permanent failure to Room.
+            // Return ephemeral fallback for immediate playback/display.
+            TrackMetadata(
+                serverId = server.id,
+                remotePath = file.path,
+                title = file.name.substringBeforeLast('.').ifBlank { file.name },
+                artist = null,
+                album = null,
+                trackNumber = null,
+                durationMs = 0L,
+                coverThumbnailPath = null,
+                lyrics = null
+            )
+        }
     }
 
-    private suspend fun parseAndBuildMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata {
+    private suspend fun parseAndBuildMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata? {
         val cleanFallbackTitle = file.name.substringBeforeLast('.').ifBlank { file.name }
 
-        try {
-            val rangeBytes = webDavClient.fetchRange(server, file.path, INITIAL_RANGE_START, INITIAL_RANGE_END)
-            if (rangeBytes != null && rangeBytes.isNotEmpty()) {
-                val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(rangeBytes)
-                val completeBytes = if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
-                    try {
-                        fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
-                    } catch (e: Exception) {
-                        rangeBytes
-                    }
-                } else {
-                    rangeBytes
-                }
-
-                val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
-                val parsed = AudioMetadataParser.parse(completeBytes, audioFormat)
-
-                val embeddedThumb = if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
-                    coverArtStorage.saveThumbnail(server.id, file.path, parsed.artworkData)
-                } else {
-                    null
-                }
-
-                val thumbnailPath = embeddedThumb ?: try {
-                    resolveFolderArtworkFallback(server, file)
-                } catch (e: Exception) {
-                    null
-                }
-
-                val title = parsed.title?.takeIf { it.isNotBlank() } ?: cleanFallbackTitle
-                val artist = parsed.artist?.takeIf { it.isNotBlank() }
-                val album = parsed.album?.takeIf { it.isNotBlank() }
-
-                return TrackMetadata(
-                    serverId = server.id,
-                    remotePath = file.path,
-                    title = title,
-                    artist = artist,
-                    album = album,
-                    trackNumber = parsed.trackNumber,
-                    durationMs = parsed.durationMs,
-                    coverThumbnailPath = thumbnailPath,
-                    lyrics = parsed.lyrics
-                )
-            }
+        val rangeBytes = try {
+            webDavClient.fetchRange(server, file.path, INITIAL_RANGE_START, INITIAL_RANGE_END)
+        } catch (e: java.io.IOException) {
+            // Transient network failure fetching audio range -> allow retry later
+            return null
         } catch (e: Exception) {
-            // Graceful fallback on network/parsing error
-        }
-
-        // Fallback metadata saved to avoid repetitive probing
-        val fallbackCover = try {
-            resolveFolderArtworkFallback(server, file)
-        } catch (_: Exception) {
             null
         }
+
+        // If rangeBytes is null or empty, audio range could not be read -> transient failure, do not cache
+        if (rangeBytes == null || rangeBytes.isEmpty()) {
+            return null
+        }
+
+        val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(rangeBytes)
+        val completeBytes = if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
+            try {
+                fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
+            } catch (e: java.io.IOException) {
+                // Network failure during secondary range fetch -> transient error, retry later
+                return null
+            } catch (e: Exception) {
+                rangeBytes
+            }
+        } else {
+            rangeBytes
+        }
+
+        val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
+        val parsed = AudioMetadataParser.parse(completeBytes, audioFormat)
+
+        val embeddedThumb = if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
+            coverArtStorage.saveThumbnail(server.id, file.path, parsed.artworkData)
+        } else {
+            null
+        }
+
+        val thumbnailPath = if (embeddedThumb != null) {
+            embeddedThumb
+        } else {
+            try {
+                resolveFolderArtworkFallback(server, file)
+            } catch (e: java.io.IOException) {
+                // Transient network / decode error probing folder artwork -> do not poison cache with null artwork
+                return null
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        val title = parsed.title?.takeIf { it.isNotBlank() } ?: cleanFallbackTitle
+        val artist = parsed.artist?.takeIf { it.isNotBlank() }
+        val album = parsed.album?.takeIf { it.isNotBlank() }
 
         return TrackMetadata(
             serverId = server.id,
             remotePath = file.path,
-            title = cleanFallbackTitle,
-            artist = null,
-            album = null,
-            trackNumber = null,
-            durationMs = 0L,
-            coverThumbnailPath = fallbackCover,
-            lyrics = null
+            title = title,
+            artist = artist,
+            album = album,
+            trackNumber = parsed.trackNumber,
+            durationMs = parsed.durationMs,
+            coverThumbnailPath = thumbnailPath,
+            lyrics = parsed.lyrics
         )
     }
 

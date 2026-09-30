@@ -7,6 +7,7 @@ import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,13 +72,16 @@ class FakeMusicPlayerAppSession(
 
     var lastPlayTrack: AudioTrack? = null
     var lastPlayNextTrack: AudioTrack? = null
+    var lastPlayInitialMetadata: Map<String, TrackMetadata> = emptyMap()
 
     override fun playDirectoryTrack(
         directory: RemoteDirectory,
         selectedFile: RemoteFile,
+        initialMetadata: Map<String, TrackMetadata>,
     ) {
         lastPlayDirectory = directory
         lastPlaySelectedFile = selectedFile
+        lastPlayInitialMetadata = initialMetadata
     }
 
     override fun playTrack(track: AudioTrack) {

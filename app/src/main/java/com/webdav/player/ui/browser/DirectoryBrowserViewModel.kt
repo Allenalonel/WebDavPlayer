@@ -161,7 +161,7 @@ class DirectoryBrowserViewModel(
     fun onAudioTrackClicked(file: RemoteFile) {
         if (!file.isAudio) return
         val dir = _uiState.value.currentDirectory ?: return
-        musicPlayerAppSession?.playDirectoryTrack(dir, file)
+        musicPlayerAppSession?.playDirectoryTrack(dir, file, _uiState.value.metadataMap)
     }
 
     fun playNext(file: RemoteFile) {

@@ -9,6 +9,7 @@ import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.LyricsRepository
@@ -55,6 +56,7 @@ class MusicPlayerAppSessionImpl(
     override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
 
     private val serverLastDirectories = java.util.concurrent.ConcurrentHashMap<Long, String>()
+    private val latestMetadataCache = java.util.concurrent.ConcurrentHashMap<String, TrackMetadata>()
     private var periodicFlushJob: Job? = null
     private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
 
@@ -192,6 +194,7 @@ class MusicPlayerAppSessionImpl(
                                 coroutineScope.launch {
                                     trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
                                         if (metadataList.isNotEmpty()) {
+                                            metadataList.forEach { latestMetadataCache[it.remotePath] = it }
                                             val metaMap = metadataList.associateBy { it.remotePath }
                                             val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
 
@@ -265,6 +268,7 @@ class MusicPlayerAppSessionImpl(
     override fun setActiveServer(server: WebDavServer?) {
         _sessionState.update { current ->
             if (current.activeServer?.id != server?.id) {
+                latestMetadataCache.clear()
                 // If on cold start activeServer was null and we already have a restored session/queue,
                 // do NOT clear the queue or playback state! Attach the server and keep the restored session.
                 if (current.activeServer == null && current.hasTrack) {
@@ -304,13 +308,19 @@ class MusicPlayerAppSessionImpl(
     override fun playDirectoryTrack(
         directory: RemoteDirectory,
         selectedFile: RemoteFile,
+        initialMetadata: Map<String, TrackMetadata>,
     ) {
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         val audioFiles = directory.files.filter { it.isAudio }
         if (audioFiles.isEmpty()) return
 
-        val tracks = audioFiles.mapNotNull { AudioTrack.fromRemoteFile(server, it) }
+        initialMetadata.forEach { (path, meta) -> latestMetadataCache[path] = meta }
+
+        val tracks = audioFiles.mapNotNull { file ->
+            val meta = initialMetadata[file.path] ?: latestMetadataCache[file.path]
+            AudioTrack.fromRemoteFile(server, file, meta)
+        }
         if (tracks.isEmpty()) return
 
         val selectedIndex =
@@ -339,21 +349,57 @@ class MusicPlayerAppSessionImpl(
             startIndex = selectedIndex,
         )
 
+        // Ensure newly created queue items immediately enrich from Room if missing artwork/duration
+        if (trackMetadataRepository != null) {
+            coroutineScope.launch {
+                val current = _sessionState.value.queue
+                val unpopulatedPaths = current.tracks.filter { it.coverThumbnailPath == null }.map { it.remotePath }
+                if (unpopulatedPaths.isNotEmpty()) {
+                    val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
+                    _sessionState.update { state ->
+                        var anyChanged = false
+                        val updated = state.queue.tracks.mapIndexed { index, track ->
+                            if (track.coverThumbnailPath == null) {
+                                val meta = latestMetadataCache[track.remotePath]
+                                    ?: trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
+                                if (meta != null) {
+                                    latestMetadataCache[track.remotePath] = meta
+                                    val enriched = track.withMetadata(meta)
+                                    if (enriched != track) {
+                                        anyChanged = true
+                                        tracksToUpdate.add(index to enriched)
+                                        enriched
+                                    } else track
+                                } else track
+                            } else track
+                        }
+                        if (anyChanged) {
+                            state.copy(queue = state.queue.copy(tracks = updated))
+                        } else state
+                    }
+                    tracksToUpdate.forEach { (index, enriched) ->
+                        playerEngine.updateTrack(index, enriched)
+                    }
+                }
+            }
+        }
+
         coroutineScope.launch { flushSession() }
     }
 
     override fun playTrack(track: AudioTrack) {
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
-        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
+        val enrichedInitial = latestMetadataCache[track.remotePath]?.let { track.withMetadata(it) } ?: track
+        val queue = PlaybackQueue(tracks = listOf(enrichedInitial), currentIndex = 0)
         _playbackProgress.value =
             PlaybackProgress(
                 currentPositionMs = 0L,
-                durationMs = track.durationMs,
+                durationMs = enrichedInitial.durationMs,
                 bufferedPositionMs = 0L,
             )
         _sessionState.update { it.copy(queue = queue, errorMessage = null) }
-        playerEngine.playTracks(server = server, tracks = listOf(track), startIndex = 0)
+        playerEngine.playTracks(server = server, tracks = listOf(enrichedInitial), startIndex = 0)
 
         if (trackMetadataRepository != null) {
             coroutineScope.launch {

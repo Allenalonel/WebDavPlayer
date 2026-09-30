@@ -133,6 +133,80 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun playDirectoryTrack_withInitialMetadata_immediatelyPopulatesArtworkAndMetadata() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val track1 = RemoteFile(name = "01 - Intro.mp3", path = "/Music/Album/01 - Intro.mp3", size = 1000)
+            val track2 = RemoteFile(name = "02 - Main Song.flac", path = "/Music/Album/02 - Main Song.flac", size = 5000)
+            val directory = RemoteDirectory(path = "/Music/Album/", name = "Album", files = listOf(track1, track2))
+
+            val metadataMap = mapOf(
+                track2.path to TrackMetadata(
+                    serverId = testServer.id,
+                    remotePath = track2.path,
+                    title = "Enriched Main Song",
+                    artist = "Enriched Artist",
+                    album = "Enriched Album",
+                    durationMs = 215000L,
+                    coverThumbnailPath = "/covers/enriched_thumb.jpg",
+                )
+            )
+
+            session.playDirectoryTrack(directory, track2, initialMetadata = metadataMap)
+
+            val immediateTrack = session.sessionState.value.currentTrack
+            assertNotNull(immediateTrack)
+            assertEquals("Enriched Main Song", immediateTrack?.title)
+            assertEquals("Enriched Artist", immediateTrack?.artist)
+            assertEquals("Enriched Album", immediateTrack?.album)
+            assertEquals(215000L, immediateTrack?.durationMs)
+            assertEquals("/covers/enriched_thumb.jpg", immediateTrack?.coverThumbnailPath)
+
+            assertEquals(215000L, session.playbackProgress.value.durationMs)
+            assertEquals("/covers/enriched_thumb.jpg", fakeEngine.lastTracks[1].coverThumbnailPath)
+        }
+
+    @Test
+    fun playDirectoryTrack_withoutInitialMetadata_immediatelyEnrichesFromRoomCache() =
+        runTest(testDispatcher) {
+            val fakeMetadataRepo = FakeTrackMetadataRepo()
+            val sessionWithRepo =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = null,
+                    trackMetadataRepository = fakeMetadataRepo,
+                    coroutineScope = sessionScope,
+                )
+            sessionWithRepo.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val track = RemoteFile(name = "cached.mp3", path = "/Music/cached.mp3", size = 3000)
+            val directory = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(track))
+
+            val cachedMetadata = TrackMetadata(
+                serverId = testServer.id,
+                remotePath = track.path,
+                title = "Cached Song Title",
+                artist = "Cached Artist",
+                durationMs = 180000L,
+                coverThumbnailPath = "/cache/covers/room_art.jpg",
+            )
+            fakeMetadataRepo.emit(listOf(cachedMetadata))
+            advanceUntilIdle()
+
+            sessionWithRepo.playDirectoryTrack(directory, track)
+
+            val currentTrack = sessionWithRepo.sessionState.value.currentTrack
+            assertNotNull(currentTrack)
+            assertEquals("Cached Song Title", currentTrack?.title)
+            assertEquals("Cached Artist", currentTrack?.artist)
+            assertEquals("/cache/covers/room_art.jpg", currentTrack?.coverThumbnailPath)
+            assertEquals(180000L, currentTrack?.durationMs)
+        }
+
+    @Test
     fun playDirectoryTrack_withWmaFile_populatesQueueWithWmaAudioTrackAndMimeType() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)
