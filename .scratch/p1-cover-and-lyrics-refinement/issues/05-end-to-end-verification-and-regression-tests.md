@@ -4,11 +4,11 @@
 
 **Blocked by:** 04-ui-bilingual-lyrics-view-and-artwork-rendering.md
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Add end-to-end tests in `EndToEndPlaybackPipelineIntegrationTest` verifying:
+- [x] Add end-to-end tests in `EndToEndPlaybackPipelineIntegrationTest` verifying:
   - High-res cover art (>500KB) extracted and rendered without truncation.
   - Folder-level `cover.jpg` loaded when audio file has no embedded artwork.
   - Enhanced LRC with multiple inline word timestamps verified to contain exact unique lines per verse.
   - Bilingual LRC loaded and verified with structured translations.
-- [ ] Run full test suite via `./gradlew.bat testDebugUnitTest` and confirm 100% green pass.
+- [x] Run full test suite via `./gradlew.bat testDebugUnitTest` and confirm 100% green pass.

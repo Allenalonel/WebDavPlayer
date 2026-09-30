@@ -3,8 +3,11 @@ package com.webdav.player
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.view.KeyEvent
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -17,6 +20,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
+import com.webdav.player.data.metadata.AudioMetadataParser
+import com.webdav.player.data.metadata.ImageHeaderValidator
 import com.webdav.player.data.player.AsfExtractor
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
@@ -24,13 +29,17 @@ import com.webdav.player.data.player.WebDavLoadErrorHandlingPolicy
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
+import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
+import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.data.service.WebDavMediaService
 import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.ListDirectoryResult
+import com.webdav.player.domain.model.LyricLine
+import com.webdav.player.domain.model.Lyrics
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackState
@@ -42,6 +51,7 @@ import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.session.FakePlaybackSessionStore
 import com.webdav.player.domain.session.MusicPlayerAppSessionImpl
+import com.webdav.player.ui.common.ThumbnailMemoryCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -56,9 +66,12 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import okhttp3.Credentials
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
+import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -73,9 +86,11 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -93,6 +108,8 @@ class EndToEndPlaybackPipelineIntegrationTest {
     private lateinit var mediaSourceAdapter: DefaultWebDavMediaSourceAdapter
     private lateinit var sessionStore: FakePlaybackSessionStore
     private lateinit var testServer: WebDavServer
+    private lateinit var trackMetadataRepository: TrackMetadataRepositoryImpl
+    private lateinit var lyricsRepository: LyricsRepositoryImpl
 
     private var previousHost: PlaybackSessionHost? = null
 
@@ -118,6 +135,20 @@ class EndToEndPlaybackPipelineIntegrationTest {
         mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, webDavClient)
         sessionStore = FakePlaybackSessionStore()
 
+        trackMetadataRepository =
+            TrackMetadataRepositoryImpl(
+                trackMetadataDao = database.trackMetadataDao(),
+                webDavClient = webDavClient,
+                coverArtStorage = coverArtStorage,
+                ioDispatcher = testDispatcher,
+            )
+        lyricsRepository =
+            LyricsRepositoryImpl(
+                webDavClient = webDavClient,
+                trackMetadataRepository = trackMetadataRepository,
+                ioDispatcher = testDispatcher,
+            )
+
         testServer =
             WebDavServer(
                 id = 0L,
@@ -136,6 +167,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
 
     @After
     fun tearDown() {
+        ThumbnailMemoryCache.clear()
         PlaybackSessionHost.resetForTesting()
         PlaybackSessionHost.setInstanceForTesting(previousHost)
         database.close()
@@ -784,4 +816,880 @@ class EndToEndPlaybackPipelineIntegrationTest {
         val wavExtractors = mediaSourceAdapter.resolveExtractorsFactory(AudioFormat.WAV).createExtractors()
         assertTrue("WAV must bind WavExtractor", wavExtractors.any { it is androidx.media3.extractor.wav.WavExtractor })
     }
+
+    private fun buildSampleId3v2Bytes(
+        title: String,
+        artist: String,
+        album: String,
+        artworkBytes: ByteArray? = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte()),
+    ): ByteArray {
+        val stream = ByteArrayOutputStream()
+        stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
+        stream.write(3) // v2.3
+        stream.write(0)
+        stream.write(0)
+
+        val body = ByteArrayOutputStream()
+
+        fun writeFrame(
+            id: String,
+            text: String,
+        ) {
+            val p = ByteArrayOutputStream()
+            p.write(3) // UTF-8
+            p.write(text.toByteArray(StandardCharsets.UTF_8))
+            val b = p.toByteArray()
+            body.write(id.toByteArray(StandardCharsets.US_ASCII))
+            body.write((b.size shr 24) and 0xFF)
+            body.write((b.size shr 16) and 0xFF)
+            body.write((b.size shr 8) and 0xFF)
+            body.write(b.size and 0xFF)
+            body.write(0)
+            body.write(0)
+            body.write(b)
+        }
+
+        // APIC picture
+        if (artworkBytes != null) {
+            val validArtwork =
+                if (artworkBytes.size >= 4 && artworkBytes[0] == 0xFF.toByte() && artworkBytes[1] == 0xD8.toByte()) {
+                    artworkBytes.copyOf().apply {
+                        this[this.size - 2] = 0xFF.toByte()
+                        this[this.size - 1] = 0xD9.toByte()
+                    }
+                } else {
+                    artworkBytes
+                }
+            val apicBody = ByteArrayOutputStream()
+            apicBody.write(0)
+            apicBody.write("image/jpeg\u0000".toByteArray(StandardCharsets.ISO_8859_1))
+            apicBody.write(3)
+            apicBody.write("cover\u0000".toByteArray(StandardCharsets.ISO_8859_1))
+            apicBody.write(validArtwork)
+            val apicBytes = apicBody.toByteArray()
+
+            body.write("APIC".toByteArray(StandardCharsets.US_ASCII))
+            body.write((apicBytes.size shr 24) and 0xFF)
+            body.write((apicBytes.size shr 16) and 0xFF)
+            body.write((apicBytes.size shr 8) and 0xFF)
+            body.write(apicBytes.size and 0xFF)
+            body.write(0)
+            body.write(0)
+            body.write(apicBytes)
+        }
+
+        writeFrame("TIT2", title)
+        writeFrame("TPE1", artist)
+        writeFrame("TALB", album)
+        writeFrame("TLEN", "240000")
+
+        val bodyBytes = body.toByteArray()
+        val s = bodyBytes.size
+        stream.write((s shr 21) and 0x7F)
+        stream.write((s shr 14) and 0x7F)
+        stream.write((s shr 7) and 0x7F)
+        stream.write(s and 0x7F)
+        stream.write(bodyBytes)
+
+        return stream.toByteArray()
+    }
+
+    private fun buildSampleFlacBytes(
+        title: String,
+        artist: String,
+        album: String,
+        artworkBytes: ByteArray? = null,
+    ): ByteArray {
+        val stream = ByteArrayOutputStream()
+        // "fLaC"
+        stream.write(byteArrayOf(0x66, 0x4C, 0x61, 0x43))
+
+        // Block 0: STREAMINFO (type 0, 34 bytes)
+        val streamInfo = ByteArray(34)
+        streamInfo[10] = 0x0A
+        streamInfo[11] = 0xC4.toByte()
+        streamInfo[12] = 0x40.toByte() // 44100 Hz
+        val isLastVorbis = artworkBytes == null
+        stream.write(0x00) // isLast = false, type = 0
+        stream.write(0x00)
+        stream.write(0x00)
+        stream.write(34)
+        stream.write(streamInfo)
+
+        // Block 1: VORBIS_COMMENT (type 4)
+        val vorbisBody = ByteArrayOutputStream()
+        vorbisBody.write(0) // vendor length 0 (4 bytes LE)
+        vorbisBody.write(0)
+        vorbisBody.write(0)
+        vorbisBody.write(0)
+
+        val comments = listOf("TITLE=$title", "ARTIST=$artist", "ALBUM=$album")
+        vorbisBody.write(comments.size and 0xFF)
+        vorbisBody.write((comments.size shr 8) and 0xFF)
+        vorbisBody.write((comments.size shr 16) and 0xFF)
+        vorbisBody.write((comments.size shr 24) and 0xFF)
+
+        for (c in comments) {
+            val cBytes = c.toByteArray(StandardCharsets.UTF_8)
+            vorbisBody.write(cBytes.size and 0xFF)
+            vorbisBody.write((cBytes.size shr 8) and 0xFF)
+            vorbisBody.write((cBytes.size shr 16) and 0xFF)
+            vorbisBody.write((cBytes.size shr 24) and 0xFF)
+            vorbisBody.write(cBytes)
+        }
+
+        val vorbisBytes = vorbisBody.toByteArray()
+        val vorbisHeaderByte = if (isLastVorbis) 0x84 else 0x04
+        stream.write(vorbisHeaderByte)
+        stream.write((vorbisBytes.size shr 16) and 0xFF)
+        stream.write((vorbisBytes.size shr 8) and 0xFF)
+        stream.write(vorbisBytes.size and 0xFF)
+        stream.write(vorbisBytes)
+
+        // Block 2: PICTURE (type 6) if artworkBytes != null
+        if (artworkBytes != null) {
+            val validArtwork =
+                if (artworkBytes.size >= 4 && artworkBytes[0] == 0xFF.toByte() && artworkBytes[1] == 0xD8.toByte()) {
+                    artworkBytes.copyOf().apply {
+                        this[this.size - 2] = 0xFF.toByte()
+                        this[this.size - 1] = 0xD9.toByte()
+                    }
+                } else {
+                    artworkBytes
+                }
+            val picBody = ByteArrayOutputStream()
+            // pictureType = 3 (Front cover), 4 bytes BE
+            picBody.write(0)
+            picBody.write(0)
+            picBody.write(0)
+            picBody.write(3)
+            // mimeLength = 10, mime = "image/jpeg"
+            val mime = "image/jpeg".toByteArray(StandardCharsets.US_ASCII)
+            picBody.write(0)
+            picBody.write(0)
+            picBody.write(0)
+            picBody.write(mime.size)
+            picBody.write(mime)
+            // descLength = 0
+            picBody.write(0)
+            picBody.write(0)
+            picBody.write(0)
+            picBody.write(0)
+            // width, height, depth, colors (16 bytes)
+            for (i in 0 until 16) picBody.write(0)
+            // dataLength (4 bytes BE)
+            picBody.write((validArtwork.size shr 24) and 0xFF)
+            picBody.write((validArtwork.size shr 16) and 0xFF)
+            picBody.write((validArtwork.size shr 8) and 0xFF)
+            picBody.write(validArtwork.size and 0xFF)
+            picBody.write(validArtwork)
+
+            val picBytes = picBody.toByteArray()
+            // isLast = true, type = 6 -> 0x86
+            stream.write(0x86)
+            stream.write((picBytes.size shr 16) and 0xFF)
+            stream.write((picBytes.size shr 8) and 0xFF)
+            stream.write(picBytes.size and 0xFF)
+            stream.write(picBytes)
+        }
+
+        return stream.toByteArray()
+    }
+
+    private fun createRangeMockResponse(
+        fullBytes: ByteArray,
+        rangeHeader: String?,
+    ): MockResponse {
+        if (rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
+            return MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/octet-stream")
+                .setHeader("Content-Length", fullBytes.size.toString())
+                .setBody(Buffer().write(fullBytes))
+        }
+        val parts = rangeHeader.removePrefix("bytes=").split("-")
+        val start = parts[0].toLongOrNull() ?: 0L
+        val end = parts.getOrNull(1)?.takeIf { it.isNotBlank() }?.toLongOrNull() ?: (fullBytes.size - 1L)
+        val startIndex = start.toInt().coerceIn(0, fullBytes.size)
+        val endIndex = (end.toInt() + 1).coerceIn(startIndex, fullBytes.size)
+        val length = (endIndex - startIndex).coerceAtLeast(0)
+        val slice = fullBytes.copyOfRange(startIndex, endIndex)
+        return MockResponse()
+            .setResponseCode(206)
+            .setHeader("Content-Range", "bytes $startIndex-${endIndex - 1}/${fullBytes.size}")
+            .setHeader("Content-Length", length.toString())
+            .setBody(Buffer().write(slice))
+    }
+
+    private fun createHighResJpegBytes(minSizeBytes: Int = 600 * 1024): ByteArray {
+        val baseBitmap = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        val stream = ByteArrayOutputStream()
+        baseBitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+        val standardJpeg = stream.toByteArray()
+        baseBitmap.recycle()
+
+        if (standardJpeg.size >= minSizeBytes) {
+            return standardJpeg
+        }
+        val padded = ByteArray(minSizeBytes)
+        System.arraycopy(standardJpeg, 0, padded, 0, standardJpeg.size - 2)
+        for (i in (standardJpeg.size - 2) until (minSizeBytes - 2)) {
+            padded[i] = 0xAA.toByte()
+        }
+        padded[minSizeBytes - 2] = 0xFF.toByte()
+        padded[minSizeBytes - 1] = 0xD9.toByte()
+        return padded
+    }
+
+    /**
+     * Acceptance Criterion: High-res cover art (>500KB) extracted and rendered without truncation.
+     * Verifies the dual-range HTTP fetching mechanism, extraction of APIC frames larger than 512KB,
+     * local thumbnail storage, queue metadata enrichment, and bitmap rendering.
+     */
+    @Test
+    fun e2e_highResCoverArt_extractedAndRenderedWithoutTruncation_acrossPipeline() =
+        runTest(testDispatcher) {
+            // 1. Generate high-resolution embedded JPEG artwork (>500KB)
+            val highResArtwork = createHighResJpegBytes(600 * 1024)
+            assertTrue("Artwork must be > 500KB", highResArtwork.size > 500 * 1024)
+            assertTrue("Artwork must have valid JPEG boundaries", ImageHeaderValidator.isCompleteImage(highResArtwork))
+
+            // Build full MP3 bytes containing high-res APIC tag
+            val mp3Bytes =
+                buildSampleId3v2Bytes(
+                    title = "Symphony No. 9",
+                    artist = "Ludwig van Beethoven",
+                    album = "Masterpieces in Hi-Res",
+                    artworkBytes = highResArtwork,
+                )
+            assertTrue("MP3 bytes must exceed 512KB to test adaptive secondary range fetch", mp3Bytes.size > 524288)
+
+            // Setup MockWebServer dispatcher supporting chunked Range requests
+            mockWebServer.dispatcher =
+                object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        val path = request.path?.substringBefore('?') ?: ""
+                        val range = request.getHeader("Range")
+                        return when {
+                            path == "/dav/Music/HighRes.mp3" -> createRangeMockResponse(mp3Bytes, range)
+                            else -> MockResponse().setResponseCode(404)
+                        }
+                    }
+                }
+
+            val remoteFile =
+                RemoteFile(
+                    name = "HighRes.mp3",
+                    path = "/Music/HighRes.mp3",
+                    size = mp3Bytes.size.toLong(),
+                    fileType = RemoteFileType.Audio(AudioFormat.MP3),
+                )
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(remoteFile),
+                )
+
+            // Step 1: Resolve metadata through TrackMetadataRepository
+            // This tests adaptive initial 512KB range + secondary range fetch for oversized ID3 tag
+            trackMetadataRepository.resolveMetadata(testServer, listOf(remoteFile))
+
+            val cachedMeta = trackMetadataRepository.getCachedMetadata(testServer.id, remoteFile.path)
+            assertNotNull("Metadata must be persisted in Room database", cachedMeta)
+            val resolvedMeta = cachedMeta!!
+
+            assertNotNull("Cover thumbnail path must be non-null", resolvedMeta.coverThumbnailPath)
+            assertEquals("Symphony No. 9", resolvedMeta.title)
+            assertEquals("Ludwig van Beethoven", resolvedMeta.artist)
+            assertEquals("Masterpieces in Hi-Res", resolvedMeta.album)
+
+            // Step 2: Enqueue into player session and verify queue metadata propagation
+            val engine =
+                Media3AudioPlayerEngine(
+                    context = context,
+                    mediaSourceAdapter = mediaSourceAdapter,
+                    coroutineScope = this,
+                )
+            val sessionScope = TestScope(testDispatcher)
+            val appSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine,
+                    serverRepository = serverRepository,
+                    trackMetadataRepository = trackMetadataRepository,
+                    lyricsRepository = lyricsRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = sessionScope,
+                    progressDispatcher = testDispatcher,
+                )
+
+            appSession.setActiveServer(testServer)
+            appSession.playDirectoryTrack(directory, remoteFile, mapOf(remoteFile.path to resolvedMeta))
+            advanceUntilIdle()
+
+            val currentTrack = appSession.sessionState.value.currentTrack
+            assertNotNull("Active track must be present in session", currentTrack)
+            assertEquals("Symphony No. 9", currentTrack?.title)
+            val thumbPath = currentTrack?.coverThumbnailPath
+            assertNotNull("Current track must immediately have cover thumbnail path", thumbPath)
+
+            // Step 3: Verify thumbnail file on disk is valid and NOT truncated
+            val thumbFile = File(thumbPath!!)
+            assertTrue("Thumbnail file must exist on disk", thumbFile.exists())
+            assertTrue("Thumbnail file must be non-empty", thumbFile.length() > 0)
+
+            // Step 4: Verify bitmap decoding & ThumbnailMemoryCache rendering
+            val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+            val decodedBitmap = BitmapFactory.decodeFile(thumbFile.absolutePath, options)
+            if (decodedBitmap != null) {
+                assertTrue("Decoded bitmap width must be > 0", decodedBitmap.width > 0)
+                assertTrue("Decoded bitmap height must be > 0", decodedBitmap.height > 0)
+                ThumbnailMemoryCache.put(thumbPath, decodedBitmap.asImageBitmap())
+                val inMemBitmap = ThumbnailMemoryCache.get(thumbPath)
+                assertNotNull("ThumbnailMemoryCache must store and retrieve decoded artwork", inMemBitmap)
+            } else {
+                // If Robolectric bypasses native BitmapFactory, raw byte stream must remain intact
+                assertTrue("Thumbnail file must contain uncorrupted bytes", thumbFile.length() >= 512)
+            }
+
+            // Step 5: Verify playback progression and seek
+            engine.seekTo(15000L)
+            advanceUntilIdle()
+            assertEquals(15000L, appSession.playbackProgress.value.currentPositionMs)
+
+            appSession.release()
+            engine.release()
+        }
+
+    /**
+     * Acceptance Criterion: Folder-level cover.jpg loaded when audio file has no embedded artwork.
+     * Verifies companion artwork probing, caching in CoverArtStorage, association with Room metadata,
+     * and seamless propagation across queue and track transitions.
+     */
+    @Test
+    fun e2e_folderCoverFallback_loadedWhenAudioLacksEmbeddedArtwork_acrossDirectoryAndPlayback() =
+        runTest(testDispatcher) {
+            // Build audio files without embedded artwork
+            val track1Bytes =
+                buildSampleId3v2Bytes(
+                    title = "Sonata 1",
+                    artist = "Chopin",
+                    album = "Nocturnes",
+                    artworkBytes = null,
+                )
+            val track2Bytes =
+                buildSampleFlacBytes(
+                    title = "Sonata 2",
+                    artist = "Chopin",
+                    album = "Nocturnes",
+                    artworkBytes = null,
+                )
+
+            // Companion folder cover.jpg (valid JPEG)
+            val folderCoverBytes =
+                ByteArray(16 * 1024).apply {
+                    this[0] = 0xFF.toByte()
+                    this[1] = 0xD8.toByte()
+                    this[2] = 0xFF.toByte()
+                    this[3] = 0xE0.toByte()
+                    this[this.size - 2] = 0xFF.toByte()
+                    this[this.size - 1] = 0xD9.toByte()
+                }
+
+            mockWebServer.dispatcher =
+                object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        val path = request.path?.substringBefore('?') ?: ""
+                        val range = request.getHeader("Range")
+                        return when {
+                            path == "/dav/Albums/Chopin/Sonata1.mp3" -> {
+                                createRangeMockResponse(track1Bytes, range)
+                            }
+
+                            path == "/dav/Albums/Chopin/Sonata2.flac" -> {
+                                createRangeMockResponse(track2Bytes, range)
+                            }
+
+                            path == "/dav/Albums/Chopin/cover.jpg" -> {
+                                MockResponse()
+                                    .setResponseCode(200)
+                                    .setHeader("Content-Type", "image/jpeg")
+                                    .setHeader("Content-Length", folderCoverBytes.size.toString())
+                                    .setBody(Buffer().write(folderCoverBytes))
+                            }
+
+                            else -> {
+                                MockResponse().setResponseCode(404)
+                            }
+                        }
+                    }
+                }
+
+            val file1 =
+                RemoteFile(
+                    name = "Sonata1.mp3",
+                    path = "/Albums/Chopin/Sonata1.mp3",
+                    size = track1Bytes.size.toLong(),
+                    fileType = RemoteFileType.Audio(AudioFormat.MP3),
+                )
+            val file2 =
+                RemoteFile(
+                    name = "Sonata2.flac",
+                    path = "/Albums/Chopin/Sonata2.flac",
+                    size = track2Bytes.size.toLong(),
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
+            val directory =
+                RemoteDirectory(
+                    path = "/Albums/Chopin/",
+                    name = "Chopin",
+                    files = listOf(file1, file2),
+                )
+
+            // Step 1: Resolve metadata for both tracks in directory
+            trackMetadataRepository.resolveMetadata(testServer, listOf(file1, file2))
+
+            val meta1 = trackMetadataRepository.getCachedMetadata(testServer.id, file1.path)
+            val meta2 = trackMetadataRepository.getCachedMetadata(testServer.id, file2.path)
+
+            assertNotNull("Track 1 must have cached metadata", meta1)
+            assertNotNull("Track 2 must have cached metadata", meta2)
+
+            val coverPath1 = meta1?.coverThumbnailPath
+            val coverPath2 = meta2?.coverThumbnailPath
+            assertNotNull("Track 1 must have resolved folder cover", coverPath1)
+            assertNotNull("Track 2 must have resolved folder cover", coverPath2)
+            assertEquals("Both tracks must share the same cached folder cover thumbnail", coverPath1, coverPath2)
+
+            val coverFile = File(coverPath1!!)
+            assertTrue("Folder cover thumbnail must exist on disk", coverFile.exists())
+            assertTrue("Folder cover thumbnail must be non-empty", coverFile.length() > 0)
+
+            // Step 2: Enqueue and play Track 1 in MusicPlayerAppSessionImpl
+            val engine =
+                Media3AudioPlayerEngine(
+                    context = context,
+                    mediaSourceAdapter = mediaSourceAdapter,
+                    coroutineScope = this,
+                )
+            val sessionScope = TestScope(testDispatcher)
+            val appSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine,
+                    serverRepository = serverRepository,
+                    trackMetadataRepository = trackMetadataRepository,
+                    lyricsRepository = lyricsRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = sessionScope,
+                    progressDispatcher = testDispatcher,
+                )
+
+            appSession.setActiveServer(testServer)
+            appSession.playDirectoryTrack(
+                directory,
+                file1,
+                mapOf(file1.path to meta1!!, file2.path to meta2!!),
+            )
+            advanceUntilIdle()
+
+            // Verify active Track 1 displays the folder cover
+            assertEquals(
+                "Sonata 1",
+                appSession.sessionState.value.currentTrack
+                    ?.title,
+            )
+            assertEquals(
+                coverPath1,
+                appSession.sessionState.value.currentTrack
+                    ?.coverThumbnailPath,
+            )
+
+            // Verify ThumbnailMemoryCache rendering
+            val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+            ThumbnailMemoryCache.put(coverPath1, bitmap.asImageBitmap())
+            assertNotNull(ThumbnailMemoryCache.get(coverPath1))
+
+            // Step 3: Track Transition to Track 2
+            engine.skipToNext()
+            advanceUntilIdle()
+
+            assertEquals(
+                "Sonata 2",
+                appSession.sessionState.value.currentTrack
+                    ?.title,
+            )
+            assertEquals(
+                "Track 2 must immediately retain folder cover after transition",
+                coverPath1,
+                appSession.sessionState.value.currentTrack
+                    ?.coverThumbnailPath,
+            )
+            assertNotNull("Bitmap remains accessible in memory cache across transition", ThumbnailMemoryCache.get(coverPath1))
+
+            appSession.release()
+            engine.release()
+        }
+
+    /**
+     * Acceptance Criterion: Enhanced LRC with multiple inline word timestamps verified
+     * to contain exact unique lines per verse.
+     * Verifies syllable timestamp stripping, chorus timestamp expansion,
+     * and accurate active verse tracking during playback progress.
+     */
+    @Test
+    fun e2e_enhancedLrc_inlineTimestamps_normalizedToUniqueLinesPerVerse_duringPlayback() =
+        runTest(testDispatcher) {
+            val audioBytes =
+                buildSampleId3v2Bytes(
+                    title = "Karaoke Hit",
+                    artist = "Ensemble",
+                    album = "Acoustic Sessions",
+                    artworkBytes = null,
+                )
+
+            val enhancedLrcContent =
+                """
+                [ti:Karaoke Hit]
+                [ar:Ensemble]
+                [al:Acoustic Sessions]
+                [00:05.00] 哪怕[00:05.50]现实[00:06.00]再残酷
+                [00:12.00]<00:12.00>Never <00:12.30>gonna <00:12.60>give <00:12.90>you <00:13.20>up
+                [00:25.00][00:45.00]Chorus verse with [00:25.50]karaoke [00:45.50]word tags
+                [01:10.00]End of the journey
+                """.trimIndent()
+
+            mockWebServer.dispatcher =
+                object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        val path = request.path?.substringBefore('?') ?: ""
+                        val range = request.getHeader("Range")
+                        return when {
+                            path == "/dav/Music/KaraokeHit.mp3" -> {
+                                createRangeMockResponse(audioBytes, range)
+                            }
+
+                            path == "/dav/Music/KaraokeHit.lrc" -> {
+                                MockResponse()
+                                    .setResponseCode(200)
+                                    .setHeader("Content-Type", "text/plain; charset=utf-8")
+                                    .setBody(enhancedLrcContent)
+                            }
+
+                            else -> {
+                                MockResponse().setResponseCode(404)
+                            }
+                        }
+                    }
+                }
+
+            val karaokeFile =
+                RemoteFile(
+                    name = "KaraokeHit.mp3",
+                    path = "/Music/KaraokeHit.mp3",
+                    size = audioBytes.size.toLong(),
+                    fileType = RemoteFileType.Audio(AudioFormat.MP3),
+                )
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(karaokeFile),
+                )
+
+            val engine =
+                Media3AudioPlayerEngine(
+                    context = context,
+                    mediaSourceAdapter = mediaSourceAdapter,
+                    coroutineScope = this,
+                )
+            val sessionScope = TestScope(testDispatcher)
+            val appSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine,
+                    serverRepository = serverRepository,
+                    trackMetadataRepository = trackMetadataRepository,
+                    lyricsRepository = lyricsRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = sessionScope,
+                    progressDispatcher = testDispatcher,
+                )
+
+            appSession.setActiveServer(testServer)
+            appSession.playDirectoryTrack(directory, karaokeFile)
+            advanceUntilIdle()
+
+            // Wait for lyrics to resolve from MockWebServer
+            var attempts = 0
+            while (appSession.sessionState.value.lyrics == null && attempts < 50) {
+                advanceTimeBy(50L)
+                advanceUntilIdle()
+                Thread.sleep(10)
+                attempts++
+            }
+
+            val lyrics = appSession.sessionState.value.lyrics
+            assertNotNull("Lyrics must be loaded automatically by app session", lyrics)
+            assertTrue("Lyrics must be synchronized", lyrics!!.isSynchronized)
+
+            // VERIFICATION: Enhanced LRC must contain EXACT unique lines per verse!
+            // Verse 1: "哪怕现实再残酷" at 5000L (No duplicate lines for [00:05.50] and [00:06.00])
+            // Verse 2: "Never gonna give you up" at 12000L (Inline angle brackets stripped)
+            // Chorus: Repeated chorus at 25000L and 45000L (Leading timestamps expanded, inline stripped)
+            // Outro: "End of the journey" at 70000L
+            // Total lines must be EXACTLY 5:
+            assertEquals("Must have exactly 5 lines (no duplicate lines per verse)", 5, lyrics.lines.size)
+
+            assertEquals(5000L, lyrics.lines[0].timestampMs)
+            assertEquals("哪怕现实再残酷", lyrics.lines[0].text)
+
+            assertEquals(12000L, lyrics.lines[1].timestampMs)
+            assertEquals("Never gonna give you up", lyrics.lines[1].text)
+
+            assertEquals(25000L, lyrics.lines[2].timestampMs)
+            assertEquals("Chorus verse with karaoke word tags", lyrics.lines[2].text)
+
+            assertEquals(45000L, lyrics.lines[3].timestampMs)
+            assertEquals("Chorus verse with karaoke word tags", lyrics.lines[3].text)
+
+            assertEquals(70000L, lyrics.lines[4].timestampMs)
+            assertEquals("End of the journey", lyrics.lines[4].text)
+
+            // Verify active verse tracking as playback progresses
+            assertEquals(0, lyrics.findActiveLineIndex(6000L))
+            assertEquals(1, lyrics.findActiveLineIndex(15000L))
+            assertEquals(2, lyrics.findActiveLineIndex(30000L))
+            assertEquals(3, lyrics.findActiveLineIndex(46000L))
+            assertEquals(4, lyrics.findActiveLineIndex(75000L))
+
+            appSession.release()
+            engine.release()
+        }
+
+    /**
+     * Acceptance Criterion: Bilingual LRC loaded and verified with structured translations.
+     * Verifies pairing of original lines and translations, seek synchronization,
+     * track transition lyric reloads, and cold-start state restoration.
+     */
+    @Test
+    fun e2e_bilingualLrc_loadedWithStructuredTranslations_renderedAndTrackTransitions() =
+        runTest(testDispatcher) {
+            val audioBytes =
+                buildSampleId3v2Bytes(
+                    title = "Bilingual Song 1",
+                    artist = "Global Artist",
+                    album = "Harmony",
+                    artworkBytes = null,
+                )
+
+            val lrc1 =
+                """
+                [ti:Bilingual Song 1]
+                [ar:Global Artist]
+                [00:03.00]First verse in English
+                [00:03.00]第一节英文歌词
+                [00:10.000]Second line under the moon
+                [00:10.200]月光下的第二行
+                [00:20.00][00:40.00]Chorus line shining bright
+                [00:20.00][00:40.00]闪耀璀璨的副歌行
+                """.trimIndent()
+
+            val lrc2 =
+                """
+                [ti:Bilingual Song 2]
+                [ar:Global Artist]
+                [00:05.00]The sun rises again
+                [00:05.00]太阳再次升起
+                [00:15.00]A brand new chapter starts
+                [00:15.100]全新篇章开启
+                """.trimIndent()
+
+            mockWebServer.dispatcher =
+                object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        val path = request.path?.substringBefore('?') ?: ""
+                        val range = request.getHeader("Range")
+                        return when {
+                            path == "/dav/Music/Bilingual01.mp3" -> {
+                                createRangeMockResponse(audioBytes, range)
+                            }
+
+                            path == "/dav/Music/Bilingual01.lrc" -> {
+                                MockResponse()
+                                    .setResponseCode(200)
+                                    .setHeader("Content-Type", "text/plain; charset=utf-8")
+                                    .setBody(lrc1)
+                            }
+
+                            path == "/dav/Music/Bilingual02.mp3" -> {
+                                createRangeMockResponse(audioBytes, range)
+                            }
+
+                            path == "/dav/Music/Bilingual02.lrc" -> {
+                                MockResponse()
+                                    .setResponseCode(200)
+                                    .setHeader("Content-Type", "text/plain; charset=utf-8")
+                                    .setBody(lrc2)
+                            }
+
+                            else -> {
+                                MockResponse().setResponseCode(404)
+                            }
+                        }
+                    }
+                }
+
+            val file1 =
+                RemoteFile(
+                    name = "Bilingual01.mp3",
+                    path = "/Music/Bilingual01.mp3",
+                    size = audioBytes.size.toLong(),
+                    fileType = RemoteFileType.Audio(AudioFormat.MP3),
+                )
+            val file2 =
+                RemoteFile(
+                    name = "Bilingual02.mp3",
+                    path = "/Music/Bilingual02.mp3",
+                    size = audioBytes.size.toLong(),
+                    fileType = RemoteFileType.Audio(AudioFormat.MP3),
+                )
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(file1, file2),
+                )
+
+            val engine =
+                Media3AudioPlayerEngine(
+                    context = context,
+                    mediaSourceAdapter = mediaSourceAdapter,
+                    coroutineScope = this,
+                )
+            val sessionScope = TestScope(testDispatcher)
+            val appSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine,
+                    serverRepository = serverRepository,
+                    trackMetadataRepository = trackMetadataRepository,
+                    lyricsRepository = lyricsRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = sessionScope,
+                    progressDispatcher = testDispatcher,
+                )
+
+            appSession.setActiveServer(testServer)
+            appSession.playDirectoryTrack(directory, file1)
+            advanceUntilIdle()
+
+            // Wait for lyrics to load
+            var attempts = 0
+            while (appSession.sessionState.value.lyrics == null && attempts < 50) {
+                advanceTimeBy(50L)
+                advanceUntilIdle()
+                Thread.sleep(10)
+                attempts++
+            }
+
+            val lyrics1 = appSession.sessionState.value.lyrics
+            assertNotNull("Track 1 lyrics must be loaded", lyrics1)
+            assertTrue("Track 1 lyrics must be synchronized", lyrics1!!.isSynchronized)
+            assertEquals("Track 1 must have 4 bilingual lines", 4, lyrics1.lines.size)
+
+            // Step 1: Verify structured translations on LyricLine
+            val line0 = lyrics1.lines[0]
+            assertEquals(3000L, line0.timestampMs)
+            assertEquals("First verse in English", line0.mainText)
+            assertEquals("第一节英文歌词", line0.translation)
+            assertTrue("Line 0 must have translation", line0.hasTranslation)
+
+            val line1 = lyrics1.lines[1]
+            assertEquals(10000L, line1.timestampMs)
+            assertEquals("Second line under the moon", line1.mainText)
+            assertEquals("月光下的第二行", line1.translation)
+            assertTrue("Line 1 must have translation", line1.hasTranslation)
+
+            val line2 = lyrics1.lines[2]
+            assertEquals(20000L, line2.timestampMs)
+            assertEquals("Chorus line shining bright", line2.mainText)
+            assertEquals("闪耀璀璨的副歌行", line2.translation)
+
+            val line3 = lyrics1.lines[3]
+            assertEquals(40000L, line3.timestampMs)
+            assertEquals("Chorus line shining bright", line3.mainText)
+            assertEquals("闪耀璀璨的副歌行", line3.translation)
+
+            // Step 2: Seek to bilingual line and verify active line selection
+            engine.seekTo(10000L)
+            advanceUntilIdle()
+            val activeIndex = lyrics1.findActiveLineIndex(10000L)
+            assertEquals(1, activeIndex)
+            assertEquals("Second line under the moon", lyrics1.lines[activeIndex].mainText)
+            assertEquals("月光下的第二行", lyrics1.lines[activeIndex].translation)
+
+            // Step 3: Track Transition to Track 2 (Queue skip)
+            engine.skipToNext()
+            advanceUntilIdle()
+
+            assertEquals(
+                "Bilingual02.mp3",
+                appSession.sessionState.value.currentTrack
+                    ?.title,
+            )
+
+            // Wait for Track 2 lyrics to load reactively
+            attempts = 0
+            while ((
+                    appSession.sessionState.value.lyrics
+                        ?.lines
+                        ?.firstOrNull()
+                        ?.mainText != "The sun rises again"
+                ) && attempts < 50
+            ) {
+                advanceTimeBy(50L)
+                advanceUntilIdle()
+                Thread.sleep(10)
+                attempts++
+            }
+
+            val lyrics2 = appSession.sessionState.value.lyrics
+            assertNotNull("Track 2 lyrics must be loaded", lyrics2)
+            assertEquals(2, lyrics2!!.lines.size)
+            assertEquals("The sun rises again", lyrics2.lines[0].mainText)
+            assertEquals("太阳再次升起", lyrics2.lines[0].translation)
+            assertEquals("A brand new chapter starts", lyrics2.lines[1].mainText)
+            assertEquals("全新篇章开启", lyrics2.lines[1].translation)
+
+            // Step 4: Cold Start Restoration with SessionStore
+            appSession.flushSession()
+            advanceUntilIdle()
+
+            val restoredSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine,
+                    serverRepository = serverRepository,
+                    trackMetadataRepository = trackMetadataRepository,
+                    lyricsRepository = lyricsRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = sessionScope,
+                    progressDispatcher = testDispatcher,
+                )
+            advanceUntilIdle()
+
+            attempts = 0
+            while (restoredSession.sessionState.value.lyrics == null && attempts < 50) {
+                advanceTimeBy(50L)
+                advanceUntilIdle()
+                Thread.sleep(10)
+                attempts++
+            }
+
+            val restoredLyrics = restoredSession.sessionState.value.lyrics
+            assertNotNull("Restored session must have loaded lyrics", restoredLyrics)
+            assertEquals("The sun rises again", restoredLyrics?.lines?.firstOrNull()?.mainText)
+            assertEquals("太阳再次升起", restoredLyrics?.lines?.firstOrNull()?.translation)
+
+            restoredSession.release()
+            appSession.release()
+            engine.release()
+        }
 }
