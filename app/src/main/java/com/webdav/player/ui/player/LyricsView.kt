@@ -30,13 +30,52 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.LyricLine
 import com.webdav.player.domain.model.Lyrics
 import com.webdav.player.domain.model.PlaybackProgress
+
+object LyricsViewDefaults {
+    val ActiveMainFontSize: TextUnit = 20.sp
+    val InactiveMainFontSize: TextUnit = 16.sp
+    val ActiveTranslationFontSize: TextUnit = 14.sp
+    val InactiveTranslationFontSize: TextUnit = 13.sp
+
+    val ActiveMainFontWeight: FontWeight = FontWeight.Bold
+    val InactiveMainFontWeight: FontWeight = FontWeight.Normal
+    val ActiveTranslationFontWeight: FontWeight = FontWeight.Medium
+    val InactiveTranslationFontWeight: FontWeight = FontWeight.Normal
+
+    const val ActiveMainAlpha: Float = 1.0f
+    const val ActiveTranslationAlpha: Float = 0.75f
+    const val InactiveMainAlpha: Float = 0.55f
+    const val InactiveTranslationAlpha: Float = 0.38f
+    const val UnsyncedMainAlpha: Float = 1.0f
+    const val UnsyncedTranslationAlpha: Float = 0.70f
+
+    val BilingualSpacing: Dp = 4.dp
+    val ItemVerticalPadding: Dp = 6.dp
+    val ItemHorizontalPadding: Dp = 16.dp
+    val LineSpacing: Dp = 18.dp
+
+    fun resolveMainAlpha(isActive: Boolean, isSynchronized: Boolean): Float = when {
+        isActive -> ActiveMainAlpha
+        isSynchronized -> InactiveMainAlpha
+        else -> UnsyncedMainAlpha
+    }
+
+    fun resolveTranslationAlpha(isActive: Boolean, isSynchronized: Boolean): Float = when {
+        isActive -> ActiveTranslationAlpha
+        isSynchronized -> InactiveTranslationAlpha
+        else -> UnsyncedTranslationAlpha
+    }
+}
 
 @Composable
 fun LyricsView(
@@ -123,11 +162,11 @@ fun LyricsView(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(top = 180.dp, bottom = 220.dp, start = 16.dp, end = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                    verticalArrangement = Arrangement.spacedBy(LyricsViewDefaults.LineSpacing)
                 ) {
                     itemsIndexed(
                         items = lyrics.lines,
-                        key = { index, line -> "$index:${line.timestampMs}:${line.text}" }
+                        key = { index, line -> "$index:${line.timestampMs}:${line.text}:${line.translation.orEmpty()}" }
                     ) { index, line ->
                         val isActive = index == activeIndex && lyrics.isSynchronized
 
@@ -136,12 +175,14 @@ fun LyricsView(
                             isActive = isActive,
                             isSynchronized = lyrics.isSynchronized,
                             onClick = {
-                                if (lyrics.isSynchronized) {
-                                    onSeekTo(line.timestampMs)
-                                } else {
-                                    onToggleCover()
-                                }
-                            }
+                                handleLyricLineClick(
+                                    line = line,
+                                    isSynchronized = lyrics.isSynchronized,
+                                    onSeekTo = onSeekTo,
+                                    onToggleCover = onToggleCover
+                                )
+                            },
+                            modifier = Modifier.testTag("lyric_line_$index")
                         )
                     }
                 }
@@ -151,33 +192,40 @@ fun LyricsView(
 }
 
 @Composable
-private fun LyricLineItem(
+internal fun LyricLineItem(
     line: LyricLine,
     isActive: Boolean,
     isSynchronized: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val textColor by animateColorAsState(
+    val mainTextColor by animateColorAsState(
         targetValue = when {
             isActive -> MaterialTheme.colorScheme.primary
-            isSynchronized -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-            else -> MaterialTheme.colorScheme.onSurface
+            isSynchronized -> MaterialTheme.colorScheme.onSurface.copy(alpha = LyricsViewDefaults.InactiveMainAlpha)
+            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = LyricsViewDefaults.UnsyncedMainAlpha)
         },
         animationSpec = tween(durationMillis = 250),
-        label = "LyricTextColor"
+        label = "LyricMainTextColor"
     )
 
-    val fontSize = if (isActive) 20.sp else 16.sp
-    val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
+    val translationTextColor by animateColorAsState(
+        targetValue = when {
+            isActive -> MaterialTheme.colorScheme.primary.copy(alpha = LyricsViewDefaults.ActiveTranslationAlpha)
+            isSynchronized -> MaterialTheme.colorScheme.onSurface.copy(alpha = LyricsViewDefaults.InactiveTranslationAlpha)
+            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = LyricsViewDefaults.UnsyncedTranslationAlpha)
+        },
+        animationSpec = tween(durationMillis = 250),
+        label = "LyricTranslationTextColor"
+    )
 
-    Text(
-        text = line.text,
-        color = textColor,
-        fontSize = fontSize,
-        fontWeight = fontWeight,
-        textAlign = TextAlign.Center,
-        lineHeight = 28.sp,
+    val mainFontSize = if (isActive) LyricsViewDefaults.ActiveMainFontSize else LyricsViewDefaults.InactiveMainFontSize
+    val mainFontWeight = if (isActive) LyricsViewDefaults.ActiveMainFontWeight else LyricsViewDefaults.InactiveMainFontWeight
+
+    val translationFontSize = if (isActive) LyricsViewDefaults.ActiveTranslationFontSize else LyricsViewDefaults.InactiveTranslationFontSize
+    val translationFontWeight = if (isActive) LyricsViewDefaults.ActiveTranslationFontWeight else LyricsViewDefaults.InactiveTranslationFontWeight
+
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .clickable(
@@ -185,8 +233,35 @@ private fun LyricLineItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 6.dp, horizontal = 16.dp)
-    )
+            .padding(
+                vertical = LyricsViewDefaults.ItemVerticalPadding,
+                horizontal = LyricsViewDefaults.ItemHorizontalPadding
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = line.mainText,
+            color = mainTextColor,
+            fontSize = mainFontSize,
+            fontWeight = mainFontWeight,
+            textAlign = TextAlign.Center,
+            lineHeight = if (isActive) 28.sp else 24.sp,
+            modifier = Modifier.testTag("lyric_main_text")
+        )
+
+        if (line.hasTranslation && !line.translation.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(LyricsViewDefaults.BilingualSpacing))
+            Text(
+                text = line.translation,
+                color = translationTextColor,
+                fontSize = translationFontSize,
+                fontWeight = translationFontWeight,
+                textAlign = TextAlign.Center,
+                lineHeight = if (isActive) 20.sp else 18.sp,
+                modifier = Modifier.testTag("lyric_translation_text")
+            )
+        }
+    }
 }
 
 /**

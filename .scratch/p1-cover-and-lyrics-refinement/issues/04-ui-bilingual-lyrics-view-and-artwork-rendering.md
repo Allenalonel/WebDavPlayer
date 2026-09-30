@@ -4,10 +4,10 @@
 
 **Blocked by:** 02-queue-metadata-propagation-and-cache-healing.md, 03-industrial-lrc-normalizer-and-bilingual-model.md
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Update `LyricLineItem` in `LyricsView.kt` to display `line.translation` below `line.text` with subtle contrast and smaller font size when present.
-- [ ] Ensure tap-to-seek and smooth auto-scrolling work seamlessly with bilingual items.
-- [ ] Verify that `CoverThumbnailImage` in `MiniPlayer`, `FullPlayerView`, and `AudioTrackItemRow` reacts instantly when `coverThumbnailPath` updates from null to a valid local path.
-- [ ] Add Compose unit / screenshot / presentation tests for `LyricsView` with bilingual content.
-- [ ] Ensure `FullPlayerPresentationTest` and `LyricSeekInteractionTest` pass.
+- [x] Update `LyricLineItem` in `LyricsView.kt` to display `line.translation` below `line.text` with subtle contrast and smaller font size when present.
+- [x] Ensure tap-to-seek and smooth auto-scrolling work seamlessly with bilingual items.
+- [x] Verify that `CoverThumbnailImage` in `MiniPlayer`, `FullPlayerView`, and `AudioTrackItemRow` reacts instantly when `coverThumbnailPath` updates from null to a valid local path.
+- [x] Add Compose unit / screenshot / presentation tests for `LyricsView` with bilingual content.
+- [x] Ensure `FullPlayerPresentationTest` and `LyricSeekInteractionTest` pass.

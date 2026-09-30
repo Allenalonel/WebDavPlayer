@@ -2,6 +2,8 @@ package com.webdav.player.ui.player
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -63,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -121,6 +124,23 @@ fun FullPlayerView(
         defaultBackgroundColor = MaterialTheme.colorScheme.surface,
     )
 
+    val animatedTopColor by animateColorAsState(
+        targetValue = artworkColors.backgroundTopColor,
+        animationSpec = tween(durationMillis = 400),
+        label = "FullPlayerBackgroundTop",
+    )
+    val animatedBottomColor by animateColorAsState(
+        targetValue = artworkColors.backgroundBottomColor,
+        animationSpec = tween(durationMillis = 400),
+        label = "FullPlayerBackgroundBottom",
+    )
+    val backgroundBrush =
+        remember(animatedTopColor, animatedBottomColor) {
+            Brush.verticalGradient(
+                colors = listOf(animatedTopColor, animatedBottomColor),
+            )
+        }
+
     // Interactive scrubbing state
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubbedPositionMs by remember { mutableLongStateOf(0L) }
@@ -155,7 +175,7 @@ fun FullPlayerView(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(artworkColors.gradientBrush),
+                .background(backgroundBrush),
         color = Color.Transparent,
     ) {
         Column(

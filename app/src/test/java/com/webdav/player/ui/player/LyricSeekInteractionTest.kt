@@ -102,4 +102,69 @@ class LyricSeekInteractionTest {
         assertEquals(-1L, soughtTimestamp)
         assertTrue(toggleCoverCalled)
     }
+
+    @Test
+    fun handleLyricLineClick_bilingualSynchronized_seeksToLineTimestamp() {
+        val bilingualLine = LyricLine(
+            timestampMs = 35000L,
+            text = "On a dark desert highway",
+            translation = "行驶在漆黑昏暗的荒漠公路上"
+        )
+        var soughtTimestamp = -1L
+        var toggleCoverCalled = false
+
+        handleLyricLineClick(
+            line = bilingualLine,
+            isSynchronized = true,
+            onSeekTo = { soughtTimestamp = it },
+            onToggleCover = { toggleCoverCalled = true }
+        )
+
+        assertEquals(35000L, soughtTimestamp)
+        assertFalse(toggleCoverCalled)
+        assertTrue(bilingualLine.hasTranslation)
+        assertEquals("On a dark desert highway", bilingualLine.mainText)
+        assertEquals("行驶在漆黑昏暗的荒漠公路上", bilingualLine.translation)
+    }
+
+    @Test
+    fun handleLyricLineClick_bilingualUnsynchronized_invokesToggleCover() {
+        val bilingualLine = LyricLine(
+            timestampMs = 0L,
+            text = "Hello darkness my old friend",
+            translation = "你好，黑暗，我的老朋友"
+        )
+        var soughtTimestamp = -1L
+        var toggleCoverCalled = false
+
+        handleLyricLineClick(
+            line = bilingualLine,
+            isSynchronized = false,
+            onSeekTo = { soughtTimestamp = it },
+            onToggleCover = { toggleCoverCalled = true }
+        )
+
+        assertEquals(-1L, soughtTimestamp)
+        assertTrue(toggleCoverCalled)
+    }
+
+    @Test
+    fun findActiveLineIndex_withBilingualLyrics_accuratelyTracksPosition() {
+        val bilingualLyrics = Lyrics(
+            lines = listOf(
+                LyricLine(timestampMs = 10000L, text = "Line 1", translation = "第一句"),
+                LyricLine(timestampMs = 20000L, text = "Line 2", translation = "第二句"),
+                LyricLine(timestampMs = 30000L, text = "Line 3", translation = null)
+            ),
+            isSynchronized = true
+        )
+
+        assertEquals(-1, bilingualLyrics.findActiveLineIndex(5000L))
+        assertEquals(0, bilingualLyrics.findActiveLineIndex(10000L))
+        assertEquals(0, bilingualLyrics.findActiveLineIndex(15000L))
+        assertEquals(1, bilingualLyrics.findActiveLineIndex(20000L))
+        assertEquals(1, bilingualLyrics.findActiveLineIndex(25000L))
+        assertEquals(2, bilingualLyrics.findActiveLineIndex(30000L))
+        assertEquals(2, bilingualLyrics.findActiveLineIndex(40000L))
+    }
 }

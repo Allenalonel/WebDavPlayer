@@ -3,13 +3,18 @@ package com.webdav.player.ui.common
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -53,25 +58,30 @@ fun CoverThumbnailImage(
     thumbnailPath: String?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    crossfadeDurationMs: Int = 250,
     fallback: @Composable () -> Unit
 ) {
-    if (thumbnailPath.isNullOrBlank()) {
-        fallback()
-        return
-    }
-
     // Fast-path: Check memory cache directly
     val initialCached = remember(thumbnailPath) {
-        ThumbnailMemoryCache.get(thumbnailPath)
+        if (!thumbnailPath.isNullOrBlank()) {
+            ThumbnailMemoryCache.get(thumbnailPath)
+        } else {
+            null
+        }
     }
 
-    var imageBitmap by remember(thumbnailPath) {
+    val imageBitmapState = remember(thumbnailPath) {
         mutableStateOf(initialCached)
     }
+    val imageBitmap = imageBitmapState.value
 
     // Off-main-thread loading if cache missed
-    if (imageBitmap == null) {
-        LaunchedEffect(thumbnailPath) {
+    LaunchedEffect(thumbnailPath) {
+        if (thumbnailPath.isNullOrBlank()) {
+            imageBitmapState.value = null
+            return@LaunchedEffect
+        }
+        if (imageBitmapState.value == null) {
             val loaded = withContext(Dispatchers.IO) {
                 try {
                     val file = File(thumbnailPath)
@@ -89,20 +99,50 @@ fun CoverThumbnailImage(
             }
             if (loaded != null) {
                 ThumbnailMemoryCache.put(thumbnailPath, loaded)
-                imageBitmap = loaded
+                imageBitmapState.value = loaded
             }
         }
     }
 
-    val currentBitmap = imageBitmap
-    if (currentBitmap != null) {
-        Image(
-            bitmap = currentBitmap,
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = ContentScale.Crop
-        )
+    if (crossfadeDurationMs > 0) {
+        Crossfade(
+            targetState = imageBitmap,
+            animationSpec = tween(durationMillis = crossfadeDurationMs),
+            label = "CoverThumbnailCrossfade",
+            modifier = modifier
+        ) { currentBitmap ->
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (currentBitmap != null) {
+                    Image(
+                        bitmap = currentBitmap,
+                        contentDescription = contentDescription,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    fallback()
+                }
+            }
+        }
     } else {
-        fallback()
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            val currentBitmap = imageBitmap
+            if (currentBitmap != null) {
+                Image(
+                    bitmap = currentBitmap,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                fallback()
+            }
+        }
     }
 }
