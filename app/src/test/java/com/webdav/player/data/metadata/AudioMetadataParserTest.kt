@@ -419,6 +419,61 @@ class AudioMetadataParserTest {
         assertEquals("Asf embedded lyrics text", metadata.lyrics)
     }
 
+    @Test
+    fun testDetectRequiredTagSize_flacWithLargePicture_calculatesAccurateTagSize() {
+        val stream = ByteArrayOutputStream()
+        stream.write("fLaC".toByteArray(StandardCharsets.US_ASCII))
+
+        // Block 0: STREAMINFO (type 0, length 34, isLast = false)
+        stream.write(0x00)
+        stream.write(0x00)
+        stream.write(0x00)
+        stream.write(34)
+        stream.write(ByteArray(34))
+
+        // Block 6: PICTURE (type 6, length 800,000, isLast = true)
+        val picLength = 800000
+        stream.write(0x86)
+        stream.write((picLength shr 16) and 0xFF)
+        stream.write((picLength shr 8) and 0xFF)
+        stream.write(picLength and 0xFF)
+        // Only write 100 bytes of body in initial buffer
+        stream.write(ByteArray(100))
+
+        val initialBuffer = stream.toByteArray()
+        val detected = AudioMetadataParser.detectRequiredTagSize(initialBuffer)
+
+        assertNotNull("Tag size for FLAC with large PICTURE block must be detected", detected)
+        assertTrue(
+            "Detected size ($detected) must be large enough to hold the 800,000-byte PICTURE block (expected >= 800042)",
+            detected!! >= 800042L
+        )
+    }
+
+    @Test
+    fun testDetectRequiredTagSize_id3v2WithLargeTag_calculatesAccurateTagSize() {
+        val stream = ByteArrayOutputStream()
+        stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
+        stream.write(3) // v2.3
+        stream.write(0)
+        stream.write(0)
+
+        // Tag payload size: 750,000 bytes (synchsafe)
+        val tagPayload = 750000
+        stream.write((tagPayload shr 21) and 0x7F)
+        stream.write((tagPayload shr 14) and 0x7F)
+        stream.write((tagPayload shr 7) and 0x7F)
+        stream.write(tagPayload and 0x7F)
+        // Partial body in initial buffer
+        stream.write(ByteArray(100))
+
+        val initialBuffer = stream.toByteArray()
+        val detected = AudioMetadataParser.detectRequiredTagSize(initialBuffer)
+
+        assertNotNull(detected)
+        assertEquals(750010L, detected)
+    }
+
     // Helper functions
     private fun writeId3Frame(stream: ByteArrayOutputStream, frameId: String, text: String) {
         val payload = ByteArrayOutputStream()

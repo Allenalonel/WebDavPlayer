@@ -4,7 +4,9 @@ import com.webdav.player.data.local.CoverArtStorage
 import com.webdav.player.data.local.TrackMetadataDao
 import com.webdav.player.data.local.TrackMetadataEntity
 import com.webdav.player.data.metadata.AudioMetadataParser
+import com.webdav.player.data.metadata.ImageHeaderValidator
 import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
 import com.webdav.player.domain.model.TrackMetadata
@@ -16,9 +18,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 class TrackMetadataRepositoryImpl(
     private val trackMetadataDao: TrackMetadataDao,
@@ -29,6 +34,16 @@ class TrackMetadataRepositoryImpl(
 ) : TrackMetadataRepository {
 
     private val semaphore = Semaphore(maxConcurrency)
+    private val folderArtworkCache = ConcurrentHashMap<String, String>()
+    private val folderLocks = ConcurrentHashMap<String, Mutex>()
+
+    companion object {
+        private const val INITIAL_RANGE_START = 0L
+        private const val INITIAL_RANGE_END = 524287L // 512KB (524288 bytes)
+        private const val MAX_TAG_SIZE_CAP = 8L * 1024L * 1024L // 8MB to support high-res embedded art
+        private const val COVER_PROBE_MAX_SIZE = 8L * 1024L * 1024L // 8MB
+        private const val NO_FOLDER_ARTWORK_SENTINEL = "__NO_FOLDER_ARTWORK__"
+    }
 
     override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> {
         return trackMetadataDao.getAllMetadataForServerFlow(serverId).map { list ->
@@ -121,14 +136,31 @@ class TrackMetadataRepositoryImpl(
         val cleanFallbackTitle = file.name.substringBeforeLast('.').ifBlank { file.name }
 
         try {
-            val rangeBytes = webDavClient.fetchRange(server, file.path, 0L, 131071L)
+            val rangeBytes = webDavClient.fetchRange(server, file.path, INITIAL_RANGE_START, INITIAL_RANGE_END)
             if (rangeBytes != null && rangeBytes.isNotEmpty()) {
-                val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
-                val parsed = AudioMetadataParser.parse(rangeBytes, audioFormat)
+                val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(rangeBytes)
+                val completeBytes = if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
+                    try {
+                        fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
+                    } catch (e: Exception) {
+                        rangeBytes
+                    }
+                } else {
+                    rangeBytes
+                }
 
-                val thumbnailPath = if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
+                val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
+                val parsed = AudioMetadataParser.parse(completeBytes, audioFormat)
+
+                val embeddedThumb = if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
                     coverArtStorage.saveThumbnail(server.id, file.path, parsed.artworkData)
                 } else {
+                    null
+                }
+
+                val thumbnailPath = embeddedThumb ?: try {
+                    resolveFolderArtworkFallback(server, file)
+                } catch (e: Exception) {
                     null
                 }
 
@@ -153,6 +185,12 @@ class TrackMetadataRepositoryImpl(
         }
 
         // Fallback metadata saved to avoid repetitive probing
+        val fallbackCover = try {
+            resolveFolderArtworkFallback(server, file)
+        } catch (_: Exception) {
+            null
+        }
+
         return TrackMetadata(
             serverId = server.id,
             remotePath = file.path,
@@ -161,8 +199,177 @@ class TrackMetadataRepositoryImpl(
             album = null,
             trackNumber = null,
             durationMs = 0L,
-            coverThumbnailPath = null,
+            coverThumbnailPath = fallbackCover,
             lyrics = null
         )
+    }
+
+    private suspend fun fetchSecondaryRangeIfNeeded(
+        server: WebDavServer,
+        file: RemoteFile,
+        initialBytes: ByteArray
+    ): ByteArray {
+        val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(initialBytes) ?: return initialBytes
+        if (requiredTagSize <= initialBytes.size) return initialBytes
+
+        val targetSize = if (file.size > 0L) {
+            minOf(requiredTagSize, MAX_TAG_SIZE_CAP, file.size)
+        } else {
+            minOf(requiredTagSize, MAX_TAG_SIZE_CAP)
+        }
+
+        if (targetSize <= initialBytes.size) return initialBytes
+
+        val secondChunk = webDavClient.fetchRange(
+            server = server,
+            remotePath = file.path,
+            startByte = initialBytes.size.toLong(),
+            endByte = targetSize - 1L
+        ) ?: throw java.io.IOException("Secondary range fetch returned null for ${file.path}")
+
+        if (secondChunk.isEmpty()) {
+            throw java.io.IOException("Secondary range fetch returned empty chunk for ${file.path}")
+        }
+
+        return if (secondChunk.size >= targetSize && AudioMetadataParser.hasRecognizedAudioHeader(secondChunk)) {
+            secondChunk
+        } else {
+            ByteArray(initialBytes.size + secondChunk.size).apply {
+                System.arraycopy(initialBytes, 0, this, 0, initialBytes.size)
+                System.arraycopy(secondChunk, 0, this, initialBytes.size, secondChunk.size)
+            }
+        }
+    }
+
+    private suspend fun resolveFolderArtworkFallback(
+        server: WebDavServer,
+        file: RemoteFile
+    ): String? {
+        val parentDir = RemoteDirectory.getParentPath(file.path) ?: ""
+        val baseName = file.name.substringBeforeLast('.').ifBlank { file.name }
+        val folderKey = "${server.id}:$parentDir"
+
+        // 1. Check track-specific artwork first: "${trackName}.jpg", "${trackName}.png", "${filename}.jpg", "${filename}.png"
+        // Track-specific artwork must always take precedence over folder-level shared covers.
+        val trackCandidates = listOf(
+            "$baseName.jpg",
+            "$baseName.png",
+            "${file.name}.jpg",
+            "${file.name}.png"
+        )
+        val trackResult = probeCandidates(server, parentDir, trackCandidates)
+        if (trackResult is ProbeResult.Found) {
+            return trackResult.path
+        }
+
+        // 2. If folder artwork has already been resolved for this directory, reuse it immediately
+        val cachedFolderThumb = folderArtworkCache[folderKey]
+        if (cachedFolderThumb != null) {
+            return if (cachedFolderThumb == NO_FOLDER_ARTWORK_SENTINEL) null else cachedFolderThumb
+        }
+
+        // 3. Folder artwork not yet probed: synchronize probing of shared folder covers
+        val mutex = folderLocks.computeIfAbsent(folderKey) { Mutex() }
+        return mutex.withLock {
+            val doubleCheck = folderArtworkCache[folderKey]
+            if (doubleCheck != null) {
+                return@withLock if (doubleCheck == NO_FOLDER_ARTWORK_SENTINEL) null else doubleCheck
+            }
+
+            val folderCandidates = listOf(
+                "cover.jpg",
+                "folder.jpg",
+                "front.jpg",
+                "cover.png"
+            )
+            val folderResult = probeCandidates(server, parentDir, folderCandidates)
+            when (folderResult) {
+                is ProbeResult.Found -> {
+                    folderArtworkCache[folderKey] = folderResult.path
+                    folderResult.path
+                }
+                ProbeResult.NotFound -> {
+                    if (trackResult is ProbeResult.CorruptOrFailed) {
+                        throw java.io.IOException("Track artwork decode failed")
+                    }
+                    folderArtworkCache[folderKey] = NO_FOLDER_ARTWORK_SENTINEL
+                    null
+                }
+                ProbeResult.CorruptOrFailed -> {
+                    throw java.io.IOException("Folder artwork decode or download failed")
+                }
+            }
+        }
+    }
+
+    private sealed interface ProbeResult {
+        data class Found(val path: String) : ProbeResult
+        object NotFound : ProbeResult
+        object CorruptOrFailed : ProbeResult
+    }
+
+    private suspend fun probeCandidates(
+        server: WebDavServer,
+        parentDir: String,
+        candidateFileNames: List<String>
+    ): ProbeResult {
+        var hadCorruptCandidate = false
+        for (name in candidateFileNames) {
+            val path = buildCandidatePath(parentDir, name)
+            try {
+                val thumb = probeAndCacheArtwork(server, path)
+                if (thumb != null) {
+                    return ProbeResult.Found(thumb)
+                }
+            } catch (_: Exception) {
+                hadCorruptCandidate = true
+            }
+        }
+        return if (hadCorruptCandidate) ProbeResult.CorruptOrFailed else ProbeResult.NotFound
+    }
+
+    private suspend fun probeAndCacheArtwork(
+        server: WebDavServer,
+        candidatePath: String
+    ): String? {
+        val localThumb = coverArtStorage.getThumbnailFile(server.id, candidatePath)
+        if (localThumb != null && localThumb.exists()) {
+            return localThumb.absolutePath
+        }
+
+        val imageBytes = try {
+            webDavClient.fetchRange(
+                server = server,
+                remotePath = candidatePath,
+                startByte = 0L,
+                endByte = COVER_PROBE_MAX_SIZE - 1L
+            )
+        } catch (e: java.io.IOException) {
+            // Genuine network / I/O failure: rethrow so callers treat it as transient
+            throw e
+        } catch (_: Exception) {
+            // Non-IO errors: treat as artwork absent, continue fallback
+            null
+        }
+
+        if (imageBytes != null && imageBytes.isNotEmpty()) {
+            if (!ImageHeaderValidator.isCompleteImage(imageBytes)) {
+                throw java.io.IOException("Incomplete image bytes fetched for $candidatePath")
+            }
+            val saved = coverArtStorage.saveThumbnail(server.id, candidatePath, imageBytes)
+                ?: throw java.io.IOException("Bitmap decoding failed for $candidatePath")
+            return saved
+        }
+        return null
+    }
+
+    private fun buildCandidatePath(
+        directory: String,
+        fileName: String
+    ): String = when {
+        directory.isEmpty() -> fileName
+        directory == "/" -> "/$fileName"
+        directory.endsWith('/') -> "$directory$fileName"
+        else -> "$directory/$fileName"
     }
 }
