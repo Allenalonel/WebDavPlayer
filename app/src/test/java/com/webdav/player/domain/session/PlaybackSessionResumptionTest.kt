@@ -1,5 +1,6 @@
 package com.webdav.player.domain.session
 
+import com.webdav.player.data.local.CoverArtStorage
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
@@ -7,15 +8,18 @@ import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -32,6 +36,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackSessionResumptionTest {
@@ -102,12 +107,18 @@ class PlaybackSessionResumptionTest {
         Dispatchers.resetMain()
     }
 
-    private fun createSession(store: FakePlaybackSessionStore = fakeStore): MusicPlayerAppSessionImpl =
+    private fun createSession(
+        store: FakePlaybackSessionStore = fakeStore,
+        metadataRepo: TrackMetadataRepository? = null,
+        coverStorage: CoverArtStorage? = null,
+    ): MusicPlayerAppSessionImpl =
         MusicPlayerAppSessionImpl(
             playerEngine = fakeEngine,
             serverRepository = fakeServerRepo,
+            trackMetadataRepository = metadataRepo,
             sessionStore = store,
             coroutineScope = sessionScope,
+            coverArtStorage = coverStorage,
         )
 
     @Test
@@ -516,6 +527,324 @@ class PlaybackSessionResumptionTest {
             // Ensure no crash occurred and state still holds the track metadata
             assertEquals(track1, state.currentTrack)
         }
+
+    @Test
+    fun coldStart_whenArtworkFileMissingFromDisk_safelyStripsDeadArtworkUriAndPresentsCleanFallback() =
+        runTest(testDispatcher) {
+            val fakeCoverStorage = FakeCoverArtStorage()
+            val fakeMetadataRepo = TestTrackMetadataRepository()
+
+            val deadCoverPath = "/cache/covers/deleted_art.jpg"
+            val trackWithDeadArt = track1.copy(coverThumbnailPath = deadCoverPath)
+
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(trackWithDeadArt),
+                    currentTrackIndex = 0,
+                    positionMs = 15000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session =
+                createSession(
+                    store = fakeStore,
+                    metadataRepo = fakeMetadataRepo,
+                    coverStorage = fakeCoverStorage,
+                )
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            // Physical file does not exist on disk -> artwork URI must be stripped to null
+            assertNull("Dead artwork path must be stripped to null during session restore", state.currentTrack?.coverThumbnailPath)
+
+            // Starting playback must pass sanitized track with null artwork to player engine
+            session.togglePlayPause()
+            runCurrent()
+
+            assertEquals(1, fakeEngine.lastTracks.size)
+            assertNull(
+                "PlayerEngine must receive null artwork URI avoiding FileNotFoundException crashes",
+                fakeEngine.lastTracks[0].coverThumbnailPath,
+            )
+        }
+
+    @Test
+    fun coldStart_whenArtworkFileMissingFromDisk_triggersBackgroundSelfHealingAndEnrichesTrackNonDisruptively() =
+        runTest(testDispatcher) {
+            val fakeCoverStorage = FakeCoverArtStorage()
+            val fakeMetadataRepo = TestTrackMetadataRepository()
+
+            val deadCoverPath = "/cache/covers/deleted_1.jpg"
+            val healedCoverPath = "/cache/covers/healed_1.jpg"
+            val trackWithDeadArt = track1.copy(coverThumbnailPath = deadCoverPath)
+
+            fakeMetadataRepo.singleTrackResolver = { server, file ->
+                // Simulate self-healing writing thumbnail to disk
+                fakeCoverStorage.diskFiles.add(healedCoverPath)
+                TrackMetadata(
+                    serverId = server.id,
+                    remotePath = file.path,
+                    title = "Autumn Leaves",
+                    artist = "Bill Evans",
+                    coverThumbnailPath = healedCoverPath,
+                )
+            }
+
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(trackWithDeadArt),
+                    currentTrackIndex = 0,
+                    positionMs = 20000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session =
+                createSession(
+                    store = fakeStore,
+                    metadataRepo = fakeMetadataRepo,
+                    coverStorage = fakeCoverStorage,
+                )
+            advanceUntilIdle()
+
+            // Session is restored in paused state, dead artwork stripped
+            val restoredState = session.sessionState.value
+            assertTrue("Restored session must be in paused state", restoredState.isPaused)
+
+            // Start playback on restored session while background self-healing enriches metadata
+            session.togglePlayPause()
+            runCurrent()
+            assertTrue("Playback must start immediately", session.sessionState.value.isPlaying)
+
+            // Advance until self-healing background coroutine completes
+            advanceUntilIdle()
+
+            // Verify single track resolution was triggered for the track with missing artwork
+            assertEquals(1, fakeMetadataRepo.resolveSingleTrackCalls.size)
+            assertEquals(track1.remotePath, fakeMetadataRepo.resolveSingleTrackCalls[0].path)
+
+            // Queue and active track must be enriched non-disruptively
+            val enrichedTrack = session.sessionState.value.currentTrack
+            assertNotNull(enrichedTrack)
+            assertEquals(healedCoverPath, enrichedTrack?.coverThumbnailPath)
+
+            // Player engine received track update non-disruptively
+            assertTrue(fakeEngine.updateTrackCalls >= 1)
+            assertEquals(healedCoverPath, fakeEngine.lastTracks[0].coverThumbnailPath)
+            assertTrue("Playback must not be interrupted during enrichment", session.sessionState.value.isPlaying)
+        }
+
+    @Test
+    fun coldStart_whenMultipleTracksHaveMissingArtwork_healsActiveTrackFirstAndEnrichesAllQueueTracks() =
+        runTest(testDispatcher) {
+            val fakeCoverStorage = FakeCoverArtStorage()
+            val fakeMetadataRepo = TestTrackMetadataRepository()
+
+            val deadCover1 = "/cache/covers/dead1.jpg"
+            val deadCover2 = "/cache/covers/dead2.jpg"
+            val healedCover1 = "/cache/covers/healed1.jpg"
+            val healedCover2 = "/cache/covers/healed2.jpg"
+
+            val t1 = track1.copy(coverThumbnailPath = deadCover1)
+            val t2 = track2.copy(coverThumbnailPath = deadCover2)
+
+            fakeMetadataRepo.singleTrackResolver = { server, file ->
+                val thumb = if (file.path == t2.remotePath) healedCover2 else healedCover1
+                fakeCoverStorage.diskFiles.add(thumb)
+                TrackMetadata(
+                    serverId = server.id,
+                    remotePath = file.path,
+                    title = file.name,
+                    coverThumbnailPath = thumb,
+                )
+            }
+
+            // Track 2 is active track (index 1)
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(t1, t2),
+                    currentTrackIndex = 1,
+                    positionMs = 30000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session =
+                createSession(
+                    store = fakeStore,
+                    metadataRepo = fakeMetadataRepo,
+                    coverStorage = fakeCoverStorage,
+                )
+
+            // Complete restoration and background self-healing
+            advanceUntilIdle()
+
+            // Verify active track (t2) was resolved first
+            assertEquals(2, fakeMetadataRepo.resolveSingleTrackCalls.size)
+            assertEquals("Active track must be resolved first", t2.remotePath, fakeMetadataRepo.resolveSingleTrackCalls[0].path)
+            assertEquals(t1.remotePath, fakeMetadataRepo.resolveSingleTrackCalls[1].path)
+
+            // Verify both tracks are enriched
+            val healedQueue = session.sessionState.value.queue
+            assertEquals(healedCover1, healedQueue.tracks[0].coverThumbnailPath)
+            assertEquals(healedCover2, healedQueue.tracks[1].coverThumbnailPath)
+        }
+
+    @Test
+    fun coldStart_whenBackgroundSelfHealingEncounterNetworkError_handlesGracefullyWithoutUnhandledExceptions() =
+        runTest(testDispatcher) {
+            val fakeCoverStorage = FakeCoverArtStorage()
+            val fakeMetadataRepo = TestTrackMetadataRepository()
+
+            val deadCover = "/cache/covers/dead_network_fail.jpg"
+            val t1 = track1.copy(coverThumbnailPath = deadCover)
+
+            fakeMetadataRepo.singleTrackResolver = { _, _ ->
+                throw java.io.IOException("Network connection reset")
+            }
+
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(t1),
+                    currentTrackIndex = 0,
+                    positionMs = 10000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session =
+                createSession(
+                    store = fakeStore,
+                    metadataRepo = fakeMetadataRepo,
+                    coverStorage = fakeCoverStorage,
+                )
+
+            // Must complete without throwing unhandled exceptions
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertTrue("State remains paused and valid", state.isPaused)
+            assertNull("Dead artwork remains stripped to clean fallback", state.currentTrack?.coverThumbnailPath)
+            assertNull("No fatal session error message", state.errorMessage)
+        }
+
+    @Test
+    fun coldStart_whenArtworkFilePhysicallyExistsOnDisk_retainsArtworkUriWithoutTriggeringSelfHealing() =
+        runTest(testDispatcher) {
+            val fakeCoverStorage = FakeCoverArtStorage()
+            val fakeMetadataRepo = TestTrackMetadataRepository()
+
+            val validPath = "/cache/covers/valid_art.jpg"
+            fakeCoverStorage.diskFiles.add(validPath)
+            val trackWithValidArt = track1.copy(coverThumbnailPath = validPath)
+
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(trackWithValidArt),
+                    currentTrackIndex = 0,
+                    positionMs = 10000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session =
+                createSession(
+                    store = fakeStore,
+                    metadataRepo = fakeMetadataRepo,
+                    coverStorage = fakeCoverStorage,
+                )
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertEquals("Existing artwork file on disk must be retained", validPath, state.currentTrack?.coverThumbnailPath)
+            assertTrue("No self-healing required when artwork file physically exists", fakeMetadataRepo.resolveSingleTrackCalls.isEmpty())
+        }
+
+    private class FakeCoverArtStorage : CoverArtStorage {
+        val diskFiles = mutableSetOf<String>()
+
+        override suspend fun saveThumbnail(
+            serverId: Long,
+            remotePath: String,
+            artworkBytes: ByteArray,
+        ): String? {
+            val path = "/cache/covers/cover_${serverId}_thumb.jpg"
+            diskFiles.add(path)
+            return path
+        }
+
+        override fun isValidThumbnailFile(filePath: String?): Boolean {
+            if (filePath.isNullOrBlank()) return false
+            return diskFiles.contains(filePath)
+        }
+
+        override fun getThumbnailFile(
+            serverId: Long,
+            remotePath: String,
+        ): File? = null
+
+        override fun deleteThumbnail(
+            serverId: Long,
+            remotePath: String,
+        ) {}
+
+        override suspend fun deleteServerCovers(serverId: Long) {
+            diskFiles.clear()
+        }
+    }
+
+    private class TestTrackMetadataRepository : TrackMetadataRepository {
+        val metadataFlow = MutableStateFlow<List<TrackMetadata>>(emptyList())
+        val resolveSingleTrackCalls = mutableListOf<RemoteFile>()
+        var singleTrackResolver: (suspend (WebDavServer, RemoteFile) -> TrackMetadata)? = null
+
+        override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> = metadataFlow.asStateFlow()
+
+        override fun getMetadataForPathsFlow(
+            serverId: Long,
+            remotePaths: List<String>,
+        ): Flow<List<TrackMetadata>> = metadataFlow.map { list -> list.filter { it.remotePath in remotePaths } }
+
+        override fun getMetadataFlow(
+            serverId: Long,
+            remotePath: String,
+        ): Flow<TrackMetadata?> = metadataFlow.map { list -> list.firstOrNull { it.remotePath == remotePath } }
+
+        override suspend fun getCachedMetadata(
+            serverId: Long,
+            remotePath: String,
+        ): TrackMetadata? = metadataFlow.value.firstOrNull { it.remotePath == remotePath }
+
+        override suspend fun resolveMetadata(
+            server: WebDavServer,
+            files: List<RemoteFile>,
+            forceRefresh: Boolean,
+        ) {}
+
+        override suspend fun resolveSingleTrackMetadata(
+            server: WebDavServer,
+            file: RemoteFile,
+        ): TrackMetadata {
+            resolveSingleTrackCalls.add(file)
+            return singleTrackResolver?.invoke(server, file)
+                ?: TrackMetadata(
+                    serverId = server.id,
+                    remotePath = file.path,
+                    title = file.name,
+                )
+        }
+    }
 
     private class TestServerRepository(
         servers: List<WebDavServer>,

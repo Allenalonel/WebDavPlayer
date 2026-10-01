@@ -23,7 +23,6 @@ import com.webdav.player.domain.session.MusicPlayerAppSession
 import com.webdav.player.domain.session.MusicPlayerAppSessionImpl
 
 class WebDavApplication : Application() {
-
     lateinit var serverRepository: ServerRepository
         private set
 
@@ -60,23 +59,26 @@ class WebDavApplication : Application() {
         this.webDavClient = webDavClient
         serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
 
-        val trackMetadataResolver = DefaultTrackMetadataResolver(
-            webDavClient = webDavClient,
-            coverArtStorage = coverArtStorage
-        )
+        val trackMetadataResolver =
+            DefaultTrackMetadataResolver(
+                webDavClient = webDavClient,
+                coverArtStorage = coverArtStorage,
+            )
         this.trackMetadataResolver = trackMetadataResolver
 
-        trackMetadataRepository = TrackMetadataRepositoryImpl(
-            trackMetadataDao = database.trackMetadataDao(),
-            trackMetadataResolver = trackMetadataResolver,
-            coverArtStorage = coverArtStorage
-        )
+        trackMetadataRepository =
+            TrackMetadataRepositoryImpl(
+                trackMetadataDao = database.trackMetadataDao(),
+                trackMetadataResolver = trackMetadataResolver,
+                coverArtStorage = coverArtStorage,
+            )
 
-        lyricsRepository = LyricsRepositoryImpl(
-            webDavClient = webDavClient,
-            trackMetadataRepository = trackMetadataRepository,
-            trackMetadataResolver = trackMetadataResolver
-        )
+        lyricsRepository =
+            LyricsRepositoryImpl(
+                webDavClient = webDavClient,
+                trackMetadataRepository = trackMetadataRepository,
+                trackMetadataResolver = trackMetadataResolver,
+            )
 
         val mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(this, webDavClient)
         val sessionHost = PlaybackSessionHost.getInstance(this, mediaSourceAdapter)
@@ -85,18 +87,21 @@ class WebDavApplication : Application() {
         val sessionStore = DataStorePlaybackSessionStore(this)
         this.sessionStore = sessionStore
 
-        val directoryRepository = DirectoryRepositoryImpl(
-            webDavClient = webDavClient,
-            directoryCacheDao = database.directoryCacheDao()
-        )
+        val directoryRepository =
+            DirectoryRepositoryImpl(
+                webDavClient = webDavClient,
+                directoryCacheDao = database.directoryCacheDao(),
+            )
         this.directoryRepository = directoryRepository
 
-        musicPlayerAppSession = MusicPlayerAppSessionImpl(
-            playerEngine = playerEngine,
-            serverRepository = serverRepository,
-            trackMetadataRepository = trackMetadataRepository,
-            lyricsRepository = lyricsRepository,
-            sessionStore = sessionStore
-        )
+        musicPlayerAppSession =
+            MusicPlayerAppSessionImpl(
+                playerEngine = playerEngine,
+                serverRepository = serverRepository,
+                trackMetadataRepository = trackMetadataRepository,
+                lyricsRepository = lyricsRepository,
+                sessionStore = sessionStore,
+                coverArtStorage = coverArtStorage,
+            )
     }
 }

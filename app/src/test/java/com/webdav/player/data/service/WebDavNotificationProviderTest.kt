@@ -18,6 +18,7 @@ import com.webdav.player.R
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -30,7 +31,6 @@ import java.io.FileOutputStream
 @OptIn(UnstableApi::class)
 @RunWith(RobolectricTestRunner::class)
 class WebDavNotificationProviderTest {
-
     private lateinit var context: Context
     private lateinit var player: Player
     private lateinit var session: MediaSession
@@ -61,17 +61,21 @@ class WebDavNotificationProviderTest {
 
     @Test
     fun buildNotification_containsTrackMetadata_andThreeActions() {
-        val mediaMetadata = MediaMetadata.Builder()
-            .setTitle("Test Title")
-            .setArtist("Test Artist")
-            .setAlbumTitle("Test Album")
-            .build()
+        val mediaMetadata =
+            MediaMetadata
+                .Builder()
+                .setTitle("Test Title")
+                .setArtist("Test Artist")
+                .setAlbumTitle("Test Album")
+                .build()
 
-        val mediaItem = MediaItem.Builder()
-            .setUri("http://example.com/audio.mp3")
-            .setMediaId("test:1")
-            .setMediaMetadata(mediaMetadata)
-            .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:1")
+                .setMediaMetadata(mediaMetadata)
+                .build()
 
         player.setMediaItem(mediaItem)
         player.prepare()
@@ -94,11 +98,13 @@ class WebDavNotificationProviderTest {
 
     @Test
     fun buildNotification_whenPlaying_actionIsPause_andOngoingIsTrue() {
-        val mediaItem = MediaItem.Builder()
-            .setUri("http://example.com/audio.mp3")
-            .setMediaId("test:1")
-            .setMediaMetadata(MediaMetadata.Builder().setTitle("Playing Song").build())
-            .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:1")
+                .setMediaMetadata(MediaMetadata.Builder().setTitle("Playing Song").build())
+                .build()
 
         player.setMediaItem(mediaItem)
         player.playWhenReady = true
@@ -115,16 +121,20 @@ class WebDavNotificationProviderTest {
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         val bytes = stream.toByteArray()
 
-        val mediaMetadata = MediaMetadata.Builder()
-            .setTitle("With Artwork")
-            .setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-            .build()
+        val mediaMetadata =
+            MediaMetadata
+                .Builder()
+                .setTitle("With Artwork")
+                .setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                .build()
 
-        val mediaItem = MediaItem.Builder()
-            .setUri("http://example.com/audio.mp3")
-            .setMediaId("test:art")
-            .setMediaMetadata(mediaMetadata)
-            .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:art")
+                .setMediaMetadata(mediaMetadata)
+                .build()
 
         player.setMediaItem(mediaItem)
 
@@ -141,16 +151,20 @@ class WebDavNotificationProviderTest {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
 
-        val mediaMetadata = MediaMetadata.Builder()
-            .setTitle("With Uri Artwork")
-            .setArtworkUri(android.net.Uri.fromFile(coverFile))
-            .build()
+        val mediaMetadata =
+            MediaMetadata
+                .Builder()
+                .setTitle("With Uri Artwork")
+                .setArtworkUri(android.net.Uri.fromFile(coverFile))
+                .build()
 
-        val mediaItem = MediaItem.Builder()
-            .setUri("http://example.com/audio.mp3")
-            .setMediaId("test:uri_art")
-            .setMediaMetadata(mediaMetadata)
-            .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:uri_art")
+                .setMediaMetadata(mediaMetadata)
+                .build()
 
         player.setMediaItem(mediaItem)
 
@@ -161,77 +175,83 @@ class WebDavNotificationProviderTest {
 
     @Test
     fun createNotification_returnsMediaNotification_withMatchingId() {
-        val mediaItem = MediaItem.Builder()
-            .setUri("http://example.com/audio.mp3")
-            .setMediaId("test:create")
-            .setMediaMetadata(MediaMetadata.Builder().setTitle("Provider Test").build())
-            .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:create")
+                .setMediaMetadata(MediaMetadata.Builder().setTitle("Provider Test").build())
+                .build()
         player.setMediaItem(mediaItem)
 
-        val mediaNotification = provider.createNotification(
-            mediaSession = session,
-            customLayout = ImmutableList.of(),
-            actionFactory = object : androidx.media3.session.MediaNotification.ActionFactory {
-                override fun createMediaAction(
-                    session: MediaSession,
-                    customAction: androidx.core.graphics.drawable.IconCompat,
-                    actionLabel: CharSequence,
-                    actionCode: Int
-                ): androidx.core.app.NotificationCompat.Action {
-                    return androidx.core.app.NotificationCompat.Action.Builder(
-                        android.R.drawable.ic_media_play,
-                        actionLabel,
-                        null
-                    ).build()
-                }
+        val mediaNotification =
+            provider.createNotification(
+                mediaSession = session,
+                customLayout = ImmutableList.of(),
+                actionFactory =
+                    object : androidx.media3.session.MediaNotification.ActionFactory {
+                        override fun createMediaAction(
+                            session: MediaSession,
+                            customAction: androidx.core.graphics.drawable.IconCompat,
+                            actionLabel: CharSequence,
+                            actionCode: Int,
+                        ): androidx.core.app.NotificationCompat.Action =
+                            androidx.core.app.NotificationCompat.Action
+                                .Builder(
+                                    android.R.drawable.ic_media_play,
+                                    actionLabel,
+                                    null,
+                                ).build()
 
-                override fun createCustomAction(
-                    session: MediaSession,
-                    customAction: androidx.core.graphics.drawable.IconCompat,
-                    actionLabel: CharSequence,
-                    customActionKey: String,
-                    customExtras: android.os.Bundle
-                ): androidx.core.app.NotificationCompat.Action {
-                    return androidx.core.app.NotificationCompat.Action.Builder(
-                        android.R.drawable.ic_media_play,
-                        actionLabel,
-                        null
-                    ).build()
-                }
+                        override fun createCustomAction(
+                            session: MediaSession,
+                            customAction: androidx.core.graphics.drawable.IconCompat,
+                            actionLabel: CharSequence,
+                            customActionKey: String,
+                            customExtras: android.os.Bundle,
+                        ): androidx.core.app.NotificationCompat.Action =
+                            androidx.core.app.NotificationCompat.Action
+                                .Builder(
+                                    android.R.drawable.ic_media_play,
+                                    actionLabel,
+                                    null,
+                                ).build()
 
-                override fun createCustomActionFromCustomCommandButton(
-                    session: MediaSession,
-                    customCommandButton: androidx.media3.session.CommandButton
-                ): androidx.core.app.NotificationCompat.Action {
-                    return androidx.core.app.NotificationCompat.Action.Builder(
-                        android.R.drawable.ic_media_play,
-                        customCommandButton.displayName,
-                        null
-                    ).build()
-                }
+                        override fun createCustomActionFromCustomCommandButton(
+                            session: MediaSession,
+                            customCommandButton: androidx.media3.session.CommandButton,
+                        ): androidx.core.app.NotificationCompat.Action =
+                            androidx.core.app.NotificationCompat.Action
+                                .Builder(
+                                    android.R.drawable.ic_media_play,
+                                    customCommandButton.displayName,
+                                    null,
+                                ).build()
 
-                override fun createMediaActionPendingIntent(
-                    session: MediaSession,
-                    actionToken: Long
-                ): android.app.PendingIntent {
-                    return android.app.PendingIntent.getActivity(
-                        context,
-                        0,
-                        android.content.Intent(),
-                        android.app.PendingIntent.FLAG_IMMUTABLE
-                    )
-                }
-            },
-            onNotificationChangedListener = object : androidx.media3.session.MediaNotification.Provider.Callback {
-                override fun onNotificationChanged(notification: androidx.media3.session.MediaNotification) {}
-            }
-        )
+                        override fun createMediaActionPendingIntent(
+                            session: MediaSession,
+                            actionToken: Long,
+                        ): android.app.PendingIntent =
+                            android.app.PendingIntent.getActivity(
+                                context,
+                                0,
+                                android.content.Intent(),
+                                android.app.PendingIntent.FLAG_IMMUTABLE,
+                            )
+                    },
+                onNotificationChangedListener =
+                    object : androidx.media3.session.MediaNotification.Provider.Callback {
+                        override fun onNotificationChanged(notification: androidx.media3.session.MediaNotification) {}
+                    },
+            )
 
         assertEquals(WebDavNotificationProvider.NOTIFICATION_ID, mediaNotification.notificationId)
         assertNotNull(mediaNotification.notification)
         assertEquals(
             "Provider Test",
-            mediaNotification.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+            mediaNotification.notification.extras
+                .getCharSequence(Notification.EXTRA_TITLE)
+                ?.toString(),
         )
     }
 
@@ -243,17 +263,46 @@ class WebDavNotificationProviderTest {
 
     @Test
     fun buildNotification_usesVectorNotificationPlaybackAsSmallIcon() {
-        val mediaMetadata = MediaMetadata.Builder()
-            .setTitle("Vector Icon Check")
-            .build()
-        val mediaItem = MediaItem.Builder()
-            .setUri("http://example.com/audio.mp3")
-            .setMediaId("test:vector_icon")
-            .setMediaMetadata(mediaMetadata)
-            .build()
+        val mediaMetadata =
+            MediaMetadata
+                .Builder()
+                .setTitle("Vector Icon Check")
+                .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:vector_icon")
+                .setMediaMetadata(mediaMetadata)
+                .build()
         player.setMediaItem(mediaItem)
 
         val notification = provider.buildNotification(session)
         assertEquals(R.drawable.ic_notification_playback, notification.smallIcon.resId)
+    }
+
+    @Test
+    fun buildNotification_whenArtworkUriFileDoesNotExist_doesNotThrowAndFallsBackToCleanVectorIcon() {
+        val nonExistentFile = File(context.cacheDir, "non_existent_art.jpg")
+        val mediaMetadata =
+            MediaMetadata
+                .Builder()
+                .setTitle("Missing Art Song")
+                .setArtist("Clean Fallback Artist")
+                .setArtworkUri(android.net.Uri.fromFile(nonExistentFile))
+                .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:missing_art")
+                .setMediaMetadata(mediaMetadata)
+                .build()
+        player.setMediaItem(mediaItem)
+
+        val notification = provider.buildNotification(session)
+        assertNotNull(notification)
+        assertEquals(R.drawable.ic_notification_playback, notification.smallIcon.resId)
+        assertNull("Large icon should be null when artwork file does not exist", notification.getLargeIcon())
     }
 }
