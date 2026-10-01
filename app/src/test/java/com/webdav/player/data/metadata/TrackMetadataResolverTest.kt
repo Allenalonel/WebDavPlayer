@@ -240,6 +240,63 @@ class TrackMetadataResolverTest {
             assertNull(result)
         }
 
+    @Test
+    fun resolve_cachedFolderArtwork_whenFileDeletedFromDisk_treatsAsCacheMissAndReProbes() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("Song 1", "Artist", "Album", artworkBytes = null)
+            fakeClient.stubFileBytes("/music/rock/song1.mp3", sampleMp3)
+            fakeClient.stubFileBytes("/music/rock/song2.mp3", sampleMp3)
+            val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/rock/cover.jpg", coverJpg)
+
+            val file1 = RemoteFile(name = "song1.mp3", path = "/music/rock/song1.mp3", size = 5000L)
+            val file2 = RemoteFile(name = "song2.mp3", path = "/music/rock/song2.mp3", size = 5000L)
+
+            // First resolve: resolves cover.jpg and populates folderArtworkCache
+            val meta1 = resolver.resolve(testServer, file1)
+            assertNotNull(meta1?.coverThumbnailPath)
+            val initialFetches = fakeClient.fetchCount.get()
+
+            // Simulate file deletion on disk (e.g. system cache clear while app is in memory)
+            fakeStorage.diskFiles.clear()
+
+            // Second resolve for song2: must NOT reuse dead cached path, must treat as cache miss and re-probe
+            val meta2 = resolver.resolve(testServer, file2)
+            assertNotNull("Must re-probe and restore thumbnail", meta2?.coverThumbnailPath)
+            assertTrue("Must have fetched cover from network again", fakeClient.fetchCount.get() > initialFetches)
+            assertTrue(fakeStorage.isValidThumbnailFile(meta2?.coverThumbnailPath))
+        }
+
+    @Test
+    fun resolve_negativeFolderArtworkSentinel_whenCacheCleared_allowsReProbingNetwork() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("No Art Song", "Artist", "Album", artworkBytes = null)
+            fakeClient.stubFileBytes("/music/pop/track1.mp3", sampleMp3)
+            fakeClient.stubFileBytes("/music/pop/track2.mp3", sampleMp3)
+            // No cover.jpg initially on server
+
+            val file1 = RemoteFile(name = "track1.mp3", path = "/music/pop/track1.mp3", size = 5000L)
+            val file2 = RemoteFile(name = "track2.mp3", path = "/music/pop/track2.mp3", size = 5000L)
+
+            val meta1 = resolver.resolve(testServer, file1)
+            assertNull("No artwork initially", meta1?.coverThumbnailPath)
+
+            // Track 2 in same folder uses negative cache: 0 network probes for cover
+            val meta2 = resolver.resolve(testServer, file2)
+            assertNull(meta2?.coverThumbnailPath)
+
+            // User now adds cover.jpg to server and triggers force-refresh / clearCache
+            val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/pop/cover.jpg", coverJpg)
+
+            // Without clearCache, negative cache sentinel would block finding cover.jpg
+            resolver.clearCache()
+
+            val meta3 = resolver.resolve(testServer, file2)
+            assertNotNull("After clearCache, re-probing finds newly added cover.jpg", meta3?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(meta3?.coverThumbnailPath))
+        }
+
     private fun buildSampleId3v2Bytes(
         title: String,
         artist: String,
@@ -446,21 +503,29 @@ class TrackMetadataResolverTest {
 
     private class FakeCoverArtStorage : CoverArtStorage {
         val savedThumbnails = mutableMapOf<String, ByteArray>()
+        val diskFiles = mutableSetOf<String>()
 
         override suspend fun saveThumbnail(
             serverId: Long,
             remotePath: String,
             artworkBytes: ByteArray,
         ): String? {
+            val path = "/fake/covers/cover_$serverId.jpg"
             savedThumbnails["$serverId:$remotePath"] = artworkBytes
-            return "/fake/covers/cover_$serverId.jpg"
+            diskFiles.add(path)
+            return path
+        }
+
+        override fun isValidThumbnailFile(filePath: String?): Boolean {
+            if (filePath.isNullOrBlank()) return false
+            return diskFiles.contains(filePath)
         }
 
         override fun getThumbnailFile(
             serverId: Long,
             remotePath: String,
         ): File? =
-            if (savedThumbnails.containsKey("$serverId:$remotePath")) {
+            if (savedThumbnails.containsKey("$serverId:$remotePath") && diskFiles.contains("/fake/covers/cover_$serverId.jpg")) {
                 File("/fake/covers/cover_$serverId.jpg")
             } else {
                 null
@@ -471,10 +536,14 @@ class TrackMetadataResolverTest {
             remotePath: String,
         ) {
             savedThumbnails.remove("$serverId:$remotePath")
+            if (savedThumbnails.none { it.key.startsWith("$serverId:") }) {
+                diskFiles.remove("/fake/covers/cover_$serverId.jpg")
+            }
         }
 
         override suspend fun deleteServerCovers(serverId: Long) {
             savedThumbnails.keys.filter { it.startsWith("$serverId:") }.forEach { savedThumbnails.remove(it) }
+            diskFiles.remove("/fake/covers/cover_$serverId.jpg")
         }
     }
 }

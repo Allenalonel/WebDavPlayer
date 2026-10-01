@@ -5,11 +5,11 @@ Correct the self-healing metadata cache evaluation and resolver cache invalidati
 
 **Blocked by:** 01: Resilient Cover Art Storage and Directory Recovery
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Metadata repository checks the physical existence of the referenced thumbnail file path rather than synthesizing path hashes.
-- [ ] Tracks with missing thumbnail files on disk are scheduled for background self-healing resolution during directory browsing.
-- [ ] Tracks with existing thumbnail files on disk are skipped during incremental resolution, preserving network bandwidth.
-- [ ] Track metadata resolver exposes a cache clearing seam that purges in-memory folder artwork resolution mappings and negative cache sentinels.
-- [ ] User-initiated force-refresh triggers cache invalidation on the resolver prior to network probing.
-- [ ] Unit tests verify that missing physical files trigger self-healing while existing files are preserved, and cache invalidation clears negative cache sentinels.
+- [x] Metadata repository checks the physical existence of the referenced thumbnail file path rather than synthesizing path hashes.
+- [x] Tracks with missing thumbnail files on disk are scheduled for background self-healing resolution during directory browsing.
+- [x] Tracks with existing thumbnail files on disk are skipped during incremental resolution, preserving network bandwidth.
+- [x] Track metadata resolver exposes a cache clearing seam that purges in-memory folder artwork resolution mappings and negative cache sentinels.
+- [x] User-initiated force-refresh triggers cache invalidation on the resolver prior to network probing.
+- [x] Unit tests verify that missing physical files trigger self-healing while existing files are preserved, and cache invalidation clears negative cache sentinels.

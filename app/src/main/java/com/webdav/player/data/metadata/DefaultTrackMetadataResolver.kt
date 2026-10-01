@@ -213,10 +213,17 @@ class DefaultTrackMetadataResolver(
             ProbeResult.NotFound -> { /* Continue to folder-level artwork */ }
         }
 
-        // 2. If folder artwork has already been resolved for this directory, reuse it immediately
+        // 2. If folder artwork has already been resolved for this directory, reuse it immediately if physical file exists
         val cachedFolderThumb = folderArtworkCache[folderKey]
         if (cachedFolderThumb != null) {
-            return if (cachedFolderThumb == NO_FOLDER_ARTWORK_SENTINEL) null else cachedFolderThumb
+            if (cachedFolderThumb == NO_FOLDER_ARTWORK_SENTINEL) {
+                return null
+            }
+            if (coverArtStorage.isValidThumbnailFile(cachedFolderThumb)) {
+                return cachedFolderThumb
+            } else {
+                folderArtworkCache.remove(folderKey)
+            }
         }
 
         // 3. Folder artwork not yet probed: synchronize probing of shared folder covers
@@ -224,7 +231,14 @@ class DefaultTrackMetadataResolver(
         return mutex.withLock {
             val doubleCheck = folderArtworkCache[folderKey]
             if (doubleCheck != null) {
-                return@withLock if (doubleCheck == NO_FOLDER_ARTWORK_SENTINEL) null else doubleCheck
+                if (doubleCheck == NO_FOLDER_ARTWORK_SENTINEL) {
+                    return@withLock null
+                }
+                if (coverArtStorage.isValidThumbnailFile(doubleCheck)) {
+                    return@withLock doubleCheck
+                } else {
+                    folderArtworkCache.remove(folderKey)
+                }
             }
 
             val folderCandidates =
@@ -289,7 +303,7 @@ class DefaultTrackMetadataResolver(
         candidatePath: String,
     ): String? {
         val localThumb = coverArtStorage.getThumbnailFile(server.id, candidatePath)
-        if (localThumb != null && localThumb.exists()) {
+        if (localThumb != null && coverArtStorage.isValidThumbnailFile(localThumb.absolutePath)) {
             return localThumb.absolutePath
         }
 
