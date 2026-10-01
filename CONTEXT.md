@@ -26,6 +26,10 @@ _Avoid_: Resource, Item
 WebDAV 远程目录在本地持久化数据库中的结构化镜像快照，包含子目录与文件元数据，用于秒级渲染并支持弱网与离线浏览。
 _Avoid_: Folder Cache, File Index, Offline Copy
 
+**Server Context**:
+运行时维护的包含当前活跃 WebDAV Server 身份凭证、网络超时控制及自定义 SSL 信任套接字工厂的上下文领域对象，供底层 OkHttp 网络客户端与 MediaSource 适配器统一消费。
+_Avoid_: Connection Config, Server Info, Host Context
+
 ### Playback & Library
 
 **Audio Track**:
@@ -72,6 +76,22 @@ _Avoid_: Dual Lyrics, Translated Line, Subtitle Pair
 Android 系统级音频焦点协商状态，用于响应来电暂停、挂断恢复及系统提示音时的临时音量压低（Ducking）。
 _Avoid_: Sound Priority, Volume Interrupt
 
+**First-Frame Service Elevation**:
+遵循 Android 8.0+ 及更高版本前台服务契约（5 秒限制）的生命周期规范：在 `WebDavMediaService` 创建的首帧同步发起前台服务提升并展示系统通知，彻底解耦网络延迟与流媒体缓冲状态，消除进程被系统杀死的风险。
+_Avoid_: Background Player, Async Notification, Late Elevation
+
+**Authenticated MediaSource**:
+携带活跃 WebDAV Server 凭据头（Basic Authentication）与自定义 SSL 证书配置的流媒体源实例，确保播放器在发生后台元数据富化、自动重试或播放切歌时身份凭证与安全连接不丢失。
+_Avoid_: Naked Stream, Anonymous DataSource, Static Player URL
+
+**Non-Disruptive Metadata Enrichment**:
+针对当前正在播放曲目的元数据刷新策略：当后台按需提取到高清封面、完整时长或艺术家信息时，仅响应式广播更新应用会话状态（App Session State）与系统媒体会话（MediaSession），严禁重建底层的播放器时间线（Timeline），确保流式回放无声学卡顿与重缓冲。
+_Avoid_: Timeline Rebuild, Track Reset, Player Reload
+
+**Self-Healing Metadata Cache**:
+播放队列加载或预加载未解析音轨时触发的自愈机制：后台异步发起受限 Range 元数据提取并反向写回本地持久化数据库与活动内存队列，自动修补缺失的专辑标签与时长。
+_Avoid_: Manual Sync, Cold Cache, Static Database
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
@@ -105,4 +125,12 @@ _Avoid_: Playing Icon, Waveform GIF
 **Adaptive Themed Icon**:
 遵循 Android Material You 规范的自适应启动图标体系，由极简黑胶唱片与云端流媒体意象前景、自适应背景及单色主题层（Monochrome）构成，自适应跟随系统壁纸动态调色板着色。
 _Avoid_: App Logo, Static Icon
+
+**Playback Queue Bottom Sheet**:
+由应用底部弹出的全高/半高播放队列管理模态抽屉，支持平滑滚动定位当前播放曲目、点选秒级切歌、显示曲目来源及播放模式切换。
+_Avoid_: Queue Dialog, Playlist Popup, Track Selector
+
+**Bilingual Lyrics View**:
+集成在 Full Player Sheet 内支持主译双语平行排版、单时间戳高亮对齐、逐行平滑滚动及点击精准 Seek 交互的沉浸式歌词呈现容器。
+_Avoid_: Lrc View, Subtitle View, Text Reader
 
