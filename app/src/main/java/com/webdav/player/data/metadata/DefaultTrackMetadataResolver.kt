@@ -2,7 +2,6 @@ package com.webdav.player.data.metadata
 
 import com.webdav.player.data.local.CoverArtStorage
 import com.webdav.player.data.remote.WebDavClient
-import com.webdav.player.domain.metadata.TrackMetadataResolver
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
@@ -16,11 +15,11 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
-class DefaultTrackMetadataResolver(
+internal class DefaultTrackMetadataResolver(
     private val webDavClient: WebDavClient,
     private val coverArtStorage: CoverArtStorage,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : TrackMetadataResolver {
+) {
     private val folderArtworkCache = ConcurrentHashMap<String, String>()
     private val folderLocks = ConcurrentHashMap<String, Mutex>()
 
@@ -32,7 +31,7 @@ class DefaultTrackMetadataResolver(
         private const val NO_FOLDER_ARTWORK_SENTINEL = "__NO_FOLDER_ARTWORK__"
     }
 
-    override suspend fun resolve(
+    suspend fun resolve(
         server: WebDavServer,
         file: RemoteFile,
     ): TrackMetadata? =
@@ -127,7 +126,7 @@ class DefaultTrackMetadataResolver(
             )
         }
 
-    override fun clearCache() {
+    fun clearCache() {
         folderArtworkCache.clear()
         folderLocks.clear()
     }

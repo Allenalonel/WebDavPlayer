@@ -5,10 +5,10 @@ Retire the `TrackMetadataResolver` public domain interface, turn `DefaultTrackMe
 
 **Blocked by:** 01-deepen-track-metadata-repository-with-thumbnail-validation-and-self-healing
 
-**Status:** pending
+**Status:** completed
 
-- [ ] Remove public domain interface `TrackMetadataResolver.kt`.
-- [ ] Make `DefaultTrackMetadataResolver` an `internal` class used directly by `TrackMetadataRepositoryImpl`.
-- [ ] Refactor `LyricsRepositoryImpl` constructor to accept only `TrackMetadataRepository` (removing resolver and simplifying dual-branch code).
-- [ ] Update `WebDavApplication` to stop exposing `TrackMetadataResolver` and wire only `TrackMetadataRepository`.
-- [ ] Update `LyricsRepositoryTest` to test exclusively through `TrackMetadataRepository`.
+- [x] Remove public domain interface `TrackMetadataResolver.kt`.
+- [x] Make `DefaultTrackMetadataResolver` an `internal` class used directly by `TrackMetadataRepositoryImpl`.
+- [x] Refactor `LyricsRepositoryImpl` constructor to accept only `TrackMetadataRepository` (removing resolver and simplifying dual-branch code).
+- [x] Update `WebDavApplication` to stop exposing `TrackMetadataResolver` and wire only `TrackMetadataRepository`.
+- [x] Update `LyricsRepositoryTest` to test exclusively through `TrackMetadataRepository`.

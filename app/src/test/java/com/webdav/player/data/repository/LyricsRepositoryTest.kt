@@ -185,32 +185,29 @@ class LyricsRepositoryTest {
     }
 
     @Test
-    fun resolveLyrics_whenRepositoryNull_fallsBackToTrackMetadataResolver() = runTest {
-        val resolver = FakeTrackMetadataResolver()
-        resolver.stubResult = TrackMetadata(
+    fun resolveLyrics_whenCacheHasNoLyrics_resolvesSingleTrackMetadata() = runTest {
+        // Cache exists but has no lyrics
+        fakeMetadataRepo.cachedMetadata[testTrack.remotePath] = TrackMetadata(
             serverId = testServer.id,
             remotePath = testTrack.remotePath,
             title = testTrack.title,
-            lyrics = "[00:15.00]Resolver lyric line"
+            lyrics = null
         )
-        val repoWithResolver = LyricsRepositoryImpl(
-            webDavClient = fakeClient,
-            trackMetadataRepository = null,
-            trackMetadataResolver = resolver
+        fakeMetadataRepo.resolveSingleResult = TrackMetadata(
+            serverId = testServer.id,
+            remotePath = testTrack.remotePath,
+            title = testTrack.title,
+            lyrics = "[00:30.00]Freshly resolved lyric"
         )
 
-        val lyrics = repoWithResolver.resolveLyrics(testServer, testTrack)
+        val lyrics = lyricsRepository.resolveLyrics(testServer, testTrack)
 
         assertTrue(lyrics.isSynchronized)
         assertEquals(1, lyrics.lines.size)
-        assertEquals("Resolver lyric line", lyrics.lines[0].text)
-        assertEquals(15000L, lyrics.lines[0].timestampMs)
-    }
-
-    private class FakeTrackMetadataResolver : com.webdav.player.domain.metadata.TrackMetadataResolver {
-        var stubResult: TrackMetadata? = null
-
-        override suspend fun resolve(server: WebDavServer, file: RemoteFile): TrackMetadata? = stubResult
+        assertEquals("Freshly resolved lyric", lyrics.lines[0].text)
+        assertEquals(30000L, lyrics.lines[0].timestampMs)
+        assertEquals(1, fakeMetadataRepo.getCachedMetadataCount.get())
+        assertEquals(1, fakeMetadataRepo.resolveSingleCount.get())
     }
 
     private class FakeLyricsWebDavClient : WebDavClient {
@@ -236,6 +233,8 @@ class LyricsRepositoryTest {
     private class FakeTrackMetadataRepository : TrackMetadataRepository {
         val cachedMetadata = mutableMapOf<String, TrackMetadata>()
         val getCachedMetadataCount = AtomicInteger(0)
+        val resolveSingleCount = AtomicInteger(0)
+        var resolveSingleResult: TrackMetadata? = null
 
         override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> = emptyFlow()
         override fun getMetadataForPathsFlow(serverId: Long, remotePaths: List<String>): Flow<List<TrackMetadata>> = emptyFlow()
@@ -248,7 +247,8 @@ class LyricsRepositoryTest {
 
         override suspend fun resolveMetadata(server: WebDavServer, files: List<RemoteFile>, forceRefresh: Boolean) {}
         override suspend fun resolveSingleTrackMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata {
-            return cachedMetadata[file.path] ?: TrackMetadata(
+            resolveSingleCount.incrementAndGet()
+            return resolveSingleResult ?: cachedMetadata[file.path] ?: TrackMetadata(
                 serverId = server.id,
                 remotePath = file.path,
                 title = file.name

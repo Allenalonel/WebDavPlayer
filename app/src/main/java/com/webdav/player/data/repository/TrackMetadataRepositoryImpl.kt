@@ -6,7 +6,6 @@ import com.webdav.player.data.local.TrackMetadataEntity
 import com.webdav.player.data.local.WebDavServerDao
 import com.webdav.player.data.metadata.DefaultTrackMetadataResolver
 import com.webdav.player.data.remote.WebDavClient
-import com.webdav.player.domain.metadata.TrackMetadataResolver
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
@@ -24,9 +23,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
-class TrackMetadataRepositoryImpl(
+class TrackMetadataRepositoryImpl internal constructor(
     private val trackMetadataDao: TrackMetadataDao,
-    private val trackMetadataResolver: TrackMetadataResolver,
+    private val trackMetadataResolver: DefaultTrackMetadataResolver,
     private val coverArtStorage: CoverArtStorage,
     private val webDavServerDao: WebDavServerDao? = null,
     private val maxConcurrency: Int = 3,

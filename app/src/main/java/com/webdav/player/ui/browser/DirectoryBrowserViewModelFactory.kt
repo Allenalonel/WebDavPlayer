@@ -31,10 +31,9 @@ class DirectoryBrowserViewModelFactory(private val context: Context) : ViewModel
             val metadataRepository = app?.trackMetadataRepository ?: run {
                 val database = AppDatabase.getInstance(context)
                 val storage = com.webdav.player.data.local.CoverArtStorageImpl(context)
-                val resolver = com.webdav.player.data.metadata.DefaultTrackMetadataResolver(client, storage)
                 com.webdav.player.data.repository.TrackMetadataRepositoryImpl(
                     trackMetadataDao = database.trackMetadataDao(),
-                    trackMetadataResolver = resolver,
+                    webDavClient = client,
                     coverArtStorage = storage,
                     webDavServerDao = database.webDavServerDao()
                 )

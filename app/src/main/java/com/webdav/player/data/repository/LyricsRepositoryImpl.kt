@@ -2,7 +2,6 @@ package com.webdav.player.data.repository
 
 import com.webdav.player.data.lyrics.LrcParser
 import com.webdav.player.data.remote.WebDavClient
-import com.webdav.player.domain.metadata.TrackMetadataResolver
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Lyrics
 import com.webdav.player.domain.model.RemoteFile
@@ -15,8 +14,7 @@ import kotlinx.coroutines.withContext
 
 class LyricsRepositoryImpl(
     private val webDavClient: WebDavClient,
-    private val trackMetadataRepository: TrackMetadataRepository? = null,
-    private val trackMetadataResolver: TrackMetadataResolver? = null,
+    private val trackMetadataRepository: TrackMetadataRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : LyricsRepository {
     companion object {
@@ -56,29 +54,12 @@ class LyricsRepositoryImpl(
                 // Ignore and fall through to embedded metadata
             }
 
-            // 2. Fall back to embedded metadata via TrackMetadataRepository or TrackMetadataResolver
+            // 2. Fall back to embedded metadata via TrackMetadataRepository
             try {
                 val file = RemoteFile(name = track.title, path = track.remotePath)
                 val embeddedText: String? =
-                    when {
-                        trackMetadataRepository != null -> {
-                            val cached = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
-                            if (!cached?.lyrics.isNullOrBlank()) {
-                                cached?.lyrics
-                            } else {
-                                val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
-                                resolved.lyrics
-                            }
-                        }
-
-                        trackMetadataResolver != null -> {
-                            trackMetadataResolver.resolve(server, file)?.lyrics
-                        }
-
-                        else -> {
-                            null
-                        }
-                    }
+                    trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)?.lyrics?.takeIf { it.isNotBlank() }
+                        ?: trackMetadataRepository.resolveSingleTrackMetadata(server, file).lyrics
 
                 if (!embeddedText.isNullOrBlank()) {
                     val parsed = LrcParser.parse(embeddedText)

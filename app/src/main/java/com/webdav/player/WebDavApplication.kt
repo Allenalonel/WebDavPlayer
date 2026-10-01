@@ -3,7 +3,6 @@ package com.webdav.player
 import android.app.Application
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
-import com.webdav.player.data.metadata.DefaultTrackMetadataResolver
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
@@ -12,7 +11,6 @@ import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
-import com.webdav.player.domain.metadata.TrackMetadataResolver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LyricsRepository
@@ -27,9 +25,6 @@ class WebDavApplication : Application() {
         private set
 
     lateinit var webDavClient: OkHttpWebDavClient
-        private set
-
-    lateinit var trackMetadataResolver: TrackMetadataResolver
         private set
 
     lateinit var trackMetadataRepository: TrackMetadataRepository
@@ -59,17 +54,10 @@ class WebDavApplication : Application() {
         this.webDavClient = webDavClient
         serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
 
-        val trackMetadataResolver =
-            DefaultTrackMetadataResolver(
-                webDavClient = webDavClient,
-                coverArtStorage = coverArtStorage,
-            )
-        this.trackMetadataResolver = trackMetadataResolver
-
         trackMetadataRepository =
             TrackMetadataRepositoryImpl(
                 trackMetadataDao = database.trackMetadataDao(),
-                trackMetadataResolver = trackMetadataResolver,
+                webDavClient = webDavClient,
                 coverArtStorage = coverArtStorage,
                 webDavServerDao = database.webDavServerDao(),
             )
@@ -78,7 +66,6 @@ class WebDavApplication : Application() {
             LyricsRepositoryImpl(
                 webDavClient = webDavClient,
                 trackMetadataRepository = trackMetadataRepository,
-                trackMetadataResolver = trackMetadataResolver,
             )
 
         val mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(this, webDavClient)
