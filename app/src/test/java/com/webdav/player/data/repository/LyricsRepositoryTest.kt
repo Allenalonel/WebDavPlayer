@@ -184,6 +184,35 @@ class LyricsRepositoryTest {
         assertEquals(3, fakeClient.fetchTextCount.get())
     }
 
+    @Test
+    fun resolveLyrics_whenRepositoryNull_fallsBackToTrackMetadataResolver() = runTest {
+        val resolver = FakeTrackMetadataResolver()
+        resolver.stubResult = TrackMetadata(
+            serverId = testServer.id,
+            remotePath = testTrack.remotePath,
+            title = testTrack.title,
+            lyrics = "[00:15.00]Resolver lyric line"
+        )
+        val repoWithResolver = LyricsRepositoryImpl(
+            webDavClient = fakeClient,
+            trackMetadataRepository = null,
+            trackMetadataResolver = resolver
+        )
+
+        val lyrics = repoWithResolver.resolveLyrics(testServer, testTrack)
+
+        assertTrue(lyrics.isSynchronized)
+        assertEquals(1, lyrics.lines.size)
+        assertEquals("Resolver lyric line", lyrics.lines[0].text)
+        assertEquals(15000L, lyrics.lines[0].timestampMs)
+    }
+
+    private class FakeTrackMetadataResolver : com.webdav.player.domain.metadata.TrackMetadataResolver {
+        var stubResult: TrackMetadata? = null
+
+        override suspend fun resolve(server: WebDavServer, file: RemoteFile): TrackMetadata? = stubResult
+    }
+
     private class FakeLyricsWebDavClient : WebDavClient {
         val textFiles = mutableMapOf<String, String>()
         val fetchTextCount = AtomicInteger(0)

@@ -1,8 +1,8 @@
 package com.webdav.player.data.repository
 
 import com.webdav.player.data.lyrics.LrcParser
-import com.webdav.player.data.metadata.AudioMetadataParser
 import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.metadata.TrackMetadataResolver
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Lyrics
 import com.webdav.player.domain.model.RemoteFile
@@ -16,83 +16,90 @@ import kotlinx.coroutines.withContext
 class LyricsRepositoryImpl(
     private val webDavClient: WebDavClient,
     private val trackMetadataRepository: TrackMetadataRepository? = null,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val trackMetadataResolver: TrackMetadataResolver? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : LyricsRepository {
-
     companion object {
         private const val MAX_LYRICS_CACHE_SIZE = 100
     }
 
     private val cacheLock = Any()
-    private val cache = object : LinkedHashMap<String, Lyrics>(MAX_LYRICS_CACHE_SIZE, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Lyrics>?): Boolean {
-            return size > MAX_LYRICS_CACHE_SIZE
-        }
-    }
-
-    override suspend fun resolveLyrics(server: WebDavServer, track: AudioTrack): Lyrics = withContext(ioDispatcher) {
-        val cacheKey = "${server.id}:${track.remotePath}"
-        synchronized(cacheLock) {
-            cache[cacheKey]?.let { return@withContext it }
+    private val cache =
+        object : LinkedHashMap<String, Lyrics>(MAX_LYRICS_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Lyrics>?): Boolean = size > MAX_LYRICS_CACHE_SIZE
         }
 
-        // 1. Probe remote directory for ${baseName}.lrc
-        val lrcPath = track.remotePath.substringBeforeLast('.') + ".lrc"
-        try {
-            val remoteText = webDavClient.fetchText(server, lrcPath)
-            if (!remoteText.isNullOrBlank()) {
-                val parsed = LrcParser.parse(remoteText)
-                if (parsed.isNotEmpty) {
-                    synchronized(cacheLock) {
-                        cache[cacheKey] = parsed
+    override suspend fun resolveLyrics(
+        server: WebDavServer,
+        track: AudioTrack,
+    ): Lyrics =
+        withContext(ioDispatcher) {
+            val cacheKey = "${server.id}:${track.remotePath}"
+            synchronized(cacheLock) {
+                cache[cacheKey]?.let { return@withContext it }
+            }
+
+            // 1. Probe remote directory for ${baseName}.lrc
+            val lrcPath = track.remotePath.substringBeforeLast('.') + ".lrc"
+            try {
+                val remoteText = webDavClient.fetchText(server, lrcPath)
+                if (!remoteText.isNullOrBlank()) {
+                    val parsed = LrcParser.parse(remoteText)
+                    if (parsed.isNotEmpty) {
+                        synchronized(cacheLock) {
+                            cache[cacheKey] = parsed
+                        }
+                        return@withContext parsed
                     }
-                    return@withContext parsed
                 }
-            }
-        } catch (e: Exception) {
-            // Ignore and fall through to embedded metadata
-        }
-
-        // 2. Fall back to embedded metadata
-        try {
-            var embeddedText: String? = null
-
-            if (trackMetadataRepository != null) {
-                val cached = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
-                embeddedText = cached?.lyrics
-                if (embeddedText.isNullOrBlank()) {
-                    val file = RemoteFile(name = track.title, path = track.remotePath)
-                    val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
-                    embeddedText = resolved.lyrics
-                }
-            } else {
-                val bytes = webDavClient.fetchRange(server, track.remotePath, 0L, 131071L)
-                if (bytes != null && bytes.isNotEmpty()) {
-                    val parsedMeta = AudioMetadataParser.parse(bytes, track.format)
-                    embeddedText = parsedMeta.lyrics
-                }
+            } catch (e: Exception) {
+                // Ignore and fall through to embedded metadata
             }
 
-            if (!embeddedText.isNullOrBlank()) {
-                val parsed = LrcParser.parse(embeddedText)
-                if (parsed.isNotEmpty) {
-                    synchronized(cacheLock) {
-                        cache[cacheKey] = parsed
+            // 2. Fall back to embedded metadata via TrackMetadataRepository or TrackMetadataResolver
+            try {
+                val file = RemoteFile(name = track.title, path = track.remotePath)
+                val embeddedText: String? =
+                    when {
+                        trackMetadataRepository != null -> {
+                            val cached = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
+                            if (!cached?.lyrics.isNullOrBlank()) {
+                                cached?.lyrics
+                            } else {
+                                val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                                resolved.lyrics
+                            }
+                        }
+
+                        trackMetadataResolver != null -> {
+                            trackMetadataResolver.resolve(server, file)?.lyrics
+                        }
+
+                        else -> {
+                            null
+                        }
                     }
-                    return@withContext parsed
-                }
-            }
-        } catch (e: Exception) {
-            // Ignore error
-        }
 
-        // 3. No lyrics available from either source
-        val empty = Lyrics.EMPTY
-        synchronized(cacheLock) {
-            cache[cacheKey] = empty
+                if (!embeddedText.isNullOrBlank()) {
+                    val parsed = LrcParser.parse(embeddedText)
+                    if (parsed.isNotEmpty) {
+                        synchronized(cacheLock) {
+                            cache[cacheKey] = parsed
+                        }
+                        return@withContext parsed
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore error
+            }
+
+            // 3. No lyrics available from either source
+            val empty = Lyrics.EMPTY
+            synchronized(cacheLock) {
+                cache[cacheKey] = empty
+            }
+            empty
         }
-        empty
-    }
 
     override fun clearCache() {
         synchronized(cacheLock) {

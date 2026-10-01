@@ -92,6 +92,10 @@ _Avoid_: Timeline Rebuild, Track Reset, Player Reload
 播放队列加载或预加载未解析音轨时触发的自愈机制：后台异步发起受限 Range 元数据提取并反向写回本地持久化数据库与活动内存队列，自动修补缺失的专辑标签与时长。
 _Avoid_: Manual Sync, Cold Cache, Static Database
 
+**Track Metadata Resolver**:
+专职负责通过受限网络 HTTP Range 分片提取、自适应两阶段拼接、双源封面探测（内嵌封面优先，同目录外置封面回退并持锁）及图片缩略图本地落盘的深层领域解析模块。对外提供单一简洁接缝，彻底屏蔽底层多阶段网络握手与并发探测互斥锁。
+_Avoid_: Metadata Parser, Artwork Helper, Tag Downloader
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
