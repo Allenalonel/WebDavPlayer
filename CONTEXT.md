@@ -89,11 +89,11 @@ _Avoid_: Naked Stream, Anonymous DataSource, Static Player URL
 _Avoid_: Timeline Rebuild, Track Reset, Player Reload
 
 **Self-Healing Metadata Cache**:
-播放队列加载或预加载未解析音轨时触发的自愈机制：后台异步发起受限 Range 元数据提取并反向写回本地持久化数据库与活动内存队列，自动修补缺失的专辑标签与时长。
+由 `TrackMetadataRepository` 内部自主担保的自愈机制：当本地磁盘缩略图因系统清理缓存而丢失，或播放队列加载未解析音轨时，仓储接缝对外先行返回零破坏的安全元数据，并在后台异步发起受限 Range 元数据提取并反向写回本地持久化数据库与落盘，自动修补缺失的专辑标签、时长与封面缩略图，彻底向所有上层调用者屏蔽底层文件存活性校验。
 _Avoid_: Manual Sync, Cold Cache, Static Database
 
 **Track Metadata Resolver**:
-专职负责通过受限网络 HTTP Range 分片提取、自适应两阶段拼接、双源封面探测（内嵌封面优先，同目录外置封面回退并持锁）及图片缩略图本地落盘的深层领域解析模块。对外提供单一简洁接缝，彻底屏蔽底层多阶段网络握手与并发探测互斥锁。
+`TrackMetadataRepositoryImpl` 内部私有的深层网络与音频提取适配器，专职负责通过受限网络 HTTP Range 分片提取、自适应两阶段拼接、双源封面探测（内嵌封面优先，同目录外置封面回退并持锁）及图片缩略图本地落盘。对外不设立冗余公共接缝，调用方统一通过 `TrackMetadataRepository` 交互。
 _Avoid_: Metadata Parser, Artwork Helper, Tag Downloader
 
 ### UI & Navigation
