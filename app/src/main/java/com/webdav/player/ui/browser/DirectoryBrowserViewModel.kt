@@ -221,7 +221,11 @@ class DirectoryBrowserViewModel(
                                 metadataResolutionJob?.cancel()
                                 metadataResolutionJob =
                                     viewModelScope.launch {
-                                        trackMetadataRepository.resolveMetadata(server, audioFiles)
+                                        trackMetadataRepository.resolveMetadata(
+                                            server = server,
+                                            files = audioFiles,
+                                            forceRefresh = forceRefresh,
+                                        )
                                     }
                             }
 

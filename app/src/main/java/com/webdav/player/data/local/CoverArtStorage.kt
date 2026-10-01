@@ -3,6 +3,7 @@ package com.webdav.player.data.local
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.webdav.player.data.metadata.ImageHeaderValidator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -74,6 +75,9 @@ class CoverArtStorageImpl(
         artworkBytes: ByteArray
     ): String? = withContext(Dispatchers.IO) {
         if (artworkBytes.isEmpty()) return@withContext null
+        if (ImageHeaderValidator.isRecognizedImage(artworkBytes) && !ImageHeaderValidator.isCompleteImage(artworkBytes)) {
+            return@withContext null
+        }
         try {
             val fileName = buildFileName(serverId, remotePath)
             val targetFile = File(coversDir, fileName)

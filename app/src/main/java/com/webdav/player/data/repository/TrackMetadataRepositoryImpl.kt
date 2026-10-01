@@ -76,15 +76,31 @@ class TrackMetadataRepositoryImpl(
     override suspend fun resolveMetadata(
         server: WebDavServer,
         files: List<RemoteFile>,
+        forceRefresh: Boolean,
     ) = withContext(ioDispatcher) {
         val audioFiles = files.filter { it.isAudio }
         if (audioFiles.isEmpty()) return@withContext
 
         // Query what is already cached in Room
         val cachedEntities = trackMetadataDao.getMetadataForPaths(server.id, audioFiles.map { it.path })
-        val cachedPaths = cachedEntities.map { it.remotePath }.toSet()
+        val cachedEntityMap = cachedEntities.associateBy { it.remotePath }
 
-        val toResolve = audioFiles.filter { it.path !in cachedPaths }
+        val toResolve =
+            if (forceRefresh) {
+                audioFiles
+            } else {
+                audioFiles.filter { file ->
+                    val cached = cachedEntityMap[file.path]
+                    if (cached == null) {
+                        true
+                    } else if (cached.coverThumbnailPath != null && coverArtStorage.getThumbnailFile(server.id, file.path) == null) {
+                        // Disk cache was deleted (e.g. user cleared app cache): must re-resolve to restore thumbnail!
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
         if (toResolve.isEmpty()) return@withContext
 
         val buffer = java.util.Collections.synchronizedList(mutableListOf<TrackMetadataEntity>())
@@ -135,7 +151,9 @@ class TrackMetadataRepositoryImpl(
         withContext(ioDispatcher) {
             val cached = getCachedMetadata(server.id, file.path)
             if (cached != null) {
-                return@withContext cached
+                if (cached.coverThumbnailPath == null || coverArtStorage.getThumbnailFile(server.id, file.path) != null) {
+                    return@withContext cached
+                }
             }
             val metadata =
                 semaphore.withPermit {
@@ -182,26 +200,41 @@ class TrackMetadataRepositoryImpl(
             return null
         }
 
-        val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(rangeBytes)
+        val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
+        val initialParsed = AudioMetadataParser.parse(rangeBytes, audioFormat)
+        val initialArtworkComplete =
+            initialParsed.artworkData != null &&
+                initialParsed.artworkData.isNotEmpty() &&
+                ImageHeaderValidator.isCompleteImage(initialParsed.artworkData)
+
         val completeBytes =
-            if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
-                try {
-                    fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
-                } catch (e: java.io.IOException) {
-                    // Network failure during secondary range fetch -> transient error, retry later
-                    return null
-                } catch (e: Exception) {
+            if (!initialArtworkComplete) {
+                val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(rangeBytes)
+                if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
+                    try {
+                        fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
+                    } catch (e: java.io.IOException) {
+                        // Network failure during secondary range fetch -> transient error, retry later
+                        return null
+                    } catch (e: Exception) {
+                        rangeBytes
+                    }
+                } else {
                     rangeBytes
                 }
             } else {
                 rangeBytes
             }
 
-        val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
-        val parsed = AudioMetadataParser.parse(completeBytes, audioFormat)
+        val parsed =
+            if (completeBytes !== rangeBytes) {
+                AudioMetadataParser.parse(completeBytes, audioFormat)
+            } else {
+                initialParsed
+            }
 
         val embeddedThumb =
-            if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
+            if (parsed.artworkData != null && parsed.artworkData.isNotEmpty() && ImageHeaderValidator.isCompleteImage(parsed.artworkData)) {
                 coverArtStorage.saveThumbnail(server.id, file.path, parsed.artworkData)
             } else {
                 null
@@ -255,6 +288,7 @@ class TrackMetadataRepositoryImpl(
 
         if (targetSize <= initialBytes.size) return initialBytes
 
+        val expectedBytes = targetSize - initialBytes.size
         val secondChunk =
             webDavClient.fetchRange(
                 server = server,
@@ -267,13 +301,25 @@ class TrackMetadataRepositoryImpl(
             throw java.io.IOException("Secondary range fetch returned empty chunk for ${file.path}")
         }
 
-        return if (secondChunk.size >= targetSize && AudioMetadataParser.hasRecognizedAudioHeader(secondChunk)) {
-            secondChunk
-        } else {
-            ByteArray(initialBytes.size + secondChunk.size).apply {
-                System.arraycopy(initialBytes, 0, this, 0, initialBytes.size)
-                System.arraycopy(secondChunk, 0, this, initialBytes.size, secondChunk.size)
+        if (AudioMetadataParser.hasRecognizedAudioHeader(secondChunk)) {
+            if (secondChunk.size >= targetSize) {
+                return secondChunk
+            } else {
+                throw java.io.IOException(
+                    "Secondary range fetch returned full-stream chunk from byte 0 with insufficient length (${secondChunk.size} < $targetSize)",
+                )
             }
+        }
+
+        if (secondChunk.size < expectedBytes) {
+            throw java.io.IOException(
+                "Secondary range fetch returned partial chunk (${secondChunk.size} < $expectedBytes)",
+            )
+        }
+
+        return ByteArray(initialBytes.size + secondChunk.size).apply {
+            System.arraycopy(initialBytes, 0, this, 0, initialBytes.size)
+            System.arraycopy(secondChunk, 0, this, initialBytes.size, secondChunk.size)
         }
     }
 

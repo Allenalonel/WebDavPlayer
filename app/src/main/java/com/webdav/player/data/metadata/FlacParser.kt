@@ -101,10 +101,13 @@ object FlacParser {
                         val descLength = reader.readIntBe().coerceIn(0, reader.remaining())
                         reader.skip(descLength) // skip description
                         reader.skip(16) // skip width, height, depth, colors (4 * 4 = 16 bytes)
-                        val dataLength = reader.readIntBe().coerceIn(0, reader.remaining())
+                        val dataLength = reader.readIntBe()
                         if (dataLength > 0 && reader.hasRemaining(dataLength)) {
-                            artworkData = reader.readBytes(dataLength)
-                            artworkMimeType = if (mime.isNotBlank()) mime else "image/jpeg"
+                            val imgBytes = reader.readBytes(dataLength)
+                            if (imgBytes.size == dataLength && ImageHeaderValidator.isCompleteImage(imgBytes)) {
+                                artworkData = imgBytes
+                                artworkMimeType = if (mime.isNotBlank()) mime else "image/jpeg"
+                            }
                         }
                     }
                 }

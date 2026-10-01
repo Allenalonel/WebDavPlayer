@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -105,10 +106,15 @@ class TrackMetadataRepositoryTest {
             repository.resolveMetadata(testServer, listOf(file))
             assertEquals(1, fakeClient.fetchCount.get())
 
-            // Resolve second time with same file
-            repository.resolveMetadata(testServer, listOf(file))
-            // fetchCount should remain 1 because it was already in Room
+            // Resolve second time with same file (forceRefresh = false)
+            repository.resolveMetadata(testServer, listOf(file), forceRefresh = false)
+            // fetchCount should remain 1 because it was already in Room and thumbnail exists
             assertEquals(1, fakeClient.fetchCount.get())
+
+            // Resolve third time with forceRefresh = true (pull-to-refresh / refresh button clicked)
+            repository.resolveMetadata(testServer, listOf(file), forceRefresh = true)
+            // fetchCount must increment because forceRefresh forces re-resolution
+            assertEquals(2, fakeClient.fetchCount.get())
         }
 
     @Test
@@ -264,6 +270,154 @@ class TrackMetadataRepositoryTest {
             assertNotNull("Metadata must be cached in Room even when all candidate images are corrupt", cached)
             assertEquals("Double Corrupt", cached?.title)
             assertNull("Artwork must be null when all images are corrupt", cached?.coverThumbnailPath)
+        }
+
+    @Test
+    fun resolveMetadata_truncatedEmbeddedArtwork_doesNotSaveCorruptCover_fallsBackToFolderCover() =
+        runTest {
+            // Realistic truncated JPEG (>32 bytes, e.g. 1024 bytes cut off in scan data without 0xFF, 0xD9)
+            val truncatedEmbeddedArtwork =
+                ByteArray(1024).apply {
+                    this[0] = 0xFF.toByte()
+                    this[1] = 0xD8.toByte()
+                    this[2] = 0xFF.toByte()
+                    this[3] = 0xE0.toByte()
+                    this[4] = 0x00
+                    this[5] = 0x10
+                }
+            val sampleMp3 =
+                buildSampleId3v2Bytes(
+                    title = "Truncated Song",
+                    artist = "Artist",
+                    album = "Album",
+                    artworkBytes = truncatedEmbeddedArtwork,
+                    forceValidJpeg = false,
+                )
+            fakeClient.stubFileBytes("/music/trunc_embed/song.mp3", sampleMp3)
+
+            val validFolderCover =
+                byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x00, 0x10, 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/trunc_embed/cover.jpg", validFolderCover)
+
+            val file = RemoteFile(name = "song.mp3", path = "/music/trunc_embed/song.mp3", size = 1000L)
+            repository.resolveMetadata(testServer, listOf(file))
+
+            val cached = repository.getCachedMetadata(1L, "/music/trunc_embed/song.mp3")
+            assertNotNull("Metadata must be persisted to Room", cached)
+            assertEquals("Truncated Song", cached?.title)
+            assertFalse(
+                "Truncated embedded artwork must not be saved to storage",
+                fakeStorage.savedThumbnails.containsKey("1:/music/trunc_embed/song.mp3"),
+            )
+            assertTrue(
+                "Must fall back to valid folder cover when embedded artwork is truncated",
+                fakeStorage.savedThumbnails.containsKey("1:/music/trunc_embed/cover.jpg"),
+            )
+        }
+
+    @Test
+    fun resolveMetadata_thumbnailFileDeletedFromDisk_reResolvesAndRestoresCover() =
+        runTest {
+            val artwork =
+                ByteArray(200 * 1024).apply {
+                    this[0] = 0xFF.toByte()
+                    this[1] = 0xD8.toByte()
+                    this[2] = 0xFF.toByte()
+                    this[this.size - 2] = 0xFF.toByte()
+                    this[this.size - 1] = 0xD9.toByte()
+                }
+            val sampleMp3 = buildSampleId3v2Bytes("Cached Song", "Artist", "Album", artworkBytes = artwork)
+            fakeClient.stubFileBytes("/music/cached_song.mp3", sampleMp3)
+
+            val file =
+                RemoteFile(
+                    name = "cached_song.mp3",
+                    path = "/music/cached_song.mp3",
+                    size = sampleMp3.size.toLong() + 1000L,
+                )
+
+            // First visit: resolves and populates cache
+            repository.resolveMetadata(testServer, listOf(file))
+            val cached1 = repository.getCachedMetadata(1L, "/music/cached_song.mp3")
+            assertNotNull(cached1?.coverThumbnailPath)
+            assertTrue(fakeStorage.savedThumbnails.containsKey("1:/music/cached_song.mp3"))
+
+            // Simulate user clearing cache: thumbnail file is removed from storage!
+            fakeStorage.savedThumbnails.remove("1:/music/cached_song.mp3")
+            assertNull(fakeStorage.getThumbnailFile(1L, "/music/cached_song.mp3"))
+
+            // Second visit after clearing cache: must detect missing thumbnail and re-resolve to restore it!
+            repository.resolveMetadata(testServer, listOf(file))
+            assertTrue(
+                "Must re-resolve and restore thumbnail when cache file was cleared from disk",
+                fakeStorage.savedThumbnails.containsKey("1:/music/cached_song.mp3"),
+            )
+        }
+
+    @Test
+    fun resolveMetadata_secondaryRangeFetchPartialChunk_treatsAsTransientNetworkError() =
+        runTest {
+            val artwork =
+                ByteArray(800 * 1024).apply {
+                    this[0] = 0xFF.toByte()
+                    this[1] = 0xD8.toByte()
+                    this[2] = 0xFF.toByte()
+                    this[this.size - 2] = 0xFF.toByte()
+                    this[this.size - 1] = 0xD9.toByte()
+                }
+            val sampleMp3 = buildSampleId3v2Bytes("Partial Tag Song", "Artist", "Album", artworkBytes = artwork)
+            fakeClient.stubFileBytes("/music/partial_secondary.mp3", sampleMp3)
+            // Secondary range requests only return 100KB instead of requested ~300KB
+            fakeClient.partialChunkPaths["/music/partial_secondary.mp3"] = 100 * 1024
+
+            val file =
+                RemoteFile(
+                    name = "partial_secondary.mp3",
+                    path = "/music/partial_secondary.mp3",
+                    size = sampleMp3.size.toLong() + 2000000L,
+                )
+            repository.resolveMetadata(testServer, listOf(file))
+
+            // Must NOT cache truncated metadata in Room
+            val cached = repository.getCachedMetadata(1L, "/music/partial_secondary.mp3")
+            assertNull("Partial secondary range fetch must be treated as transient network error without poisoning Room", cached)
+            assertFalse(
+                "Incomplete artwork must never be saved into storage",
+                fakeStorage.savedThumbnails.containsKey("1:/music/partial_secondary.mp3"),
+            )
+        }
+
+    @Test
+    fun resolveMetadata_secondaryRangeStreamFromZeroInsufficientLength_treatsAsTransientNetworkError() =
+        runTest {
+            val artwork =
+                ByteArray(800 * 1024).apply {
+                    this[0] = 0xFF.toByte()
+                    this[1] = 0xD8.toByte()
+                    this[2] = 0xFF.toByte()
+                    this[this.size - 2] = 0xFF.toByte()
+                    this[this.size - 1] = 0xD9.toByte()
+                }
+            val sampleMp3 = buildSampleId3v2Bytes("Short Zero Stream", "Artist", "Album", artworkBytes = artwork)
+            // Cut the full stream so it has audio header from 0, but total length < targetSize
+            val shortMp3Bytes = sampleMp3.copyOfRange(0, 600 * 1024)
+            fakeClient.stubFileBytes("/music/short_zero.mp3", shortMp3Bytes)
+            fakeClient.ignoreRangeOnSecondaryFetchPaths.add("/music/short_zero.mp3")
+
+            val file =
+                RemoteFile(
+                    name = "short_zero.mp3",
+                    path = "/music/short_zero.mp3",
+                    size = sampleMp3.size.toLong() + 2000000L,
+                )
+            repository.resolveMetadata(testServer, listOf(file))
+
+            val cached = repository.getCachedMetadata(1L, "/music/short_zero.mp3")
+            assertNull("Insufficient stream from byte 0 must not duplicate stream or poison Room", cached)
+            assertFalse(
+                "Corrupt artwork must not be saved into storage",
+                fakeStorage.savedThumbnails.containsKey("1:/music/short_zero.mp3"),
+            )
         }
 
     @Test
@@ -638,6 +792,7 @@ class TrackMetadataRepositoryTest {
         artist: String,
         album: String,
         artworkBytes: ByteArray? = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte()),
+        forceValidJpeg: Boolean = true,
     ): ByteArray {
         val stream = ByteArrayOutputStream()
         stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
@@ -668,7 +823,7 @@ class TrackMetadataRepositoryTest {
         // APIC picture
         if (artworkBytes != null) {
             val validArtwork =
-                if (artworkBytes.size >= 4 && artworkBytes[0] == 0xFF.toByte() && artworkBytes[1] == 0xD8.toByte()) {
+                if (forceValidJpeg && artworkBytes.size >= 4 && artworkBytes[0] == 0xFF.toByte() && artworkBytes[1] == 0xD8.toByte()) {
                     artworkBytes.copyOf().apply {
                         this[this.size - 2] = 0xFF.toByte()
                         this[this.size - 1] = 0xD9.toByte()
@@ -816,6 +971,7 @@ class TrackMetadataRepositoryTest {
         val files = mutableMapOf<String, ByteArray>()
         val throwOnPaths = mutableSetOf<String>()
         val ignoreRangeOnSecondaryFetchPaths = mutableSetOf<String>()
+        val partialChunkPaths = mutableMapOf<String, Int>()
         val fetchCount = AtomicInteger(0)
         val requestedRanges = mutableListOf<Triple<String, Long, Long>>()
 
@@ -851,6 +1007,11 @@ class TrackMetadataRepositoryTest {
             if (startByte >= full.size) return byteArrayOf()
             val from = startByte.toInt()
             val to = minOf(full.size, (endByte + 1).toInt())
+            if (partialChunkPaths.containsKey(remotePath) && startByte > 0) {
+                val partialSize = partialChunkPaths[remotePath]!!
+                val chunkEnd = minOf(to, from + partialSize)
+                return full.copyOfRange(from, chunkEnd)
+            }
             return full.copyOfRange(from, to)
         }
     }

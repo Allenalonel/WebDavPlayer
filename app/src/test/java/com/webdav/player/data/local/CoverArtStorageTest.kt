@@ -74,6 +74,45 @@ class CoverArtStorageTest {
     }
 
     @Test
+    fun saveThumbnail_truncatedJpegArtwork_returnsNull() = runTest {
+        // Truncated JPEG (>32 bytes, starts with FF D8, but missing FF D9 EOI)
+        val truncatedJpeg = ByteArray(500).apply {
+            this[0] = 0xFF.toByte()
+            this[1] = 0xD8.toByte()
+            this[2] = 0xFF.toByte()
+            this[3] = 0xE0.toByte()
+        }
+        val path = storage.saveThumbnail(
+            serverId = 1L,
+            remotePath = "/music/truncated.mp3",
+            artworkBytes = truncatedJpeg
+        )
+        assertNull("Truncated JPEG image must not be saved to disk as a thumbnail", path)
+        assertNull(storage.getThumbnailFile(1L, "/music/truncated.mp3"))
+    }
+
+    @Test
+    fun saveThumbnail_completeJpegArtwork_storesInCacheDir() = runTest {
+        val completeJpeg = ByteArray(500).apply {
+            this[0] = 0xFF.toByte()
+            this[1] = 0xD8.toByte()
+            this[2] = 0xFF.toByte()
+            this[3] = 0xE0.toByte()
+            this[this.size - 2] = 0xFF.toByte()
+            this[this.size - 1] = 0xD9.toByte()
+        }
+        val path = storage.saveThumbnail(
+            serverId = 1L,
+            remotePath = "/music/complete.mp3",
+            artworkBytes = completeJpeg
+        )
+        assertNotNull(path)
+        val file = storage.getThumbnailFile(1L, "/music/complete.mp3")
+        assertNotNull(file)
+        assertTrue(file!!.exists())
+    }
+
+    @Test
     fun getThumbnailFile_nonExistent_returnsNull() {
         val file = storage.getThumbnailFile(999L, "/non/existent.mp3")
         assertNull(file)

@@ -96,12 +96,16 @@ object AudioMetadataParser {
             return extractAsfTagSize(bytes)
         }
 
+        if (isWavAt(bytes, 0)) {
+            return extractWavTagSize(bytes)
+        }
+
         return null
     }
 
     private fun findId3HeaderOffset(
         bytes: ByteArray,
-        maxScanLimit: Int = 4096,
+        maxScanLimit: Int = 65536,
     ): Int? {
         if (bytes.size < 10) return null
         if (isId3At(bytes, 0)) return 0
@@ -177,7 +181,46 @@ object AudioMetadataParser {
             }
         }
         if (!isLast) {
-            return bytes.size + 1048576L // Increment by 1MB to accommodate large picture blocks
+            return (bytes.size + 4194304L).coerceAtMost(8L * 1024L * 1024L) // Increment by up to 4MB to accommodate large picture blocks
+        }
+        return null
+    }
+
+    private fun isWavAt(
+        bytes: ByteArray,
+        offset: Int = 0,
+    ): Boolean =
+        bytes.size >= offset + 12 &&
+            bytes[offset] == 'R'.code.toByte() &&
+            bytes[offset + 1] == 'I'.code.toByte() &&
+            bytes[offset + 2] == 'F'.code.toByte() &&
+            bytes[offset + 3] == 'F'.code.toByte() &&
+            bytes[offset + 8] == 'W'.code.toByte() &&
+            bytes[offset + 9] == 'A'.code.toByte() &&
+            bytes[offset + 10] == 'V'.code.toByte() &&
+            bytes[offset + 11] == 'E'.code.toByte()
+
+    private fun extractWavTagSize(bytes: ByteArray): Long? {
+        var pos = 12
+        while (pos + 8 <= bytes.size) {
+            val id0 = bytes[pos].toInt().toChar()
+            val id1 = bytes[pos + 1].toInt().toChar()
+            val id2 = bytes[pos + 2].toInt().toChar()
+            val id3 = bytes[pos + 3].toInt().toChar()
+            val chunkId = "$id0$id1$id2$id3"
+            val chunkSize =
+                (bytes[pos + 4].toLong() and 0xFFL) or
+                    ((bytes[pos + 5].toLong() and 0xFFL) shl 8) or
+                    ((bytes[pos + 6].toLong() and 0xFFL) shl 16) or
+                    ((bytes[pos + 7].toLong() and 0xFFL) shl 24)
+
+            val chunkEnd = pos.toLong() + 8L + chunkSize
+            if (chunkId.equals("id3 ", ignoreCase = true)) {
+                return chunkEnd
+            }
+            val step = 8L + chunkSize + (chunkSize and 1L)
+            if (step <= 0 || step > Int.MAX_VALUE) break
+            pos += step.toInt()
         }
         return null
     }

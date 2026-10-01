@@ -1045,6 +1045,7 @@ class DirectoryBrowserViewModelTest {
         override suspend fun resolveMetadata(
             server: WebDavServer,
             files: List<RemoteFile>,
+            forceRefresh: Boolean,
         ) {
             resolveCalls.add(files)
         }

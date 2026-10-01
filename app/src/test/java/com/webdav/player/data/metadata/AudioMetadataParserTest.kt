@@ -4,6 +4,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -560,6 +561,125 @@ class AudioMetadataParserTest {
         assertTrue(
             "hasRecognizedAudioHeader must return true for ID3 header located at non-zero offset within scan limit",
             AudioMetadataParser.hasRecognizedAudioHeader(bytes),
+        )
+    }
+
+    @Test
+    fun testParseId3_truncatedApicPayload_doesNotReturnTruncatedArtwork() {
+        val stream = ByteArrayOutputStream()
+        stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
+        stream.write(3) // v2.3
+        stream.write(0)
+        stream.write(0)
+
+        // Tag payload size: 1000 bytes
+        val tagPayload = 1000
+        stream.write((tagPayload shr 21) and 0x7F)
+        stream.write((tagPayload shr 14) and 0x7F)
+        stream.write((tagPayload shr 7) and 0x7F)
+        stream.write(tagPayload and 0x7F)
+
+        // APIC frame header: says size is 500 bytes
+        stream.write("APIC".toByteArray(StandardCharsets.US_ASCII))
+        val frameSize = 500
+        stream.write((frameSize shr 24) and 0xFF)
+        stream.write((frameSize shr 16) and 0xFF)
+        stream.write((frameSize shr 8) and 0xFF)
+        stream.write(frameSize and 0xFF)
+        stream.write(0) // flag 1
+        stream.write(0) // flag 2
+
+        // But we only provide 30 bytes of body before the buffer ends!
+        val apicBody = ByteArrayOutputStream()
+        apicBody.write(0)
+        apicBody.write("image/jpeg\u0000".toByteArray(StandardCharsets.ISO_8859_1))
+        apicBody.write(3)
+        apicBody.write("cover\u0000".toByteArray(StandardCharsets.ISO_8859_1))
+        apicBody.write(ByteArray(15) { 0x55.toByte() })
+        stream.write(apicBody.toByteArray())
+
+        val bytes = stream.toByteArray()
+        val parsed = Id3v2Parser.parse(bytes)
+        assertNotNull(parsed)
+        assertNull("Truncated APIC frame must not return partial/truncated artwork", parsed?.artworkData)
+    }
+
+    @Test
+    fun testParseFlac_truncatedPictureBlock_doesNotReturnTruncatedArtwork() {
+        val stream = ByteArrayOutputStream()
+        stream.write("fLaC".toByteArray(StandardCharsets.US_ASCII))
+
+        // Block 0: STREAMINFO (type 0, length 34, isLast = false)
+        stream.write(0x00)
+        stream.write(0x00)
+        stream.write(0x00)
+        stream.write(34)
+        stream.write(ByteArray(34))
+
+        // Block 6: PICTURE (type 6, length 10000, isLast = true)
+        val picLength = 10000
+        stream.write(0x86)
+        stream.write((picLength shr 16) and 0xFF)
+        stream.write((picLength shr 8) and 0xFF)
+        stream.write(picLength and 0xFF)
+
+        // Write partial picture header where dataLength is 5000, but only 100 bytes of data are present
+        val picBody = ByteArrayOutputStream()
+        picBody.write(0)
+        picBody.write(0)
+        picBody.write(0)
+        picBody.write(3) // pictureType
+        val mime = "image/jpeg".toByteArray(StandardCharsets.US_ASCII)
+        writeIntBe(picBody, mime.size)
+        picBody.write(mime)
+        writeIntBe(picBody, 0) // descLength
+        for (i in 0 until 16) picBody.write(0) // width, height, etc.
+        writeIntBe(picBody, 5000) // dataLength = 5000!
+        picBody.write(ByteArray(100) { 0xFF.toByte() }) // only 100 bytes!
+
+        stream.write(picBody.toByteArray())
+
+        val bytes = stream.toByteArray()
+        val parsed = FlacParser.parse(bytes)
+        assertNotNull(parsed)
+        assertNull("Truncated FLAC PICTURE must not return partial artwork", parsed?.artworkData)
+    }
+
+    @Test
+    fun testDetectRequiredTagSize_wavWithEmbeddedId3_detectsRequiredTagSize() {
+        val stream = ByteArrayOutputStream()
+        stream.write("RIFF".toByteArray(StandardCharsets.US_ASCII))
+        writeIntLe(stream, 2000000) // 2MB RIFF chunk
+        stream.write("WAVE".toByteArray(StandardCharsets.US_ASCII))
+
+        // "fmt " chunk
+        stream.write("fmt ".toByteArray(StandardCharsets.US_ASCII))
+        writeIntLe(stream, 16)
+        stream.write(ByteArray(16))
+
+        // "id3 " chunk with oversized tag of 750,000 bytes
+        stream.write("id3 ".toByteArray(StandardCharsets.US_ASCII))
+        writeIntLe(stream, 750010)
+
+        // ID3 header inside "id3 " chunk
+        stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
+        stream.write(3) // v2.3
+        stream.write(0)
+        stream.write(0)
+        val tagPayload = 750000
+        stream.write((tagPayload shr 21) and 0x7F)
+        stream.write((tagPayload shr 14) and 0x7F)
+        stream.write((tagPayload shr 7) and 0x7F)
+        stream.write(tagPayload and 0x7F)
+
+        // Truncated buffer simulating 512KB initial fetch
+        val initialBytes = stream.toByteArray()
+        val detected = AudioMetadataParser.detectRequiredTagSize(initialBytes)
+
+        assertNotNull("Tag size for WAV with embedded ID3 must be detected", detected)
+        assertTrue(
+            "Detected size ($detected) must cover the embedded ID3 chunk (expected >= 750010)",
+            detected!! >= 750010L,
         )
     }
 

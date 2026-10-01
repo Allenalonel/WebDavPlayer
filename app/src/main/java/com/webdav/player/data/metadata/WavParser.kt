@@ -66,18 +66,22 @@ object WavParser {
                     }
                 }
                 "id3 ", "ID3 " -> {
-                    val id3Data = reader.readBytes(chunkSize.toInt().coerceIn(0, reader.remaining()))
-                    val parsedId3 = Id3v2Parser.parse(id3Data)
-                    if (parsedId3 != null) {
-                        if (title == null) title = parsedId3.title
-                        if (artist == null) artist = parsedId3.artist
-                        if (album == null) album = parsedId3.album
-                        if (trackNumber == null) trackNumber = parsedId3.trackNumber
-                        if (artworkData == null) {
-                            artworkData = parsedId3.artworkData
-                            artworkMimeType = parsedId3.artworkMimeType
+                    if (chunkSize > 0 && reader.hasRemaining(chunkSize.toInt())) {
+                        val id3Data = reader.readBytes(chunkSize.toInt())
+                        val parsedId3 = Id3v2Parser.parse(id3Data)
+                        if (parsedId3 != null) {
+                            if (title == null) title = parsedId3.title
+                            if (artist == null) artist = parsedId3.artist
+                            if (album == null) album = parsedId3.album
+                            if (trackNumber == null) trackNumber = parsedId3.trackNumber
+                            if (artworkData == null) {
+                                artworkData = parsedId3.artworkData
+                                artworkMimeType = parsedId3.artworkMimeType
+                            }
+                            if (lyrics == null) lyrics = parsedId3.lyrics
                         }
-                        if (lyrics == null) lyrics = parsedId3.lyrics
+                    } else {
+                        reader.skip((chunkEnd - reader.position()).coerceAtLeast(0))
                     }
                 }
             }

@@ -792,6 +792,7 @@ class MusicPlayerAppSessionTest {
         override suspend fun resolveMetadata(
             server: WebDavServer,
             files: List<RemoteFile>,
+            forceRefresh: Boolean,
         ) {
             resolveMetadataCalls++
             resolvedFiles = files

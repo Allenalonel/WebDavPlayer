@@ -217,7 +217,7 @@ class LyricsRepositoryTest {
             return cachedMetadata[remotePath]
         }
 
-        override suspend fun resolveMetadata(server: WebDavServer, files: List<RemoteFile>) {}
+        override suspend fun resolveMetadata(server: WebDavServer, files: List<RemoteFile>, forceRefresh: Boolean) {}
         override suspend fun resolveSingleTrackMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata {
             return cachedMetadata[file.path] ?: TrackMetadata(
                 serverId = server.id,

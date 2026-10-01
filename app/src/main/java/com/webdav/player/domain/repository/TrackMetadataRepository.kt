@@ -33,7 +33,8 @@ interface TrackMetadataRepository {
      */
     suspend fun resolveMetadata(
         server: WebDavServer,
-        files: List<RemoteFile>
+        files: List<RemoteFile>,
+        forceRefresh: Boolean = false,
     )
 
     /**
