@@ -818,7 +818,7 @@ class MusicPlayerAppSessionImpl(
                         try {
                             val remoteFile =
                                 RemoteFile(
-                                    name = track.title,
+                                    name = track.fileName,
                                     path = track.remotePath,
                                     size = track.size,
                                     fileType = RemoteFileType.Audio(track.format),

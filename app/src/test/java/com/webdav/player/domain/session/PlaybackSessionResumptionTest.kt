@@ -31,6 +31,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -637,6 +638,72 @@ class PlaybackSessionResumptionTest {
             assertTrue(fakeEngine.updateTrackCalls >= 1)
             assertEquals(healedCoverPath, fakeEngine.lastTracks[0].coverThumbnailPath)
             assertTrue("Playback must not be interrupted during enrichment", session.sessionState.value.isPlaying)
+        }
+
+    @Test
+    fun coldStart_whenSelfHealingTriggered_constructsRemoteFileWithActualFileNameRatherThanTitle() =
+        runTest(testDispatcher) {
+            val fakeCoverStorage = FakeCoverArtStorage()
+            val fakeMetadataRepo = TestTrackMetadataRepository()
+
+            val deadCoverPath = "/cache/covers/deleted_track.jpg"
+            val healedCoverPath = "/cache/covers/healed_track.jpg"
+            val trackWithDifferentTitleAndFileName =
+                AudioTrack(
+                    id = "1:/Music/Jazz/01. Bohemian Rhapsody.flac",
+                    serverId = 1L,
+                    remotePath = "/Music/Jazz/01. Bohemian Rhapsody.flac",
+                    title = "Bohemian Rhapsody",
+                    artist = "Queen",
+                    album = "A Night at the Opera",
+                    durationMs = 354000L,
+                    size = 50000000L,
+                    format = AudioFormat.FLAC,
+                    coverThumbnailPath = deadCoverPath,
+                )
+
+            fakeMetadataRepo.singleTrackResolver = { server, file ->
+                fakeCoverStorage.diskFiles.add(healedCoverPath)
+                TrackMetadata(
+                    serverId = server.id,
+                    remotePath = file.path,
+                    title = file.name,
+                    coverThumbnailPath = healedCoverPath,
+                )
+            }
+
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(trackWithDifferentTitleAndFileName),
+                    currentTrackIndex = 0,
+                    positionMs = 15000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                )
+            fakeStore.savedSession = savedSession
+
+            session =
+                createSession(
+                    store = fakeStore,
+                    metadataRepo = fakeMetadataRepo,
+                    coverStorage = fakeCoverStorage,
+                )
+            advanceUntilIdle()
+
+            assertEquals(1, fakeMetadataRepo.resolveSingleTrackCalls.size)
+            val resolvedFile = fakeMetadataRepo.resolveSingleTrackCalls[0]
+            assertEquals("RemoteFile.path must match track.remotePath", "/Music/Jazz/01. Bohemian Rhapsody.flac", resolvedFile.path)
+            assertEquals(
+                "RemoteFile.name must use track.fileName to enable proper fallback cover probing",
+                "01. Bohemian Rhapsody.flac",
+                resolvedFile.name,
+            )
+            assertNotEquals(
+                "RemoteFile.name must NOT be polluted by track.title",
+                trackWithDifferentTitleAndFileName.title,
+                resolvedFile.name,
+            )
         }
 
     @Test
