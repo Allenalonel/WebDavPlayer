@@ -51,7 +51,7 @@ data class AudioTrack(
             artist = metadata.artist?.takeIf { it.isNotBlank() } ?: this.artist,
             album = metadata.album?.takeIf { it.isNotBlank() } ?: this.album,
             durationMs = if (metadata.durationMs > 0L) metadata.durationMs else this.durationMs,
-            coverThumbnailPath = metadata.coverThumbnailPath ?: this.coverThumbnailPath,
+            coverThumbnailPath = metadata.coverThumbnailPath,
         )
 
     companion object {

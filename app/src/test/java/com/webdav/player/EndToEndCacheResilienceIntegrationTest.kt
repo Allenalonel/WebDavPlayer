@@ -821,7 +821,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
-                    coverArtStorage = coverArtStorage,
                     progressDispatcher = testDispatcher,
                 )
 

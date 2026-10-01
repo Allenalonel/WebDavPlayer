@@ -70,28 +70,32 @@ class TrackMetadataRepositoryImpl internal constructor(
         return null
     }
 
-    private fun triggerSelfHealing(serverId: Long, remotePath: String) {
+    private fun triggerSelfHealing(
+        serverId: Long,
+        remotePath: String,
+    ) {
         val key = "$serverId:$remotePath"
         if (inFlightSelfHealing.containsKey(key)) return
 
-        val job = repositoryScope.launch {
-            try {
-                val server = findServer(serverId) ?: return@launch
-                val fileName = remotePath.substringAfterLast('/').ifBlank { "track" }
-                val file = RemoteFile(name = fileName, path = remotePath)
-                val resolved =
-                    semaphore.withPermit {
-                        trackMetadataResolver.resolve(server, file)
+        val job =
+            repositoryScope.launch {
+                try {
+                    val server = findServer(serverId) ?: return@launch
+                    val fileName = remotePath.substringAfterLast('/').ifBlank { "track" }
+                    val file = RemoteFile(name = fileName, path = remotePath)
+                    val resolved =
+                        semaphore.withPermit {
+                            trackMetadataResolver.resolve(server, file)
+                        }
+                    if (resolved != null) {
+                        trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(resolved))
                     }
-                if (resolved != null) {
-                    trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(resolved))
+                } catch (_: Exception) {
+                    // Ignore transient errors during background self-healing
+                } finally {
+                    inFlightSelfHealing.remove(key)
                 }
-            } catch (_: Exception) {
-                // Ignore transient errors during background self-healing
-            } finally {
-                inFlightSelfHealing.remove(key)
             }
-        }
         val existing = inFlightSelfHealing.putIfAbsent(key, job)
         if (existing != null) {
             job.cancel()

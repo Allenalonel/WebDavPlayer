@@ -5,11 +5,11 @@ Remove `CoverArtStorage` from `MusicPlayerAppSessionImpl`, eliminate `isValidThu
 
 **Blocked by:** 01-deepen-track-metadata-repository-with-thumbnail-validation-and-self-healing
 
-**Status:** pending
+**Status:** completed
 
-- [ ] Remove `CoverArtStorage` parameter from `MusicPlayerAppSessionImpl` constructor and factory.
-- [ ] Remove `isValidThumbnailFile` and `sanitizeTrackWithCoverValidation` methods.
-- [ ] Delete `latestMetadataCache` and rely solely on `TrackMetadataRepository` queries and flows.
-- [ ] Clean up `restoreSession` and track playback methods to remove manual disk guards and `RemoteFile` reconstruction.
-- [ ] Update `WebDavApplication` session wiring.
-- [ ] Update `MusicPlayerAppSessionTest`, `PlaybackSessionResumptionTest`, and `ProcessRestartSimulationTest`.
+- [x] Remove `CoverArtStorage` parameter from `MusicPlayerAppSessionImpl` constructor and factory.
+- [x] Remove `isValidThumbnailFile` and `sanitizeTrackWithCoverValidation` methods.
+- [x] Delete `latestMetadataCache` and rely solely on `TrackMetadataRepository` queries and flows.
+- [x] Clean up `restoreSession` and track playback methods to remove manual disk guards and `RemoteFile` reconstruction.
+- [x] Update `WebDavApplication` session wiring.
+- [x] Update `MusicPlayerAppSessionTest`, `PlaybackSessionResumptionTest`, and `ProcessRestartSimulationTest`.

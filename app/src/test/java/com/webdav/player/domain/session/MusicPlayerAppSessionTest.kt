@@ -197,6 +197,7 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             sessionWithRepo.playDirectoryTrack(directory, track)
+            advanceUntilIdle()
 
             val currentTrack = sessionWithRepo.sessionState.value.currentTrack
             assertNotNull(currentTrack)

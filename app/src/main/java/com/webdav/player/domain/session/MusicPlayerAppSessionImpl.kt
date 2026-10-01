@@ -1,6 +1,5 @@
 package com.webdav.player.domain.session
 
-import com.webdav.player.data.local.CoverArtStorage
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
@@ -10,7 +9,6 @@ import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
-import com.webdav.player.domain.model.RemoteFileType
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
@@ -47,7 +45,6 @@ class MusicPlayerAppSessionImpl(
         }
             ?: Dispatchers.Default,
     private val periodicDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val coverArtStorage: CoverArtStorage? = null,
 ) : MusicPlayerAppSession {
     private val _sessionState = MutableStateFlow(PlayerSessionState())
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
@@ -59,15 +56,8 @@ class MusicPlayerAppSessionImpl(
     override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
 
     private val serverLastDirectories = java.util.concurrent.ConcurrentHashMap<Long, String>()
-    private val latestMetadataCache = java.util.concurrent.ConcurrentHashMap<String, TrackMetadata>()
     private var periodicFlushJob: Job? = null
     private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
-
-    private fun isValidThumbnailFile(filePath: String?): Boolean {
-        if (filePath.isNullOrBlank()) return false
-        val storage = coverArtStorage ?: return true
-        return storage.isValidThumbnailFile(filePath)
-    }
 
     init {
         internalJobs +=
@@ -208,16 +198,7 @@ class MusicPlayerAppSessionImpl(
                                 coroutineScope.launch {
                                     trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
                                         if (metadataList.isNotEmpty()) {
-                                            val sanitizedList =
-                                                metadataList.map { meta ->
-                                                    if (meta.coverThumbnailPath != null && !isValidThumbnailFile(meta.coverThumbnailPath)) {
-                                                        meta.copy(coverThumbnailPath = null)
-                                                    } else {
-                                                        meta
-                                                    }
-                                                }
-                                            sanitizedList.forEach { latestMetadataCache[it.remotePath] = it }
-                                            val metaMap = sanitizedList.associateBy { it.remotePath }
+                                            val metaMap = metadataList.associateBy { it.remotePath }
                                             val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
 
                                             _sessionState.update { current ->
@@ -226,15 +207,7 @@ class MusicPlayerAppSessionImpl(
                                                     current.queue.tracks.mapIndexed { index, track ->
                                                         val meta = metaMap[track.remotePath]
                                                         if (meta != null) {
-                                                            val cleanTrack =
-                                                                if (track.coverThumbnailPath != null &&
-                                                                    !isValidThumbnailFile(track.coverThumbnailPath)
-                                                                ) {
-                                                                    track.copy(coverThumbnailPath = null)
-                                                                } else {
-                                                                    track
-                                                                }
-                                                            val enriched = cleanTrack.withMetadata(meta)
+                                                            val enriched = track.withMetadata(meta)
                                                             if (enriched != track) {
                                                                 anyChanged = true
                                                                 tracksToUpdate.add(index to enriched)
@@ -298,7 +271,6 @@ class MusicPlayerAppSessionImpl(
     override fun setActiveServer(server: WebDavServer?) {
         _sessionState.update { current ->
             if (current.activeServer?.id != server?.id) {
-                latestMetadataCache.clear()
                 // If on cold start activeServer was null and we already have a restored session/queue,
                 // do NOT clear the queue or playback state! Attach the server and keep the restored session.
                 if (current.activeServer == null && current.hasTrack) {
@@ -345,11 +317,9 @@ class MusicPlayerAppSessionImpl(
         val audioFiles = directory.files.filter { it.isAudio }
         if (audioFiles.isEmpty()) return
 
-        initialMetadata.forEach { (path, meta) -> latestMetadataCache[path] = meta }
-
         val tracks =
             audioFiles.mapNotNull { file ->
-                val meta = initialMetadata[file.path] ?: latestMetadataCache[file.path]
+                val meta = initialMetadata[file.path]
                 AudioTrack.fromRemoteFile(server, file, meta)
             }
         if (tracks.isEmpty()) return
@@ -392,18 +362,9 @@ class MusicPlayerAppSessionImpl(
                         val updated =
                             state.queue.tracks.mapIndexed { index, track ->
                                 if (track.coverThumbnailPath == null) {
-                                    val meta =
-                                        latestMetadataCache[track.remotePath]
-                                            ?: trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
+                                    val meta = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
                                     if (meta != null) {
-                                        val safeMeta =
-                                            if (meta.coverThumbnailPath != null && !isValidThumbnailFile(meta.coverThumbnailPath)) {
-                                                meta.copy(coverThumbnailPath = null)
-                                            } else {
-                                                meta
-                                            }
-                                        latestMetadataCache[track.remotePath] = safeMeta
-                                        val enriched = track.withMetadata(safeMeta)
+                                        val enriched = track.withMetadata(meta)
                                         if (enriched != track) {
                                             anyChanged = true
                                             tracksToUpdate.add(index to enriched)
@@ -437,21 +398,26 @@ class MusicPlayerAppSessionImpl(
     override fun playTrack(track: AudioTrack) {
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
-        val enrichedInitial = latestMetadataCache[track.remotePath]?.let { track.withMetadata(it) } ?: track
-        val queue = PlaybackQueue(tracks = listOf(enrichedInitial), currentIndex = 0)
+        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
         _playbackProgress.value =
             PlaybackProgress(
                 currentPositionMs = 0L,
-                durationMs = enrichedInitial.durationMs,
+                durationMs = track.durationMs,
                 bufferedPositionMs = 0L,
             )
         _sessionState.update { it.copy(queue = queue, errorMessage = null) }
-        playerEngine.playTracks(server = server, tracks = listOf(enrichedInitial), startIndex = 0)
+        playerEngine.playTracks(server = server, tracks = listOf(track), startIndex = 0)
 
         if (trackMetadataRepository != null) {
             coroutineScope.launch {
-                val file = RemoteFile(name = track.title, path = track.remotePath)
-                val meta = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                val cachedMeta = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
+                val meta =
+                    if (cachedMeta != null) {
+                        cachedMeta
+                    } else {
+                        val file = RemoteFile(name = track.fileName, path = track.remotePath)
+                        trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                    }
                 var updatedIndex: Int? = null
                 var enrichedTrack: AudioTrack? = null
 
@@ -728,48 +694,29 @@ class MusicPlayerAppSessionImpl(
                 return
             }
 
-            val tracksWithMissingArt = mutableListOf<AudioTrack>()
-            val sanitizedTracks =
-                savedSession.queueTracks.map { track ->
-                    val artPath = track.coverThumbnailPath
-                    if (artPath != null && !isValidThumbnailFile(artPath)) {
-                        val sanitized = track.copy(coverThumbnailPath = null)
-                        tracksWithMissingArt.add(sanitized)
-                        sanitized
-                    } else {
-                        track
-                    }
-                }
-
             val restoredQueue =
                 PlaybackQueue(
-                    tracks = sanitizedTracks,
-                    currentIndex = savedSession.currentTrackIndex.coerceIn(-1, sanitizedTracks.lastIndex),
+                    tracks = savedSession.queueTracks,
+                    currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
                 )
             val restoredTrack = restoredQueue.currentTrack
             val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
-            var durationMs = restoredTrack?.durationMs ?: 0L
 
-            var finalQueue = restoredQueue
-            if (server != null && restoredTrack != null) {
-                val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, restoredTrack.remotePath)
-                if (cachedMeta != null) {
-                    val safeCachedMeta =
-                        if (cachedMeta.coverThumbnailPath != null && !isValidThumbnailFile(cachedMeta.coverThumbnailPath)) {
-                            cachedMeta.copy(coverThumbnailPath = null)
-                        } else {
-                            cachedMeta
-                        }
-                    if (durationMs <= 0L && safeCachedMeta.durationMs > 0L) {
-                        durationMs = safeCachedMeta.durationMs
-                    }
+            val finalQueue =
+                if (server != null) {
                     val updatedTracks =
-                        sanitizedTracks.mapIndexed { index, track ->
-                            if (index == savedSession.currentTrackIndex) track.withMetadata(safeCachedMeta) else track
+                        savedSession.queueTracks.map { track ->
+                            val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, track.remotePath)
+                            if (cachedMeta != null) track.withMetadata(cachedMeta) else track
                         }
-                    finalQueue = PlaybackQueue(tracks = updatedTracks, currentIndex = savedSession.currentTrackIndex)
+                    PlaybackQueue(
+                        tracks = updatedTracks,
+                        currentIndex = savedSession.currentTrackIndex.coerceIn(-1, updatedTracks.lastIndex),
+                    )
+                } else {
+                    restoredQueue
                 }
-            }
+            val durationMs = finalQueue.currentTrack?.durationMs ?: restoredTrack?.durationMs ?: 0L
 
             _sessionState.update {
                 it.copy(
@@ -790,76 +737,6 @@ class MusicPlayerAppSessionImpl(
                 )
 
             playerEngine.setPlaybackMode(savedSession.playbackMode)
-
-            // Trigger non-disruptive background metadata enrichment for restored tracks with missing artwork files
-            val tracksToHeal = mutableListOf<AudioTrack>()
-            val currentActiveTrack = finalQueue.currentTrack
-            if (currentActiveTrack != null && (
-                    tracksWithMissingArt.any { it.remotePath == currentActiveTrack.remotePath } ||
-                        (
-                            server != null && trackMetadataRepository?.getCachedMetadata(server.id, currentActiveTrack.remotePath)?.let {
-                                it.coverThumbnailPath != null && !isValidThumbnailFile(it.coverThumbnailPath)
-                            } == true
-                        )
-                )
-            ) {
-                tracksToHeal.add(currentActiveTrack)
-            }
-            tracksWithMissingArt.forEach { t ->
-                if (tracksToHeal.none { it.remotePath == t.remotePath }) {
-                    tracksToHeal.add(t)
-                }
-            }
-
-            if (server != null && trackMetadataRepository != null && tracksToHeal.isNotEmpty()) {
-                coroutineScope.launch {
-                    for (track in tracksToHeal) {
-                        if (!isActive) break
-                        try {
-                            val remoteFile =
-                                RemoteFile(
-                                    name = track.fileName,
-                                    path = track.remotePath,
-                                    size = track.size,
-                                    fileType = RemoteFileType.Audio(track.format),
-                                )
-                            val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, remoteFile)
-                            if (resolved.coverThumbnailPath != null && isValidThumbnailFile(resolved.coverThumbnailPath)) {
-                                latestMetadataCache[track.remotePath] = resolved
-                                var updatedIndex: Int? = null
-                                var enrichedTrack: AudioTrack? = null
-
-                                _sessionState.update { current ->
-                                    var anyChanged = false
-                                    val updatedTracks =
-                                        current.queue.tracks.mapIndexed { index, t ->
-                                            if (t.remotePath == track.remotePath) {
-                                                val enriched = t.withMetadata(resolved)
-                                                if (enriched != t) {
-                                                    anyChanged = true
-                                                    updatedIndex = index
-                                                    enrichedTrack = enriched
-                                                    enriched
-                                                } else {
-                                                    t
-                                                }
-                                            } else {
-                                                t
-                                            }
-                                        }
-                                    if (anyChanged) current.copy(queue = current.queue.copy(tracks = updatedTracks)) else current
-                                }
-
-                                if (updatedIndex != null && enrichedTrack != null) {
-                                    playerEngine.updateTrack(updatedIndex!!, enrichedTrack!!)
-                                }
-                            }
-                        } catch (e: Throwable) {
-                            // Non-disruptive: self-healing failure must never disrupt playback or crash
-                        }
-                    }
-                }
-            }
         } finally {
             _isRestored.value = true
         }
