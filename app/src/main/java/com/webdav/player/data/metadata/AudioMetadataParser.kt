@@ -3,8 +3,10 @@ package com.webdav.player.data.metadata
 import com.webdav.player.domain.model.AudioFormat
 
 object AudioMetadataParser {
-
-    fun parse(bytes: ByteArray, formatHint: AudioFormat? = null): ParsedAudioMetadata {
+    fun parse(
+        bytes: ByteArray,
+        formatHint: AudioFormat? = null,
+    ): ParsedAudioMetadata {
         if (bytes.size < 4) {
             return ParsedAudioMetadata()
         }
@@ -15,18 +17,22 @@ object AudioMetadataParser {
                 val flac = FlacParser.parse(bytes)
                 if (flac != null && flac.hasTags) return flac
             }
+
             AudioFormat.WAV -> {
                 val wav = WavParser.parse(bytes)
                 if (wav != null && wav.hasTags) return wav
             }
+
             AudioFormat.WMA -> {
                 val asf = AsfParser.parse(bytes)
                 if (asf != null && asf.hasTags) return asf
             }
+
             AudioFormat.MP3 -> {
                 val id3 = Id3v2Parser.parse(bytes)
                 if (id3 != null && id3.hasTags) return id3
             }
+
             else -> {}
         }
 
@@ -43,7 +49,9 @@ object AudioMetadataParser {
         }
 
         // 3. Direct RIFF/WAV ("RIFF")
-        if (bytes.size >= 4 && bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte()) {
+        if (bytes.size >= 4 && bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() &&
+            bytes[3] == 'F'.code.toByte()
+        ) {
             val wav = WavParser.parse(bytes)
             if (wav != null) return wav
         }
@@ -68,7 +76,7 @@ object AudioMetadataParser {
 
     fun hasRecognizedAudioHeader(bytes: ByteArray): Boolean {
         if (bytes.size < 4) return false
-        val isId3 = isId3At(bytes, 0)
+        val isId3 = isId3At(bytes, 0) || findId3HeaderOffset(bytes) != null
         val isFlac = isFlacAt(bytes, 0)
         return isId3 || isFlac
     }
@@ -93,7 +101,7 @@ object AudioMetadataParser {
 
     private fun findId3HeaderOffset(
         bytes: ByteArray,
-        maxScanLimit: Int = 4096
+        maxScanLimit: Int = 4096,
     ): Int? {
         if (bytes.size < 10) return null
         if (isId3At(bytes, 0)) return 0
@@ -104,27 +112,39 @@ object AudioMetadataParser {
         return null
     }
 
-    private fun isId3At(bytes: ByteArray, offset: Int): Boolean =
+    private fun isId3At(
+        bytes: ByteArray,
+        offset: Int,
+    ): Boolean =
         bytes.size >= offset + 3 &&
             bytes[offset] == 'I'.code.toByte() &&
             bytes[offset + 1] == 'D'.code.toByte() &&
             bytes[offset + 2] == '3'.code.toByte()
 
-    private fun isFlacAt(bytes: ByteArray, offset: Int = 0): Boolean =
+    private fun isFlacAt(
+        bytes: ByteArray,
+        offset: Int = 0,
+    ): Boolean =
         bytes.size >= offset + 4 &&
             bytes[offset] == 0x66.toByte() &&
             bytes[offset + 1] == 0x4C.toByte() &&
             bytes[offset + 2] == 0x61.toByte() &&
             bytes[offset + 3] == 0x43.toByte()
 
-    private fun isAsfAt(bytes: ByteArray, offset: Int = 0): Boolean =
+    private fun isAsfAt(
+        bytes: ByteArray,
+        offset: Int = 0,
+    ): Boolean =
         bytes.size >= offset + 16 &&
             bytes[offset] == 0x30.toByte() &&
             bytes[offset + 1] == 0x26.toByte() &&
             bytes[offset + 2] == 0xB2.toByte() &&
             bytes[offset + 3] == 0x75.toByte()
 
-    private fun extractId3TagSize(bytes: ByteArray, offset: Int): Long? {
+    private fun extractId3TagSize(
+        bytes: ByteArray,
+        offset: Int,
+    ): Long? {
         if (offset + 10 > bytes.size) return null
         val majorVersion = bytes[offset + 3].toInt() and 0xFF
         if (majorVersion !in 2..4) return null

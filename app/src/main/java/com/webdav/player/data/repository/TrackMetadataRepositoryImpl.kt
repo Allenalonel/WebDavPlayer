@@ -30,9 +30,8 @@ class TrackMetadataRepositoryImpl(
     private val webDavClient: WebDavClient,
     private val coverArtStorage: CoverArtStorage,
     private val maxConcurrency: Int = 3,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : TrackMetadataRepository {
-
     private val semaphore = Semaphore(maxConcurrency)
     private val folderArtworkCache = ConcurrentHashMap<String, String>()
     private val folderLocks = ConcurrentHashMap<String, Mutex>()
@@ -45,29 +44,38 @@ class TrackMetadataRepositoryImpl(
         private const val NO_FOLDER_ARTWORK_SENTINEL = "__NO_FOLDER_ARTWORK__"
     }
 
-    override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> {
-        return trackMetadataDao.getAllMetadataForServerFlow(serverId).map { list ->
+    override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> =
+        trackMetadataDao.getAllMetadataForServerFlow(serverId).map { list ->
             list.map { it.toDomain() }
         }
-    }
 
-    override fun getMetadataForPathsFlow(serverId: Long, remotePaths: List<String>): Flow<List<TrackMetadata>> {
-        return trackMetadataDao.getMetadataForPathsFlow(serverId, remotePaths).map { list ->
+    override fun getMetadataForPathsFlow(
+        serverId: Long,
+        remotePaths: List<String>,
+    ): Flow<List<TrackMetadata>> =
+        trackMetadataDao.getMetadataForPathsFlow(serverId, remotePaths).map { list ->
             list.map { it.toDomain() }
         }
-    }
 
-    override fun getMetadataFlow(serverId: Long, remotePath: String): Flow<TrackMetadata?> {
-        return trackMetadataDao.getMetadataFlow(serverId, remotePath).map { it?.toDomain() }
-    }
+    override fun getMetadataFlow(
+        serverId: Long,
+        remotePath: String,
+    ): Flow<TrackMetadata?> =
+        trackMetadataDao.getMetadataFlow(serverId, remotePath).map {
+            it?.toDomain()
+        }
 
-    override suspend fun getCachedMetadata(serverId: Long, remotePath: String): TrackMetadata? = withContext(ioDispatcher) {
-        trackMetadataDao.getMetadata(serverId, remotePath)?.toDomain()
-    }
+    override suspend fun getCachedMetadata(
+        serverId: Long,
+        remotePath: String,
+    ): TrackMetadata? =
+        withContext(ioDispatcher) {
+            trackMetadataDao.getMetadata(serverId, remotePath)?.toDomain()
+        }
 
     override suspend fun resolveMetadata(
         server: WebDavServer,
-        files: List<RemoteFile>
+        files: List<RemoteFile>,
     ) = withContext(ioDispatcher) {
         val audioFiles = files.filter { it.isAudio }
         if (audioFiles.isEmpty()) return@withContext
@@ -85,9 +93,10 @@ class TrackMetadataRepositoryImpl(
         coroutineScope {
             toResolve.forEach { file ->
                 launch {
-                    val metadata = semaphore.withPermit {
-                        parseAndBuildMetadata(server, file)
-                    } ?: return@launch
+                    val metadata =
+                        semaphore.withPermit {
+                            parseAndBuildMetadata(server, file)
+                        } ?: return@launch
 
                     val entity = TrackMetadataEntity.fromDomain(metadata)
                     var batchToWrite: List<TrackMetadataEntity>? = null
@@ -108,11 +117,12 @@ class TrackMetadataRepositoryImpl(
         }
 
         // Flush remaining entries in buffer
-        val remaining = synchronized(buffer) {
-            val copy = ArrayList(buffer)
-            buffer.clear()
-            copy
-        }
+        val remaining =
+            synchronized(buffer) {
+                val copy = ArrayList(buffer)
+                buffer.clear()
+                copy
+            }
         if (remaining.isNotEmpty()) {
             trackMetadataDao.insertOrUpdateAll(remaining)
         }
@@ -120,46 +130,52 @@ class TrackMetadataRepositoryImpl(
 
     override suspend fun resolveSingleTrackMetadata(
         server: WebDavServer,
-        file: RemoteFile
-    ): TrackMetadata = withContext(ioDispatcher) {
-        val cached = getCachedMetadata(server.id, file.path)
-        if (cached != null) {
-            return@withContext cached
+        file: RemoteFile,
+    ): TrackMetadata =
+        withContext(ioDispatcher) {
+            val cached = getCachedMetadata(server.id, file.path)
+            if (cached != null) {
+                return@withContext cached
+            }
+            val metadata =
+                semaphore.withPermit {
+                    parseAndBuildMetadata(server, file)
+                }
+            if (metadata != null) {
+                trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
+                metadata
+            } else {
+                // Transient error: do NOT write permanent failure to Room.
+                // Return ephemeral fallback for immediate playback/display.
+                TrackMetadata(
+                    serverId = server.id,
+                    remotePath = file.path,
+                    title = file.name.substringBeforeLast('.').ifBlank { file.name },
+                    artist = null,
+                    album = null,
+                    trackNumber = null,
+                    durationMs = 0L,
+                    coverThumbnailPath = null,
+                    lyrics = null,
+                )
+            }
         }
-        val metadata = semaphore.withPermit {
-            parseAndBuildMetadata(server, file)
-        }
-        if (metadata != null) {
-            trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))
-            metadata
-        } else {
-            // Transient error: do NOT write permanent failure to Room.
-            // Return ephemeral fallback for immediate playback/display.
-            TrackMetadata(
-                serverId = server.id,
-                remotePath = file.path,
-                title = file.name.substringBeforeLast('.').ifBlank { file.name },
-                artist = null,
-                album = null,
-                trackNumber = null,
-                durationMs = 0L,
-                coverThumbnailPath = null,
-                lyrics = null
-            )
-        }
-    }
 
-    private suspend fun parseAndBuildMetadata(server: WebDavServer, file: RemoteFile): TrackMetadata? {
+    private suspend fun parseAndBuildMetadata(
+        server: WebDavServer,
+        file: RemoteFile,
+    ): TrackMetadata? {
         val cleanFallbackTitle = file.name.substringBeforeLast('.').ifBlank { file.name }
 
-        val rangeBytes = try {
-            webDavClient.fetchRange(server, file.path, INITIAL_RANGE_START, INITIAL_RANGE_END)
-        } catch (e: java.io.IOException) {
-            // Transient network failure fetching audio range -> allow retry later
-            return null
-        } catch (e: Exception) {
-            null
-        }
+        val rangeBytes =
+            try {
+                webDavClient.fetchRange(server, file.path, INITIAL_RANGE_START, INITIAL_RANGE_END)
+            } catch (e: java.io.IOException) {
+                // Transient network failure fetching audio range -> allow retry later
+                return null
+            } catch (e: Exception) {
+                null
+            }
 
         // If rangeBytes is null or empty, audio range could not be read -> transient failure, do not cache
         if (rangeBytes == null || rangeBytes.isEmpty()) {
@@ -167,40 +183,43 @@ class TrackMetadataRepositoryImpl(
         }
 
         val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(rangeBytes)
-        val completeBytes = if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
-            try {
-                fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
-            } catch (e: java.io.IOException) {
-                // Network failure during secondary range fetch -> transient error, retry later
-                return null
-            } catch (e: Exception) {
+        val completeBytes =
+            if (requiredTagSize != null && requiredTagSize > rangeBytes.size) {
+                try {
+                    fetchSecondaryRangeIfNeeded(server, file, rangeBytes)
+                } catch (e: java.io.IOException) {
+                    // Network failure during secondary range fetch -> transient error, retry later
+                    return null
+                } catch (e: Exception) {
+                    rangeBytes
+                }
+            } else {
                 rangeBytes
             }
-        } else {
-            rangeBytes
-        }
 
         val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
         val parsed = AudioMetadataParser.parse(completeBytes, audioFormat)
 
-        val embeddedThumb = if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
-            coverArtStorage.saveThumbnail(server.id, file.path, parsed.artworkData)
-        } else {
-            null
-        }
-
-        val thumbnailPath = if (embeddedThumb != null) {
-            embeddedThumb
-        } else {
-            try {
-                resolveFolderArtworkFallback(server, file)
-            } catch (e: java.io.IOException) {
-                // Transient network / decode error probing folder artwork -> do not poison cache with null artwork
-                return null
-            } catch (e: Exception) {
+        val embeddedThumb =
+            if (parsed.artworkData != null && parsed.artworkData.isNotEmpty()) {
+                coverArtStorage.saveThumbnail(server.id, file.path, parsed.artworkData)
+            } else {
                 null
             }
-        }
+
+        val thumbnailPath =
+            if (embeddedThumb != null) {
+                embeddedThumb
+            } else {
+                try {
+                    resolveFolderArtworkFallback(server, file)
+                } catch (e: java.io.IOException) {
+                    // Transient network / decode error probing folder artwork -> do not poison cache with null artwork
+                    return null
+                } catch (e: Exception) {
+                    null
+                }
+            }
 
         val title = parsed.title?.takeIf { it.isNotBlank() } ?: cleanFallbackTitle
         val artist = parsed.artist?.takeIf { it.isNotBlank() }
@@ -215,32 +234,34 @@ class TrackMetadataRepositoryImpl(
             trackNumber = parsed.trackNumber,
             durationMs = parsed.durationMs,
             coverThumbnailPath = thumbnailPath,
-            lyrics = parsed.lyrics
+            lyrics = parsed.lyrics,
         )
     }
 
     private suspend fun fetchSecondaryRangeIfNeeded(
         server: WebDavServer,
         file: RemoteFile,
-        initialBytes: ByteArray
+        initialBytes: ByteArray,
     ): ByteArray {
         val requiredTagSize = AudioMetadataParser.detectRequiredTagSize(initialBytes) ?: return initialBytes
         if (requiredTagSize <= initialBytes.size) return initialBytes
 
-        val targetSize = if (file.size > 0L) {
-            minOf(requiredTagSize, MAX_TAG_SIZE_CAP, file.size)
-        } else {
-            minOf(requiredTagSize, MAX_TAG_SIZE_CAP)
-        }
+        val targetSize =
+            if (file.size > 0L) {
+                minOf(requiredTagSize, MAX_TAG_SIZE_CAP, file.size)
+            } else {
+                minOf(requiredTagSize, MAX_TAG_SIZE_CAP)
+            }
 
         if (targetSize <= initialBytes.size) return initialBytes
 
-        val secondChunk = webDavClient.fetchRange(
-            server = server,
-            remotePath = file.path,
-            startByte = initialBytes.size.toLong(),
-            endByte = targetSize - 1L
-        ) ?: throw java.io.IOException("Secondary range fetch returned null for ${file.path}")
+        val secondChunk =
+            webDavClient.fetchRange(
+                server = server,
+                remotePath = file.path,
+                startByte = initialBytes.size.toLong(),
+                endByte = targetSize - 1L,
+            ) ?: throw java.io.IOException("Secondary range fetch returned null for ${file.path}")
 
         if (secondChunk.isEmpty()) {
             throw java.io.IOException("Secondary range fetch returned empty chunk for ${file.path}")
@@ -258,7 +279,7 @@ class TrackMetadataRepositoryImpl(
 
     private suspend fun resolveFolderArtworkFallback(
         server: WebDavServer,
-        file: RemoteFile
+        file: RemoteFile,
     ): String? {
         val parentDir = RemoteDirectory.getParentPath(file.path) ?: ""
         val baseName = file.name.substringBeforeLast('.').ifBlank { file.name }
@@ -266,15 +287,24 @@ class TrackMetadataRepositoryImpl(
 
         // 1. Check track-specific artwork first: "${trackName}.jpg", "${trackName}.png", "${filename}.jpg", "${filename}.png"
         // Track-specific artwork must always take precedence over folder-level shared covers.
-        val trackCandidates = listOf(
-            "$baseName.jpg",
-            "$baseName.png",
-            "${file.name}.jpg",
-            "${file.name}.png"
-        )
+        val trackCandidates =
+            listOf(
+                "$baseName.jpg",
+                "$baseName.png",
+                "${file.name}.jpg",
+                "${file.name}.png",
+            )
         val trackResult = probeCandidates(server, parentDir, trackCandidates)
-        if (trackResult is ProbeResult.Found) {
-            return trackResult.path
+        when (trackResult) {
+            is ProbeResult.Found -> {
+                return trackResult.path
+            }
+
+            is ProbeResult.NetworkError -> {
+                throw trackResult.cause
+            }
+
+            ProbeResult.NotFound -> { /* Continue to folder-level artwork */ }
         }
 
         // 2. If folder artwork has already been resolved for this directory, reuse it immediately
@@ -291,44 +321,49 @@ class TrackMetadataRepositoryImpl(
                 return@withLock if (doubleCheck == NO_FOLDER_ARTWORK_SENTINEL) null else doubleCheck
             }
 
-            val folderCandidates = listOf(
-                "cover.jpg",
-                "folder.jpg",
-                "front.jpg",
-                "cover.png"
-            )
+            val folderCandidates =
+                listOf(
+                    "cover.jpg",
+                    "folder.jpg",
+                    "front.jpg",
+                    "cover.png",
+                )
             val folderResult = probeCandidates(server, parentDir, folderCandidates)
             when (folderResult) {
                 is ProbeResult.Found -> {
                     folderArtworkCache[folderKey] = folderResult.path
                     folderResult.path
                 }
+
                 ProbeResult.NotFound -> {
-                    if (trackResult is ProbeResult.CorruptOrFailed) {
-                        throw java.io.IOException("Track artwork decode failed")
-                    }
                     folderArtworkCache[folderKey] = NO_FOLDER_ARTWORK_SENTINEL
                     null
                 }
-                ProbeResult.CorruptOrFailed -> {
-                    throw java.io.IOException("Folder artwork decode or download failed")
+
+                is ProbeResult.NetworkError -> {
+                    throw folderResult.cause
                 }
             }
         }
     }
 
     private sealed interface ProbeResult {
-        data class Found(val path: String) : ProbeResult
+        data class Found(
+            val path: String,
+        ) : ProbeResult
+
         object NotFound : ProbeResult
-        object CorruptOrFailed : ProbeResult
+
+        data class NetworkError(
+            val cause: java.io.IOException,
+        ) : ProbeResult
     }
 
     private suspend fun probeCandidates(
         server: WebDavServer,
         parentDir: String,
-        candidateFileNames: List<String>
+        candidateFileNames: List<String>,
     ): ProbeResult {
-        var hadCorruptCandidate = false
         for (name in candidateFileNames) {
             val path = buildCandidatePath(parentDir, name)
             try {
@@ -336,55 +371,47 @@ class TrackMetadataRepositoryImpl(
                 if (thumb != null) {
                     return ProbeResult.Found(thumb)
                 }
-            } catch (_: Exception) {
-                hadCorruptCandidate = true
+            } catch (e: java.io.IOException) {
+                return ProbeResult.NetworkError(e)
             }
         }
-        return if (hadCorruptCandidate) ProbeResult.CorruptOrFailed else ProbeResult.NotFound
+        return ProbeResult.NotFound
     }
 
     private suspend fun probeAndCacheArtwork(
         server: WebDavServer,
-        candidatePath: String
+        candidatePath: String,
     ): String? {
         val localThumb = coverArtStorage.getThumbnailFile(server.id, candidatePath)
         if (localThumb != null && localThumb.exists()) {
             return localThumb.absolutePath
         }
 
-        val imageBytes = try {
+        val imageBytes =
             webDavClient.fetchRange(
                 server = server,
                 remotePath = candidatePath,
                 startByte = 0L,
-                endByte = COVER_PROBE_MAX_SIZE - 1L
+                endByte = COVER_PROBE_MAX_SIZE - 1L,
             )
-        } catch (e: java.io.IOException) {
-            // Genuine network / I/O failure: rethrow so callers treat it as transient
-            throw e
-        } catch (_: Exception) {
-            // Non-IO errors: treat as artwork absent, continue fallback
-            null
-        }
 
         if (imageBytes != null && imageBytes.isNotEmpty()) {
             if (!ImageHeaderValidator.isCompleteImage(imageBytes)) {
-                throw java.io.IOException("Incomplete image bytes fetched for $candidatePath")
+                return null
             }
-            val saved = coverArtStorage.saveThumbnail(server.id, candidatePath, imageBytes)
-                ?: throw java.io.IOException("Bitmap decoding failed for $candidatePath")
-            return saved
+            return coverArtStorage.saveThumbnail(server.id, candidatePath, imageBytes)
         }
         return null
     }
 
     private fun buildCandidatePath(
         directory: String,
-        fileName: String
-    ): String = when {
-        directory.isEmpty() -> fileName
-        directory == "/" -> "/$fileName"
-        directory.endsWith('/') -> "$directory$fileName"
-        else -> "$directory/$fileName"
-    }
+        fileName: String,
+    ): String =
+        when {
+            directory.isEmpty() -> fileName
+            directory == "/" -> "/$fileName"
+            directory.endsWith('/') -> "$directory$fileName"
+            else -> "$directory/$fileName"
+        }
 }

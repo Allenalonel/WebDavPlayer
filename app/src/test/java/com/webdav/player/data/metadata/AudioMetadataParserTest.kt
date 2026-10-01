@@ -10,7 +10,6 @@ import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
 class AudioMetadataParserTest {
-
     @Test
     fun testParseId3v2Mp3Header_extractsAllTagsAndArtwork() {
         val stream = ByteArrayOutputStream()
@@ -79,7 +78,7 @@ class AudioMetadataParserTest {
         stream.write(0x00) // isLast = 0, type = 0
         stream.write(0x00) // len MSB
         stream.write(0x00)
-        stream.write(34)   // len LSB (34 bytes)
+        stream.write(34) // len LSB (34 bytes)
 
         val streamInfo = ByteArray(34)
         // Set sample rate to 44100 (0x0AC44) and total samples to 44100 * 60 = 2,646,000 (0x285FA0)
@@ -101,12 +100,13 @@ class AudioMetadataParserTest {
         writeIntLe(vorbisStream, vendor.size)
         vorbisStream.write(vendor)
 
-        val comments = listOf(
-            "TITLE=Stairway to Heaven",
-            "ARTIST=Led Zeppelin",
-            "ALBUM=Led Zeppelin IV",
-            "TRACKNUMBER=4"
-        )
+        val comments =
+            listOf(
+                "TITLE=Stairway to Heaven",
+                "ARTIST=Led Zeppelin",
+                "ALBUM=Led Zeppelin IV",
+                "TRACKNUMBER=4",
+            )
         writeIntLe(vorbisStream, comments.size)
         for (c in comments) {
             val bytes = c.toByteArray(StandardCharsets.UTF_8)
@@ -128,8 +128,8 @@ class AudioMetadataParserTest {
         writeIntBe(picStream, 0) // Description length 0
         writeIntBe(picStream, 500) // Width
         writeIntBe(picStream, 500) // Height
-        writeIntBe(picStream, 24)  // Depth
-        writeIntBe(picStream, 0)   // Colors
+        writeIntBe(picStream, 24) // Depth
+        writeIntBe(picStream, 0) // Colors
         val samplePng = byteArrayOf(0x89.toByte(), 0x50.toByte(), 0x4E.toByte(), 0x47.toByte(), 0x0D, 0x0A)
         writeIntBe(picStream, samplePng.size)
         picStream.write(samplePng)
@@ -200,28 +200,54 @@ class AudioMetadataParserTest {
         val stream = ByteArrayOutputStream()
 
         // ASF Header GUID (16 bytes)
-        val asfHeaderGuid = byteArrayOf(
-            0x30.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-            0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-            0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-        )
+        val asfHeaderGuid =
+            byteArrayOf(
+                0x30.toByte(),
+                0x26.toByte(),
+                0xB2.toByte(),
+                0x75.toByte(),
+                0x8E.toByte(),
+                0x66.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0xA6.toByte(),
+                0xD9.toByte(),
+                0x00.toByte(),
+                0xAA.toByte(),
+                0x00.toByte(),
+                0x62.toByte(),
+                0xCE.toByte(),
+                0x6C.toByte(),
+            )
         stream.write(asfHeaderGuid)
         val headerBodyStream = ByteArrayOutputStream()
 
         // Sub-object 1: File Properties
-        val filePropsGuid = byteArrayOf(
-            0xA1.toByte(), 0xDC.toByte(), 0xAB.toByte(), 0x8C.toByte(),
-            0x47.toByte(), 0xA9.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0x8E.toByte(), 0xE4.toByte(), 0x00.toByte(), 0xC0.toByte(),
-            0x0C.toByte(), 0x20.toByte(), 0x53.toByte(), 0x65.toByte()
-        )
+        val filePropsGuid =
+            byteArrayOf(
+                0xA1.toByte(),
+                0xDC.toByte(),
+                0xAB.toByte(),
+                0x8C.toByte(),
+                0x47.toByte(),
+                0xA9.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0x8E.toByte(),
+                0xE4.toByte(),
+                0x00.toByte(),
+                0xC0.toByte(),
+                0x0C.toByte(),
+                0x20.toByte(),
+                0x53.toByte(),
+                0x65.toByte(),
+            )
         headerBodyStream.write(filePropsGuid)
         val filePropsBody = ByteArrayOutputStream()
         filePropsBody.write(ByteArray(16)) // file id
-        filePropsBody.write(ByteArray(8))  // file size
-        filePropsBody.write(ByteArray(8))  // creation time
-        filePropsBody.write(ByteArray(8))  // packets count
+        filePropsBody.write(ByteArray(8)) // file size
+        filePropsBody.write(ByteArray(8)) // creation time
+        filePropsBody.write(ByteArray(8)) // packets count
         // Play duration in 100ns units: 120,000 ms = 120,000 * 10,000 = 1,200,000,000L
         val duration100ns = 120000L * 10000L
         for (i in 0..7) {
@@ -235,12 +261,25 @@ class AudioMetadataParserTest {
         headerBodyStream.write(filePropsBytes)
 
         // Sub-object 2: Content Description
-        val contentDescGuid = byteArrayOf(
-            0x33.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-            0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-            0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-        )
+        val contentDescGuid =
+            byteArrayOf(
+                0x33.toByte(),
+                0x26.toByte(),
+                0xB2.toByte(),
+                0x75.toByte(),
+                0x8E.toByte(),
+                0x66.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0xA6.toByte(),
+                0xD9.toByte(),
+                0x00.toByte(),
+                0xAA.toByte(),
+                0x00.toByte(),
+                0x62.toByte(),
+                0xCE.toByte(),
+                0x6C.toByte(),
+            )
         headerBodyStream.write(contentDescGuid)
         val titleBytes = "Yesterday".toByteArray(StandardCharsets.UTF_16LE)
         val authorBytes = "The Beatles".toByteArray(StandardCharsets.UTF_16LE)
@@ -346,10 +385,11 @@ class AudioMetadataParserTest {
         writeIntLe(vorbisStream, vendor.size)
         vorbisStream.write(vendor)
 
-        val comments = listOf(
-            "TITLE=Flac Song",
-            "LYRICS=[00:10.00]Flac lyric line"
-        )
+        val comments =
+            listOf(
+                "TITLE=Flac Song",
+                "LYRICS=[00:10.00]Flac lyric line",
+            )
         writeIntLe(vorbisStream, comments.size)
         for (c in comments) {
             val cb = c.toByteArray(StandardCharsets.UTF_8)
@@ -370,22 +410,48 @@ class AudioMetadataParserTest {
     @Test
     fun testParseAsf_extractsWmLyrics() {
         val stream = ByteArrayOutputStream()
-        val asfHeaderGuid = byteArrayOf(
-            0x30.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-            0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-            0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-        )
+        val asfHeaderGuid =
+            byteArrayOf(
+                0x30.toByte(),
+                0x26.toByte(),
+                0xB2.toByte(),
+                0x75.toByte(),
+                0x8E.toByte(),
+                0x66.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0xA6.toByte(),
+                0xD9.toByte(),
+                0x00.toByte(),
+                0xAA.toByte(),
+                0x00.toByte(),
+                0x62.toByte(),
+                0xCE.toByte(),
+                0x6C.toByte(),
+            )
         stream.write(asfHeaderGuid)
         val headerBodyStream = ByteArrayOutputStream()
 
         // Extended Content Description Guid
-        val extDescGuid = byteArrayOf(
-            0x40.toByte(), 0xA4.toByte(), 0xD0.toByte(), 0xD2.toByte(),
-            0x07.toByte(), 0xE3.toByte(), 0xD2.toByte(), 0x11.toByte(),
-            0x97.toByte(), 0xF0.toByte(), 0x00.toByte(), 0xA0.toByte(),
-            0xC9.toByte(), 0x5E.toByte(), 0xA8.toByte(), 0x50.toByte()
-        )
+        val extDescGuid =
+            byteArrayOf(
+                0x40.toByte(),
+                0xA4.toByte(),
+                0xD0.toByte(),
+                0xD2.toByte(),
+                0x07.toByte(),
+                0xE3.toByte(),
+                0xD2.toByte(),
+                0x11.toByte(),
+                0x97.toByte(),
+                0xF0.toByte(),
+                0x00.toByte(),
+                0xA0.toByte(),
+                0xC9.toByte(),
+                0x5E.toByte(),
+                0xA8.toByte(),
+                0x50.toByte(),
+            )
         headerBodyStream.write(extDescGuid)
 
         val extDescBody = ByteArrayOutputStream()
@@ -446,7 +512,7 @@ class AudioMetadataParserTest {
         assertNotNull("Tag size for FLAC with large PICTURE block must be detected", detected)
         assertTrue(
             "Detected size ($detected) must be large enough to hold the 800,000-byte PICTURE block (expected >= 800042)",
-            detected!! >= 800042L
+            detected!! >= 800042L,
         )
     }
 
@@ -474,15 +540,46 @@ class AudioMetadataParserTest {
         assertEquals(750010L, detected)
     }
 
+    @Test
+    fun testHasRecognizedAudioHeader_offsetId3Header_returnsTrue() {
+        val stream = ByteArrayOutputStream()
+        // Prepend 128 bytes of padding/junk
+        stream.write(ByteArray(128) { 0x55.toByte() })
+        // ID3 header
+        stream.write("ID3".toByteArray(StandardCharsets.US_ASCII))
+        stream.write(3) // v2.3
+        stream.write(0)
+        stream.write(0)
+        // tag size (synchsafe)
+        stream.write(0)
+        stream.write(0)
+        stream.write(1)
+        stream.write(0)
+
+        val bytes = stream.toByteArray()
+        assertTrue(
+            "hasRecognizedAudioHeader must return true for ID3 header located at non-zero offset within scan limit",
+            AudioMetadataParser.hasRecognizedAudioHeader(bytes),
+        )
+    }
+
     // Helper functions
-    private fun writeId3Frame(stream: ByteArrayOutputStream, frameId: String, text: String) {
+    private fun writeId3Frame(
+        stream: ByteArrayOutputStream,
+        frameId: String,
+        text: String,
+    ) {
         val payload = ByteArrayOutputStream()
         payload.write(3) // UTF-8 encoding
         payload.write(text.toByteArray(StandardCharsets.UTF_8))
         writeRawId3Frame(stream, frameId, payload.toByteArray())
     }
 
-    private fun writeRawId3Frame(stream: ByteArrayOutputStream, frameId: String, payload: ByteArray) {
+    private fun writeRawId3Frame(
+        stream: ByteArrayOutputStream,
+        frameId: String,
+        payload: ByteArray,
+    ) {
         stream.write(frameId.toByteArray(StandardCharsets.US_ASCII))
         writeIntBe(stream, payload.size)
         stream.write(0) // flag 1
@@ -490,7 +587,11 @@ class AudioMetadataParserTest {
         stream.write(payload)
     }
 
-    private fun writeWavInfoSubchunk(stream: ByteArrayOutputStream, subId: String, text: String) {
+    private fun writeWavInfoSubchunk(
+        stream: ByteArrayOutputStream,
+        subId: String,
+        text: String,
+    ) {
         stream.write(subId.toByteArray(StandardCharsets.US_ASCII))
         val textBytes = (text + "\u0000").toByteArray(StandardCharsets.UTF_8)
         writeIntLe(stream, textBytes.size)
@@ -501,27 +602,39 @@ class AudioMetadataParserTest {
         }
     }
 
-    private fun write24BitBe(stream: ByteArrayOutputStream, value: Int) {
+    private fun write24BitBe(
+        stream: ByteArrayOutputStream,
+        value: Int,
+    ) {
         stream.write((value shr 16) and 0xFF)
         stream.write((value shr 8) and 0xFF)
         stream.write(value and 0xFF)
     }
 
-    private fun writeIntBe(stream: ByteArrayOutputStream, value: Int) {
+    private fun writeIntBe(
+        stream: ByteArrayOutputStream,
+        value: Int,
+    ) {
         stream.write((value shr 24) and 0xFF)
         stream.write((value shr 16) and 0xFF)
         stream.write((value shr 8) and 0xFF)
         stream.write(value and 0xFF)
     }
 
-    private fun writeIntLe(stream: ByteArrayOutputStream, value: Int) {
+    private fun writeIntLe(
+        stream: ByteArrayOutputStream,
+        value: Int,
+    ) {
         stream.write(value and 0xFF)
         stream.write((value shr 8) and 0xFF)
         stream.write((value shr 16) and 0xFF)
         stream.write((value shr 24) and 0xFF)
     }
 
-    private fun writeShortLe(stream: ByteArrayOutputStream, value: Int) {
+    private fun writeShortLe(
+        stream: ByteArrayOutputStream,
+        value: Int,
+    ) {
         stream.write(value and 0xFF)
         stream.write((value shr 8) and 0xFF)
     }

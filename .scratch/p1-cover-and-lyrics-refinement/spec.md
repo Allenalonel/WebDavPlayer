@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: completed
 
 # Feature Specification: P1 Cover Art Pipeline & Industrial LRC Normalization
 
