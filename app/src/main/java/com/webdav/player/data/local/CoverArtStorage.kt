@@ -20,6 +20,20 @@ interface CoverArtStorage {
     fun getThumbnailFile(serverId: Long, remotePath: String): File?
     fun deleteThumbnail(serverId: Long, remotePath: String)
     suspend fun deleteServerCovers(serverId: Long)
+
+    /**
+     * Validates whether the given file path points to a physically existing,
+     * non-empty thumbnail file on disk.
+     */
+    fun isValidThumbnailFile(filePath: String?): Boolean {
+        if (filePath.isNullOrBlank()) return false
+        return try {
+            val file = File(filePath)
+            file.exists() && file.isFile && file.length() > 0
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
 
 class CoverArtStorageImpl(
@@ -34,36 +48,59 @@ class CoverArtStorageImpl(
         const val DEFAULT_MAX_CACHE_SIZE_BYTES = 50L * 1024 * 1024L // 50 MB
     }
 
-    private val coversDir: File by lazy {
-        val baseDir = customDir ?: context.cacheDir?.let { File(it, "covers") } ?: File(context.filesDir, "covers")
-        if (!baseDir.exists()) {
-            baseDir.mkdirs()
-        }
-        migrateLegacyCoversDir(baseDir)
-        baseDir
+    private val legacyMigrationDone = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    val coversDir: File
+        get() = getCoversDir(createIfMissing = false)
+
+    private fun getBaseCoversDirectory(): File {
+        return customDir ?: context.cacheDir?.let { File(it, "covers") } ?: File(context.filesDir, "covers")
     }
 
-    private fun migrateLegacyCoversDir(targetDir: File) {
+    private fun getCoversDir(createIfMissing: Boolean = false): File {
+        val baseDir = getBaseCoversDirectory()
+        if (createIfMissing && !baseDir.exists()) {
+            baseDir.mkdirs()
+        }
+        checkLegacyMigration(baseDir)
+        return baseDir
+    }
+
+    private fun checkLegacyMigration(targetDir: File) {
+        if (legacyMigrationDone.get()) return
         try {
             val filesDir = context.filesDir ?: return
             val legacyDir = File(filesDir, "covers")
             if (legacyDir.exists() && legacyDir.isDirectory && legacyDir.canonicalPath != targetDir.canonicalPath) {
-                val files = legacyDir.listFiles() ?: return
-                for (file in files) {
-                    if (file.isFile) {
-                        val targetFile = File(targetDir, file.name)
-                        if (!targetFile.exists()) {
-                            if (!file.renameTo(targetFile)) {
-                                file.copyTo(targetFile, overwrite = true)
-                                file.delete()
-                            }
-                        } else {
+                if (!targetDir.exists()) {
+                    targetDir.mkdirs()
+                }
+                migrateLegacyCoversDir(targetDir, legacyDir)
+            }
+        } catch (_: Exception) {
+            // Ignore migration failure to prevent startup crashes
+        } finally {
+            legacyMigrationDone.set(true)
+        }
+    }
+
+    private fun migrateLegacyCoversDir(targetDir: File, legacyDir: File) {
+        try {
+            val files = legacyDir.listFiles() ?: return
+            for (file in files) {
+                if (file.isFile) {
+                    val targetFile = File(targetDir, file.name)
+                    if (!targetFile.exists()) {
+                        if (!file.renameTo(targetFile)) {
+                            file.copyTo(targetFile, overwrite = true)
                             file.delete()
                         }
+                    } else {
+                        file.delete()
                     }
                 }
-                legacyDir.delete()
             }
+            legacyDir.delete()
         } catch (_: Exception) {
             // Ignore migration failure to prevent startup crashes
         }
@@ -79,8 +116,15 @@ class CoverArtStorageImpl(
             return@withContext null
         }
         try {
+            val coversDir = getCoversDir(createIfMissing = true)
             val fileName = buildFileName(serverId, remotePath)
             val targetFile = File(coversDir, fileName)
+
+            // Ensure parent directory exists before any file write
+            val parentDir = targetFile.parentFile
+            if (parentDir != null && !parentDir.exists()) {
+                parentDir.mkdirs()
+            }
 
             var bitmapDecoded = false
             try {
@@ -123,26 +167,51 @@ class CoverArtStorageImpl(
 
             targetFile.absolutePath
         } catch (e: Exception) {
+            try {
+                val fileName = buildFileName(serverId, remotePath)
+                val baseDir = getBaseCoversDirectory()
+                val partialFile = File(baseDir, fileName)
+                if (partialFile.exists()) {
+                    partialFile.delete()
+                }
+            } catch (_: Exception) {
+            }
             null
         }
     }
 
     override fun getThumbnailFile(serverId: Long, remotePath: String): File? {
-        val fileName = buildFileName(serverId, remotePath)
-        val file = File(coversDir, fileName)
-        return if (file.exists()) {
-            file.setLastModified(System.currentTimeMillis())
-            file
-        } else {
+        return try {
+            val dir = getCoversDir(createIfMissing = false)
+            if (!dir.exists() || !dir.isDirectory) return null
+            val fileName = buildFileName(serverId, remotePath)
+            val file = File(dir, fileName)
+            if (file.exists() && file.isFile && file.length() > 0) {
+                try {
+                    file.setLastModified(System.currentTimeMillis())
+                } catch (_: Exception) {
+                    // Ignore failure to update timestamp
+                }
+                file
+            } else {
+                null
+            }
+        } catch (_: Exception) {
             null
         }
     }
 
     override fun deleteThumbnail(serverId: Long, remotePath: String) {
-        val fileName = buildFileName(serverId, remotePath)
-        val file = File(coversDir, fileName)
-        if (file.exists()) {
-            file.delete()
+        try {
+            val dir = getCoversDir(createIfMissing = false)
+            if (!dir.exists()) return
+            val fileName = buildFileName(serverId, remotePath)
+            val file = File(dir, fileName)
+            if (file.exists()) {
+                file.delete()
+            }
+        } catch (_: Exception) {
+            // Ignore deletion errors
         }
     }
 
@@ -153,41 +222,69 @@ class CoverArtStorageImpl(
     }
 
     fun deleteServerCoversSync(serverId: Long): Int {
-        val prefix = "cover_${serverId}_"
-        val files = coversDir.listFiles { _, name -> name.startsWith(prefix) } ?: return 0
-        var count = 0
-        for (file in files) {
-            if (file.delete()) {
-                count++
+        return try {
+            val dir = getCoversDir(createIfMissing = false)
+            if (!dir.exists() || !dir.isDirectory) return 0
+            val prefix = "cover_${serverId}_"
+            val files = dir.listFiles { _, name -> name.startsWith(prefix) } ?: return 0
+            var count = 0
+            for (file in files) {
+                if (file.delete()) {
+                    count++
+                }
             }
+            count
+        } catch (_: Exception) {
+            0
         }
-        return count
     }
 
     fun pruneDiskQuota(quotaBytes: Long = maxCacheSizeBytes, justSavedFile: File? = null) {
-        val files = coversDir.listFiles() ?: return
-        var currentSize = files.sumOf { it.length() }
-        if (currentSize <= quotaBytes) return
+        try {
+            val dir = getCoversDir(createIfMissing = false)
+            if (!dir.exists() || !dir.isDirectory) return
+            val files = dir.listFiles() ?: return
+            var currentSize = files.sumOf { it.length() }
+            if (currentSize <= quotaBytes) return
 
-        // Sort candidates: prune files other than the just-saved one first, oldest lastModified first
-        val sortedFiles = files.sortedWith(
-            compareBy<File> { if (justSavedFile != null && it.absolutePath == justSavedFile.absolutePath) 1 else 0 }
-                .thenBy { it.lastModified() }
-                .thenBy { it.name }
-        )
+            // Sort candidates: prune files other than the just-saved one first, oldest lastModified first
+            val sortedFiles = files.sortedWith(
+                compareBy<File> { if (justSavedFile != null && it.absolutePath == justSavedFile.absolutePath) 1 else 0 }
+                    .thenBy { it.lastModified() }
+                    .thenBy { it.name }
+            )
 
-        for (file in sortedFiles) {
-            if (currentSize <= quotaBytes) break
-            val length = file.length()
-            if (file.delete()) {
-                currentSize -= length
+            for (file in sortedFiles) {
+                if (currentSize <= quotaBytes) break
+                val length = file.length()
+                if (file.delete()) {
+                    currentSize -= length
+                }
             }
+        } catch (_: Exception) {
+            // Ignore quota pruning errors
         }
     }
 
     fun getDiskUsageBytes(): Long {
-        val files = coversDir.listFiles() ?: return 0L
-        return files.sumOf { it.length() }
+        return try {
+            val dir = getCoversDir(createIfMissing = false)
+            if (!dir.exists() || !dir.isDirectory) return 0L
+            val files = dir.listFiles() ?: return 0L
+            files.sumOf { it.length() }
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    override fun isValidThumbnailFile(filePath: String?): Boolean {
+        if (filePath.isNullOrBlank()) return false
+        return try {
+            val file = File(filePath)
+            file.exists() && file.isFile && file.length() > 0
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun buildFileName(serverId: Long, remotePath: String): String {

@@ -5,9 +5,9 @@ Enable cover art storage to transparently survive cache purges by Android system
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Thumbnail saving operations automatically recreate missing parent storage directories before writing image files.
-- [ ] Querying thumbnail existence safely handles missing storage directories without throwing unhandled exceptions.
-- [ ] Storage disk quota pruning and cache inspection logic gracefully handle non-existent storage directories.
-- [ ] Unit tests verify that deleting the storage directory followed by a save operation successfully recreates the directory and writes the thumbnail.
+- [x] Thumbnail saving operations automatically recreate missing parent storage directories before writing image files.
+- [x] Querying thumbnail existence safely handles missing storage directories without throwing unhandled exceptions.
+- [x] Storage disk quota pruning and cache inspection logic gracefully handle non-existent storage directories.
+- [x] Unit tests verify that deleting the storage directory followed by a save operation successfully recreates the directory and writes the thumbnail.

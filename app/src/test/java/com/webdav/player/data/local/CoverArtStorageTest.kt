@@ -212,4 +212,139 @@ class CoverArtStorageTest {
         assertTrue(quotaStorage.getDiskUsageBytes() <= quotaLimit)
         assertEquals(singleFileSize * 2, quotaStorage.getDiskUsageBytes())
     }
+
+    @Test
+    fun saveThumbnail_recreatesDirectory_whenCoversDirDeleted() = runTest {
+        val dummyBytes = ByteArray(100) { 0x42 }
+
+        // Initial save works and creates directory
+        val initialPath = storage.saveThumbnail(1L, "/music/song1.mp3", dummyBytes)
+        assertNotNull(initialPath)
+        assertTrue(cacheCoversDir.exists())
+
+        // Simulate OS storage cleanup or user clearing app cache
+        assertTrue(cacheCoversDir.deleteRecursively())
+        assertFalse(cacheCoversDir.exists())
+
+        // Subsequent save must transparently recreate parent directory and write file
+        val recoveredPath = storage.saveThumbnail(1L, "/music/song2.mp3", dummyBytes)
+        assertNotNull("Saving thumbnail must succeed even after covers dir was deleted", recoveredPath)
+        assertTrue("Covers directory must be automatically recreated", cacheCoversDir.exists())
+
+        val recoveredFile = File(recoveredPath!!)
+        assertTrue("Saved thumbnail file must exist", recoveredFile.exists())
+        assertTrue("Saved thumbnail file must not be empty", recoveredFile.length() > 0)
+
+        val retrievedFile = storage.getThumbnailFile(1L, "/music/song2.mp3")
+        assertNotNull("Retrieved file must not be null", retrievedFile)
+        assertTrue(retrievedFile!!.exists())
+    }
+
+    @Test
+    fun saveThumbnail_recreatesDirectory_whenEntireCacheDirDeleted() = runTest {
+        val dummyBytes = ByteArray(100) { 0x77 }
+
+        // Initial save
+        storage.saveThumbnail(1L, "/music/song1.mp3", dummyBytes)
+        assertTrue(cacheCoversDir.exists())
+
+        // Wipe all files and subdirectories in cache directory
+        context.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
+        assertFalse(cacheCoversDir.exists())
+
+        // Save new thumbnail
+        val newPath = storage.saveThumbnail(1L, "/music/song_after_wipe.mp3", dummyBytes)
+        assertNotNull("Saving must succeed after entire cacheDir contents are wiped", newPath)
+        assertTrue("Cache covers dir must be recreated", cacheCoversDir.exists())
+
+        val file = File(newPath!!)
+        assertTrue(file.exists())
+        assertEquals(file.absolutePath, storage.getThumbnailFile(1L, "/music/song_after_wipe.mp3")?.absolutePath)
+    }
+
+    @Test
+    fun getThumbnailFile_returnsNullSafely_whenDirectoryMissing() {
+        cacheCoversDir.deleteRecursively()
+        assertFalse(cacheCoversDir.exists())
+
+        val file = storage.getThumbnailFile(1L, "/music/non_existent.mp3")
+        assertNull(file)
+        assertFalse("Querying thumbnail existence must not needlessly create the directory", cacheCoversDir.exists())
+    }
+
+    @Test
+    fun isValidThumbnailFile_validatesPhysicalFileOnDisk() = runTest {
+        val dummyBytes = ByteArray(100) { 0x33 }
+
+        // null or blank paths
+        assertFalse(storage.isValidThumbnailFile(null))
+        assertFalse(storage.isValidThumbnailFile(""))
+        assertFalse(storage.isValidThumbnailFile("   "))
+
+        // non-existent file
+        assertFalse(storage.isValidThumbnailFile(File(cacheCoversDir, "ghost.jpg").absolutePath))
+
+        // directory instead of file
+        cacheCoversDir.mkdirs()
+        assertFalse(storage.isValidThumbnailFile(cacheCoversDir.absolutePath))
+
+        // empty (0-byte) file
+        val emptyFile = File(cacheCoversDir, "empty.jpg")
+        emptyFile.createNewFile()
+        assertTrue(emptyFile.exists())
+        assertEquals(0L, emptyFile.length())
+        assertFalse("0-byte file must not be considered a valid thumbnail", storage.isValidThumbnailFile(emptyFile.absolutePath))
+
+        // valid thumbnail file
+        val validPath = storage.saveThumbnail(1L, "/valid.mp3", dummyBytes)
+        assertNotNull(validPath)
+        assertTrue("Existing non-empty thumbnail must be valid", storage.isValidThumbnailFile(validPath))
+
+        // after deleting file from disk
+        File(validPath!!).delete()
+        assertFalse("Deleted thumbnail must no longer be valid", storage.isValidThumbnailFile(validPath))
+    }
+
+    @Test
+    fun missingDirectory_operationsSafelyHandledWithoutExceptions() {
+        cacheCoversDir.deleteRecursively()
+        assertFalse(cacheCoversDir.exists())
+
+        // getDiskUsageBytes returns 0
+        assertEquals(0L, storage.getDiskUsageBytes())
+
+        // pruneDiskQuota executes without error
+        storage.pruneDiskQuota()
+
+        // deleteThumbnail executes without error
+        storage.deleteThumbnail(1L, "/music/song.mp3")
+
+        // deleteServerCoversSync returns 0 without error
+        assertEquals(0, storage.deleteServerCoversSync(1L))
+
+        // Directory must not have been created by passive read/delete calls
+        assertFalse(cacheCoversDir.exists())
+    }
+
+    @Test
+    fun customDir_recreatesDirectory_whenDeleted() = runTest {
+        val customDir = File(context.cacheDir, "custom_covers_test")
+        customDir.mkdirs()
+        val customStorage = CoverArtStorageImpl(context, customDir = customDir)
+
+        val dummyBytes = ByteArray(100) { 0x11 }
+        val path1 = customStorage.saveThumbnail(1L, "/song1.mp3", dummyBytes)
+        assertNotNull(path1)
+        assertTrue(path1!!.startsWith(customDir.absolutePath))
+
+        // Delete customDir
+        customDir.deleteRecursively()
+        assertFalse(customDir.exists())
+
+        // Save again
+        val path2 = customStorage.saveThumbnail(1L, "/song2.mp3", dummyBytes)
+        assertNotNull("Saving to customDir must succeed after deletion", path2)
+        assertTrue(customDir.exists())
+        assertTrue(File(path2!!).exists())
+    }
 }
