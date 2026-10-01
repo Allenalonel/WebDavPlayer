@@ -35,7 +35,8 @@ class DirectoryBrowserViewModelFactory(private val context: Context) : ViewModel
                 com.webdav.player.data.repository.TrackMetadataRepositoryImpl(
                     trackMetadataDao = database.trackMetadataDao(),
                     trackMetadataResolver = resolver,
-                    coverArtStorage = storage
+                    coverArtStorage = storage,
+                    webDavServerDao = database.webDavServerDao()
                 )
             }
             return DirectoryBrowserViewModel(

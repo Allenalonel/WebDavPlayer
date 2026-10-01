@@ -17,6 +17,8 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import com.webdav.player.data.local.WebDavServerEntity
+import com.webdav.player.domain.model.TrackMetadata
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,6 +60,9 @@ class TrackMetadataRepositoryTest {
                 .allowMainThreadQueries()
                 .build()
         dao = database.trackMetadataDao()
+        kotlinx.coroutines.runBlocking {
+            database.webDavServerDao().insertServer(WebDavServerEntity.fromDomain(testServer))
+        }
         fakeClient = FakeWebDavRangeClient()
         fakeStorage = FakeCoverArtStorage()
         repository =
@@ -65,6 +70,7 @@ class TrackMetadataRepositoryTest {
                 trackMetadataDao = dao,
                 webDavClient = fakeClient,
                 coverArtStorage = fakeStorage,
+                webDavServerDao = database.webDavServerDao(),
                 maxConcurrency = 2,
                 ioDispatcher = Dispatchers.Unconfined,
             )
@@ -574,6 +580,125 @@ class TrackMetadataRepositoryTest {
                 "Corrupt artwork must not be saved into storage",
                 fakeStorage.savedThumbnails.containsKey("1:/music/short_zero.mp3"),
             )
+        }
+
+    @Test
+    fun getCachedMetadata_whenThumbnailFileMissingFromDisk_returnsNullCoverAndTriggersSelfHealing() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Self Heal Song", artist = "Artist", album = "Album")
+            fakeClient.stubFileBytes("/music/self_heal_cached.mp3", sampleMp3)
+
+            val file = RemoteFile(name = "self_heal_cached.mp3", path = "/music/self_heal_cached.mp3", size = 1000L)
+            // 1. Initial resolution: populates Room and saves thumbnail
+            repository.resolveMetadata(testServer, listOf(file))
+            val initialCached = repository.getCachedMetadata(testServer.id, file.path)
+            assertNotNull(initialCached?.coverThumbnailPath)
+            val oldCoverPath = initialCached!!.coverThumbnailPath
+
+            // 2. Simulate disk eviction (cache cleared by user or OS)
+            fakeStorage.diskFiles.remove(oldCoverPath)
+            assertFalse(fakeStorage.isValidThumbnailFile(oldCoverPath))
+
+            // 3. Query getCachedMetadata: must immediately return sanitized metadata with coverThumbnailPath = null
+            val sanitized = repository.getCachedMetadata(testServer.id, file.path)
+            assertNotNull(sanitized)
+            assertEquals("Self Heal Song", sanitized?.title)
+            assertNull("getCachedMetadata must sanitize missing thumbnail to null", sanitized?.coverThumbnailPath)
+
+            // 4. Verify background self-healing completed: thumbnail restored to disk and Room updated
+            testScheduler.advanceUntilIdle()
+            val healedCached = repository.getCachedMetadata(testServer.id, file.path)
+            assertNotNull("Room must be updated with healed metadata", healedCached?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healedCached?.coverThumbnailPath))
+        }
+
+    @Test
+    fun getMetadataFlow_whenThumbnailFileMissingFromDisk_emitsNullCoverInitiallyAndEmitsHealedCoverWhenRestored() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Flow Song", artist = "Artist", album = "Album")
+            fakeClient.stubFileBytes("/music/flow_song.mp3", sampleMp3)
+
+            val file = RemoteFile(name = "flow_song.mp3", path = "/music/flow_song.mp3", size = 1000L)
+            repository.resolveMetadata(testServer, listOf(file))
+
+            val initialCached = repository.getCachedMetadata(testServer.id, file.path)
+            assertNotNull(initialCached?.coverThumbnailPath)
+            val oldCoverPath = initialCached!!.coverThumbnailPath
+
+            // Evict file from disk
+            fakeStorage.diskFiles.remove(oldCoverPath)
+            assertFalse(fakeStorage.isValidThumbnailFile(oldCoverPath))
+
+            // 1. Initial emission from Flow: must sanitize cover to null and trigger self-healing
+            val initialEmitted = repository.getMetadataFlow(testServer.id, file.path).first()
+            assertNotNull(initialEmitted)
+            assertEquals("Flow Song", initialEmitted?.title)
+            assertNull("First flow emission must sanitize missing cover to null", initialEmitted?.coverThumbnailPath)
+
+            // 2. Wait for background self-healing to restore thumbnail to disk and update Room
+            testScheduler.advanceUntilIdle()
+
+            // 3. Flow must now emit healed metadata with non-null cover thumbnail path
+            val healedEmitted = repository.getMetadataFlow(testServer.id, file.path).first()
+            assertNotNull(healedEmitted)
+            assertNotNull("Subsequent flow emission must contain healed cover path", healedEmitted?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healedEmitted?.coverThumbnailPath))
+        }
+
+    @Test
+    fun getMetadataForPathsFlow_whenThumbnailFileMissingFromDisk_sanitizesAndSelfHeals() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Batch Song", artist = "Artist", album = "Album")
+            fakeClient.stubFileBytes("/music/batch_song.mp3", sampleMp3)
+
+            val file = RemoteFile(name = "batch_song.mp3", path = "/music/batch_song.mp3", size = 1000L)
+            repository.resolveMetadata(testServer, listOf(file))
+
+            val initialCached = repository.getCachedMetadata(testServer.id, file.path)
+            val oldCoverPath = initialCached!!.coverThumbnailPath
+
+            fakeStorage.diskFiles.remove(oldCoverPath)
+
+            // 1. Initial emission: sanitized coverThumbnailPath = null and triggers recovery
+            val initialList = repository.getMetadataForPathsFlow(testServer.id, listOf(file.path)).first()
+            assertEquals(1, initialList.size)
+            assertNull("Initial emission must have null thumbnail path", initialList[0].coverThumbnailPath)
+
+            testScheduler.advanceUntilIdle()
+
+            // 2. Healed emission: non-null and valid on disk
+            val healedList = repository.getMetadataForPathsFlow(testServer.id, listOf(file.path)).first()
+            assertEquals(1, healedList.size)
+            assertNotNull("Healed emission must have non-null thumbnail path", healedList[0].coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healedList[0].coverThumbnailPath))
+        }
+
+    @Test
+    fun getAllMetadataFlow_whenThumbnailFileMissingFromDisk_sanitizesAndSelfHeals() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "All Song", artist = "Artist", album = "Album")
+            fakeClient.stubFileBytes("/music/all_song.mp3", sampleMp3)
+
+            val file = RemoteFile(name = "all_song.mp3", path = "/music/all_song.mp3", size = 1000L)
+            repository.resolveMetadata(testServer, listOf(file))
+
+            val initialCached = repository.getCachedMetadata(testServer.id, file.path)
+            val oldCoverPath = initialCached!!.coverThumbnailPath
+
+            fakeStorage.diskFiles.remove(oldCoverPath)
+
+            // 1. Initial emission: sanitized coverThumbnailPath = null
+            val initialList = repository.getAllMetadataFlow(testServer.id).first()
+            assertEquals(1, initialList.size)
+            assertNull("Initial emission must have null thumbnail path", initialList[0].coverThumbnailPath)
+
+            testScheduler.advanceUntilIdle()
+
+            // 2. Healed emission: non-null and valid on disk
+            val healedList = repository.getAllMetadataFlow(testServer.id).first()
+            assertEquals(1, healedList.size)
+            assertNotNull("Healed emission must have non-null thumbnail path", healedList[0].coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healedList[0].coverThumbnailPath))
         }
 
     @Test

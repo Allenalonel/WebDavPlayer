@@ -71,6 +71,7 @@ class WebDavApplication : Application() {
                 trackMetadataDao = database.trackMetadataDao(),
                 trackMetadataResolver = trackMetadataResolver,
                 coverArtStorage = coverArtStorage,
+                webDavServerDao = database.webDavServerDao(),
             )
 
         lyricsRepository =

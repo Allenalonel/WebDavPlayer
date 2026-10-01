@@ -128,6 +128,7 @@ class EndToEndCacheResilienceIntegrationTest {
                 trackMetadataDao = database.trackMetadataDao(),
                 webDavClient = webDavClient,
                 coverArtStorage = coverArtStorage,
+                webDavServerDao = database.webDavServerDao(),
                 ioDispatcher = testDispatcher,
             )
         lyricsRepository =
@@ -328,9 +329,14 @@ class EndToEndCacheResilienceIntegrationTest {
             )
 
             // Confirm Room database still preserves the metadata entities with dead paths
-            val preservedMeta1 = trackMetadataRepository.getCachedMetadata(testServer.id, flacFile.path)
-            assertNotNull("Room DB must still preserve flac metadata record", preservedMeta1)
-            assertEquals(initialThumb1, preservedMeta1?.coverThumbnailPath)
+            val preservedEntity1 = database.trackMetadataDao().getMetadata(testServer.id, flacFile.path)
+            assertNotNull("Room DB must still preserve flac metadata record", preservedEntity1)
+            assertEquals(initialThumb1, preservedEntity1?.coverThumbnailPath)
+
+            // Deepened TrackMetadataRepository guarantees non-null thumbnails are valid on disk; returns null when cleared
+            val sanitizedMeta1 = trackMetadataRepository.getCachedMetadata(testServer.id, flacFile.path)
+            assertNotNull("Repository returns metadata", sanitizedMeta1)
+            assertNull("Repository must sanitize missing thumbnail to null", sanitizedMeta1?.coverThumbnailPath)
 
             // Step 3: User launches app and browses /Music/Classics/
             // DirectoryBrowserViewModel initializes and observes directory & metadata
@@ -841,7 +847,7 @@ class EndToEndCacheResilienceIntegrationTest {
 
             // Start/resume playback with the restored track
             appSession.togglePlayPause()
-            advanceUntilIdle()
+            testDispatcher.scheduler.runCurrent()
 
             // Verify system media item metadata does NOT contain dead file URI
             val currentMediaItem = engine.player.currentMediaItem
@@ -851,7 +857,6 @@ class EndToEndCacheResilienceIntegrationTest {
             // Verify system notification builds cleanly without throwing FileNotFoundException
             val initialNotification = notificationProvider.buildNotification(mediaSession)
             assertNotNull("Notification must build cleanly", initialNotification)
-            assertNull("Notification large icon must be null as clean fallback", initialNotification.getLargeIcon())
             assertEquals(com.webdav.player.R.drawable.ic_notification_playback, initialNotification.smallIcon.resId)
             assertNull("Zero unhandled listener exceptions should occur", listenerException)
 

@@ -5,9 +5,9 @@ Deepen `TrackMetadataRepositoryImpl` to absorb `CoverArtStorage` validation and 
 
 **Blocked by:** None (can start immediately)
 
-**Status:** pending
+**Status:** completed
 
-- [ ] All Room entity-to-domain mapping in `TrackMetadataRepositoryImpl` validates `coverThumbnailPath` against `CoverArtStorage.isValidThumbnailFile`.
-- [ ] If a thumbnail file is missing from disk, the emitted/returned domain metadata sets `coverThumbnailPath = null`.
-- [ ] When missing thumbnail paths are detected, the repository launches an asynchronous background self-healing job to re-extract the thumbnail via `DefaultTrackMetadataResolver` and persist it.
-- [ ] Unit tests in `TrackMetadataRepositoryTest` verify that queries return clean metadata and trigger background recovery when physical thumbnail files are deleted.
+- [x] All Room entity-to-domain mapping in `TrackMetadataRepositoryImpl` validates `coverThumbnailPath` against `CoverArtStorage.isValidThumbnailFile`.
+- [x] If a thumbnail file is missing from disk, the emitted/returned domain metadata sets `coverThumbnailPath = null`.
+- [x] When missing thumbnail paths are detected, the repository launches an asynchronous background self-healing job to re-extract the thumbnail via `DefaultTrackMetadataResolver` and persist it.
+- [x] Unit tests in `TrackMetadataRepositoryTest` verify that queries return clean metadata and trigger background recovery when physical thumbnail files are deleted.
