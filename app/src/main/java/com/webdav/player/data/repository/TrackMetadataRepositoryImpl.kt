@@ -12,7 +12,9 @@ import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
@@ -75,10 +77,14 @@ class TrackMetadataRepositoryImpl internal constructor(
         remotePath: String,
     ) {
         val key = "$serverId:$remotePath"
-        if (inFlightSelfHealing.containsKey(key)) return
+        val activeJob = inFlightSelfHealing[key]
+        if (activeJob != null && activeJob.isActive) return
+        if (activeJob != null && !activeJob.isActive) {
+            inFlightSelfHealing.remove(key, activeJob)
+        }
 
         val job =
-            repositoryScope.launch {
+            repositoryScope.launch(start = CoroutineStart.LAZY) {
                 try {
                     val server = findServer(serverId) ?: return@launch
                     val fileName = remotePath.substringAfterLast('/').ifBlank { "track" }
@@ -93,11 +99,15 @@ class TrackMetadataRepositoryImpl internal constructor(
                 } catch (_: Exception) {
                     // Ignore transient errors during background self-healing
                 } finally {
-                    inFlightSelfHealing.remove(key)
+                    inFlightSelfHealing.remove(key, coroutineContext[Job]!!)
                 }
             }
+
         val existing = inFlightSelfHealing.putIfAbsent(key, job)
-        if (existing != null) {
+        val shouldStart = existing == null || (!existing.isActive && inFlightSelfHealing.replace(key, existing, job))
+        if (shouldStart) {
+            job.start()
+        } else {
             job.cancel()
         }
     }

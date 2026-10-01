@@ -13,11 +13,14 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import com.webdav.player.data.local.WebDavServerEntity
+import com.webdav.player.data.local.TrackMetadataEntity
 import com.webdav.player.domain.model.TrackMetadata
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -699,6 +702,132 @@ class TrackMetadataRepositoryTest {
             assertEquals(1, healedList.size)
             assertNotNull("Healed emission must have non-null thumbnail path", healedList[0].coverThumbnailPath)
             assertTrue(fakeStorage.isValidThumbnailFile(healedList[0].coverThumbnailPath))
+        }
+
+    @Test
+    fun getCachedMetadata_concurrentCallsDuringMissingThumbnail_neverEvictsActiveJobOrDuplicatesFetch() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Race Song", artist = "Artist", album = "Album")
+            fakeClient.stubFileBytes("/music/race_song.mp3", sampleMp3)
+
+            val file = RemoteFile(name = "race_song.mp3", path = "/music/race_song.mp3", size = 1000L)
+
+            val fetchStartedLatch = java.util.concurrent.CountDownLatch(1)
+            val proceedLatch = java.util.concurrent.CountDownLatch(1)
+            val fetchCount = java.util.concurrent.atomic.AtomicInteger(0)
+
+            fakeClient.onFetchRange = { path ->
+                if (path == file.path) {
+                    fetchCount.incrementAndGet()
+                    fetchStartedLatch.countDown()
+                    proceedLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                }
+            }
+
+            val multiThreadRepo =
+                TrackMetadataRepositoryImpl(
+                    trackMetadataDao = dao,
+                    webDavClient = fakeClient,
+                    coverArtStorage = fakeStorage,
+                    webDavServerDao = database.webDavServerDao(),
+                    maxConcurrency = 4,
+                    ioDispatcher = Dispatchers.Default,
+                )
+
+            multiThreadRepo.resolveMetadata(testServer, listOf(file))
+
+            val initial = multiThreadRepo.getCachedMetadata(testServer.id, file.path)
+            val oldCover = initial!!.coverThumbnailPath
+            fakeStorage.diskFiles.remove(oldCover)
+            fetchCount.set(0)
+
+            try {
+                // Fire 30 concurrent queries from Dispatchers.Default simultaneously
+                val jobs =
+                    (1..30).map {
+                        async(Dispatchers.Default) {
+                            multiThreadRepo.getCachedMetadata(testServer.id, file.path)
+                        }
+                    }
+
+                val started = fetchStartedLatch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+                assertTrue("Self healing fetch must have started", started)
+
+                val results = jobs.awaitAll()
+                results.forEach { meta ->
+                    assertNull("Must return sanitized null cover during in-flight healing", meta?.coverThumbnailPath)
+                }
+
+                // Now query one more time while fetch is still in flight
+                multiThreadRepo.getCachedMetadata(testServer.id, file.path)
+
+                // Verify that only 1 fetch was ever triggered and active job key was never evicted prematurely
+                assertEquals("Exactly 1 fetch must be triggered while active job is in flight", 1, fetchCount.get())
+
+                proceedLatch.countDown()
+
+                // Verify that after fetch proceeds, self-healing completes and heals the cover
+                var healedMeta: TrackMetadata? = null
+                for (i in 1..50) {
+                    healedMeta = multiThreadRepo.getCachedMetadata(testServer.id, file.path)
+                    if (healedMeta?.coverThumbnailPath != null) break
+                    kotlinx.coroutines.delay(50)
+                }
+                assertNotNull("Room must have healed thumbnail after background recovery", healedMeta?.coverThumbnailPath)
+                assertTrue(fakeStorage.isValidThumbnailFile(healedMeta?.coverThumbnailPath))
+            } finally {
+                proceedLatch.countDown()
+            }
+        }
+
+    @Test
+    fun getCachedMetadata_whenInitialSelfHealingCompletesImmediatelyWithoutServer_subsequentCallsStillTriggerSelfHealing() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Trap Song", artist = "Artist", album = "Album")
+            fakeClient.stubFileBytes("/music/trap_song.mp3", sampleMp3)
+
+            val unknownServerId = 999L
+            val server999 = WebDavServer(id = unknownServerId, name = "Server 999", url = "http://example.com")
+            val file = RemoteFile(name = "trap_song.mp3", path = "/music/trap_song.mp3", size = 1000L)
+
+            // Insert metadata record with thumbnail that was evicted from disk
+            val oldCover = "/cache/covers/trap_evicted.jpg"
+            dao.insertOrUpdate(
+                TrackMetadataEntity.fromDomain(
+                    TrackMetadata(
+                        serverId = unknownServerId,
+                        remotePath = file.path,
+                        title = "Trap Song",
+                        artist = "Artist",
+                        album = "Album",
+                        coverThumbnailPath = oldCover,
+                        durationMs = 1000L,
+                    ),
+                ),
+            )
+            fakeStorage.diskFiles.remove(oldCover)
+
+            // 1. First call: serverId 999 is not in webDavServerDao or knownServers, so findServer returns null immediately.
+            // Under flawed implementation, putIfAbsent runs AFTER coroutine completed and traps the dead Job in inFlightSelfHealing.
+            val firstResult = repository.getCachedMetadata(unknownServerId, file.path)
+            assertNotNull(firstResult)
+            assertNull("First call must sanitize cover", firstResult?.coverThumbnailPath)
+
+            // 2. Now server configuration is saved to database
+            database.webDavServerDao().insertServer(WebDavServerEntity.fromDomain(server999))
+
+            // 3. Second call: must trigger self-healing again and NOT be permanently trapped by dead job
+            repository.getCachedMetadata(unknownServerId, file.path)
+
+            // 4. Must successfully recover and heal the thumbnail!
+            var healedResult: TrackMetadata? = null
+            for (i in 1..50) {
+                healedResult = repository.getCachedMetadata(unknownServerId, file.path)
+                if (healedResult?.coverThumbnailPath != null) break
+                kotlinx.coroutines.delay(50)
+            }
+            assertNotNull("Room must have healed thumbnail", healedResult?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healedResult?.coverThumbnailPath))
         }
 
     @Test

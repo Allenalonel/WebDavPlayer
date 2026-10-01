@@ -1,10 +1,13 @@
 # Cache Invalidation and Refresh Resilience Specification
 
+Status: completed
+
 ## Problem Statement
 
 When users clear the application cache through Android system settings or when the operating system reclaims cache directories under low-storage conditions, local thumbnail files stored in the cache directory are permanently deleted while the persistent Room database and DataStore session state remain intact.
 
 Upon reopening the application, users experience multiple cascading failures:
+
 1. Cover artwork thumbnails for all tracks in directories and the playback queue fail to load and display as generic placeholder icons, while system media notification services and lock screen handlers spam `FileNotFoundException (ENOENT)` errors.
 2. The self-healing cache logic fails to detect missing folder artwork files on disk because it queries the storage layer using the audio track's path instead of checking the actual thumbnail file path recorded in the cache entity.
 3. Once the cache directory has been purged, subsequent attempts to download or self-heal artwork fail silently because the storage layer relies on an un-recreated directory reference and never calls parent directory creation before writing files.
@@ -14,6 +17,7 @@ Upon reopening the application, users experience multiple cascading failures:
 ## Solution
 
 Build resilient cache invalidation and self-healing across the storage, metadata resolution, session restoration, and user interface layers:
+
 1. Make cover art storage dynamically self-healing by ensuring parent directory creation before every write and whenever thumbnail directories are accessed.
 2. Correct the self-healing metadata cache evaluation to verify the physical existence of the referenced thumbnail file on disk rather than evaluating synthetic path hashes.
 3. Synchronize refresh actions with the track metadata resolver by exposing a cache invalidation seam that clears in-memory negative cache records and probes when an explicit refresh occurs.
