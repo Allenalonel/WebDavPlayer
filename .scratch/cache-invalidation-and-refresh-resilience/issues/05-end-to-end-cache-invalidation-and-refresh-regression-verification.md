@@ -5,10 +5,10 @@ Validate the complete user journey from application cache clearance to total vis
 
 **Blocked by:** 03: Harmonized Directory Refresh Lifecycle and Job Stability, 04: Dead Artwork URI Protection for Media Playback Session
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Integration test simulates app cache clearance and verifies automatic progressive thumbnail self-healing during directory browsing.
-- [ ] Integration test verifies that pull-to-refresh correctly re-probes remote folder artwork and updates UI rows.
-- [ ] Integration test verifies that resuming playback with cleared cache does not emit file not found exceptions to system media listeners.
-- [ ] Full project test suite (`./gradlew testDebugUnitTest`) passes with 100% success rate.
-- [ ] Release APK (`./gradlew assembleRelease`) builds cleanly with zero lint or packaging errors.
+- [x] Integration test simulates app cache clearance and verifies automatic progressive thumbnail self-healing during directory browsing.
+- [x] Integration test verifies that pull-to-refresh correctly re-probes remote folder artwork and updates UI rows.
+- [x] Integration test verifies that resuming playback with cleared cache does not emit file not found exceptions to system media listeners.
+- [x] Full project test suite (`./gradlew testDebugUnitTest`) passes with 100% success rate.
+- [x] Release APK (`./gradlew assembleRelease`) builds cleanly with zero lint or packaging errors.

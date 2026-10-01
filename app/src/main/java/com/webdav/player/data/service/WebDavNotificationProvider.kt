@@ -195,11 +195,23 @@ class WebDavNotificationProvider(
         metadata: androidx.media3.common.MediaMetadata,
         player: androidx.media3.common.Player,
     ): Bitmap? {
-        val meta =
-            if (metadata.artworkData != null || metadata.artworkUri != null) {
-                metadata
+        val currentItemMeta = player.currentMediaItem?.mediaMetadata
+        val playlistMeta = player.playlistMetadata
+        val fallbackItemMeta =
+            if (player.mediaItemCount > 0) {
+                val idx = player.currentMediaItemIndex.coerceIn(0, player.mediaItemCount - 1)
+                player.getMediaItemAt(idx).mediaMetadata
             } else {
-                player.currentMediaItem?.mediaMetadata
+                null
+            }
+
+        val meta =
+            when {
+                metadata.artworkData != null || metadata.artworkUri != null -> metadata
+                currentItemMeta?.artworkData != null || currentItemMeta?.artworkUri != null -> currentItemMeta
+                playlistMeta.artworkData != null || playlistMeta.artworkUri != null -> playlistMeta
+                fallbackItemMeta != null -> fallbackItemMeta
+                else -> currentItemMeta
             } ?: return null
 
         val data = meta.artworkData
