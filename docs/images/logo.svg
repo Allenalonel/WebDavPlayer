@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="128" height="128">
+  <defs>
+    <!-- MD3 Background Radial Gradient -->
+    <radialGradient id="logoBg" cx="50%" cy="38%" r="72%">
+      <stop offset="0%" stop-color="#1B2E48" />
+      <stop offset="60%" stop-color="#101B2B" />
+      <stop offset="100%" stop-color="#080E17" />
+    </radialGradient>
+    <!-- MD3 Squircle Mask -->
+    <clipPath id="squircleMask">
+      <rect width="108" height="108" rx="26" ry="26" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#squircleMask)">
+    <!-- Background Layer -->
+    <rect width="108" height="108" fill="url(#logoBg)" />
+
+    <!-- Foreground: MD3 Continuous Squircle Cloud Body (#A8C7FA) -->
+    <path
+      d="M 33,68
+         C 26,68 22,63 22,57
+         C 22,51 26.5,46.5 32,46
+         C 34,38 41,33 50,33
+         C 58,33 65,37 68,43
+         C 71,41.5 74.5,41 78,43
+         C 84,46 87,51.5 86.5,57.5
+         C 86,63.5 81,68 75,68
+         Z"
+      fill="#A8C7FA" />
+
+    <!-- Foreground: Centered Rounded Play Triangle (#0C1522) -->
+    <path
+      d="M 50,45.2
+         C 50,43.6 51.8,42.6 53.1,43.4
+         L 66.2,51.4
+         C 67.5,52.2 67.5,54.2 66.2,55.0
+         L 53.1,63.0
+         C 51.8,63.8 50,62.8 50,61.2
+         Z"
+      fill="#0C1522" />
+  </g>
+</svg>

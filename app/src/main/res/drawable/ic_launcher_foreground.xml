@@ -5,57 +5,13 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Vinyl Disc Base -->
+    <!-- MD3 Continuous Squircle Cloud Body -->
     <path
-        android:fillColor="#131B2B"
-        android:strokeColor="#415C87"
-        android:strokeWidth="1.2"
-        android:pathData="M 22,54 a 32,32 0 1,0 64,0 a 32,32 0 1,0 -64,0" />
+        android:fillColor="#A8C7FA"
+        android:pathData="M33,68 C26,68 22,63 22,57 C22,51 26.5,46.5 32,46 C34,38 41,33 50,33 C58,33 65,37 68,43 C71,41.5 74.5,41 78,43 C84,46 87,51.5 86.5,57.5 C86,63.5 81,68 75,68 Z" />
 
-    <!-- Minimalist Vinyl Grooves -->
+    <!-- Centered Rounded Play Triangle (Compensated Visual Gravity) -->
     <path
-        android:strokeColor="#5274A7"
-        android:strokeAlpha="0.45"
-        android:strokeWidth="1.0"
-        android:pathData="M 27,54 a 27,27 0 1,0 54,0 a 27,27 0 1,0 -54,0" />
-    <path
-        android:strokeColor="#5274A7"
-        android:strokeAlpha="0.6"
-        android:strokeWidth="1.0"
-        android:pathData="M 32,54 a 22,22 0 1,0 44,0 a 22,22 0 1,0 -44,0" />
-    <path
-        android:strokeColor="#5274A7"
-        android:strokeAlpha="0.5"
-        android:strokeWidth="1.0"
-        android:pathData="M 37,54 a 17,17 0 1,0 34,0 a 17,17 0 1,0 -34,0" />
-
-    <!-- Vinyl Center Hub & Spindle Hole -->
-    <path
-        android:fillColor="#3B82F6"
-        android:strokeColor="#93C5FD"
-        android:strokeWidth="0.8"
-        android:pathData="M 46,54 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" />
-    <path
-        android:fillColor="#0A111F"
-        android:pathData="M 51.2,54 a 2.8,2.8 0 1,0 5.6,0 a 2.8,2.8 0 1,0 -5.6,0" />
-
-    <!-- Cloud Motif -->
-    <path
-        android:fillColor="#1B3B78"
-        android:strokeColor="#D3E3FD"
-        android:strokeWidth="2.2"
-        android:strokeLineJoin="round"
-        android:pathData="M 42,68 c -4,0 -7,-3 -7,-7 0,-3.6 2.6,-6.4 6,-6.8 1.2,-5 5.6,-8.2 11,-8.2 4.6,0 8.6,2.6 10.2,6.4 3.6,0.4 6.8,3.4 6.8,7.6 0,4.4 -3.6,8 -8,8 H 42 z" />
-
-    <!-- Cloud Streaming Wave Lines -->
-    <path
-        android:strokeColor="#A8C7FA"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:pathData="M 43,59 c 2.2,-2.2 5,-2.2 7.2,0 s 5,2.2 7.2,0" />
-    <path
-        android:strokeColor="#A8C7FA"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:pathData="M 45,63.5 c 1.8,-1.8 4,-1.8 5.8,0 s 4,1.8 5.8,0" />
+        android:fillColor="#0C1522"
+        android:pathData="M50,45.2 C50,43.6 51.8,42.6 53.1,43.4 L66.2,51.4 C67.5,52.2 67.5,54.2 66.2,55.0 L53.1,63.0 C51.8,63.8 50,62.8 50,61.2 Z" />
 </vector>

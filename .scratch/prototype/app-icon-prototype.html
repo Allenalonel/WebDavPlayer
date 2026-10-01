@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebDavPlayer - MD3 图标设计原型 (App Icon Prototype)</title>
+  <style>
+    :root {
+      --md-sys-color-background: #0f131a;
+      --md-sys-color-surface: #171b24;
+      --md-sys-color-surface-container: #202531;
+      --md-sys-color-surface-container-high: #29303e;
+      --md-sys-color-primary: #a8c7fa;
+      --md-sys-color-on-primary: #062e6f;
+      --md-sys-color-primary-container: #21438a;
+      --md-sys-color-on-primary-container: #d3e3fd;
+      --md-sys-color-outline: #8c919d;
+      --md-sys-color-outline-variant: #434751;
+      --md-sys-color-text: #e2e2e9;
+      --md-sys-color-text-muted: #9ba0ad;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: var(--md-sys-color-background);
+      color: var(--md-sys-color-text);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 36px 20px 140px;
+    }
+
+    header {
+      text-align: center;
+      max-width: 800px;
+      margin-bottom: 28px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--md-sys-color-text-muted);
+      line-height: 1.5;
+    }
+
+    /* Tabs top row */
+    .variant-selector-chips {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .variant-chip {
+      padding: 10px 20px;
+      border-radius: 14px;
+      background: var(--md-sys-color-surface);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      color: var(--md-sys-color-text);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .variant-chip:hover {
+      background: var(--md-sys-color-surface-container);
+      border-color: var(--md-sys-color-outline);
+    }
+
+    .variant-chip.active {
+      background: var(--md-sys-color-primary-container);
+      border-color: var(--md-sys-color-primary);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(168, 199, 250, 0.2);
+    }
+
+    .variant-chip .tag {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Main Container */
+    .container {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    /* Hero Preview Card */
+    .hero-card {
+      background: var(--md-sys-color-surface);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: 28px;
+      padding: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .hero-title-group h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hero-title-group p {
+      font-size: 14px;
+      color: var(--md-sys-color-text-muted);
+      margin-top: 6px;
+      max-width: 580px;
+      line-height: 1.6;
+    }
+
+    .hero-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+    }
+
+    /* Masked Icon Wrapper */
+    .icon-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .icon-mask-wrapper {
+      width: 192px;
+      height: 192px;
+      transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    /* Mask classes */
+    .mask-squircle {
+      border-radius: 26%;
+      overflow: hidden;
+    }
+
+    .mask-circle {
+      border-radius: 50%;
+      overflow: hidden;
+    }
+
+    .mask-rounded {
+      border-radius: 18%;
+      overflow: hidden;
+    }
+
+    .mask-teardrop {
+      border-radius: 50% 50% 50% 12%;
+      overflow: hidden;
+    }
+
+    .icon-layer-stack {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .icon-layer-stack > svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Mask Selector */
+    .mask-selector {
+      display: flex;
+      background: var(--md-sys-color-surface-container);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .mask-btn {
+      background: transparent;
+      border: none;
+      color: var(--md-sys-color-text-muted);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .mask-btn.active {
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-primary);
+    }
+
+    /* Size Variations Row */
+    .size-strip {
+      display: flex;
+      align-items: flex-end;
+      gap: 24px;
+    }
+
+    .size-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .size-item .size-label {
+      font-size: 11px;
+      color: var(--md-sys-color-text-muted);
+    }
+
+    /* Section Cards */
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--md-sys-color-surface);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    /* Android Desktop Mockup */
+    .phone-mockup {
+      background: #000;
+      border: 3px solid #2d323e;
+      border-radius: 36px;
+      padding: 20px 16px 28px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      width: 100%;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+
+    .phone-status-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #ccc;
+      margin-bottom: 24px;
+      padding: 0 4px;
+    }
+
+    .phone-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px 12px;
+      margin-bottom: 24px;
+    }
+
+    .app-icon-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .app-icon-mock {
+      width: 54px;
+      height: 54px;
+      border-radius: 24%;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .app-name {
+      font-size: 11px;
+      color: #e0e0e0;
+      text-align: center;
+      max-width: 60px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .highlight-glow {
+      position: relative;
+    }
+    .highlight-glow::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 28%;
+      border: 2px solid var(--md-sys-color-primary);
+      box-shadow: 0 0 12px rgba(168, 199, 250, 0.6);
+      pointer-events: none;
+    }
+
+    /* Themed Icon Section */
+    .theme-colors-palette {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .theme-color-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .theme-color-btn.active {
+      transform: scale(1.2);
+      border-color: #fff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.4);
+    }
+
+    .themed-icon-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 36px;
+      border-radius: 20px;
+      background: #0f1d35;
+      transition: background 0.3s;
+    }
+
+    .themed-icon-preview {
+      width: 108px;
+      height: 108px;
+      border-radius: 26%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+      color: #a8c7fa;
+    }
+
+    .themed-icon-preview svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Layer Exploded View */
+    .layers-container {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .layer-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .layer-frame {
+      width: 90px;
+      height: 90px;
+      border-radius: 16px;
+      background: var(--md-sys-color-surface-container);
+      border: 1px dashed var(--md-sys-color-outline);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .layer-frame > svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .layer-title {
+      font-size: 12px;
+      color: var(--md-sys-color-text-muted);
+    }
+
+    /* Code Snippet Area */
+    .code-box {
+      background: #080a0e;
+      border-radius: 12px;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: #9cdcfe;
+      overflow-x: auto;
+      max-height: 240px;
+      border: 1px solid #1a2230;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    /* Floating Switcher */
+    .floating-switcher {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 36, 48, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 999px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      z-index: 1000;
+    }
+
+    .switch-nav-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .switch-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.08);
+    }
+
+    .switch-info {
+      text-align: center;
+      min-width: 220px;
+    }
+
+    .switch-key {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--md-sys-color-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .switch-desc {
+      font-size: 11px;
+      color: var(--md-sys-color-text-muted);
+    }
+
+    .shortcut-tip {
+      font-size: 11px;
+      color: #6c7280;
+      border-left: 1px solid rgba(255,255,255,0.15);
+      padding-left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    kbd {
+      background: #111;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      font-size: 10px;
+      color: #aaa;
+    }
+
+    .safe-ring-overlay {
+      position: absolute;
+      inset: 16.66%;
+      border-radius: 50%;
+      border: 1.5px dashed rgba(255, 255, 255, 0.8);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Predefined Templates to avoid any innerHTML and strictly conform to lint rules -->
+  <template id="template-svg-bg-A">
+    <svg viewBox="0 0 108 108" width="100%" height="108" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="grad-bg-A" cx="50%" cy="40%" r="65%">
+          <stop offset="0%" stop-color="#243B60"/>
+          <stop offset="55%" stop-color="#14233C"/>
+          <stop offset="100%" stop-color="#0A1220"/>
+        </radialGradient>
+      </defs>
+      <rect width="108" height="108" fill="url(#grad-bg-A)"/>
+    </svg>
+  </template>
+
+  <template id="template-svg-fg-A">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <!-- Cloud Sub-Base -->
+      <path d="M 36,69 c -5.5,0 -10,-4.5 -10,-10 0,-4.8 3.5,-8.8 8.2,-9.8 1.8,-7.2 8.2,-12.2 15.8,-12.2 6.5,0 12.3,3.8 14.8,9.5 4.8,0.5 8.7,4.6 8.7,9.5 0,5.5 -4.5,10 -10,10 Z"
+            fill="#1B3B6F" fill-opacity="0.85" />
+      <path d="M 32,67 h 44 a 6,6 0 0,1 0,12 h -44 a 6,6 0 0,1 0,-12 z"
+            fill="#1E4582" />
+      <!-- Primary Note Stem & Flag -->
+      <path d="M 57,32 h 11 a 5,5 0 0,1 5,5 v 15 c 0,1.2 -1,2 -2,1.8 -3.8,-1 -8.5,-3.2 -12,-8.8 v 18 a 13,13 0 1,1 -5,-10.4 V 37 a 5,5 0 0,1 5,-5 z"
+            fill="#A8C7FA" />
+      <!-- Note Head Internal Play Tri -->
+      <path d="M 47,60 l 6,3.8 l -6,3.8 z" fill="#0D1E3A" />
+      <!-- Cloud Streaming Waves -->
+      <path d="M 75,44 a 14,14 0 0,1 0,16" stroke="#D3E3FD" stroke-width="2.8" stroke-linecap="round" fill="none" />
+      <path d="M 80,40 a 20,20 0 0,1 0,24" stroke="#A8C7FA" stroke-width="2.6" stroke-linecap="round" stroke-opacity="0.75" fill="none" />
+    </svg>
+  </template>
+
+  <template id="template-svg-mono-A">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <path d="M 36,69 c -5.5,0 -10,-4.5 -10,-10 0,-4.8 3.5,-8.8 8.2,-9.8 1.8,-7.2 8.2,-12.2 15.8,-12.2 6.5,0 12.3,3.8 14.8,9.5 4.8,0.5 8.7,4.6 8.7,9.5 0,5.5 -4.5,10 -10,10 Z"
+            fill="currentColor" fill-opacity="0.35" />
+      <path d="M 32,67 h 44 a 6,6 0 0,1 0,12 h -44 a 6,6 0 0,1 0,-12 z"
+            fill="currentColor" fill-opacity="0.5" />
+      <path d="M 57,32 h 11 a 5,5 0 0,1 5,5 v 15 c 0,1.2 -1,2 -2,1.8 -3.8,-1 -8.5,-3.2 -12,-8.8 v 18 a 13,13 0 1,1 -5,-10.4 V 37 a 5,5 0 0,1 5,-5 z"
+            fill="currentColor" />
+      <path d="M 47,60 l 6,3.8 l -6,3.8 z" fill="#000000" />
+      <path d="M 75,44 a 14,14 0 0,1 0,16" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" fill="none" />
+      <path d="M 80,40 a 20,20 0 0,1 0,24" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-opacity="0.8" fill="none" />
+    </svg>
+  </template>
+
+  <!-- Variant B Templates -->
+  <template id="template-svg-bg-B">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="grad-bg-B" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#1B2E3C"/>
+          <stop offset="60%" stop-color="#0F1C26"/>
+          <stop offset="100%" stop-color="#080E14"/>
+        </radialGradient>
+      </defs>
+      <rect width="108" height="108" fill="url(#grad-bg-B)"/>
+    </svg>
+  </template>
+
+  <template id="template-svg-fg-B">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="54" cy="54" r="29" fill="#142633" stroke="#2D5A73" stroke-width="1.6" />
+      <circle cx="54" cy="54" r="24.5" fill="none" stroke="#5089A8" stroke-width="1" stroke-opacity="0.45" stroke-dasharray="24 6 18 8" />
+      <circle cx="54" cy="54" r="20" fill="none" stroke="#7CD4FD" stroke-width="1" stroke-opacity="0.6" stroke-dasharray="16 4 20 6" />
+      <circle cx="54" cy="54" r="15.5" fill="none" stroke="#7CD4FD" stroke-width="1" stroke-opacity="0.35" />
+      <circle cx="54" cy="54" r="11" fill="#004D68" stroke="#7CD4FD" stroke-width="1.4" />
+      <path d="M 52,49.5 l 7,4.5 l -7,4.5 z" fill="#C2E7FF" />
+      <circle cx="36" cy="54" r="2" fill="#7CD4FD" />
+      <path d="M 36,49 a 5,5 0 0,0 0,10" stroke="#7CD4FD" stroke-width="1.2" stroke-linecap="round" fill="none" />
+      <circle cx="72" cy="54" r="2" fill="#7CD4FD" />
+      <path d="M 72,49 a 5,5 0 0,1 0,10" stroke="#7CD4FD" stroke-width="1.2" stroke-linecap="round" fill="none" />
+    </svg>
+  </template>
+
+  <template id="template-svg-mono-B">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="54" cy="54" r="29" fill="none" stroke="currentColor" stroke-width="2.4" />
+      <circle cx="54" cy="54" r="23" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.6" stroke-dasharray="20 6" />
+      <circle cx="54" cy="54" r="17" fill="none" stroke="currentColor" stroke-width="1" stroke-opacity="0.8" />
+      <circle cx="54" cy="54" r="11" fill="currentColor" fill-opacity="0.4" stroke="currentColor" stroke-width="1.6" />
+      <path d="M 52,49.5 l 7,4.5 l -7,4.5 z" fill="currentColor" />
+      <path d="M 36,49 a 5,5 0 0,0 0,10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />
+      <path d="M 72,49 a 5,5 0 0,1 0,10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />
+    </svg>
+  </template>
+
+  <!-- Variant C Templates -->
+  <template id="template-svg-bg-C">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="grad-bg-C" cx="50%" cy="40%" r="65%">
+          <stop offset="0%" stop-color="#341E4F"/>
+          <stop offset="60%" stop-color="#1E1030"/>
+          <stop offset="100%" stop-color="#0E0717"/>
+        </radialGradient>
+      </defs>
+      <rect width="108" height="108" fill="url(#grad-bg-C)"/>
+    </svg>
+  </template>
+
+  <template id="template-svg-fg-C">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <path d="M 33,72 h 42 a 5,5 0 0,1 0,10 h -42 a 5,5 0 0,1 0,-10 z" fill="#4F378B" fill-opacity="0.75" />
+      <rect x="33" y="52" width="6" height="17" rx="3" fill="#CCC2DC" />
+      <rect x="42" y="40" width="6" height="29" rx="3" fill="#D0BCFF" />
+      <rect x="51" y="31" width="6" height="38" rx="3" fill="#EADDFF" />
+      <rect x="60" y="44" width="6" height="25" rx="3" fill="#EFB8C8" />
+      <rect x="69" y="55" width="6" height="14" rx="3" fill="#CCC2DC" />
+      <circle cx="54" cy="62" r="1.5" fill="#381E72" />
+      <circle cx="45" cy="34" r="1.8" fill="#D0BCFF" fill-opacity="0.8" />
+      <circle cx="63" cy="38" r="1.4" fill="#EFB8C8" fill-opacity="0.8" />
+    </svg>
+  </template>
+
+  <template id="template-svg-mono-C">
+    <svg viewBox="0 0 108 108" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <path d="M 33,72 h 42 a 5,5 0 0,1 0,10 h -42 a 5,5 0 0,1 0,-10 z" fill="currentColor" fill-opacity="0.4" />
+      <rect x="33" y="52" width="6" height="17" rx="3" fill="currentColor" fill-opacity="0.75" />
+      <rect x="42" y="40" width="6" height="29" rx="3" fill="currentColor" />
+      <rect x="51" y="31" width="6" height="38" rx="3" fill="currentColor" />
+      <rect x="60" y="44" width="6" height="25" rx="3" fill="currentColor" fill-opacity="0.9" />
+      <rect x="69" y="55" width="6" height="14" rx="3" fill="currentColor" fill-opacity="0.75" />
+      <circle cx="54" cy="62" r="1.5" fill="#000000" />
+    </svg>
+  </template>
+
+
+  <header>
+    <div class="badge">Material Design 3 Prototype</div>
+    <h1>WebDavPlayer 图标设计原型</h1>
+    <p class="subtitle">
+      针对 WebDAV 云端流式音乐播放器定制的 3 款 MD3 风格图标方案。支持桌面形状裁切预览、Android 13+ 单色主题图标动态变色、桌面密集环境比对及矢量分层。
+    </p>
+  </header>
+
+  <!-- Variant Chips -->
+  <div class="variant-selector-chips" id="chips">
+    <div class="variant-chip" id="chip-A">
+      <span class="tag">方案 A</span>
+      <span>几何云潮音符 (Cloud Note)</span>
+    </div>
+    <div class="variant-chip" id="chip-B">
+      <span class="tag">方案 B</span>
+      <span>新锐黑胶纽带 (Neo Vinyl)</span>
+    </div>
+    <div class="variant-chip" id="chip-C">
+      <span class="tag">方案 C</span>
+      <span>均衡音浪视窗 (Wave Spectrum)</span>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Hero Card -->
+    <div class="hero-card">
+      <div class="hero-top">
+        <div class="hero-title-group">
+          <h2 id="variant-title">方案 A: 几何云潮音符 (Geometric Cloud Note)</h2>
+          <p id="variant-desc">
+            融合 Material Design 3 的柔和双色阶几何色块。以云端基座象征 WebDAV 私有云，向上延伸出充满动态张力的音符符干与符旗，符头内嵌微小的播放三角负空间，辅以两道同心音频波纹。利落、现代、极具 Google Pixel 原生美感。
+          </p>
+        </div>
+
+        <!-- Mask selector -->
+        <div class="mask-selector">
+          <button class="mask-btn active" id="mask-btn-squircle">圆角方</button>
+          <button class="mask-btn" id="mask-btn-circle">圆形</button>
+          <button class="mask-btn" id="mask-btn-rounded">圆角矩形</button>
+          <button class="mask-btn" id="mask-btn-teardrop">水滴形</button>
+        </div>
+      </div>
+
+      <div class="hero-main">
+        <!-- 192px Big preview -->
+        <div class="icon-stage">
+          <div class="icon-mask-wrapper mask-squircle" id="main-preview-box"></div>
+          <span style="font-size: 12px; color: var(--md-sys-color-text-muted);">主舞台 (192 x 192 px)</span>
+        </div>
+
+        <!-- Size variations strip -->
+        <div class="size-strip">
+          <div class="size-item">
+            <div class="icon-mask-wrapper mask-squircle" style="width: 96px; height: 96px;" id="size-96-box"></div>
+            <span class="size-label">96px</span>
+          </div>
+          <div class="size-item">
+            <div class="icon-mask-wrapper mask-squircle" style="width: 64px; height: 64px;" id="size-64-box"></div>
+            <span class="size-label">64px (桌面常用)</span>
+          </div>
+          <div class="size-item">
+            <div class="icon-mask-wrapper mask-squircle" style="width: 48px; height: 48px;" id="size-48-box"></div>
+            <span class="size-label">48px (通知/小窗)</span>
+          </div>
+          <div class="size-item">
+            <div class="icon-mask-wrapper mask-squircle" style="width: 32px; height: 32px;" id="size-32-box"></div>
+            <span class="size-label">32px (极小尺寸)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparative Grid -->
+    <div class="grid-2">
+
+      <!-- Android Desktop Simulation -->
+      <div class="card">
+        <div class="section-title">
+          <span>📱</span>
+          <span>Android 桌面密集环境比对</span>
+        </div>
+        <p style="font-size: 13px; color: var(--md-sys-color-text-muted); margin-bottom: 16px;">
+          在真实密集桌面排列中检验视觉重量、辨识度与色彩和谐度：
+        </p>
+
+        <div class="phone-mockup">
+          <div class="phone-status-bar">
+            <span>09:41</span>
+            <span>5G 📶 98%</span>
+          </div>
+
+          <div class="phone-grid">
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: linear-gradient(135deg, #1A73E8, #4285F4);">G</div>
+              <span class="app-name">Google</span>
+            </div>
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: linear-gradient(135deg, #34A853, #0F9D58);">📷</div>
+              <span class="app-name">相册</span>
+            </div>
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: linear-gradient(135deg, #FBBC04, #EA4335);">⏰</div>
+              <span class="app-name">时钟</span>
+            </div>
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: #2D323E;">⚙️</div>
+              <span class="app-name">设置</span>
+            </div>
+
+            <!-- Our WebDavPlayer App Highlighted -->
+            <div class="app-icon-item highlight-glow">
+              <div class="app-icon-mock" id="desktop-app-slot" style="background: transparent;"></div>
+              <span class="app-name" style="color: var(--md-sys-color-primary); font-weight: 600;">WebDAV</span>
+            </div>
+
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: linear-gradient(135deg, #E91E63, #C2185B);">🎵</div>
+              <span class="app-name">本地音乐</span>
+            </div>
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: linear-gradient(135deg, #00C853, #009688);">💬</div>
+              <span class="app-name">信息</span>
+            </div>
+            <div class="app-icon-item">
+              <div class="app-icon-mock" style="background: linear-gradient(135deg, #4285F4, #0D47A1);">📁</div>
+              <span class="app-name">文件</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Themed Icons (Android 13+) -->
+      <div class="card">
+        <div class="section-title">
+          <span>🎨</span>
+          <span>Material You 单色主题图标 (Themed Icon)</span>
+        </div>
+        <p style="font-size: 13px; color: var(--md-sys-color-text-muted); margin-bottom: 12px;">
+          在 Android 13+ 随壁纸动态变色的单色主题图标预览（点击测试不同壁纸提取色）：
+        </p>
+
+        <div class="theme-colors-palette" id="theme-palette">
+          <button class="theme-color-btn active" style="background: #A8C7FA;" data-color="#A8C7FA" data-bg="#0F1D35"></button>
+          <button class="theme-color-btn" style="background: #7CD4FD;" data-color="#7CD4FD" data-bg="#002E40"></button>
+          <button class="theme-color-btn" style="background: #A6D49F;" data-color="#A6D49F" data-bg="#183818"></button>
+          <button class="theme-color-btn" style="background: #F2B8B5;" data-color="#F2B8B5" data-bg="#411E1D"></button>
+          <button class="theme-color-btn" style="background: #D0BCFF;" data-color="#D0BCFF" data-bg="#2F1A52"></button>
+          <button class="theme-color-btn" style="background: #FFFFFF;" data-color="#FFFFFF" data-bg="#242424"></button>
+        </div>
+
+        <div class="themed-icon-container" id="themed-stage">
+          <div class="themed-icon-preview" id="themed-preview-box"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Exploded Layers Card -->
+    <div class="card">
+      <div class="section-title">
+        <span>🥞</span>
+        <span>自适应图标图层分解 (Adaptive Icon Layers)</span>
+      </div>
+      <p style="font-size: 13px; color: var(--md-sys-color-text-muted); margin-bottom: 20px;">
+        Android 规范要求 108x108 dp 分层。核心图形限制在安全展示区（中心 66dp~72dp），支持视差位移与动态交互：
+      </p>
+
+      <div class="layers-container">
+        <div class="layer-card">
+          <div class="layer-frame" id="layer-bg-box"></div>
+          <span class="layer-title">Background (背景层)</span>
+        </div>
+        <div style="font-size: 20px; color: var(--md-sys-color-outline-variant);">+</div>
+        <div class="layer-card">
+          <div class="layer-frame" style="background: rgba(255,255,255,0.04);" id="layer-fg-box"></div>
+          <span class="layer-title">Foreground (前景层)</span>
+        </div>
+        <div style="font-size: 20px; color: var(--md-sys-color-outline-variant);">=</div>
+        <div class="layer-card">
+          <div class="layer-frame" id="layer-merged-box"></div>
+          <span class="layer-title">合成预览 (带 72dp 安全圈)</span>
+        </div>
+        <div style="font-size: 20px; color: var(--md-sys-color-outline-variant);">|</div>
+        <div class="layer-card">
+          <div class="layer-frame" style="background: #252830;" id="layer-mono-box"></div>
+          <span class="layer-title">Monochrome (单色层)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Android XML Code Snippet -->
+    <div class="card">
+      <div class="section-title">
+        <span>📄</span>
+        <span>Android Vector Drawable XML 就绪代码</span>
+      </div>
+      <p style="font-size: 13px; color: var(--md-sys-color-text-muted); margin-bottom: 12px;">
+        选定此方案后，可直接无缝覆盖工程中 <code>app/src/main/res/drawable/</code> 目录：
+      </p>
+      <pre class="code-box" id="code-snippet-box"></pre>
+    </div>
+
+  </div>
+
+  <!-- Floating Switcher -->
+  <div class="floating-switcher">
+    <button class="switch-nav-btn" id="btn-prev" title="上一方案 (← 键盘左键)">‹</button>
+    <div class="switch-info">
+      <div class="switch-key" id="float-variant-key">方案 A</div>
+      <div class="switch-desc" id="float-variant-name">几何云潮音符</div>
+    </div>
+    <button class="switch-nav-btn" id="btn-next" title="下一方案 (→ 键盘右键)">›</button>
+    <div class="shortcut-tip">
+      <span>快捷键</span>
+      <kbd>←</kbd>
+      <kbd>→</kbd>
+    </div>
+  </div>
+
+  <script>
+    // Metadata definitions
+    const VARIANTS = {
+      A: {
+        key: 'A',
+        name: '几何云潮音符 (Cloud Note)',
+        title: '方案 A: 几何云潮音符 (Geometric Cloud Note)',
+        desc: '融合 Material Design 3 的柔和双色阶几何色块。以云端基座象征 WebDAV 私有云，向上延伸出充满动态张力的音符符干与符旗，符头内嵌微小的播放三角负空间，辅以两道同心音频波纹。利落、现代、极具 Google Pixel 原生美感。',
+        xmlSnippet: `<!-- ic_launcher_background.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="43.2"
+                android:gradientRadius="70.2">
+                <item android:color="#243B60" android:offset="0.0" />
+                <item android:color="#14233C" android:offset="0.55" />
+                <item android:color="#0A1220" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
+
+<!-- ic_launcher_foreground.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- MD3 Cloud Sub-Base (Tonal Container) -->
+    <path
+        android:fillColor="#1B3B6F"
+        android:fillAlpha="0.85"
+        android:pathData="M36,69 c-5.5,0 -10,-4.5 -10,-10 0,-4.8 3.5,-8.8 8.2,-9.8 1.8,-7.2 8.2,-12.2 15.8,-12.2 6.5,0 12.3,3.8 14.8,9.5 4.8,0.5 8.7,4.6 8.7,9.5 0,5.5 -4.5,10 -10,10 Z" />
+    <path
+        android:fillColor="#1E4582"
+        android:pathData="M32,67 h44 a6,6 0 0,1 0,12 h-44 a6,6 0 0,1 0,-12 z" />
+    <!-- Primary Note Stem & Flag -->
+    <path
+        android:fillColor="#A8C7FA"
+        android:pathData="M57,32 h11 a5,5 0 0,1 5,5 v15 c0,1.2 -1,2 -2,1.8 -3.8,-1 -8.5,-3.2 -12,-8.8 v18 a13,13 0 1,1 -5,-10.4 V37 a5,5 0 0,1 5,-5 z" />
+    <!-- Negative Space Play Tri -->
+    <path
+        android:fillColor="#0D1E3A"
+        android:pathData="M47,60 l6,3.8 l-6,3.8 z" />
+    <!-- Streaming Wave Arcs -->
+    <path
+        android:strokeColor="#D3E3FD"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M75,44 a14,14 0 0,1 0,16" />
+    <path
+        android:strokeColor="#A8C7FA"
+        android:strokeAlpha="0.75"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M80,40 a20,20 0 0,1 0,24" />
+</vector>
+
+<!-- ic_launcher_monochrome.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.35"
+        android:pathData="M36,69 c-5.5,0 -10,-4.5 -10,-10 0,-4.8 3.5,-8.8 8.2,-9.8 1.8,-7.2 8.2,-12.2 15.8,-12.2 6.5,0 12.3,3.8 14.8,9.5 4.8,0.5 8.7,4.6 8.7,9.5 0,5.5 -4.5,10 -10,10 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.5"
+        android:pathData="M32,67 h44 a6,6 0 0,1 0,12 h-44 a6,6 0 0,1 0,-12 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,32 h11 a5,5 0 0,1 5,5 v15 c0,1.2 -1,2 -2,1.8 -3.8,-1 -8.5,-3.2 -12,-8.8 v18 a13,13 0 1,1 -5,-10.4 V37 a5,5 0 0,1 5,-5 z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M47,60 l6,3.8 l-6,3.8 z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M75,44 a14,14 0 0,1 0,16" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.8"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M80,40 a20,20 0 0,1 0,24" />
+</vector>`
+      },
+
+      B: {
+        key: 'B',
+        name: '新锐黑胶纽带 (Neo Vinyl)',
+        title: '方案 B: 新锐黑胶纽带 (Neo Vinyl Nexus)',
+        desc: '以 MD3 几何同心环解构传统黑胶唱盘。外层饱满大圆，内嵌青蓝基调的阶梯式音轨（Tonal Stepped Grooves），盘心为 WebDAV 云端同步枢纽（Play 核心与双向云端光标）。兼具高保真发烧黑胶韵味与云端流媒体的现代科技张力。',
+        xmlSnippet: `<!-- ic_launcher_background.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="75.6">
+                <item android:color="#1B2E3C" android:offset="0.0" />
+                <item android:color="#0F1C26" android:offset="0.6" />
+                <item android:color="#080E14" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
+
+<!-- ic_launcher_foreground.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#142633"
+        android:strokeColor="#2D5A73"
+        android:strokeWidth="1.6"
+        android:pathData="M54,54m-29,0a29,29 0 1,1 58,0a29,29 0 1,1 -58,0" />
+    <path
+        android:strokeColor="#7CD4FD"
+        android:strokeAlpha="0.6"
+        android:strokeWidth="1.0"
+        android:pathData="M54,54m-20,0a20,20 0 1,1 40,0a20,20 0 1,1 -40,0" />
+    <path
+        android:strokeColor="#7CD4FD"
+        android:strokeAlpha="0.35"
+        android:strokeWidth="1.0"
+        android:pathData="M54,54m-15.5,0a15.5,15.5 0 1,1 31,0a15.5,15.5 0 1,1 -31,0" />
+    <path
+        android:fillColor="#004D68"
+        android:strokeColor="#7CD4FD"
+        android:strokeWidth="1.4"
+        android:pathData="M54,54m-11,0a11,11 0 1,1 22,0a11,11 0 1,1 -22,0" />
+    <path
+        android:fillColor="#C2E7FF"
+        android:pathData="M52,49.5 l7,4.5 l-7,4.5 z" />
+    <path
+        android:strokeColor="#7CD4FD"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:pathData="M36,49 a5,5 0 0,0 0,10" />
+    <path
+        android:strokeColor="#7CD4FD"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:pathData="M72,49 a5,5 0 0,1 0,10" />
+</vector>
+
+<!-- ic_launcher_monochrome.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:pathData="M54,54m-29,0a29,29 0 1,1 58,0a29,29 0 1,1 -58,0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.6"
+        android:strokeWidth="1.0"
+        android:pathData="M54,54m-20,0a20,20 0 1,1 40,0a20,20 0 1,1 -40,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:pathData="M54,54m-11,0a11,11 0 1,1 22,0a11,11 0 1,1 -22,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M52,49.5 l7,4.5 l-7,4.5 z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M36,49 a5,5 0 0,0 0,10" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M72,49 a5,5 0 0,1 0,10" />
+</vector>`
+      },
+
+      C: {
+        key: 'C',
+        name: '均衡音浪视窗 (Wave Spectrum)',
+        title: '方案 C: 均衡音浪视窗 (Wave Spectrum Nexus)',
+        desc: '纯粹抽象的音频均衡频段与网络脉冲。由 5 组遵循黄金比例的 MD3 圆角药丸柱（Capsule Pills）组成跃动的音浪曲线，采用 MD3 标志性的珊瑚紫与薰衣草调色盘。底部与云状托板咬合，单色模式极具剪影穿透力，年轻、轻快。',
+        xmlSnippet: `<!-- ic_launcher_background.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="43.2"
+                android:gradientRadius="70.2">
+                <item android:color="#341E4F" android:offset="0.0" />
+                <item android:color="#1E1030" android:offset="0.6" />
+                <item android:color="#0E0717" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
+
+<!-- ic_launcher_foreground.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#4F378B"
+        android:fillAlpha="0.75"
+        android:pathData="M33,72 h42 a5,5 0 0,1 0,10 h-42 a5,5 0 0,1 0,-10 z" />
+    <path
+        android:fillColor="#CCC2DC"
+        android:pathData="M36,52 A3,3 0 0,1 39,55 V66 A3,3 0 0,1 36,69 A3,3 0 0,1 33,66 V55 A3,3 0 0,1 36,52 Z" />
+    <path
+        android:fillColor="#D0BCFF"
+        android:pathData="M45,40 A3,3 0 0,1 48,43 V66 A3,3 0 0,1 45,69 A3,3 0 0,1 42,66 V43 A3,3 0 0,1 45,40 Z" />
+    <path
+        android:fillColor="#EADDFF"
+        android:pathData="M54,31 A3,3 0 0,1 57,34 V66 A3,3 0 0,1 54,69 A3,3 0 0,1 51,66 V34 A3,3 0 0,1 54,31 Z" />
+    <path
+        android:fillColor="#EFB8C8"
+        android:pathData="M63,44 A3,3 0 0,1 66,47 V66 A3,3 0 0,1 63,69 A3,3 0 0,1 60,66 V47 A3,3 0 0,1 63,44 Z" />
+    <path
+        android:fillColor="#CCC2DC"
+        android:pathData="M72,55 A3,3 0 0,1 75,58 V66 A3,3 0 0,1 72,69 A3,3 0 0,1 69,66 V58 A3,3 0 0,1 72,55 Z" />
+    <path
+        android:fillColor="#381E72"
+        android:pathData="M54,60.5 a1.5,1.5 0 1,0 0.01,0 z" />
+</vector>
+
+<!-- ic_launcher_monochrome.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.4"
+        android:pathData="M33,72 h42 a5,5 0 0,1 0,10 h-42 a5,5 0 0,1 0,-10 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.75"
+        android:pathData="M36,52 A3,3 0 0,1 39,55 V66 A3,3 0 0,1 36,69 A3,3 0 0,1 33,66 V55 A3,3 0 0,1 36,52 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,40 A3,3 0 0,1 48,43 V66 A3,3 0 0,1 45,69 A3,3 0 0,1 42,66 V43 A3,3 0 0,1 45,40 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,31 A3,3 0 0,1 57,34 V66 A3,3 0 0,1 54,69 A3,3 0 0,1 51,66 V34 A3,3 0 0,1 54,31 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M63,44 A3,3 0 0,1 66,47 V66 A3,3 0 0,1 63,69 A3,3 0 0,1 60,66 V47 A3,3 0 0,1 63,44 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.75"
+        android:pathData="M72,55 A3,3 0 0,1 75,58 V66 A3,3 0 0,1 72,69 A3,3 0 0,1 69,66 V58 A3,3 0 0,1 72,55 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,60.5 a1.5,1.5 0 1,0 0.01,0 z" />
+</vector>`
+      }
+    };
+
+    // State
+    let currentVariantKey = 'A';
+    let currentThemeColor = '#A8C7FA';
+    let currentThemeBg = '#0F1D35';
+
+    function createCombinedStack(key) {
+      const container = document.createElement('div');
+      container.className = 'icon-layer-stack';
+
+      const bgTpl = document.getElementById(`template-svg-bg-${key}`);
+      const fgTpl = document.getElementById(`template-svg-fg-${key}`);
+
+      if (bgTpl) container.appendChild(bgTpl.content.cloneNode(true));
+      if (fgTpl) container.appendChild(fgTpl.content.cloneNode(true));
+
+      return container;
+    }
+
+    function createMonoStack(key) {
+      const monoTpl = document.getElementById(`template-svg-mono-${key}`);
+      const frag = monoTpl ? monoTpl.content.cloneNode(true) : document.createDocumentFragment();
+      return frag;
+    }
+
+    function render() {
+      const variant = VARIANTS[currentVariantKey];
+
+      // Update text using textContent
+      document.getElementById('variant-title').textContent = variant.title;
+      document.getElementById('variant-desc').textContent = variant.desc;
+      document.getElementById('float-variant-key').textContent = `方案 ${variant.key}`;
+      document.getElementById('float-variant-name').textContent = variant.name;
+
+      // Update chips
+      ['A', 'B', 'C'].forEach((k) => {
+        const chip = document.getElementById(`chip-${k}`);
+        if (chip) {
+          chip.classList.toggle('active', k === currentVariantKey);
+        }
+      });
+
+      // Update Main Previews using replaceChildren
+      const targets = [
+        document.getElementById('main-preview-box'),
+        document.getElementById('size-96-box'),
+        document.getElementById('size-64-box'),
+        document.getElementById('size-48-box'),
+        document.getElementById('size-32-box'),
+        document.getElementById('desktop-app-slot')
+      ];
+
+      targets.forEach((elem) => {
+        if (elem) elem.replaceChildren(createCombinedStack(currentVariantKey));
+      });
+
+      // Update Themed Preview
+      const themedPreview = document.getElementById('themed-preview-box');
+      if (themedPreview) {
+        themedPreview.replaceChildren(createMonoStack(currentVariantKey));
+        themedPreview.style.color = currentThemeColor;
+        themedPreview.style.background = currentThemeBg;
+      }
+      const themedStage = document.getElementById('themed-stage');
+      if (themedStage) {
+        themedStage.style.background = currentThemeBg;
+      }
+
+      // Update Layers
+      const layerBgBox = document.getElementById('layer-bg-box');
+      const bgTpl = document.getElementById(`template-svg-bg-${currentVariantKey}`);
+      if (layerBgBox && bgTpl) {
+        layerBgBox.replaceChildren(bgTpl.content.cloneNode(true));
+      }
+
+      const layerFgBox = document.getElementById('layer-fg-box');
+      const fgTpl = document.getElementById(`template-svg-fg-${currentVariantKey}`);
+      if (layerFgBox && fgTpl) {
+        layerFgBox.replaceChildren(fgTpl.content.cloneNode(true));
+      }
+
+      const layerMergedBox = document.getElementById('layer-merged-box');
+      if (layerMergedBox) {
+        const stack = createCombinedStack(currentVariantKey);
+        const ring = document.createElement('div');
+        ring.className = 'safe-ring-overlay';
+        ring.title = '72dp 安全边界';
+        stack.appendChild(ring);
+        layerMergedBox.replaceChildren(stack);
+      }
+
+      const layerMonoBox = document.getElementById('layer-mono-box');
+      if (layerMonoBox) {
+        const monoFrag = createMonoStack(currentVariantKey);
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'color: #ffffff; width: 100%; height: 100%;';
+        wrap.appendChild(monoFrag);
+        layerMonoBox.replaceChildren(wrap);
+      }
+
+      // Update Code Snippet
+      const codeBox = document.getElementById('code-snippet-box');
+      if (codeBox) {
+        codeBox.textContent = variant.xmlSnippet;
+      }
+
+      // Safe URL update with try/catch
+      try {
+        if (window.location && window.location.href) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('variant', currentVariantKey);
+          window.history.replaceState({}, '', url.toString());
+        }
+      } catch (err) {
+        // Ignored in non-browser or sandboxed preview
+      }
+    }
+
+    function setVariant(key) {
+      if (!VARIANTS[key]) return;
+      currentVariantKey = key;
+      render();
+    }
+
+    function prevVariant() {
+      const keys = ['A', 'B', 'C'];
+      const idx = keys.indexOf(currentVariantKey);
+      const nextIdx = (idx - 1 + keys.length) % keys.length;
+      setVariant(keys[nextIdx]);
+    }
+
+    function nextVariant() {
+      const keys = ['A', 'B', 'C'];
+      const idx = keys.indexOf(currentVariantKey);
+      const nextIdx = (idx + 1) % keys.length;
+      setVariant(keys[nextIdx]);
+    }
+
+    function setMask(maskName) {
+      const maskClasses = ['mask-squircle', 'mask-circle', 'mask-rounded', 'mask-teardrop'];
+      const targetClass = `mask-${maskName}`;
+
+      ['squircle', 'circle', 'rounded', 'teardrop'].forEach((name) => {
+        const btn = document.getElementById(`mask-btn-${name}`);
+        if (btn) btn.classList.toggle('active', name === maskName);
+      });
+
+      const previewBoxes = [
+        document.getElementById('main-preview-box'),
+        document.getElementById('size-96-box'),
+        document.getElementById('size-64-box'),
+        document.getElementById('size-48-box'),
+        document.getElementById('size-32-box'),
+        document.getElementById('themed-preview-box')
+      ];
+
+      previewBoxes.forEach((box) => {
+        if (!box) return;
+        maskClasses.forEach((cls) => box.classList.remove(cls));
+        box.classList.add(targetClass);
+      });
+    }
+
+    function setupEventListeners() {
+      // Variant Chips
+      ['A', 'B', 'C'].forEach((k) => {
+        const chip = document.getElementById(`chip-${k}`);
+        if (chip) chip.addEventListener('click', () => setVariant(k));
+      });
+
+      // Mask buttons
+      ['squircle', 'circle', 'rounded', 'teardrop'].forEach((name) => {
+        const btn = document.getElementById(`mask-btn-${name}`);
+        if (btn) btn.addEventListener('click', () => setMask(name));
+      });
+
+      // Theme color palette buttons
+      const palette = document.getElementById('theme-palette');
+      if (palette) {
+        palette.addEventListener('click', (e) => {
+          const btn = e.target.closest('.theme-color-btn');
+          if (!btn) return;
+          const color = btn.getAttribute('data-color');
+          const bg = btn.getAttribute('data-bg');
+          if (color && bg) {
+            currentThemeColor = color;
+            currentThemeBg = bg;
+            palette.querySelectorAll('.theme-color-btn').forEach((b) => {
+              b.classList.toggle('active', b === btn);
+            });
+            render();
+          }
+        });
+      }
+
+      // Prev & Next Buttons
+      const btnPrev = document.getElementById('btn-prev');
+      if (btnPrev) btnPrev.addEventListener('click', prevVariant);
+
+      const btnNext = document.getElementById('btn-next');
+      if (btnNext) btnNext.addEventListener('click', nextVariant);
+
+      // Keyboard
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        if (e.key === 'ArrowLeft') {
+          prevVariant();
+        } else if (e.key === 'ArrowRight') {
+          nextVariant();
+        }
+      });
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      setupEventListeners();
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const variantParam = (params.get('variant') || 'A').toUpperCase();
+        if (VARIANTS[variantParam]) {
+          currentVariantKey = variantParam;
+        }
+      } catch (err) {
+        // Fallback to variant A
+      }
+      render();
+    });
+  </script>
+</body>
+</html>

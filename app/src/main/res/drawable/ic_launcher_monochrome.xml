@@ -5,60 +5,13 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Vinyl Outer Rim -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:pathData="M 29.49,74.57 A 32,32 0 1,1 84.07,64.94" />
-
-    <!-- Minimalist Vinyl Grooves -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeAlpha="0.65"
-        android:strokeWidth="1.0"
-        android:strokeLineCap="round"
-        android:pathData="M 33.32,71.36 A 27,27 0 1,1 79.37,63.23" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeAlpha="0.8"
-        android:strokeWidth="1.0"
-        android:strokeLineCap="round"
-        android:pathData="M 37.15,68.14 A 22,22 0 1,1 74.67,61.52" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeAlpha="0.65"
-        android:strokeWidth="1.0"
-        android:strokeLineCap="round"
-        android:pathData="M 40.98,64.93 A 17,17 0 1,1 69.97,59.81" />
-
-    <!-- Vinyl Center Hub Ring & Spindle Hole -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.8"
-        android:pathData="M 46,54 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" />
+    <!-- Cloud Silhouette (Tinted by System Theme) -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M 51.2,54 a 2.8,2.8 0 1,0 5.6,0 a 2.8,2.8 0 1,0 -5.6,0" />
+        android:pathData="M33,68 C26,68 22,63 22,57 C22,51 26.5,46.5 32,46 C34,38 41,33 50,33 C58,33 65,37 68,43 C71,41.5 74.5,41 78,43 C84,46 87,51.5 86.5,57.5 C86,63.5 81,68 75,68 Z" />
 
-    <!-- Cloud Motif Silhouette -->
+    <!-- Negative Cutout Play Affordance -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:fillAlpha="0.22"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.2"
-        android:strokeLineJoin="round"
-        android:pathData="M 42,68 c -4,0 -7,-3 -7,-7 0,-3.6 2.6,-6.4 6,-6.8 1.2,-5 5.6,-8.2 11,-8.2 4.6,0 8.6,2.6 10.2,6.4 3.6,0.4 6.8,3.4 6.8,7.6 0,4.4 -3.6,8 -8,8 H 42 z" />
-
-    <!-- Cloud Streaming Wave Lines -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:pathData="M 43,59 c 2.2,-2.2 5,-2.2 7.2,0 s 5,2.2 7.2,0" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:pathData="M 45,63.5 c 1.8,-1.8 4,-1.8 5.8,0 s 4,1.8 5.8,0" />
+        android:fillColor="#FF000000"
+        android:pathData="M50,45.2 C50,43.6 51.8,42.6 53.1,43.4 L66.2,51.4 C67.5,52.2 67.5,54.2 66.2,55.0 L53.1,63.0 C51.8,63.8 50,62.8 50,61.2 Z" />
 </vector>
