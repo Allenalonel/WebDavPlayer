@@ -1288,7 +1288,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             appSession.playDirectoryTrack(
                 directory,
                 file1,
-                mapOf(file1.path to meta1!!, file2.path to meta2!!),
+                mapOf(file1.path to meta1, file2.path to meta2!!),
             )
             advanceUntilIdle()
 
