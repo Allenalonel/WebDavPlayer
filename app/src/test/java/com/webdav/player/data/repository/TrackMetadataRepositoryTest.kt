@@ -11,8 +11,11 @@ import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -352,6 +355,159 @@ class TrackMetadataRepositoryTest {
                 "Must re-resolve and restore thumbnail when cache file was cleared from disk",
                 fakeStorage.savedThumbnails.containsKey("1:/music/cached_song.mp3"),
             )
+        }
+
+    @Test
+    fun resolveMetadata_folderArtwork_validOnDisk_skipsReResolutionPreservingBandwidth() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Folder Art Song", artist = "Artist", album = "Album", artworkBytes = null)
+            fakeClient.stubFileBytes("/music/folder_art/song.mp3", sampleMp3)
+            val folderCover = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/folder_art/cover.jpg", folderCover)
+
+            val file = RemoteFile(name = "song.mp3", path = "/music/folder_art/song.mp3", size = 5000L)
+
+            // First resolve: parses song and discovers folder cover
+            repository.resolveMetadata(testServer, listOf(file))
+            val cached = repository.getCachedMetadata(1L, "/music/folder_art/song.mp3")
+            assertNotNull(cached)
+            assertNotNull(cached?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(cached?.coverThumbnailPath))
+            val fetchCountAfterFirstResolve = fakeClient.fetchCount.get()
+
+            // Second resolve (non-force-refresh): physical file exists on disk, so it MUST be skipped
+            repository.resolveMetadata(testServer, listOf(file), forceRefresh = false)
+            assertEquals(
+                "Track with physically existing folder artwork must skip re-resolution to preserve bandwidth",
+                fetchCountAfterFirstResolve,
+                fakeClient.fetchCount.get(),
+            )
+        }
+
+    @Test
+    fun resolveMetadata_folderArtwork_missingFromDisk_triggersSelfHealing() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Folder Art Song", artist = "Artist", album = "Album", artworkBytes = null)
+            fakeClient.stubFileBytes("/music/self_heal/song.mp3", sampleMp3)
+            val folderCover = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/self_heal/cover.jpg", folderCover)
+
+            val file = RemoteFile(name = "song.mp3", path = "/music/self_heal/song.mp3", size = 5000L)
+
+            // First resolve
+            repository.resolveMetadata(testServer, listOf(file))
+            val cached = repository.getCachedMetadata(1L, "/music/self_heal/song.mp3")
+            assertNotNull(cached?.coverThumbnailPath)
+            val initialFetches = fakeClient.fetchCount.get()
+
+            // Simulate disk eviction (cache directory cleared by user/system)
+            fakeStorage.diskFiles.clear()
+            assertFalse(fakeStorage.isValidThumbnailFile(cached?.coverThumbnailPath))
+
+            // Second resolve: detects missing physical file and triggers self-healing
+            repository.resolveMetadata(testServer, listOf(file), forceRefresh = false)
+            assertTrue("Fetch count must increase due to self-healing re-resolution", fakeClient.fetchCount.get() > initialFetches)
+
+            val healed = repository.getCachedMetadata(1L, "/music/self_heal/song.mp3")
+            assertNotNull(healed?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healed?.coverThumbnailPath))
+        }
+
+    @Test
+    fun resolveSingleTrackMetadata_missingPhysicalThumbnail_reResolvesAndRestoresCover() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "Single Song", artist = "Artist", album = "Album", artworkBytes = null)
+            fakeClient.stubFileBytes("/music/single/song.mp3", sampleMp3)
+            val folderCover = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/single/cover.jpg", folderCover)
+
+            val file = RemoteFile(name = "song.mp3", path = "/music/single/song.mp3", size = 5000L)
+
+            // Initial resolution
+            val initial = repository.resolveSingleTrackMetadata(testServer, file)
+            assertNotNull(initial.coverThumbnailPath)
+            val initialFetches = fakeClient.fetchCount.get()
+
+            // When thumbnail is valid on disk, resolveSingleTrackMetadata returns cached directly
+            val cachedResult = repository.resolveSingleTrackMetadata(testServer, file)
+            assertEquals(initialFetches, fakeClient.fetchCount.get())
+            assertEquals(initial.coverThumbnailPath, cachedResult.coverThumbnailPath)
+
+            // Simulate disk eviction
+            fakeStorage.diskFiles.clear()
+            assertFalse(fakeStorage.isValidThumbnailFile(cachedResult.coverThumbnailPath))
+
+            // Next call must detect missing physical file and re-resolve to restore
+            val healedResult = repository.resolveSingleTrackMetadata(testServer, file)
+            assertTrue("Fetch count must increase for single track re-resolution", fakeClient.fetchCount.get() > initialFetches)
+            assertNotNull(healedResult.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(healedResult.coverThumbnailPath))
+        }
+
+    @Test
+    fun resolveMetadata_forceRefresh_clearsResolverCacheAndDiscoversNewlyAddedFolderCover() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes(title = "No Cover Song", artist = "Artist", album = "Album", artworkBytes = null)
+            fakeClient.stubFileBytes("/music/refresh_test/track.mp3", sampleMp3)
+            // Initially no cover.jpg on server
+
+            val file = RemoteFile(name = "track.mp3", path = "/music/refresh_test/track.mp3", size = 5000L)
+
+            // Initial resolution: discovers no artwork, resolver records negative cache sentinel
+            repository.resolveMetadata(testServer, listOf(file))
+            val initialCached = repository.getCachedMetadata(1L, "/music/refresh_test/track.mp3")
+            assertNotNull(initialCached)
+            assertNull("Initial metadata has no cover art", initialCached?.coverThumbnailPath)
+
+            // User uploads cover.jpg to server
+            val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/refresh_test/cover.jpg", coverJpg)
+
+            // User triggers force-refresh (pull to refresh)
+            repository.resolveMetadata(testServer, listOf(file), forceRefresh = true)
+
+            val refreshedCached = repository.getCachedMetadata(1L, "/music/refresh_test/track.mp3")
+            assertNotNull("Refreshed metadata must exist", refreshedCached)
+            assertNotNull("forceRefresh must clear negative cache and discover new cover.jpg", refreshedCached?.coverThumbnailPath)
+            assertTrue(fakeStorage.isValidThumbnailFile(refreshedCached?.coverThumbnailPath))
+        }
+
+    @Test
+    fun resolveMetadata_whenCancelledMidway_safelyFlushesBufferedBatchWritesWithoutDiscarding() =
+        runTest {
+            val sample1 = buildSampleId3v2Bytes(title = "Song 1", artist = "Artist 1", album = "Album 1")
+            val sample2 = buildSampleId3v2Bytes(title = "Song 2", artist = "Artist 2", album = "Album 2")
+            fakeClient.stubFileBytes("/music/batch/song1.mp3", sample1)
+            fakeClient.stubFileBytes("/music/batch/song2.mp3", sample2)
+
+            val file1 = RemoteFile(name = "song1.mp3", path = "/music/batch/song1.mp3", size = 5000L)
+            val file2 = RemoteFile(name = "song2.mp3", path = "/music/batch/song2.mp3", size = 5000L)
+
+            val song2Entered = CompletableDeferred<Unit>()
+            val song2Blocker = CompletableDeferred<Unit>()
+
+            fakeClient.onFetchRange = { path ->
+                if (path == "/music/batch/song2.mp3") {
+                    song2Entered.complete(Unit)
+                    song2Blocker.await()
+                }
+            }
+
+            // Launch resolution in a coroutine that we will cancel midway
+            val resolveJob = launch {
+                repository.resolveMetadata(testServer, listOf(file1, file2))
+            }
+
+            // Wait until song2 starts fetching and suspends
+            song2Entered.await()
+
+            // Cancel the resolution job while song1 is in buffer (buffer size 1 < batchThreshold 6)
+            resolveJob.cancelAndJoin()
+
+            // Verify that song1 was NOT discarded, but was safely flushed to Room DAO
+            val cachedSong1 = dao.getMetadata(testServer.id, "/music/batch/song1.mp3")
+            assertNotNull("Buffered partial batch writes must not be discarded upon job cancellation", cachedSong1)
+            assertEquals("Song 1", cachedSong1?.title)
         }
 
     @Test
@@ -974,6 +1130,7 @@ class TrackMetadataRepositoryTest {
         val partialChunkPaths = mutableMapOf<String, Int>()
         val fetchCount = AtomicInteger(0)
         val requestedRanges = mutableListOf<Triple<String, Long, Long>>()
+        var onFetchRange: (suspend (String) -> Unit)? = null
 
         fun stubFileBytes(
             path: String,
@@ -995,6 +1152,7 @@ class TrackMetadataRepositoryTest {
             startByte: Long,
             endByte: Long,
         ): ByteArray? {
+            onFetchRange?.invoke(remotePath)
             fetchCount.incrementAndGet()
             requestedRanges.add(Triple(remotePath, startByte, endByte))
             if (throwOnPaths.contains(remotePath)) {
@@ -1018,7 +1176,10 @@ class TrackMetadataRepositoryTest {
 
     private class FakeCoverArtStorage : CoverArtStorage {
         val savedThumbnails = mutableMapOf<String, ByteArray>()
+        val diskFiles = mutableSetOf<String>()
+        val pathToKey = mutableMapOf<String, String>()
         var failSaving = false
+        var customPathGenerator: ((Long, String) -> String)? = null
 
         override suspend fun saveThumbnail(
             serverId: Long,
@@ -1026,29 +1187,46 @@ class TrackMetadataRepositoryTest {
             artworkBytes: ByteArray,
         ): String? {
             if (failSaving) return null
-            savedThumbnails["$serverId:$remotePath"] = artworkBytes
-            return "/fake/covers/cover_$serverId.jpg"
+            val key = "$serverId:$remotePath"
+            savedThumbnails[key] = artworkBytes
+            val path = customPathGenerator?.invoke(serverId, remotePath) ?: "/fake/covers/cover_$serverId.jpg"
+            pathToKey[path] = key
+            diskFiles.add(path)
+            return path
+        }
+
+        override fun isValidThumbnailFile(filePath: String?): Boolean {
+            if (filePath.isNullOrBlank()) return false
+            if (!diskFiles.contains(filePath)) return false
+            val key = pathToKey[filePath]
+            return key == null || savedThumbnails.containsKey(key)
         }
 
         override fun getThumbnailFile(
             serverId: Long,
             remotePath: String,
-        ): File? =
-            if (savedThumbnails.containsKey("$serverId:$remotePath")) {
-                File("/fake/covers/cover_$serverId.jpg")
-            } else {
-                null
-            }
+        ): File? {
+            val key = "$serverId:$remotePath"
+            if (!savedThumbnails.containsKey(key)) return null
+            val path = customPathGenerator?.invoke(serverId, remotePath) ?: "/fake/covers/cover_$serverId.jpg"
+            return if (isValidThumbnailFile(path)) File(path) else null
+        }
 
         override fun deleteThumbnail(
             serverId: Long,
             remotePath: String,
         ) {
-            savedThumbnails.remove("$serverId:$remotePath")
+            val key = "$serverId:$remotePath"
+            savedThumbnails.remove(key)
+            val path = customPathGenerator?.invoke(serverId, remotePath) ?: "/fake/covers/cover_$serverId.jpg"
+            diskFiles.remove(path)
+            pathToKey.remove(path)
         }
 
         override suspend fun deleteServerCovers(serverId: Long) {
             savedThumbnails.clear()
+            diskFiles.clear()
+            pathToKey.clear()
         }
     }
 }

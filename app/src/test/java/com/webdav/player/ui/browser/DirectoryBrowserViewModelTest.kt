@@ -15,6 +15,7 @@ import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -233,6 +234,136 @@ class DirectoryBrowserViewModelTest {
 
             assertEquals(1, fakeDirectoryRepository.forceRefreshCount["/"])
             val state = viewModel.uiState.value
+            assertFalse(state.isRefreshing)
+        }
+
+    @Test
+    fun onRefresh_keepsIsRefreshingActive_untilBothDirectoryAndMetadataResolutionComplete() =
+        runTest {
+            advanceUntilIdle()
+
+            val metadataBlocker = CompletableDeferred<Unit>()
+            var resolveInvoked = false
+            fakeTrackMetadataRepository.onResolveListener = {
+                resolveInvoked = true
+                metadataBlocker.await()
+            }
+
+            viewModel.onRefresh()
+            testDispatcher.scheduler.runCurrent()
+
+            // Directory listing has succeeded and is populated in currentDirectory
+            assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
+            assertTrue("resolveMetadata should have been invoked", resolveInvoked)
+            // But isRefreshing must still be true because metadata resolution is in-flight!
+            assertTrue("isRefreshing must stay active while metadata extraction is in-flight", viewModel.uiState.value.isRefreshing)
+
+            // Complete metadata extraction
+            metadataBlocker.complete(Unit)
+            advanceUntilIdle()
+
+            // After metadata extraction completes, isRefreshing finally becomes false
+            assertFalse("isRefreshing must become false after metadata extraction completes", viewModel.uiState.value.isRefreshing)
+            assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
+        }
+
+    @Test
+    fun onRefresh_successiveRapidGestures_sequenceSafelyWithoutCancellingInFlightMetadata() =
+        runTest {
+            advanceUntilIdle()
+
+            val firstResolveEntered = CompletableDeferred<Unit>()
+            val firstResolveBlocker = CompletableDeferred<Unit>()
+            val secondResolveBlocker = CompletableDeferred<Unit>()
+            val resolveInvocations = mutableListOf<String>()
+
+            fakeTrackMetadataRepository.onResolveListener = { _ ->
+                if (resolveInvocations.isEmpty()) {
+                    resolveInvocations.add("first")
+                    firstResolveEntered.complete(Unit)
+                    firstResolveBlocker.await()
+                } else {
+                    resolveInvocations.add("second")
+                    secondResolveBlocker.await()
+                }
+            }
+
+            // 1. First refresh gesture
+            viewModel.onRefresh()
+            firstResolveEntered.await()
+            assertTrue("isRefreshing should be active during first refresh", viewModel.uiState.value.isRefreshing)
+
+            // 2. Second rapid refresh gesture while first is still resolving metadata
+            viewModel.onRefresh()
+            testDispatcher.scheduler.runCurrent()
+
+            // Verify first refresh was NOT cancelled
+            assertTrue("First resolve must still be running without cancellation", firstResolveBlocker.isActive)
+            assertTrue("isRefreshing must stay active throughout", viewModel.uiState.value.isRefreshing)
+            assertEquals(listOf("first"), resolveInvocations)
+
+            // 3. Let first refresh complete
+            firstResolveBlocker.complete(Unit)
+            testDispatcher.scheduler.runCurrent()
+
+            // Verify second refresh now runs in sequence
+            assertEquals(listOf("first", "second"), resolveInvocations)
+            assertTrue("isRefreshing must stay active for second refresh", viewModel.uiState.value.isRefreshing)
+
+            // 4. Let second refresh complete
+            secondResolveBlocker.complete(Unit)
+            advanceUntilIdle()
+
+            assertFalse("isRefreshing must turn false after all sequenced refreshes complete", viewModel.uiState.value.isRefreshing)
+            assertEquals(2, fakeDirectoryRepository.forceRefreshCount["/"])
+        }
+
+    @Test
+    fun onRefresh_transientNetworkError_preservesPreviouslyRenderedDirectoryWithoutFlickering() =
+        runTest {
+            advanceUntilIdle()
+
+            // Verify initial directory is rendered
+            assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
+            assertNull(viewModel.uiState.value.errorMessage)
+
+            // Simulate transient network failure for next refresh
+            fakeDirectoryRepository.setResult("/", ListDirectoryResult.Failure("Network timeout 504", 504))
+
+            viewModel.onRefresh()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            // Cached/previously rendered directory must NOT be wiped!
+            assertEquals(rootDir, state.currentDirectory)
+            // Error message must NOT be set to prevent full screen error flicker!
+            assertNull("Transient refresh error must not set errorMessage over rendered directory", state.errorMessage)
+            assertFalse("isRefreshing must be dismissed", state.isRefreshing)
+            assertFalse("isLoading must be false", state.isLoading)
+        }
+
+    @Test
+    fun loadDirectory_backgroundRevalidationTransientFailure_preservesPreviouslyRenderedDirectory() =
+        runTest {
+            advanceUntilIdle()
+
+            val cachedDir =
+                RemoteDirectory(
+                    path = "/CachedMusic/",
+                    name = "CachedMusic",
+                    files = listOf(RemoteFile(name = "song.mp3", path = "/CachedMusic/song.mp3")),
+                )
+            fakeDirectoryRepository.setCached("/CachedMusic/", cachedDir)
+            // Initial network fails with transient timeout
+            fakeDirectoryRepository.setResult("/CachedMusic/", ListDirectoryResult.Failure("Timeout", 504))
+
+            viewModel.onDirectoryClicked(RemoteDirectory(path = "/CachedMusic/", name = "CachedMusic"))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(cachedDir, state.currentDirectory)
+            assertNull("Transient background failure must not show error message", state.errorMessage)
+            assertFalse(state.isLoading)
             assertFalse(state.isRefreshing)
         }
 
@@ -1020,6 +1151,7 @@ class DirectoryBrowserViewModelTest {
     private class FakeTrackMetadataRepository : TrackMetadataRepository {
         val metadataFlow = MutableStateFlow<List<TrackMetadata>>(emptyList())
         val resolveCalls = mutableListOf<List<RemoteFile>>()
+        var onResolveListener: (suspend (List<RemoteFile>) -> Unit)? = null
 
         fun emitMetadata(list: List<TrackMetadata>) {
             metadataFlow.value = list
@@ -1048,6 +1180,7 @@ class DirectoryBrowserViewModelTest {
             forceRefresh: Boolean,
         ) {
             resolveCalls.add(files)
+            onResolveListener?.invoke(files)
         }
 
         override suspend fun resolveSingleTrackMetadata(

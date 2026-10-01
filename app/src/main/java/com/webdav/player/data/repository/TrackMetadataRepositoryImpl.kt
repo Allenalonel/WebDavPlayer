@@ -12,6 +12,7 @@ import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -86,13 +87,14 @@ class TrackMetadataRepositoryImpl(
 
         val toResolve =
             if (forceRefresh) {
+                trackMetadataResolver.clearCache()
                 audioFiles
             } else {
                 audioFiles.filter { file ->
                     val cached = cachedEntityMap[file.path]
                     if (cached == null) {
                         true
-                    } else if (cached.coverThumbnailPath != null && coverArtStorage.getThumbnailFile(server.id, file.path) == null) {
+                    } else if (cached.coverThumbnailPath != null && !coverArtStorage.isValidThumbnailFile(cached.coverThumbnailPath)) {
                         // Disk cache was deleted (e.g. user cleared app cache): must re-resolve to restore thumbnail!
                         true
                     } else {
@@ -105,43 +107,47 @@ class TrackMetadataRepositoryImpl(
         val buffer = java.util.Collections.synchronizedList(mutableListOf<TrackMetadataEntity>())
         val batchThreshold = 6
 
-        coroutineScope {
-            toResolve.forEach { file ->
-                launch {
-                    val metadata =
-                        semaphore.withPermit {
-                            trackMetadataResolver.resolve(server, file)
-                        } ?: return@launch
+        try {
+            coroutineScope {
+                toResolve.forEach { file ->
+                    launch {
+                        val metadata =
+                            semaphore.withPermit {
+                                trackMetadataResolver.resolve(server, file)
+                            } ?: return@launch
 
-                    val entity = TrackMetadataEntity.fromDomain(metadata)
-                    val batchToWrite: List<TrackMetadataEntity>? =
-                        synchronized(buffer) {
-                            buffer.add(entity)
-                            if (buffer.size >= batchThreshold) {
-                                val copy = ArrayList(buffer)
-                                buffer.clear()
-                                copy
-                            } else {
-                                null
+                        val entity = TrackMetadataEntity.fromDomain(metadata)
+                        val batchToWrite: List<TrackMetadataEntity>? =
+                            synchronized(buffer) {
+                                buffer.add(entity)
+                                if (buffer.size >= batchThreshold) {
+                                    val copy = ArrayList(buffer)
+                                    buffer.clear()
+                                    copy
+                                } else {
+                                    null
+                                }
                             }
-                        }
 
-                    if (!batchToWrite.isNullOrEmpty()) {
-                        trackMetadataDao.insertOrUpdateAll(batchToWrite)
+                        if (!batchToWrite.isNullOrEmpty()) {
+                            trackMetadataDao.insertOrUpdateAll(batchToWrite)
+                        }
                     }
                 }
             }
-        }
-
-        // Flush remaining entries in buffer
-        val remaining =
-            synchronized(buffer) {
-                val copy = ArrayList(buffer)
-                buffer.clear()
-                copy
+        } finally {
+            // Flush remaining entries in buffer even if coroutine was cancelled
+            withContext(NonCancellable) {
+                val remaining =
+                    synchronized(buffer) {
+                        val copy = ArrayList(buffer)
+                        buffer.clear()
+                        copy
+                    }
+                if (remaining.isNotEmpty()) {
+                    trackMetadataDao.insertOrUpdateAll(remaining)
+                }
             }
-        if (remaining.isNotEmpty()) {
-            trackMetadataDao.insertOrUpdateAll(remaining)
         }
     }
 
@@ -152,7 +158,7 @@ class TrackMetadataRepositoryImpl(
         withContext(ioDispatcher) {
             val cached = getCachedMetadata(server.id, file.path)
             if (cached != null) {
-                if (cached.coverThumbnailPath == null || coverArtStorage.getThumbnailFile(server.id, file.path) != null) {
+                if (cached.coverThumbnailPath == null || coverArtStorage.isValidThumbnailFile(cached.coverThumbnailPath)) {
                     return@withContext cached
                 }
             }
