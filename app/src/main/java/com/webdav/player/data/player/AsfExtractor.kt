@@ -16,6 +16,7 @@ import androidx.media3.extractor.SeekPoint
 import androidx.media3.extractor.TrackOutput
 import com.webdav.player.data.metadata.ByteSliceReader
 import com.webdav.player.domain.model.AudioFormat
+import java.io.EOFException
 
 @OptIn(UnstableApi::class)
 class AsfExtractor : Extractor {
@@ -202,10 +203,23 @@ class AsfExtractor : Extractor {
         val ret = nativeReadFrame(nativeHandle, input, frameByteArray, metaArray)
         if (ret == 0) {
             val frameSize = metaArray[0].toInt()
-            val framePtsUs = metaArray[1]
+            val rawPtsUs = metaArray[1]
             val isKey = metaArray[2] != 0L
             val flags = if (isKey) C.BUFFER_FLAG_KEY_FRAME else 0
 
+            // Defense-in-depth: normalize any 32-bit unsigned timestamp underflow (> 24 hours)
+            // 0x100000000L ms = 4294967296000L us (approx 1193 hours).
+            val framePtsUs = when {
+                rawPtsUs > 86_400_000_000L -> {
+                    val wrapUs = 0x100000000L * 1000L
+                    val normalized = rawPtsUs % wrapUs
+                    if (durationUs > 0 && normalized > durationUs) 0L else normalized
+                }
+                rawPtsUs < 0L -> 0L
+                else -> rawPtsUs
+            }
+
+            currentTimeUs = framePtsUs
             parsableByteArray.reset(frameByteArray, frameSize)
             parsableByteArray.position = 0
             track.sampleData(parsableByteArray, frameSize)

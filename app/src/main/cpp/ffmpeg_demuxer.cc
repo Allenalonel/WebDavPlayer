@@ -167,6 +167,7 @@ struct NativeDemuxerContext {
     jmethodID mid_read = nullptr;
     jmethodID mid_get_position = nullptr;
     jmethodID mid_get_length = nullptr;
+    jmethodID mid_skip_fully = nullptr;
     jbyteArray java_io_buffer = nullptr;
 
     int audio_stream_index = -1;
@@ -235,13 +236,52 @@ static int64_t seek_callback(void *opaque, int64_t offset, int whence) {
         return length > 0 ? (int64_t)length : -1;
     }
 
-    if (whence == SEEK_CUR && offset == 0) {
-        jlong pos = env->CallLongMethod(ctx->current_input, ctx->mid_get_position);
+    if (whence == SEEK_CUR) {
+        if (offset == 0) {
+            jlong pos = env->CallLongMethod(ctx->current_input, ctx->mid_get_position);
+            if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+                return -1;
+            }
+            return (int64_t)pos;
+        } else if (offset > 0 && ctx->mid_skip_fully) {
+            // Support forward skipping (e.g. packet padding or metadata)
+            env->CallVoidMethod(ctx->current_input, ctx->mid_skip_fully, (jint)offset);
+            if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+                return -1;
+            }
+            jlong new_pos = env->CallLongMethod(ctx->current_input, ctx->mid_get_position);
+            if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+                return -1;
+            }
+            return (int64_t)new_pos;
+        }
+    }
+
+    if (whence == SEEK_SET && ctx->mid_skip_fully) {
+        jlong current_pos = env->CallLongMethod(ctx->current_input, ctx->mid_get_position);
         if (env->ExceptionCheck()) {
             env->ExceptionClear();
             return -1;
         }
-        return (int64_t)pos;
+        if (offset >= current_pos) {
+            jlong delta = offset - current_pos;
+            if (delta > 0) {
+                env->CallVoidMethod(ctx->current_input, ctx->mid_skip_fully, (jint)delta);
+                if (env->ExceptionCheck()) {
+                    env->ExceptionClear();
+                    return -1;
+                }
+            }
+            jlong new_pos = env->CallLongMethod(ctx->current_input, ctx->mid_get_position);
+            if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+                return -1;
+            }
+            return (int64_t)new_pos;
+        }
     }
 
     return -1;
@@ -264,6 +304,7 @@ Java_com_webdav_player_data_player_AsfExtractor_nativeOpen(
     ctx->mid_read = env->GetMethodID(input_clazz, "read", "([BII)I");
     ctx->mid_get_position = env->GetMethodID(input_clazz, "getPosition", "()J");
     ctx->mid_get_length = env->GetMethodID(input_clazz, "getLength", "()J");
+    ctx->mid_skip_fully = env->GetMethodID(input_clazz, "skipFully", "(I)V");
 
     if (!ctx->mid_read || !ctx->mid_get_position || !ctx->mid_get_length) {
         LOGE("Failed to find ExtractorInput methods.");
@@ -294,7 +335,7 @@ Java_com_webdav_player_data_player_AsfExtractor_nativeOpen(
         ctx,
         read_packet_callback,
         nullptr,
-        seek_callback
+        nullptr
     );
     if (!ctx->avio_ctx) {
         LOGE("Failed to allocate AVIOContext.");
@@ -486,11 +527,28 @@ Java_com_webdav_player_data_player_AsfExtractor_nativeReadFrame(
 
             env->SetByteArrayRegion(output_array, 0, pkt.size, reinterpret_cast<jbyte *>(pkt.data));
 
-            int64_t pts_us = 0;
+            int64_t raw_pts = AV_NOPTS_VALUE;
             if (pkt.pts != AV_NOPTS_VALUE) {
-                pts_us = av_rescale_q(pkt.pts, ctx->time_base, AV_TIME_BASE_Q);
+                raw_pts = pkt.pts;
             } else if (pkt.dts != AV_NOPTS_VALUE) {
-                pts_us = av_rescale_q(pkt.dts, ctx->time_base, AV_TIME_BASE_Q);
+                raw_pts = pkt.dts;
+            }
+
+            // Normalization for ASF 32-bit unsigned timestamp underflow:
+            // In ASF files, preroll subtraction (send_time - preroll) on unsigned 32-bit values
+            // causes underflow when send_time < preroll (e.g. 0 - 3100ms -> 4294964196ms ≈ 1193 hours).
+            // Any timestamp > 0x80000000LL (24.8 days in milliseconds) is an underflowed negative timestamp.
+            if (raw_pts != AV_NOPTS_VALUE && raw_pts > 0x80000000LL) {
+                int32_t signed_pts = static_cast<int32_t>(raw_pts);
+                raw_pts = signed_pts < 0 ? 0 : signed_pts;
+            }
+
+            int64_t pts_us = 0;
+            if (raw_pts != AV_NOPTS_VALUE && raw_pts >= 0 && ctx->time_base.den > 0) {
+                pts_us = av_rescale_q(raw_pts, ctx->time_base, AV_TIME_BASE_Q);
+            }
+            if (pts_us < 0) {
+                pts_us = 0;
             }
 
             jlong meta[3];

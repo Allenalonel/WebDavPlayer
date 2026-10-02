@@ -31,6 +31,7 @@
 
 ### 🚀 1. 纯流式零磁盘占用回放（Pure Online Streaming）
 - **按需分块流式缓冲**：基于 HTTP/HTTPS Range 分块按需拉取音频数据，毫秒级起播。
+- **流式解包与精准定位**：采用面向网络流的单向消费管道，结合动态 Range 重寻址与 Native 状态机对齐，实现长音频与大文件的平滑拖拽即时发声。
 - **零持久化磁盘开销**：回放数据仅在内存及有限临时缓冲区流动，播放结束即刻释放，绝不永久占用宝贵手机存储。
 - **智能音频焦点协商（Audio Focus）**：无缝响应通话打断、系统通知压低（Ducking）与蓝牙断开自动暂停。
 
@@ -39,7 +40,7 @@
 - **全格式兼容**：
   - **主流格式**：MP3, AAC, OGG, OPUS, WAV。
   - **高保真无损格式**：FLAC (高达 24-bit / 192kHz)。
-  - **传统发烧友特有格式**：原生系统无法解码的 **WMA / ASF**（配备专用原生 Demuxer 与解码器）、**APE (Monkey's Audio)**。
+  - **传统发烧友特有格式**：原生系统无法解码的 **WMA / ASF**（配备自研高性能流式 Demuxer 与时间戳对齐软解）、**APE (Monkey's Audio)**。
 - **视觉音质胶囊徽标**：曲目列表与大播放器实时呈现专属格式与音频规格徽标（如 Hi-Res、FLAC、WMA、WAV）。
 
 ### ⚡ 3. 毫秒级两阶段增量元数据提取（On-demand Range Extraction）
@@ -257,6 +258,7 @@ app/src/main/
 - [ADR 0009: 双源封面回退探测与工业级 LRC 词级清洗双语归并](docs/adr/0009-dual-source-artwork-and-bilingual-lrc-normalization.md)
 - [ADR 0010: 首帧零延迟前台服务提升与动态凭据化媒体源](docs/adr/0010-synchronous-service-elevation-and-dynamic-authenticated-mediasource.md)
 - [ADR 0011: 加深 TrackMetadataRepository 并内化封面存活性与自愈机制](docs/adr/0011-deepen-track-metadata-repository-and-internalize-resolver.md)
+- [ADR 0012: 主流流式单向驱动模式与 ASF 时间戳下溢归一化防护](docs/adr/0012-stream-only-demuxing-and-timestamp-underflow-protection.md)
 
 ---
 

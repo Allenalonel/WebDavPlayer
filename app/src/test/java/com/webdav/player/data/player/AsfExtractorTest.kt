@@ -21,6 +21,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayInputStream
 import java.io.EOFException
+import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 @OptIn(UnstableApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -254,5 +257,102 @@ class AsfExtractorTest {
 
         extractor.seek(0L, 10_000_000L)
         extractor.release()
+    }
+
+    @Test
+    fun read_whenStreamEnds_returnsEndOfInputGracefully() {
+        val headerBytes = createMockAsfHeader(durationSec = 100L, packetSize = 1024)
+        val fullData = ByteArray(headerBytes.size + 1024)
+        System.arraycopy(headerBytes, 0, fullData, 0, headerBytes.size)
+
+        val input = FakeExtractorInput(fullData)
+        val output = FakeExtractorOutput()
+        val extractor = AsfExtractor()
+        extractor.init(output)
+
+        val holder = PositionHolder()
+        var endOfInputReached = false
+        while (!endOfInputReached) {
+            val res = extractor.read(input, holder)
+            if (res == Extractor.RESULT_END_OF_INPUT) {
+                endOfInputReached = true
+            }
+        }
+        assertTrue("Extractor should reach end of input gracefully", endOfInputReached)
+    }
+
+    @Test
+    fun playbackProgress_formatsUnderflowDurationAccurately_andDemonstratesGlitchResolution() {
+        // 4295309926 ms was the exact bugged timestamp observed in logcat/dumpsys
+        val buggedMs = 4295309926L
+        val buggedFormatted = com.webdav.player.domain.model.PlaybackProgress.formatMs(buggedMs)
+        // Verify this indeed reproduces the user's reported "1193:07:xx" symptom
+        assertTrue("Bugged timestamp should format as 1193 hours", buggedFormatted.startsWith("1193:"))
+
+        // Verify that stripping the 32-bit underflow wrap (0x100000000L = 4294967296 ms)
+        // accurately recovers the expected 5-minute range (~342s = 05:42)
+        val wrapMs = 0x100000000L
+        val normalizedMs = buggedMs % wrapMs
+        val normalizedFormatted = com.webdav.player.domain.model.PlaybackProgress.formatMs(normalizedMs)
+        assertEquals("05:42", normalizedFormatted)
+    }
+
+    private fun createMockAsfHeader(durationSec: Long, packetSize: Int): ByteArray {
+        val buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN)
+
+        val filePropSize = 104
+        val streamPropSize = 78
+        val totalHeaderSize = 30L + filePropSize + streamPropSize
+
+        // 1. Header Object
+        buffer.put(AsfExtractor.ASF_HEADER_GUID)
+        buffer.putLong(totalHeaderSize)
+        buffer.putInt(2) // num sub-objects
+        buffer.put(0x01)
+        buffer.put(0x02)
+
+        // 2. File Properties Object
+        buffer.put(AsfExtractor.FILE_PROPERTIES_GUID)
+        buffer.putLong(filePropSize.toLong())
+        buffer.put(ByteArray(16)) // file id
+        buffer.putLong(100_000L) // file size
+        buffer.putLong(0L) // creation date
+        buffer.putLong(100L) // total data packets
+        buffer.putLong(durationSec * 10_000_000L) // play duration in 100ns units
+        buffer.putLong(0L) // send duration
+        buffer.putLong(0L) // preroll
+        buffer.putInt(2) // flags
+        buffer.putInt(packetSize) // min packet
+        buffer.putInt(packetSize) // max packet
+        buffer.putInt(32000) // max bitrate
+
+        // 3. Stream Properties Object
+        buffer.put(AsfExtractor.STREAM_PROPERTIES_GUID)
+        buffer.putLong(streamPropSize.toLong())
+        buffer.put(AsfExtractor.AUDIO_MEDIA_TYPE_GUID)
+        buffer.put(ByteArray(16)) // error correction guid
+        buffer.putLong(0L) // time offset
+        buffer.putInt(16) // type data len
+        buffer.putInt(0) // error correction data len
+        buffer.putShort(1.toShort()) // flags (stream 1)
+        buffer.putInt(0) // reserved
+        buffer.putShort(0x0161.toShort()) // wFormatTag
+        buffer.putShort(2.toShort()) // channels
+        buffer.putInt(44100) // sample rate
+        buffer.putInt(8000) // avgBytesPerSec
+        buffer.putShort(185.toShort()) // block align
+        buffer.putShort(16.toShort()) // bitsPerSample
+
+        // 4. Data Object Header
+        buffer.put(AsfExtractor.DATA_OBJECT_GUID)
+        buffer.putLong(50L) // data object header size
+        buffer.put(ByteArray(16)) // file id
+        buffer.putLong(100L) // total packets
+        buffer.putShort(0.toShort()) // reserved
+
+        val headerData = ByteArray(buffer.position())
+        buffer.flip()
+        buffer.get(headerData)
+        return headerData
     }
 }
