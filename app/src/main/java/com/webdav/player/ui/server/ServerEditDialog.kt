@@ -12,11 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +38,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.ui.theme.AppIcons
 
 @Composable
 fun ServerEditDialog(
@@ -51,7 +47,7 @@ fun ServerEditDialog(
     testResult: ConnectionResult?,
     onTestConnection: (WebDavServer) -> Unit,
     onSave: (WebDavServer) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf(serverToEdit?.name ?: "") }
     var url by remember { mutableStateOf(serverToEdit?.url ?: "") }
@@ -73,7 +69,7 @@ fun ServerEditDialog(
             username = username.trim(),
             password = password,
             allowSelfSigned = allowSelfSigned,
-            isDefault = serverToEdit?.isDefault ?: false
+            isDefault = serverToEdit?.isDefault ?: false,
         )
     }
 
@@ -84,22 +80,23 @@ fun ServerEditDialog(
         title = {
             Text(
                 text = if (serverToEdit == null) "添加 WebDAV 服务器" else "编辑 WebDAV 服务器",
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
             )
         },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("显示名称 (如: 群晖NAS / AList)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 OutlinedTextField(
@@ -115,7 +112,7 @@ fun ServerEditDialog(
                     },
                     label = { Text("服务器地址 (如: http://192.168.1.100)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -125,7 +122,7 @@ fun ServerEditDialog(
                         label = { Text("端口") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
 
                     OutlinedTextField(
@@ -133,7 +130,7 @@ fun ServerEditDialog(
                         onValueChange = { pathPrefix = it },
                         label = { Text("路径前缀 (如: /dav)") },
                         singleLine = true,
-                        modifier = Modifier.weight(2f)
+                        modifier = Modifier.weight(2f),
                     )
                 }
 
@@ -142,7 +139,7 @@ fun ServerEditDialog(
                     onValueChange = { username = it },
                     label = { Text("用户名 (可选)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 OutlinedTextField(
@@ -154,42 +151,44 @@ fun ServerEditDialog(
                     trailingIcon = {
                         IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                             Icon(
-                                imageVector = if (isPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = if (isPasswordVisible) "隐藏密码" else "显示密码"
+                                imageVector = if (isPasswordVisible) AppIcons.VisibilityOff else AppIcons.Visibility,
+                                contentDescription = if (isPasswordVisible) "隐藏密码" else "显示密码",
                             )
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("信任自签名 SSL 证书", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                         Text(
                             "适用于内网自签证书或 IP HTTPS 连接 (忽略 SSL 校验)",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Switch(
                         checked = allowSelfSigned,
-                        onCheckedChange = { allowSelfSigned = it }
+                        onCheckedChange = { allowSelfSigned = it },
                     )
                 }
 
                 // Connection Test Feedback Banner
                 if (testingConnection) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.Center,
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -201,46 +200,47 @@ fun ServerEditDialog(
                             Surface(
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 shape = MaterialTheme.shapes.small,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.CheckCircle,
+                                        imageVector = AppIcons.CheckCircle,
                                         contentDescription = "成功",
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = MaterialTheme.colorScheme.primary,
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         "连接成功！WebDAV PROPFIND 响应正常",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     )
                                 }
                             }
                         }
+
                         is ConnectionResult.Failure -> {
                             Surface(
                                 color = MaterialTheme.colorScheme.errorContainer,
                                 shape = MaterialTheme.shapes.small,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.Error,
+                                        imageVector = AppIcons.Error,
                                         contentDescription = "失败",
-                                        tint = MaterialTheme.colorScheme.error
+                                        tint = MaterialTheme.colorScheme.error,
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         "连接失败: ${testResult.message}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
                                     )
                                 }
                             }
@@ -251,7 +251,7 @@ fun ServerEditDialog(
                 OutlinedButton(
                     onClick = { onTestConnection(buildCandidate()) },
                     enabled = isInputValid && !testingConnection,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("测试连接")
                 }
@@ -260,7 +260,7 @@ fun ServerEditDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(buildCandidate()) },
-                enabled = isInputValid
+                enabled = isInputValid,
             ) {
                 Text("保存")
             }
@@ -269,6 +269,6 @@ fun ServerEditDialog(
             TextButton(onClick = onDismiss) {
                 Text("取消")
             }
-        }
+        },
     )
 }

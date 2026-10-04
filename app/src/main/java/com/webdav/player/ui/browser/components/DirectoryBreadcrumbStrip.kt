@@ -7,10 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
@@ -25,13 +21,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.RemoteDirectory
+import com.webdav.player.ui.theme.AppIcons
 
 @Composable
 fun DirectoryBreadcrumbStrip(
     breadcrumbs: List<Breadcrumb>,
     currentPath: String,
     onBreadcrumbClicked: (Breadcrumb) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
 
@@ -40,15 +37,17 @@ fun DirectoryBreadcrumbStrip(
     }
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .horizontalScroll(scrollState)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         breadcrumbs.forEachIndexed { index, breadcrumb ->
-            val isTail = index == breadcrumbs.lastIndex ||
+            val isTail =
+                index == breadcrumbs.lastIndex ||
                     breadcrumb.path == currentPath ||
                     RemoteDirectory.normalizePath(breadcrumb.path) == RemoteDirectory.normalizePath(currentPath)
 
@@ -60,57 +59,59 @@ fun DirectoryBreadcrumbStrip(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = if (isTail) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 leadingIcon = {
                     if (index == 0) {
                         Icon(
-                            imageVector = Icons.Filled.Home,
+                            imageVector = AppIcons.Home,
                             contentDescription = "根目录",
-                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.Filled.Folder,
+                            imageVector = AppIcons.Folder,
                             contentDescription = "目录",
-                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
                         )
                     }
                 },
-                colors = if (isTail) {
-                    AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                } else {
-                    AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        leadingIconContentColor = MaterialTheme.colorScheme.outline
-                    )
-                },
-                border = if (isTail) {
-                    AssistChipDefaults.assistChipBorder(
-                        enabled = true,
-                        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                    )
-                } else {
-                    AssistChipDefaults.assistChipBorder(
-                        enabled = true,
-                        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                    )
-                },
-                shape = MaterialTheme.shapes.small
+                colors =
+                    if (isTail) {
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    } else {
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            leadingIconContentColor = MaterialTheme.colorScheme.outline,
+                        )
+                    },
+                border =
+                    if (isTail) {
+                        AssistChipDefaults.assistChipBorder(
+                            enabled = true,
+                            borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        )
+                    } else {
+                        AssistChipDefaults.assistChipBorder(
+                            enabled = true,
+                            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        )
+                    },
+                shape = MaterialTheme.shapes.small,
             )
 
             if (index < breadcrumbs.lastIndex) {
                 Icon(
-                    imageVector = Icons.Default.ChevronRight,
+                    imageVector = AppIcons.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.outlineVariant
+                    tint = MaterialTheme.colorScheme.outlineVariant,
                 )
             }
         }
@@ -125,12 +126,12 @@ fun BreadcrumbBar(
     breadcrumbs: List<Breadcrumb>,
     currentPath: String,
     onBreadcrumbClicked: (Breadcrumb) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     DirectoryBreadcrumbStrip(
         breadcrumbs = breadcrumbs,
         currentPath = currentPath,
         onBreadcrumbClicked = onBreadcrumbClicked,
-        modifier = modifier
+        modifier = modifier,
     )
 }

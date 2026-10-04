@@ -21,13 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +55,7 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.ui.common.CoverThumbnailImage
+import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -160,7 +154,7 @@ fun AudioTrackItemRow(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Filled.Audiotrack,
+                                        imageVector = AppIcons.Audiotrack,
                                         contentDescription = "音频",
                                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                         modifier = Modifier.size(24.dp),
@@ -196,7 +190,7 @@ fun AudioTrackItemRow(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Filled.Description,
+                                imageVector = AppIcons.Description,
                                 contentDescription = "歌词",
                                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
                                 modifier = Modifier.size(24.dp),
@@ -213,7 +207,7 @@ fun AudioTrackItemRow(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                                imageVector = AppIcons.InsertDriveFile,
                                 contentDescription = "其他文件",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp),
@@ -229,7 +223,14 @@ fun AudioTrackItemRow(
                 modifier = if (isAudio) Modifier.basicMarquee() else Modifier,
                 style = MaterialTheme.typography.titleMedium,
                 color = if (isActive) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                fontWeight = if (isActive) FontWeight.Bold else if (isAudio) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight =
+                    if (isActive) {
+                        FontWeight.Bold
+                    } else if (isAudio) {
+                        FontWeight.SemiBold
+                    } else {
+                        FontWeight.Normal
+                    },
                 maxLines = 1,
                 overflow = if (isAudio) TextOverflow.Clip else TextOverflow.Ellipsis,
             )
@@ -295,7 +296,7 @@ fun AudioTrackItemRow(
                             modifier = Modifier.size(36.dp),
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.MoreVert,
+                                imageVector = AppIcons.MoreVert,
                                 contentDescription = "更多操作",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp),
@@ -310,7 +311,7 @@ fun AudioTrackItemRow(
                                 text = { Text("下一首播放") },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                        imageVector = AppIcons.QueueMusic,
                                         contentDescription = null,
                                         modifier = Modifier.size(20.dp),
                                     )
@@ -324,7 +325,7 @@ fun AudioTrackItemRow(
                                 text = { Text("查看详细信息") },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Filled.Info,
+                                        imageVector = AppIcons.Info,
                                         contentDescription = null,
                                         modifier = Modifier.size(20.dp),
                                     )

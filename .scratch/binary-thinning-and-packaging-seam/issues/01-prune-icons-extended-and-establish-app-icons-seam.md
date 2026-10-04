@@ -5,9 +5,9 @@ Eliminate the root cause of the 40+ MB DEX bytecode bloat by removing `androidx.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Remove `implementation("androidx.compose.material:material-icons-extended")` from `app/build.gradle.kts`.
-- [ ] Create `AppIcons.kt` in `com.webdav.player.ui.theme` exporting the explicit set of ImageVectors required by the application.
-- [ ] Refactor all UI screen imports in `ui/` to reference `AppIcons` or `androidx.compose.material.icons.Icons.Default.*`.
-- [ ] Verify that UI renders cleanly without missing glyphs and that debug compilation succeeds.
+- [x] Remove `implementation("androidx.compose.material:material-icons-extended")` from `app/build.gradle.kts`.
+- [x] Create `AppIcons.kt` in `com.webdav.player.ui.theme` exporting the explicit set of ImageVectors required by the application.
+- [x] Refactor all UI screen imports in `ui/` to reference `AppIcons` or `androidx.compose.material.icons.Icons.Default.*`.
+- [x] Verify that UI renders cleanly without missing glyphs and that debug compilation succeeds.

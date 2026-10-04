@@ -20,11 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -47,6 +42,7 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
+import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
     val CapsuleCornerRadius: Dp = 20.dp
@@ -119,7 +115,7 @@ fun MiniPlayer(
                         modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Audiotrack,
+                            imageVector = AppIcons.Audiotrack,
                             contentDescription = "音轨",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(24.dp),
@@ -166,7 +162,7 @@ fun MiniPlayer(
                             .clip(CircleShape),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.SkipNext,
+                        imageVector = AppIcons.SkipNext,
                         contentDescription = "下一首",
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(22.dp),
@@ -318,7 +314,7 @@ private fun PlayPauseToggleButton(
 
                 is PlaybackState.Playing -> {
                     Icon(
-                        imageVector = Icons.Filled.Pause,
+                        imageVector = AppIcons.Pause,
                         contentDescription = "暂停",
                         modifier = Modifier.size(22.dp),
                     )
@@ -326,7 +322,7 @@ private fun PlayPauseToggleButton(
 
                 else -> {
                     Icon(
-                        imageVector = Icons.Filled.PlayArrow,
+                        imageVector = AppIcons.PlayArrow,
                         contentDescription = "播放",
                         modifier = Modifier.size(22.dp),
                     )

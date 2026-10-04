@@ -18,10 +18,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -54,6 +50,7 @@ import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.server.ServerListScreen
 import com.webdav.player.ui.server.ServerManagementViewModel
 import com.webdav.player.ui.server.ServerManagementViewModelFactory
+import com.webdav.player.ui.theme.AppIcons
 import com.webdav.player.ui.theme.WebDavPlayerTheme
 import kotlinx.coroutines.launch
 
@@ -150,9 +147,9 @@ class MainActivity : ComponentActivity() {
                                             Icon(
                                                 imageVector =
                                                     if (destination == AppDestination.DIRECTORY_BROWSER) {
-                                                        Icons.Filled.FolderOpen
+                                                        AppIcons.FolderOpen
                                                     } else {
-                                                        Icons.Filled.Folder
+                                                        AppIcons.Folder
                                                     },
                                                 contentDescription = "媒体库",
                                             )
@@ -164,7 +161,7 @@ class MainActivity : ComponentActivity() {
                                         onClick = { destination = AppDestination.SERVER_LIST },
                                         icon = {
                                             Icon(
-                                                imageVector = Icons.Filled.Storage,
+                                                imageVector = AppIcons.Storage,
                                                 contentDescription = "服务器",
                                             )
                                         },

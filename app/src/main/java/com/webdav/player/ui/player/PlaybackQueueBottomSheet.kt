@@ -19,14 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +48,7 @@ import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.ui.common.CoverThumbnailImage
+import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,37 +61,39 @@ fun PlaybackQueueBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
-    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        modifier = modifier
+        modifier = modifier,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
         ) {
             // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "播放队列",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "(${queue.size})",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
@@ -109,51 +104,54 @@ fun PlaybackQueueBottomSheet(
                         label = {
                             Text(
                                 text = playbackMode.label,
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium,
                             )
                         },
                         leadingIcon = {
-                            val icon = when (playbackMode) {
-                                PlaybackMode.LIST_LOOP -> Icons.Filled.Repeat
-                                PlaybackMode.SINGLE_LOOP -> Icons.Filled.RepeatOne
-                                PlaybackMode.SHUFFLE -> Icons.Filled.Shuffle
-                            }
+                            val icon =
+                                when (playbackMode) {
+                                    PlaybackMode.LIST_LOOP -> AppIcons.Repeat
+                                    PlaybackMode.SINGLE_LOOP -> AppIcons.RepeatOne
+                                    PlaybackMode.SHUFFLE -> AppIcons.Shuffle
+                                }
                             Icon(
                                 imageVector = icon,
                                 contentDescription = playbackMode.label,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp),
                             )
                         },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        )
+                        colors =
+                            AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            ),
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(onClick = onDismissRequest) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "关闭队列")
+                        Icon(imageVector = AppIcons.Close, contentDescription = "关闭队列")
                     }
                 }
             }
 
             HorizontalDivider(
                 thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
+                color = MaterialTheme.colorScheme.outlineVariant,
             )
 
             // Queue List
             if (queue.isEmpty) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    contentAlignment = Alignment.Center
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = "播放队列为空",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             } else {
@@ -168,14 +166,15 @@ fun PlaybackQueueBottomSheet(
 
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 450.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 450.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
                     itemsIndexed(
                         items = queue.tracks,
-                        key = { index, track -> "track_${track.id}_$index" }
+                        key = { index, track -> "track_${track.id}_$index" },
                     ) { index, track ->
                         val isActive = index == queue.currentIndex
 
@@ -185,7 +184,7 @@ fun PlaybackQueueBottomSheet(
                             isActive = isActive,
                             playbackProgress = if (isActive) playbackProgress else PlaybackProgress.ZERO,
                             onClick = { onTrackClick(index) },
-                            onRemove = { onRemoveTrack(index) }
+                            onRemove = { onRemoveTrack(index) },
                         )
                     }
                 }
@@ -205,16 +204,17 @@ private fun QueueTrackItemRow(
     modifier: Modifier = Modifier,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart || value == SwipeToDismissBoxValue.StartToEnd) {
-                onRemove()
-                true
-            } else {
-                false
-            }
-        }
-    )
+    val dismissState =
+        rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart || value == SwipeToDismissBoxValue.StartToEnd) {
+                    onRemove()
+                    true
+                } else {
+                    false
+                }
+            },
+        )
 
     SwipeToDismissBox(
         state = dismissState,
@@ -222,78 +222,83 @@ private fun QueueTrackItemRow(
         backgroundContent = {
             val color = MaterialTheme.colorScheme.errorContainer
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(color)
+                        .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd,
             ) {
                 Icon(
-                    imageVector = Icons.Filled.DeleteOutline,
+                    imageVector = AppIcons.DeleteOutline,
                     contentDescription = "删除",
-                    tint = MaterialTheme.colorScheme.onErrorContainer
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
-        }
+        },
     ) {
-        val backgroundColor = if (isActive) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-        } else {
-            MaterialTheme.colorScheme.surface
-        }
+        val backgroundColor =
+            if (isActive) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
 
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onClick() },
-            color = backgroundColor
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onClick() },
+            color = backgroundColor,
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Leading Icon or Track Number or Cover Art
                 Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(MaterialTheme.shapes.extraSmall),
-                    contentAlignment = Alignment.Center
+                    modifier =
+                        Modifier
+                            .size(36.dp)
+                            .clip(MaterialTheme.shapes.extraSmall),
+                    contentAlignment = Alignment.Center,
                 ) {
                     if (track.coverThumbnailPath != null) {
                         CoverThumbnailImage(
                             thumbnailPath = track.coverThumbnailPath,
                             contentDescription = "封面",
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
                         ) {
                             if (isActive) {
                                 Icon(
-                                    imageVector = Icons.Filled.GraphicEq,
+                                    imageVector = AppIcons.GraphicEq,
                                     contentDescription = "正在播放",
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp),
                                 )
                             } else {
                                 Text(
                                     text = "${index + 1}",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
                     } else if (isActive) {
                         Icon(
-                            imageVector = Icons.Filled.GraphicEq,
+                            imageVector = AppIcons.GraphicEq,
                             contentDescription = "正在播放",
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(20.dp),
                         )
                     } else {
                         Text(
                             text = "${index + 1}",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -308,7 +313,7 @@ private fun QueueTrackItemRow(
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                         color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     val artistText = track.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家"
@@ -323,7 +328,7 @@ private fun QueueTrackItemRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
@@ -332,13 +337,13 @@ private fun QueueTrackItemRow(
                 // Delete Button
                 IconButton(
                     onClick = onRemove,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(36.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Close,
+                        imageVector = AppIcons.Close,
                         contentDescription = "从队列移除",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }

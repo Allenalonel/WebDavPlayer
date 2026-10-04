@@ -10,9 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -45,6 +42,7 @@ import com.webdav.player.ui.browser.components.DirectoryItemRow
 import com.webdav.player.ui.browser.components.EmptyFolderState
 import com.webdav.player.ui.browser.components.ErrorState
 import com.webdav.player.ui.browser.components.NoActiveServerState
+import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +52,7 @@ fun DirectoryBrowserScreen(
     modifier: Modifier = Modifier,
     isCurrentTab: Boolean = true,
     onFileClicked: (RemoteFile) -> Unit = { viewModel.onAudioTrackClicked(it) },
-    @Suppress("UNUSED_PARAMETER") onOpenFullPlayer: () -> Unit = {}
+    @Suppress("UNUSED_PARAMETER") onOpenFullPlayer: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -88,15 +86,15 @@ fun DirectoryBrowserScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
                     if (uiState.canNavigateUp && !uiState.isInitializing) {
                         IconButton(onClick = { viewModel.onNavigateUp() }) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "返回上级"
+                                imageVector = AppIcons.ArrowBack,
+                                contentDescription = "返回上级",
                             )
                         }
                     }
@@ -105,29 +103,31 @@ fun DirectoryBrowserScreen(
                     if (!uiState.isInitializing) {
                         IconButton(onClick = { viewModel.onRefresh() }) {
                             Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "刷新目录"
+                                imageVector = AppIcons.Refresh,
+                                contentDescription = "刷新目录",
                             )
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
             )
-        }
+        },
     ) { innerPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
         ) {
             if (!uiState.isInitializing && uiState.activeServer != null) {
                 // Breadcrumb navigation bar (MD3 AssistChip Strip)
                 DirectoryBreadcrumbStrip(
                     breadcrumbs = uiState.breadcrumbs,
                     currentPath = uiState.currentPath,
-                    onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) }
+                    onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) },
                 )
 
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
@@ -135,17 +135,18 @@ fun DirectoryBrowserScreen(
 
             // Content Area with Pull-to-Refresh
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(pullRefreshState.nestedScrollConnection)
-                    .clipToBounds()
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .nestedScroll(pullRefreshState.nestedScrollConnection)
+                        .clipToBounds(),
             ) {
                 when {
                     uiState.isInitializing -> {
                         // Cold-start initialization in progress: wait quietly without flashing NoActiveServerState
                         Box(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            contentAlignment = Alignment.Center,
                         ) {
                             // Clean background during the brief cold-start initialization
                         }
@@ -158,7 +159,7 @@ fun DirectoryBrowserScreen(
                     uiState.isLoading -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator()
@@ -166,7 +167,7 @@ fun DirectoryBrowserScreen(
                                 Text(
                                     text = "正在加载远程目录...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -177,7 +178,7 @@ fun DirectoryBrowserScreen(
                             message = uiState.errorMessage ?: "加载失败",
                             onRetry = { viewModel.onRetry() },
                             onGoBack = { viewModel.onNavigateUp() },
-                            canGoBack = uiState.canNavigateUp
+                            canGoBack = uiState.canNavigateUp,
                         )
                     }
 
@@ -194,7 +195,7 @@ fun DirectoryBrowserScreen(
                             isPlaying = uiState.isPlaying,
                             onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
                             onFileClicked = onFileClicked,
-                            onPlayNext = { viewModel.playNext(it) }
+                            onPlayNext = { viewModel.playNext(it) },
                         )
                     }
                 }
@@ -202,7 +203,7 @@ fun DirectoryBrowserScreen(
                 if (pullRefreshState.verticalOffset > 0f || pullRefreshState.isRefreshing) {
                     PullToRefreshContainer(
                         state = pullRefreshState,
-                        modifier = Modifier.align(Alignment.TopCenter)
+                        modifier = Modifier.align(Alignment.TopCenter),
                     )
                 }
             }
@@ -220,17 +221,17 @@ fun DirectoryContentList(
     onDirectoryClicked: (RemoteDirectory) -> Unit,
     onFileClicked: (RemoteFile) -> Unit,
     onPlayNext: (RemoteFile) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
     ) {
         // Subdirectories first (Elevated MD3 Cards)
         items(directories, key = { "dir_${it.path}" }) { dir ->
             DirectoryItemRow(
                 directory = dir,
-                onClick = { onDirectoryClicked(dir) }
+                onClick = { onDirectoryClicked(dir) },
             )
         }
 
@@ -251,7 +252,7 @@ fun DirectoryContentList(
                 isActive = isActive,
                 isPlaying = isPlaying,
                 onClick = { onFileClicked(file) },
-                onPlayNext = { onPlayNext(file) }
+                onPlayNext = { onPlayNext(file) },
             )
         }
     }

@@ -33,16 +33,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -79,6 +69,7 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
+import com.webdav.player.ui.theme.AppIcons
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -197,8 +188,7 @@ fun FullPlayerView(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onCollapse,
-                        )
-                        .then(downwardSwipeModifier),
+                        ).then(downwardSwipeModifier),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -411,7 +401,7 @@ fun FullPlayerView(
                     modifier = Modifier.size(52.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.SkipPrevious,
+                        imageVector = AppIcons.SkipPrevious,
                         contentDescription = "上一首",
                         modifier = Modifier.size(36.dp),
                         tint =
@@ -450,7 +440,7 @@ fun FullPlayerView(
 
                             is PlaybackState.Playing -> {
                                 Icon(
-                                    imageVector = Icons.Filled.Pause,
+                                    imageVector = AppIcons.Pause,
                                     contentDescription = "暂停",
                                     modifier = Modifier.size(38.dp),
                                 )
@@ -458,7 +448,7 @@ fun FullPlayerView(
 
                             else -> {
                                 Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
+                                    imageVector = AppIcons.PlayArrow,
                                     contentDescription = "播放",
                                     modifier = Modifier.size(38.dp),
                                 )
@@ -474,7 +464,7 @@ fun FullPlayerView(
                     modifier = Modifier.size(52.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.SkipNext,
+                        imageVector = AppIcons.SkipNext,
                         contentDescription = "下一首",
                         modifier = Modifier.size(36.dp),
                         tint =
@@ -492,7 +482,7 @@ fun FullPlayerView(
                     modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        imageVector = AppIcons.QueueMusic,
                         contentDescription = "播放队列",
                         modifier = Modifier.size(28.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -553,7 +543,7 @@ private fun ArtworkPage(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Audiotrack,
+                    imageVector = AppIcons.Audiotrack,
                     contentDescription = "专辑封面",
                     modifier = Modifier.size(100.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -699,9 +689,9 @@ private fun PlaybackModeButton(
 ) {
     val icon =
         when (mode) {
-            PlaybackMode.LIST_LOOP -> Icons.Filled.Repeat
-            PlaybackMode.SINGLE_LOOP -> Icons.Filled.RepeatOne
-            PlaybackMode.SHUFFLE -> Icons.Filled.Shuffle
+            PlaybackMode.LIST_LOOP -> AppIcons.Repeat
+            PlaybackMode.SINGLE_LOOP -> AppIcons.RepeatOne
+            PlaybackMode.SHUFFLE -> AppIcons.Shuffle
         }
 
     IconButton(

@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -24,6 +22,7 @@ import com.webdav.player.domain.model.AudioQualityBadge
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.ui.theme.AppIcons
 import java.util.Locale
 
 @Composable
@@ -48,7 +47,7 @@ fun FileInfoDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Info,
+                    imageVector = AppIcons.Info,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
