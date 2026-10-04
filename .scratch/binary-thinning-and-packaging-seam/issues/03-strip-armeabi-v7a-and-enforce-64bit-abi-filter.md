@@ -5,9 +5,9 @@ Restrict the packaged native CPU architecture strictly to 64-bit `arm64-v8a` in 
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Update `defaultConfig.ndk.abiFilters` in `app/build.gradle.kts` to include only `listOf("arm64-v8a")`.
-- [ ] Verify that Gradle external native build configurations (`CMakeLists.txt`) only compile and link targets for `arm64-v8a`.
-- [ ] Confirm that packaging options retain legacy packaging or compression settings without packaging empty 32-bit directories.
-- [ ] Validate that debug builds continue to support local 64-bit emulator/device deployments without friction.
+- [x] Update `defaultConfig.ndk.abiFilters` in `app/build.gradle.kts` to include only `listOf("arm64-v8a")`.
+- [x] Verify that Gradle external native build configurations (`CMakeLists.txt`) only compile and link targets for `arm64-v8a`.
+- [x] Confirm that packaging options retain legacy packaging or compression settings without packaging empty 32-bit directories.
+- [x] Validate that debug builds continue to support local 64-bit emulator/device deployments without friction.
