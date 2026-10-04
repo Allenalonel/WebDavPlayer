@@ -5,13 +5,13 @@ Enable full R8 code minification and resource shrinking in `app/build.gradle.kts
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Configure `isMinifyEnabled = true` and `isShrinkResources = true` in `buildTypes.release` in `app/build.gradle.kts`.
-- [ ] Author explicit keep rules for Room database entities, DAOs, and type converters in `app/proguard-rules.pro`.
-- [ ] Author explicit keep rules for Media3 session callbacks, MediaItem extras, and ExoPlayer renderers.
-- [ ] Author native keep rules protecting all JNI method signatures and callbacks:
+- [x] Configure `isMinifyEnabled = true` and `isShrinkResources = true` in `buildTypes.release` in `app/build.gradle.kts`.
+- [x] Author explicit keep rules for Room database entities, DAOs, and type converters in `app/proguard-rules.pro`.
+- [x] Author explicit keep rules for Media3 session callbacks, MediaItem extras, and ExoPlayer renderers.
+- [x] Author native keep rules protecting all JNI method signatures and callbacks:
   `-keepclasseswithmembernames class * { native <methods>; }`
   `-keep class androidx.media3.decoder.ffmpeg.** { *; }`
   `-keep class com.webdav.player.data.player.** { *; }`
-- [ ] Verify that release compilation completes without unresolved ProGuard warnings (`-dontwarn` scoped precisely where necessary).
+- [x] Verify that release compilation completes without unresolved ProGuard warnings (`-dontwarn` scoped precisely where necessary).
