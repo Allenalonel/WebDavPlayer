@@ -1,3 +1,7 @@
+import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -74,6 +78,9 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        dex {
+            useLegacyPackaging = true
+        }
     }
 
     testOptions {
@@ -138,3 +145,76 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+
+tasks.register("verifyReleasePackaging") {
+    group = "verification"
+    description = "Enforces binary thinning and release packaging size budget invariants."
+    dependsOn("assembleRelease")
+
+    doLast {
+        val apkFile = file("build/outputs/apk/release/app-release.apk")
+        check(apkFile.exists()) { "Release APK not found at ${apkFile.absolutePath}" }
+
+        val maxApkSizeBytes = 7_864_320L // 7.5 MB
+        val maxDexUncompressedBytes = 4_194_304L // 4.0 MB
+        val expectedNativeLibs: Set<String> = setOf(
+            "lib/arm64-v8a/libavcodec.so",
+            "lib/arm64-v8a/libavformat.so",
+            "lib/arm64-v8a/libavutil.so",
+            "lib/arm64-v8a/libffmpegJNI.so",
+            "lib/arm64-v8a/libswresample.so",
+        )
+
+        val apkSize = apkFile.length()
+        check(apkSize <= maxApkSizeBytes) {
+            "Release APK size ($apkSize bytes) exceeds budget of $maxApkSizeBytes bytes (7.5 MB)"
+        }
+
+        val zip = ZipFile(apkFile)
+        try {
+            val entries: List<ZipEntry> = zip.entries().toList()
+            val dexEntries = entries.filter { entry -> entry.name.endsWith(".dex") }
+            check(dexEntries.size == 1) {
+                "Expected exactly 1 classes.dex file, found ${dexEntries.size}: ${dexEntries.map { it.name }}"
+            }
+
+            val dex = dexEntries.first()
+            check(dex.name == "classes.dex") {
+                "Expected classes.dex, found ${dex.name}"
+            }
+            check(dex.size <= maxDexUncompressedBytes) {
+                "classes.dex uncompressed size (${dex.size} bytes) exceeds budget of $maxDexUncompressedBytes bytes (4.0 MB)"
+            }
+
+            val nativeLibEntries = entries.filter { entry -> entry.name.startsWith("lib/") && entry.name.endsWith(".so") }
+            val nativeLibNames: Set<String> = nativeLibEntries.map { it.name }.toSet()
+
+            val unexpectedLibs = nativeLibNames.minus(expectedNativeLibs)
+            check(unexpectedLibs.isEmpty()) {
+                "Unexpected native libraries in APK: $unexpectedLibs"
+            }
+
+            val missingLibs = expectedNativeLibs.minus(nativeLibNames)
+            check(missingLibs.isEmpty()) {
+                "Missing expected native libraries in APK: $missingLibs"
+            }
+
+            val nonArm64Libs = nativeLibEntries.filter { entry -> !entry.name.startsWith("lib/arm64-v8a/") }
+            check(nonArm64Libs.isEmpty()) {
+                "Found non-arm64-v8a native libraries: ${nonArm64Libs.map { it.name }}"
+            }
+
+            println("============================================================")
+            println("RELEASE PACKAGING VERIFICATION PASSED")
+            println("============================================================")
+            println("Total APK size:        $apkSize bytes (${String.format(Locale.US, "%.2f", apkSize / 1024.0 / 1024.0)} MB) [Budget: <= 7.5 MB]")
+            println("classes.dex size:      ${dex.size} bytes (${String.format(Locale.US, "%.2f", dex.size / 1024.0 / 1024.0)} MB) [Budget: <= 4.0 MB]")
+            println("classes.dex deflated:  ${dex.compressedSize} bytes (${String.format(Locale.US, "%.2f", dex.compressedSize / 1024.0 / 1024.0)} MB)")
+            println("Native architecture:   lib/arm64-v8a/ only (5 libraries, 0 32-bit)")
+            println("============================================================")
+        } finally {
+            zip.close()
+        }
+    }
+}
+

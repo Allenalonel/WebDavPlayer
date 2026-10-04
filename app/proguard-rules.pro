@@ -27,10 +27,10 @@
 # --------------------------------------------------------------------------- #
 # Media3 (Session, ExoPlayer, Renderers, MediaItem, Metadata)
 # --------------------------------------------------------------------------- #
--keep class androidx.media3.** { *; }
-
 # Media3 Session callback & background service components
 -keep class com.webdav.player.data.service.** { *; }
+-keep class * extends androidx.media3.session.MediaSession$Callback { *; }
+-keep class * extends androidx.media3.session.MediaSessionService { *; }
 
 # Ensure MediaItem extras and bundle-based metadata survive
 -keepclassmembers class androidx.media3.common.MediaItem { *; }
