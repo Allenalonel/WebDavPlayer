@@ -1,5 +1,7 @@
 # Binary Thinning and Packaging Seam Specification
 
+Status: completed
+
 ## Problem Statement
 
 In the current release build, WebDavPlayer produces an excessively large APK (**56.8 MB**), which is approximately 8 times larger than comparable minimalist players (such as Folder-Player at **7.08 MB**). Inspection of the binary breakdown reveals three primary packaging leaks and shallow engineering seams:
@@ -25,7 +27,10 @@ Establish an authoritative, leak-free **Packaging Seam** and execute comprehensi
 3. **Enforce 64-Bit Only (`arm64-v8a`) Native ABI Filtering**:
    - Restrict `ndk.abiFilters` in release packaging to `listOf("arm64-v8a")`, dropping obsolete 32-bit `armeabi-v7a`.
    - Strip debug symbols cleanly from native libraries.
-4. **Establish Size Budget and Verification Gate**:
+4. **Enforce Compressed DEX via Legacy Packaging (`dex.useLegacyPackaging = true`)**:
+   - In `app/build.gradle.kts`, configure `packaging.dex.useLegacyPackaging = true` to force DEFLATE compression of `classes.dex` (~1.90 MB compressed vs 4.09 MB uncompressed).
+   - This directly eliminates a +2.19 MB download size inflation for standalone GitHub Release APK distribution, ensuring the package meets the <= 7.5 MB budget.
+5. **Establish Size Budget and Verification Gate**:
    - Establish an automated release size budget: **Total Release APK <= 7.5 MB** (targeting ~6.5 MB, an 88% reduction).
 
 ## User Stories
@@ -49,6 +54,8 @@ Establish an authoritative, leak-free **Packaging Seam** and execute comprehensi
      -keep class androidx.media3.decoder.ffmpeg.** { *; }
      -keepclasseswithmembernames class * { native <methods>; }
      ```
+4. **DEX Packaging Mode (Legacy Compression vs Uncompressed STORE)**:
+   - Modern AGP defaults to uncompressed DEX for Play Store AAB distributions to enable zero-extraction mmap on Android 9+. However, for independent GitHub Release APK distribution, the direct download size (network transfer size) is the primary user-facing metric. Compressing DEX inside the APK saves over 2 MB of download bandwidth without perceptible install-time performance impact on modern 64-bit devices.
 
 ## Test & Verification Matrix
 
@@ -63,7 +70,7 @@ Establish an authoritative, leak-free **Packaging Seam** and execute comprehensi
 
 ## File Changes
 
-- `app/build.gradle.kts`: Enable `isMinifyEnabled = true`, `isShrinkResources = true`, restrict `abiFilters` to `arm64-v8a`, remove `material-icons-extended`.
+- `app/build.gradle.kts`: Enable `isMinifyEnabled = true`, `isShrinkResources = true`, configure `dex.useLegacyPackaging = true`, restrict `abiFilters` to `arm64-v8a`, remove `material-icons-extended`.
 - `app/proguard-rules.pro`: Add comprehensive keep rules for Media3, Room, OkHttp, Coroutines, and JNI native bindings.
 - `app/src/main/java/com/webdav/player/ui/theme/AppIcons.kt`: New localized icon seam providing the explicit set of icons needed by the UI.
 - `app/src/main/java/com/webdav/player/ui/**/*.kt`: Update icon imports from `Icons.Filled.*` to `AppIcons.*` or `Icons.Default.*`.

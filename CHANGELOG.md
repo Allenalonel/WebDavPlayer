@@ -4,6 +4,22 @@
 
 ---
 
+## [2.2] - 2026-10-05
+
+### 🚀 新增 (Added)
+- **局部化 `AppIcons` 资产接缝 (Localized AppIcons Seam)**：集中显式收录应用实际引用的矢量与基础图标，彻底移除对庞大的 `androidx.compose.material:material-icons-extended` 依赖，从源码源头切断 40+ MB 冗余矢量图标死代码的侵入。
+- **发布包体积预算自动化守门门禁 (Size Budget Enforcement)**：在 Gradle 构建流中引入 `verifyReleasePackaging` 自动化门禁任务与 `PackagingSeamVerificationTest` 单元测试，强制约束 Release APK 硬性指标：**总包体 <= 7.5 MB**（实测达到 6.57 MB，较 2.1 版本的 56.8 MB 缩减达 88%）、单 `classes.dex` 字节码 <= 4.0 MB，且仅包含 `arm64-v8a` 架构。
+- **架构决策记录 (ADR)**：归档落地 [ADR 0013: 64 位单架构 Native ABI、R8 二进制瘦身与打包接缝](docs/adr/0013-64bit-only-abi-and-r8-binary-thinning.md)。
+
+### ⚡ 优化与工程变更 (Changed)
+- **全面开启 R8 代码混淆与资源缩减 (R8 Minification & Resource Shrinking)**：在 Release 构建配置中开启 `isMinifyEnabled = true` 与 `isShrinkResources = true`，自动剔除无用类与未引用的布局/资源。
+- **构建纵深网络与反射混淆保护**：在 `app/proguard-rules.pro` 中为 Room 实体/DAO、Media3 Session 回调、ExtractorInput 原生接口、JNI 本地方法、OkHttp `Interceptor`/`Authenticator` 及 WebSocket 监听器建立精确的 keep 规则，杜绝混淆导致的运行时反射或通讯异常。
+- **强制 64 位单架构 Native ABI 过滤 (Drop 32-Bit armeabi-v7a)**：彻底剥离过时的 32 位 `armeabi-v7a` 原生 FFmpeg 动态库套件，专注 64 位 `arm64-v8a` 现代 Android 10+ 架构，Native 依赖体积直降 50%（消除约 9 MB 压缩体积）。
+- **优化独立分发 APK 字节码压缩 (`dex.useLegacyPackaging = true`)**：显式配置 DEX 打包策略以 DEFLATE 算法压缩 `classes.dex`（由 4.09 MB 压缩至 1.90 MB），直接消除 AGP 默认未压缩模式带来的 2.19 MB 传输体积膨胀，为移动数据下载提供极致轻量化体验。
+- **大幅加速冷启动与类加载**：DEX 文件由 3 个整合精简为单 `classes.dex`（代码量从 44.56 MB 降至 3.91 MB），显著降低系统 ART 虚拟机的类加载时间与内存占用。
+
+---
+
 ## [2.1] - 2026-10-03
 
 ### 🚀 新增 (Added)

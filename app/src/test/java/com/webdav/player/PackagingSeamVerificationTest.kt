@@ -66,6 +66,28 @@ class PackagingSeamVerificationTest {
             content.contains("class androidx.media3.common.MediaMetadata"),
         )
 
+        // Assert OkHttp and WebSocket keep rules are present
+        assertTrue(
+            "OkHttp PublicSuffixDatabase keep rule must be present",
+            content.contains("class okhttp3.internal.publicsuffix.PublicSuffixDatabase"),
+        )
+        assertTrue(
+            "OkHttp Interceptor keep rule must be present",
+            content.contains("interface okhttp3.Interceptor"),
+        )
+        assertTrue(
+            "OkHttp Authenticator keep rule must be present",
+            content.contains("interface okhttp3.Authenticator"),
+        )
+        assertTrue(
+            "WebSocket interface keep rule must be present",
+            content.contains("interface okhttp3.WebSocket"),
+        )
+        assertTrue(
+            "WebSocketListener keep rule must be present",
+            content.contains("class okhttp3.WebSocketListener"),
+        )
+
         // Assert bloated wildcard is NOT present
         assertFalse(
             "Overly broad '-keep class androidx.media3.** { *; }' must not be present to avoid DEX bloat",
@@ -108,6 +130,12 @@ class PackagingSeamVerificationTest {
         assertFalse(
             "material-icons-extended must not be present in dependencies",
             content.contains("material-icons-extended"),
+        )
+
+        // Assert dex legacy packaging is enabled for compressed DEX in standalone APK distribution
+        assertTrue(
+            "dex useLegacyPackaging must be true to enforce compressed DEX",
+            content.contains("dex") && content.contains("useLegacyPackaging = true"),
         )
     }
 

@@ -54,10 +54,25 @@
 -keep class com.webdav.player.domain.model.** { *; }
 
 # --------------------------------------------------------------------------- #
-# Network & OkHttp / Okio
+# Network & OkHttp / WebSocket / Okio
 # --------------------------------------------------------------------------- #
+# A resource is loaded with a package-relative path
+-keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+
+# Protect OkHttp & WebSocket interfaces, callbacks, and connection listeners
+-keep interface okhttp3.Interceptor { *; }
+-keep interface okhttp3.Authenticator { *; }
+-keep interface okhttp3.WebSocket { *; }
+-keep class okhttp3.WebSocketListener { *; }
+-keep class * extends okhttp3.WebSocketListener { *; }
+
+# Suppress platform optional reflection warnings
 -dontwarn okhttp3.**
+-dontwarn okhttp3.internal.platform.**
 -dontwarn okio.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
 -dontwarn org.codehaus.mojo.animal_sniffer.*
 -dontwarn javax.annotation.**
 
