@@ -92,6 +92,18 @@ _Avoid_: Timeline Rebuild, Track Reset, Player Reload
 由 `TrackMetadataRepository` 内部自主担保的自愈机制：当本地磁盘缩略图因系统清理缓存而丢失，或播放队列加载未解析音轨时，仓储接缝对外先行返回零破坏的安全元数据，并在后台异步发起受限 Range 元数据提取并反向写回本地持久化数据库与落盘，自动修补缺失的专辑标签、时长与封面缩略图，彻底向所有上层调用者屏蔽底层文件存活性校验。
 _Avoid_: Manual Sync, Cold Cache, Static Database
 
+**Virtual Track**:
+由同目录 `.cue` 文件描述、映射在单一长音频物理文件内部的时间区间切片。在底层播放器内核中不作为独立的物理 `MediaItem` 重复实例化，完全依托于会话层的时间轴换算与内联元数据广播，确保纯流式下的绝对无缝体验。
+_Avoid_: Split Audio, Cut Track, Clipped MediaItem
+
+**Folder Ring Playback**:
+播放队列以当前所处 Remote Directory 的曲目集合为唯一严格边界。列表循环模式下最后一首播完自动回流至当前目录首曲，严禁跨越父级或同级兄弟目录。
+_Avoid_: Infinite Cross-Folder Playback, Auto Next Folder, Directory Hop
+
+**Pre-roll Stream Buffering**:
+在纯流式、无本地持久化磁盘缓存的约束下，利用长连接复用（Keep-Alive）与双轨预加载机制，在当前曲目接近尾声时提前装填下一曲目起始 PCM 音频流，实现零声学间隙无缝衔接下一首（Gapless Playback）。
+_Avoid_: Local Download, Offline Cache, CacheDataSource
+
 **Track Metadata Resolver**:
 `TrackMetadataRepositoryImpl` 内部私有的深层网络与音频提取适配器，专职负责通过受限网络 HTTP Range 分片提取、自适应两阶段拼接、双源封面探测（内嵌封面优先，同目录外置封面回退并持锁）及图片缩略图本地落盘。对外不设立冗余公共接缝，调用方统一通过 `TrackMetadataRepository` 交互。
 _Avoid_: Metadata Parser, Artwork Helper, Tag Downloader
