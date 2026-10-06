@@ -928,6 +928,306 @@ class MusicPlayerAppSessionTest {
             restoredSession.release()
         }
 
+    @Test
+    fun playVirtualTracks_startsSinglePhysicalStreamAndExposesRelativeProgress() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val parentTrack =
+                AudioTrack(
+                    id = "1:/Music/album.flac",
+                    serverId = testServer.id,
+                    remotePath = "/Music/album.flac",
+                    title = "album.flac",
+                    artist = "Album Artist",
+                    album = "Great Album",
+                    durationMs = 600_000L,
+                    size = 50_000_000L,
+                    format = AudioFormat.FLAC,
+                )
+
+            val virtualTracks =
+                listOf(
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 1,
+                        title = "Virtual Track 1",
+                        performer = "Performer 1",
+                        startTimeMs = 0L,
+                        endTimeMs = 180_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 2,
+                        title = "Virtual Track 2",
+                        performer = "Performer 2",
+                        startTimeMs = 180_000L,
+                        endTimeMs = 420_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                )
+
+            // Play starting at virtual track index 1 (starts at 180_000L)
+            session.playVirtualTracks(
+                parentTrack = parentTrack,
+                virtualTracks = virtualTracks,
+                startIndex = 1,
+            )
+            advanceUntilIdle()
+
+            // 1. Under physical engine: only 1 track (parentTrack) was played, starting at 180_000L
+            assertEquals(1, fakeEngine.lastTracks.size)
+            assertEquals("/Music/album.flac", fakeEngine.lastTracks[0].remotePath)
+            assertEquals(180_000L, fakeEngine.lastStartPositionMs)
+
+            // 2. In session state: queue has 2 virtual tracks, active is index 1
+            val state = session.sessionState.value
+            assertEquals(2, state.queue.size)
+            assertEquals(1, state.queue.currentIndex)
+            assertEquals("Virtual Track 2", state.currentTrack?.title)
+            assertEquals("Performer 2", state.currentTrack?.artist)
+            assertEquals(240_000L, state.currentTrack?.durationMs)
+
+            // 3. Fake engine emits position: global position 200_000L (20s into track 2)
+            fakeEngine._currentPositionMs.value = 200_000L
+            advanceUntilIdle()
+
+            val progress = session.playbackProgress.value
+            assertEquals(20_000L, progress.currentPositionMs)
+            assertEquals(240_000L, progress.durationMs)
+        }
+
+    @Test
+    fun boundaryCrossing_atomicallyAdvancesTrackAndEnrichesMetadataWithoutDisruptingStream() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val parentTrack =
+                AudioTrack(
+                    id = "1:/Music/album.flac",
+                    serverId = testServer.id,
+                    remotePath = "/Music/album.flac",
+                    title = "album.flac",
+                    artist = "Album Artist",
+                    album = "Great Album",
+                    durationMs = 600_000L,
+                    size = 50_000_000L,
+                    format = AudioFormat.FLAC,
+                )
+
+            val virtualTracks =
+                listOf(
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 1,
+                        title = "Virtual Track 1",
+                        performer = "Performer 1",
+                        startTimeMs = 0L,
+                        endTimeMs = 180_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 2,
+                        title = "Virtual Track 2",
+                        performer = "Performer 2",
+                        startTimeMs = 180_000L,
+                        endTimeMs = 420_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                )
+
+            session.playVirtualTracks(
+                parentTrack = parentTrack,
+                virtualTracks = virtualTracks,
+                startIndex = 0,
+            )
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
+            val initialUpdateCalls = fakeEngine.updateTrackCalls
+
+            // 1. Playback proceeds inside track 1
+            fakeEngine._currentPositionMs.value = 175_000L
+            advanceUntilIdle()
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+
+            // 2. Playback crosses boundary: global position reaches 180_000L (start of Track 2)
+            fakeEngine._currentPositionMs.value = 185_000L
+            advanceUntilIdle()
+
+            // 3. Queue index and current track updated atomically
+            val updatedState = session.sessionState.value
+            assertEquals(1, updatedState.queue.currentIndex)
+            assertEquals("Virtual Track 2", updatedState.currentTrack?.title)
+            assertEquals("Performer 2", updatedState.currentTrack?.artist)
+            assertEquals(240_000L, updatedState.durationMs)
+
+            // 4. Non-disruptive metadata enrichment: updateTrack was called on engine to update MediaSession
+            assertTrue("Expected updateTrackCalls to increase", fakeEngine.updateTrackCalls > initialUpdateCalls)
+            assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
+
+            // 5. Playback progress mapped to relative position in Track 2 (185_000 - 180_000 = 5_000)
+            val progress = session.playbackProgress.value
+            assertEquals(5_000L, progress.currentPositionMs)
+            assertEquals(240_000L, progress.durationMs)
+
+            // 6. Underlying engine was NOT restarted (playTracks called only once at start)
+            assertEquals(1, fakeEngine.lastTracks.size)
+        }
+
+    @Test
+    fun seekTo_whenVirtualTracksActive_translatesRelativeToGlobalAndClampsWithinTrack() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val parentTrack =
+                AudioTrack(
+                    id = "1:/Music/album.flac",
+                    serverId = testServer.id,
+                    remotePath = "/Music/album.flac",
+                    title = "album.flac",
+                    artist = "Album Artist",
+                    album = "Great Album",
+                    durationMs = 600_000L,
+                    size = 50_000_000L,
+                    format = AudioFormat.FLAC,
+                )
+
+            val virtualTracks =
+                listOf(
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 1,
+                        title = "Virtual Track 1",
+                        performer = "Performer 1",
+                        startTimeMs = 0L,
+                        endTimeMs = 180_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 2,
+                        title = "Virtual Track 2",
+                        performer = "Performer 2",
+                        startTimeMs = 180_000L,
+                        endTimeMs = 420_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                )
+
+            session.playVirtualTracks(
+                parentTrack = parentTrack,
+                virtualTracks = virtualTracks,
+                startIndex = 1, // Track 2: 180_000L..420_000L (duration = 240_000L)
+            )
+            advanceUntilIdle()
+
+            // 1. Seek to 30s relative
+            session.seekTo(30_000L)
+            advanceUntilIdle()
+            assertEquals(210_000L, fakeEngine.seekToPosition)
+            assertEquals(30_000L, session.playbackProgress.value.currentPositionMs)
+
+            // 2. Seek past track duration (e.g. 300s when duration is 240s) -> clamped to track end (420_000L)
+            session.seekTo(300_000L)
+            advanceUntilIdle()
+            assertEquals(420_000L, fakeEngine.seekToPosition)
+
+            // 3. Seek to negative position -> clamped to track start (180_000L)
+            session.seekTo(-10_000L)
+            advanceUntilIdle()
+            assertEquals(180_000L, fakeEngine.seekToPosition)
+        }
+
+    @Test
+    fun skipControlsAndPlayQueueIndex_whenVirtualTracksActive_interceptsNavigation() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val parentTrack =
+                AudioTrack(
+                    id = "1:/Music/album.flac",
+                    serverId = testServer.id,
+                    remotePath = "/Music/album.flac",
+                    title = "album.flac",
+                    artist = "Album Artist",
+                    album = "Great Album",
+                    durationMs = 600_000L,
+                    size = 50_000_000L,
+                    format = AudioFormat.FLAC,
+                )
+
+            val virtualTracks =
+                listOf(
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 1,
+                        title = "Virtual Track 1",
+                        performer = "Performer 1",
+                        startTimeMs = 0L,
+                        endTimeMs = 180_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 2,
+                        title = "Virtual Track 2",
+                        performer = "Performer 2",
+                        startTimeMs = 180_000L,
+                        endTimeMs = 420_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 3,
+                        title = "Virtual Track 3",
+                        performer = "Performer 3",
+                        startTimeMs = 420_000L,
+                        endTimeMs = 600_000L,
+                        parentAudioPath = "/Music/album.flac",
+                    ),
+                )
+
+            session.playVirtualTracks(
+                parentTrack = parentTrack,
+                virtualTracks = virtualTracks,
+                startIndex = 0,
+            )
+            advanceUntilIdle()
+
+            // 1. skipToNext -> jumps to Track 2 (starts at 180_000L)
+            session.skipToNext()
+            advanceUntilIdle()
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("Virtual Track 2", session.sessionState.value.currentTrack?.title)
+            assertEquals(180_000L, fakeEngine.seekToPosition)
+            assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
+
+            // 2. skipToPrevious when played > 3s (e.g. global position = 185_000L, relative = 5s > 3s)
+            fakeEngine._currentPositionMs.value = 185_000L
+            session.skipToPrevious()
+            advanceUntilIdle()
+            // Stays on Track 2, seeks back to Track 2 start (180_000L)
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals(180_000L, fakeEngine.seekToPosition)
+
+            // 3. skipToPrevious when played <= 3s (e.g. global position = 181_000L, relative = 1s <= 3s)
+            fakeEngine._currentPositionMs.value = 181_000L
+            session.skipToPrevious()
+            advanceUntilIdle()
+            // Steps to Track 1 (starts at 0L)
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
+            assertEquals(0L, fakeEngine.seekToPosition)
+            assertEquals("Virtual Track 1", fakeEngine.lastTracks[0].title)
+
+            // 4. playQueueIndex(2) -> jumps directly to Track 3 (starts at 420_000L)
+            session.playQueueIndex(2)
+            advanceUntilIdle()
+            assertEquals(2, session.sessionState.value.queue.currentIndex)
+            assertEquals("Virtual Track 3", session.sessionState.value.currentTrack?.title)
+            assertEquals(420_000L, fakeEngine.seekToPosition)
+            assertEquals("Virtual Track 3", fakeEngine.lastTracks[0].title)
+        }
+
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),
     ) : com.webdav.player.domain.repository.ServerRepository {

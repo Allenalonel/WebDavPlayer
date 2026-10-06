@@ -286,7 +286,9 @@ class Media3AudioPlayerEngineTest {
         )
 
         // Notification constructed from mediaSession must reflect updated metadata
-        val notificationProvider = com.webdav.player.data.service.WebDavNotificationProvider(context)
+        val notificationProvider =
+            com.webdav.player.data.service
+                .WebDavNotificationProvider(context)
         val notification = notificationProvider.buildNotification(engine.mediaSession, engine.playbackState.value)
         assertEquals("Updated Song Title", notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
         assertEquals("Updated Artist", notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
@@ -304,20 +306,52 @@ class Media3AudioPlayerEngineTest {
         engine.updateTrack(0, updated)
 
         // While active, playlist item at index 0 remains untouched to prevent timeline disruption
-        assertEquals("01.mp3", engine.player.getMediaItemAt(0).mediaMetadata.title?.toString())
-        assertEquals("Enriched Song 1", engine.mediaSession.player.mediaMetadata.title?.toString())
+        assertEquals(
+            "01.mp3",
+            engine.player
+                .getMediaItemAt(0)
+                .mediaMetadata.title
+                ?.toString(),
+        )
+        assertEquals(
+            "Enriched Song 1",
+            engine.mediaSession.player.mediaMetadata.title
+                ?.toString(),
+        )
 
         // Transition to next track: track 0 transitions to non-active and pending enrichment is safely committed to playlist
         engine.skipToNext()
         assertEquals(1, engine.currentTrackIndex.value)
-        assertEquals("Enriched Song 1", engine.player.getMediaItemAt(0).mediaMetadata.title?.toString())
-        assertEquals("Enriched Artist 1", engine.player.getMediaItemAt(0).mediaMetadata.artist?.toString())
+        assertEquals(
+            "Enriched Song 1",
+            engine.player
+                .getMediaItemAt(0)
+                .mediaMetadata.title
+                ?.toString(),
+        )
+        assertEquals(
+            "Enriched Artist 1",
+            engine.player
+                .getMediaItemAt(0)
+                .mediaMetadata.artist
+                ?.toString(),
+        )
 
         // Return to track 0: metadata remains intact in playlist item and mediaSession
         engine.skipToPrevious()
         assertEquals(0, engine.currentTrackIndex.value)
-        assertEquals("Enriched Song 1", engine.player.getMediaItemAt(0).mediaMetadata.title?.toString())
-        assertEquals("Enriched Song 1", engine.mediaSession.player.mediaMetadata.title?.toString())
+        assertEquals(
+            "Enriched Song 1",
+            engine.player
+                .getMediaItemAt(0)
+                .mediaMetadata.title
+                ?.toString(),
+        )
+        assertEquals(
+            "Enriched Song 1",
+            engine.mediaSession.player.mediaMetadata.title
+                ?.toString(),
+        )
     }
 
     @Test
@@ -332,12 +366,20 @@ class Media3AudioPlayerEngineTest {
         val updated = track1.copy(title = "Loop Enriched Song", artist = "Loop Artist")
         engine.updateTrack(0, updated)
 
-        assertEquals("Loop Enriched Song", engine.mediaSession.player.mediaMetadata.title?.toString())
+        assertEquals(
+            "Loop Enriched Song",
+            engine.mediaSession.player.mediaMetadata.title
+                ?.toString(),
+        )
 
         // Simulate single loop media transition (same index transitions to itself)
         engine.seekTo(0L)
         assertEquals(0, engine.currentTrackIndex.value)
-        assertEquals("Loop Enriched Song", engine.mediaSession.player.mediaMetadata.title?.toString())
+        assertEquals(
+            "Loop Enriched Song",
+            engine.mediaSession.player.mediaMetadata.title
+                ?.toString(),
+        )
     }
 
     @Test

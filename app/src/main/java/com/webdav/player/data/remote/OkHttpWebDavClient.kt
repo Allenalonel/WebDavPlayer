@@ -55,6 +55,7 @@ class OkHttpWebDavClient(
         const val DEFAULT_STREAMING_MAX_IDLE_CONNECTIONS: Int = 8
         const val DEFAULT_STREAMING_KEEP_ALIVE_MINUTES: Long = 5L
     }
+
     private val clientCache = ConcurrentHashMap<String, OkHttpClient>()
 
     override suspend fun testConnection(server: WebDavServer): ConnectionResult =

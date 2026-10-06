@@ -7,16 +7,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackQueueTest {
-
-    private fun createTrack(id: String, title: String): AudioTrack {
-        return AudioTrack(
+    private fun createTrack(
+        id: String,
+        title: String,
+    ): AudioTrack =
+        AudioTrack(
             id = id,
             serverId = 1L,
             remotePath = "/$id",
             title = title,
-            format = AudioFormat.MP3
+            format = AudioFormat.MP3,
         )
-    }
 
     @Test
     fun playbackMode_cycleTransitionsCorrectly() {

@@ -91,8 +91,7 @@ class Media3AudioPlayerEngine(
                     .setBackBuffer(
                         loadControlConfig.backBufferDurationMs,
                         loadControlConfig.retainBackBufferFromKeyframe,
-                    )
-                    .setBufferDurationsMs(
+                    ).setBufferDurationsMs(
                         loadControlConfig.minBufferMs,
                         loadControlConfig.maxBufferMs,
                         loadControlConfig.bufferForPlaybackMs,
@@ -106,12 +105,12 @@ class Media3AudioPlayerEngine(
                         context: Context,
                         enableFloatOutput: Boolean,
                         enableAudioTrackPlaybackParams: Boolean,
-                    ): AudioSink? {
-                        return DefaultAudioSink.Builder(context)
+                    ): AudioSink? =
+                        DefaultAudioSink
+                            .Builder(context)
                             .setEnableFloatOutput(enableFloatOutput)
                             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                             .build()
-                    }
                 }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
 
             val extractorsFactory =
