@@ -6,11 +6,11 @@
 **Blocked by:**
 01: 纯内存 CUE 状态机解析器与 Virtual Track 领域实体
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] 在播放会话层建立 `VirtualTimelineEngine`，维护当前激活分轨列表、当前分轨索引及物理流起始偏移量。
-- [ ] 相对进度与时长双向映射：`virtualPositionMs = (globalPositionMs - activeTrack.startTimeMs).coerceAtLeast(0L)`，`virtualDurationMs = activeTrack.durationMs`。
-- [ ] 自然分轨跨越检测（Boundary Crossing）：高频 Ticker 检测到 `globalPositionMs >= activeTrack.endTimeMs` 时，原子更新分轨索引，并向系统 MediaSession 广播分轨元数据，音频连续流不产生任何打嗝或杂音。
-- [ ] 接管上一曲与下一曲控制：下一曲跳转至 `nextTrack.startTimeMs`；上一曲若已播放大于 3 秒则跳回当前分轨起始毫秒，小于等于 3 秒则跳回上一分轨起始毫秒。
-- [ ] 接管进度条拖拽（Seek）：UI 拖拽的相对毫秒转换为 `activeTrack.startTimeMs + seekOffsetMs`，并钳制在当前分轨区间内。
-- [ ] 编写纯逻辑单元测试：时间轴换算公式、分轨自然交界事件触发、Seek 边界保护及上下首跳转计算。
+- [x] 在播放会话层建立 `VirtualTimelineEngine`，维护当前激活分轨列表、当前分轨索引及物理流起始偏移量。
+- [x] 相对进度与时长双向映射：`virtualPositionMs = (globalPositionMs - activeTrack.startTimeMs).coerceAtLeast(0L)`，`virtualDurationMs = activeTrack.durationMs`。
+- [x] 自然分轨跨越检测（Boundary Crossing）：高频 Ticker 检测到 `globalPositionMs >= activeTrack.endTimeMs` 时，原子更新分轨索引，并向系统 MediaSession 广播分轨元数据，音频连续流不产生任何打嗝或杂音。
+- [x] 接管上一曲与下一曲控制：下一曲跳转至 `nextTrack.startTimeMs`；上一曲若已播放大于 3 秒则跳回当前分轨起始毫秒，小于等于 3 秒则跳回上一分轨起始毫秒。
+- [x] 接管进度条拖拽（Seek）：UI 拖拽的相对毫秒转换为 `activeTrack.startTimeMs + seekOffsetMs`，并钳制在当前分轨区间内。
+- [x] 编写纯逻辑单元测试：时间轴换算公式、分轨自然交界事件触发、Seek 边界保护及上下首跳转计算。
