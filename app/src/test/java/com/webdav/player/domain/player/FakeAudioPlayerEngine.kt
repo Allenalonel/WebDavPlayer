@@ -31,6 +31,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var lastTracks: List<AudioTrack> = emptyList()
     var lastStartIndex: Int = -1
     var lastStartPositionMs: Long = 0L
+    var playTracksCount = 0
     var playCount = 0
     var pauseCount = 0
     var nextCount = 0
@@ -41,6 +42,11 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     private var currentVolume: Float = 1.0f
 
     var shufflePermutation: List<Int>? = null
+    var registeredSkipHandler: AudioPlayerEngine.SkipHandler? = null
+
+    override fun setSkipHandler(handler: AudioPlayerEngine.SkipHandler?) {
+        this.registeredSkipHandler = handler
+    }
 
     override fun playTracks(
         server: WebDavServer,
@@ -48,6 +54,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         startIndex: Int,
         startPositionMs: Long,
     ) {
+        playTracksCount++
         lastServer = server
         lastTracks = tracks
         lastStartIndex = startIndex
@@ -74,6 +81,9 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     override fun skipToNext() {
         nextCount++
+        if (registeredSkipHandler?.onSkipToNext() == true) {
+            return
+        }
         if (lastTracks.isEmpty()) return
         val next =
             when (_playbackMode.value) {
@@ -105,6 +115,9 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     override fun skipToPrevious() {
         previousCount++
+        if (registeredSkipHandler?.onSkipToPrevious() == true) {
+            return
+        }
         if (lastTracks.isEmpty()) return
         val prev =
             when (_playbackMode.value) {

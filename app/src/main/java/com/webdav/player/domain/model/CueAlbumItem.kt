@@ -6,7 +6,7 @@ package com.webdav.player.domain.model
  */
 data class CueAlbumItem(
     val cueFile: RemoteFile,
-    val audioFile: RemoteFile,
+    val audioFile: RemoteFile? = null,
     val tracks: List<VirtualTrack> = emptyList(),
     val isExpanded: Boolean = false,
     val isLoading: Boolean = false,
@@ -16,16 +16,17 @@ data class CueAlbumItem(
         get() = tracks.size
 
     val albumTitle: String
-        get() = audioFile.name.substringBeforeLast('.')
+        get() = audioFile?.name?.substringBeforeLast('.') ?: cueFile.name.substringBeforeLast('.')
 
-    fun isAlbumActive(activeTrackPath: String?): Boolean = activeTrackPath != null && activeTrackPath == audioFile.path
+    fun isAlbumActive(activeTrackPath: String?): Boolean =
+        activeTrackPath != null && audioFile != null && activeTrackPath == audioFile.path
 
     fun isVirtualTrackActive(
         activeTrackPath: String?,
         activeTrackId: String?,
         track: VirtualTrack,
     ): Boolean {
-        if (activeTrackPath == null || activeTrackPath != audioFile.path) return false
+        if (activeTrackPath == null || audioFile == null || activeTrackPath != audioFile.path) return false
         if (activeTrackId == null) return false
         return activeTrackId.endsWith("#cue_${track.trackNumber}")
     }

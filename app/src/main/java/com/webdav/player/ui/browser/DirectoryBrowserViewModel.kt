@@ -137,7 +137,7 @@ class DirectoryBrowserViewModel(
                                         _uiState.update { current ->
                                             val updatedAlbums =
                                                 current.cueAlbums.map { album ->
-                                                    val dur = map[album.audioFile.path]?.durationMs
+                                                    val dur = album.audioFile?.path?.let { map[it]?.durationMs }
                                                     if (dur != null && dur > 0L && album.tracks.isNotEmpty()) {
                                                         val lastTrack = album.tracks.last()
                                                         if (lastTrack.endTimeMs == null && dur > lastTrack.startTimeMs) {
@@ -196,7 +196,16 @@ class DirectoryBrowserViewModel(
     fun onAudioTrackClicked(file: RemoteFile) {
         if (!file.isAudio) return
         val dir = _uiState.value.currentDirectory ?: return
-        musicPlayerAppSession?.playDirectoryTrack(dir, file, _uiState.value.metadataMap)
+        val virtualTracksMap =
+            _uiState.value.cueAlbums
+                .filter { it.audioFile != null && it.tracks.isNotEmpty() }
+                .associate { it.audioFile!!.path to it.tracks }
+        musicPlayerAppSession?.playDirectoryTrack(
+            directory = dir,
+            selectedFile = file,
+            initialMetadata = _uiState.value.metadataMap,
+            virtualTracksByAudioPath = virtualTracksMap,
+        )
     }
 
     fun playNext(file: RemoteFile) {
@@ -468,9 +477,10 @@ class DirectoryBrowserViewModel(
         trackIndex: Int,
     ) {
         val server = _uiState.value.activeServer ?: return
+        val audioFile = album.audioFile ?: return
         if (album.tracks.isEmpty()) return
-        val metadata = _uiState.value.metadataMap[album.audioFile.path]
-        val parentTrack = AudioTrack.fromRemoteFile(server, album.audioFile, metadata) ?: return
+        val metadata = _uiState.value.metadataMap[audioFile.path]
+        val parentTrack = AudioTrack.fromRemoteFile(server, audioFile, metadata) ?: return
         musicPlayerAppSession?.playVirtualTracks(
             parentTrack = parentTrack,
             virtualTracks = album.tracks,
@@ -480,6 +490,11 @@ class DirectoryBrowserViewModel(
     }
 
     fun playCueAlbum(album: CueAlbumItem) {
+        val audioFile = album.audioFile ?: return
+        if (album.tracks.isEmpty()) {
+            onAudioTrackClicked(audioFile)
+            return
+        }
         playVirtualTrack(album, trackIndex = 0)
     }
 
@@ -491,28 +506,27 @@ class DirectoryBrowserViewModel(
         val cueFiles = directory.files.filter { it.isCue }
         val audioFiles = directory.files.filter { it.isAudio }
 
-        if (cueFiles.isEmpty() || audioFiles.isEmpty()) {
+        if (cueFiles.isEmpty()) {
             _uiState.update { it.copy(cueAlbums = emptyList()) }
             return
         }
 
         val initialAlbums =
-            cueFiles.mapNotNull { cueFile ->
+            cueFiles.map { cueFile ->
                 val matchedAudio =
                     CueAssociationHelper.findMatchingAudioFile(
                         cueFile = cueFile,
                         audioFiles = audioFiles,
                         totalCueFilesCount = cueFiles.size,
                     )
-                matchedAudio?.let { audio ->
-                    CueAlbumItem(
-                        cueFile = cueFile,
-                        audioFile = audio,
-                        tracks = emptyList(),
-                        isExpanded = false,
-                        isLoading = webDavClient != null,
-                    )
-                }
+                CueAlbumItem(
+                    cueFile = cueFile,
+                    audioFile = matchedAudio,
+                    tracks = emptyList(),
+                    isExpanded = false,
+                    isLoading = webDavClient != null,
+                    errorMessage = if (webDavClient == null && matchedAudio == null) "未找到对应的目标音频文件" else null,
+                )
             }
 
         _uiState.update { it.copy(cueAlbums = initialAlbums) }
@@ -543,29 +557,37 @@ class DirectoryBrowserViewModel(
                                         audioFiles = audioFiles,
                                         referencedFileNames = referencedFiles,
                                         totalCueFilesCount = cueFiles.size,
-                                    ) ?: initialAlbum.audioFile
+                                    ) ?: if (referencedFiles.isEmpty()) initialAlbum.audioFile else null
 
-                                val parentDurationMs = _uiState.value.metadataMap[matchedAudio.path]?.durationMs
-                                val tracks =
-                                    CueParser.parse(
-                                        content = cueContent,
-                                        parentAudioPath = matchedAudio.path,
-                                        totalDurationMs = parentDurationMs,
-                                    )
-
-                                if (tracks.isEmpty()) {
+                                if (matchedAudio == null) {
                                     initialAlbum.copy(
-                                        audioFile = matchedAudio,
+                                        audioFile = null,
                                         isLoading = false,
-                                        errorMessage = "CUE 文件未包含有效分轨",
+                                        errorMessage = "未找到 CUE 指向的目标音频文件",
                                     )
                                 } else {
-                                    initialAlbum.copy(
-                                        audioFile = matchedAudio,
-                                        tracks = tracks,
-                                        isLoading = false,
-                                        errorMessage = null,
-                                    )
+                                    val parentDurationMs = _uiState.value.metadataMap[matchedAudio.path]?.durationMs
+                                    val tracks =
+                                        CueParser.parse(
+                                            content = cueContent,
+                                            parentAudioPath = matchedAudio.path,
+                                            totalDurationMs = parentDurationMs,
+                                        )
+
+                                    if (tracks.isEmpty()) {
+                                        initialAlbum.copy(
+                                            audioFile = matchedAudio,
+                                            isLoading = false,
+                                            errorMessage = "CUE 文件未包含有效分轨",
+                                        )
+                                    } else {
+                                        initialAlbum.copy(
+                                            audioFile = matchedAudio,
+                                            tracks = tracks,
+                                            isLoading = false,
+                                            errorMessage = null,
+                                        )
+                                    }
                                 }
                             }
                         } catch (e: Exception) {

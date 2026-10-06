@@ -48,18 +48,20 @@ object CueAssociationHelper {
             }
         if (sameBaseAudio != null) return sameBaseAudio
 
-        // 3. Fallback: If only 1 CUE file and 1 audio file exist in the folder, associate them
-        if (totalCueFilesCount == 1 && audioFiles.size == 1) {
+        // 3. Fallback: If only 1 CUE file and 1 audio file exist in the remote directory, associate them
+        if (referencedFileNames.isEmpty() && totalCueFilesCount == 1 && audioFiles.size == 1) {
             return audioFiles.first()
         }
 
         // 4. Prefix match: if cue file name starts with audio file name base or vice versa
-        val prefixMatch =
-            audioFiles.firstOrNull {
-                val audioBase = it.name.substringBeforeLast('.')
-                cueBase.startsWith(audioBase, ignoreCase = true) || audioBase.startsWith(cueBase, ignoreCase = true)
-            }
-        if (prefixMatch != null) return prefixMatch
+        if (referencedFileNames.isEmpty()) {
+            val prefixMatch =
+                audioFiles.firstOrNull {
+                    val audioBase = it.name.substringBeforeLast('.')
+                    cueBase.startsWith(audioBase, ignoreCase = true) || audioBase.startsWith(cueBase, ignoreCase = true)
+                }
+            if (prefixMatch != null) return prefixMatch
+        }
 
         return null
     }

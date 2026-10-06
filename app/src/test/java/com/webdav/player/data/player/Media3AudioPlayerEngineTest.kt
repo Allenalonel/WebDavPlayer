@@ -637,4 +637,50 @@ class Media3AudioPlayerEngineTest {
         engine.skipToPrevious()
         assertEquals(2, engine.currentTrackIndex.value)
     }
+
+    @Test
+    fun virtualTrackSingleItem_enablesNextPreviousCommands_andDelegatesToSkipHandler() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0,
+        )
+
+        // With 1 item, standard ExoPlayer disables SEEK_TO_NEXT_MEDIA_ITEM / SEEK_TO_PREVIOUS_MEDIA_ITEM
+        // sessionPlayer must expose them as available so notification / MediaSession controls remain enabled
+        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+        assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+        assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+
+        var nextCount = 0
+        var prevCount = 0
+        engine.setSkipHandler(
+            object : com.webdav.player.domain.player.AudioPlayerEngine.SkipHandler {
+                override fun onSkipToNext(): Boolean {
+                    nextCount++
+                    return true
+                }
+
+                override fun onSkipToPrevious(): Boolean {
+                    prevCount++
+                    return true
+                }
+            },
+        )
+
+        // Invoking seekToNextMediaItem / seekToPreviousMediaItem on sessionPlayer (as MediaSession does)
+        engine.sessionPlayer.seekToNextMediaItem()
+        assertEquals(1, nextCount)
+
+        engine.sessionPlayer.seekToPreviousMediaItem()
+        assertEquals(1, prevCount)
+
+        // Invoking skipToNext / skipToPrevious on engine directly
+        engine.skipToNext()
+        assertEquals(2, nextCount)
+
+        engine.skipToPrevious()
+        assertEquals(2, prevCount)
+    }
 }

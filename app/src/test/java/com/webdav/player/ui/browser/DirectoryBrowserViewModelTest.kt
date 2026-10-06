@@ -1106,7 +1106,7 @@ class DirectoryBrowserViewModelTest {
             assertEquals(1, state.cueAlbums.size)
             val cueAlbum = state.cueAlbums.first()
             assertEquals("DarkSide.cue", cueAlbum.cueFile.name)
-            assertEquals("DarkSide.flac", cueAlbum.audioFile.name)
+            assertEquals("DarkSide.flac", cueAlbum.audioFile?.name)
             assertFalse(cueAlbum.isLoading)
             assertNull(cueAlbum.errorMessage)
             assertEquals(2, cueAlbum.tracks.size)
@@ -1330,6 +1330,125 @@ class DirectoryBrowserViewModelTest {
             assertFalse(album.isLoading)
             assertNotNull(album.errorMessage)
             assertTrue(album.tracks.isEmpty())
+        }
+
+    @Test
+    fun cueAlbum_targetAudioFileMissing_presentsMildErrorMessageWithoutCrashing() =
+        runTest {
+            val cueContent =
+                """
+                TITLE "Orphan Album"
+                FILE "NonExistent.flac" WAVE
+                  TRACK 01 AUDIO
+                    TITLE "Intro"
+                    INDEX 01 00:00:00
+                """.trimIndent()
+
+            val albumDir =
+                RemoteDirectory(
+                    path = "/Music/MissingAudio/",
+                    name = "MissingAudio",
+                    files =
+                        listOf(
+                            RemoteFile(name = "Unrelated.mp3", path = "/Music/MissingAudio/Unrelated.mp3", size = 5_000_000L),
+                            RemoteFile(name = "Album.cue", path = "/Music/MissingAudio/Album.cue", size = 512L),
+                        ),
+                )
+            fakeDirectoryRepository.setResult("/Music/MissingAudio/", ListDirectoryResult.Success(albumDir))
+            fakeWebDavClient.textResponses["/Music/MissingAudio/Album.cue"] = cueContent
+
+            viewModel.onDirectoryClicked(albumDir)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(1, state.cueAlbums.size)
+            val album = state.cueAlbums.first()
+            assertFalse(album.isLoading)
+            assertNull(album.audioFile)
+            assertNotNull(album.errorMessage)
+            assertTrue(album.tracks.isEmpty())
+
+            // Unrelated audio track can still be played normally
+            viewModel.onAudioTrackClicked(albumDir.files.first { it.isAudio })
+            advanceUntilIdle()
+            assertEquals("Unrelated.mp3", fakeMusicPlayerAppSession.lastPlaySelectedFile?.name)
+        }
+
+    @Test
+    fun cueAlbum_directoryHasNoAudioFilesAtAll_stillDiscoversCueAndReportsMissingAudio() =
+        runTest {
+            val cueContent =
+                """
+                TITLE "No Audio In Folder"
+                FILE "Missing.flac" WAVE
+                  TRACK 01 AUDIO
+                    TITLE "Intro"
+                    INDEX 01 00:00:00
+                """.trimIndent()
+
+            val albumDir =
+                RemoteDirectory(
+                    path = "/Music/OnlyCue/",
+                    name = "OnlyCue",
+                    files =
+                        listOf(
+                            RemoteFile(name = "Only.cue", path = "/Music/OnlyCue/Only.cue", size = 512L),
+                        ),
+                )
+            fakeDirectoryRepository.setResult("/Music/OnlyCue/", ListDirectoryResult.Success(albumDir))
+            fakeWebDavClient.textResponses["/Music/OnlyCue/Only.cue"] = cueContent
+
+            viewModel.onDirectoryClicked(albumDir)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(1, state.cueAlbums.size)
+            val album = state.cueAlbums.first()
+            assertFalse(album.isLoading)
+            assertNull(album.audioFile)
+            assertNotNull(album.errorMessage)
+            assertTrue(album.tracks.isEmpty())
+        }
+
+    @Test
+    fun cueAlbum_syntaxErrorOrEmptyTracks_allowsFallbackToPlayAsWholeAudio() =
+        runTest {
+            val cueContent =
+                """
+                TITLE "Broken Album"
+                FILE "Broken.flac" WAVE
+                REM Invalid CUE with no tracks or bad syntax
+                """.trimIndent()
+
+            val albumDir =
+                RemoteDirectory(
+                    path = "/Music/BrokenSyntax/",
+                    name = "BrokenSyntax",
+                    files =
+                        listOf(
+                            RemoteFile(name = "Broken.flac", path = "/Music/BrokenSyntax/Broken.flac", size = 100_000_000L),
+                            RemoteFile(name = "Broken.cue", path = "/Music/BrokenSyntax/Broken.cue", size = 512L),
+                        ),
+                )
+            fakeDirectoryRepository.setResult("/Music/BrokenSyntax/", ListDirectoryResult.Success(albumDir))
+            fakeWebDavClient.textResponses["/Music/BrokenSyntax/Broken.cue"] = cueContent
+
+            viewModel.onDirectoryClicked(albumDir)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(1, state.cueAlbums.size)
+            val album = state.cueAlbums.first()
+            assertFalse(album.isLoading)
+            assertNotNull(album.audioFile)
+            assertNotNull(album.errorMessage)
+            assertTrue(album.tracks.isEmpty())
+
+            // Fallback: playing the album directly plays the parent audio file as whole audio
+            viewModel.playCueAlbum(album)
+            advanceUntilIdle()
+
+            assertEquals("Broken.flac", fakeMusicPlayerAppSession.lastPlaySelectedFile?.name)
         }
 
     private class FakeServerRepository : ServerRepository {

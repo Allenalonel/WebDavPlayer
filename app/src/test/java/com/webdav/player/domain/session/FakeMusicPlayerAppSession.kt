@@ -74,15 +74,18 @@ class FakeMusicPlayerAppSession(
     var lastPlayTrack: AudioTrack? = null
     var lastPlayNextTrack: AudioTrack? = null
     var lastPlayInitialMetadata: Map<String, TrackMetadata> = emptyMap()
+    var lastPlayVirtualTracksByAudioPath: Map<String, List<com.webdav.player.domain.model.VirtualTrack>> = emptyMap()
 
     override fun playDirectoryTrack(
         directory: RemoteDirectory,
         selectedFile: RemoteFile,
         initialMetadata: Map<String, TrackMetadata>,
+        virtualTracksByAudioPath: Map<String, List<com.webdav.player.domain.model.VirtualTrack>>,
     ) {
         lastPlayDirectory = directory
         lastPlaySelectedFile = selectedFile
         lastPlayInitialMetadata = initialMetadata
+        lastPlayVirtualTracksByAudioPath = virtualTracksByAudioPath
     }
 
     override fun playTrack(track: AudioTrack) {

@@ -15,6 +15,13 @@ interface AudioPlayerEngine {
     val currentTrackIndex: StateFlow<Int>
     val playbackMode: StateFlow<PlaybackMode>
 
+    interface SkipHandler {
+        fun onSkipToNext(): Boolean
+        fun onSkipToPrevious(): Boolean
+    }
+
+    fun setSkipHandler(handler: SkipHandler?) {}
+
     fun playTracks(
         server: WebDavServer,
         tracks: List<AudioTrack>,

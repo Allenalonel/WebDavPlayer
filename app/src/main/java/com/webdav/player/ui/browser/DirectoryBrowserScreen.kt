@@ -236,7 +236,7 @@ fun DirectoryContentList(
     onToggleCueAlbumExpanded: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val cueAudioPaths = remember(cueAlbums) { cueAlbums.map { it.audioFile.path }.toSet() }
+    val cueAudioPaths = remember(cueAlbums) { cueAlbums.mapNotNull { it.audioFile?.path }.toSet() }
     val cueFilePaths = remember(cueAlbums) { cueAlbums.map { it.cueFile.path }.toSet() }
     val standaloneFiles =
         remember(files, cueAudioPaths, cueFilePaths) {
@@ -264,7 +264,7 @@ fun DirectoryContentList(
 
         // CUE Albums next (MD3 CueAlbumCard with collapse/expand)
         items(cueAlbums, key = { "cue_album_${it.cueFile.path}" }) { album ->
-            val metadata = metadataMap[album.audioFile.path]
+            val metadata = album.audioFile?.let { metadataMap[it.path] }
             val isAlbumActive = album.isAlbumActive(activeTrackPath)
             CueAlbumCard(
                 album = album,
@@ -275,7 +275,7 @@ fun DirectoryContentList(
                 onPlayAlbum = { onPlayCueAlbum(album) },
                 onVirtualTrackClick = { trackIndex -> onVirtualTrackClick(album, trackIndex) },
                 onToggleExpand = { onToggleCueAlbumExpanded(album.cueFile.path) },
-                onPlayAsWholeAudio = { onFileClicked(album.audioFile) },
+                onPlayAsWholeAudio = { album.audioFile?.let { onFileClicked(it) } },
             )
         }
 

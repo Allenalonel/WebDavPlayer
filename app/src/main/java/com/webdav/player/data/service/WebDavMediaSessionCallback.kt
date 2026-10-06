@@ -3,7 +3,9 @@ package com.webdav.player.data.service
 import android.content.Intent
 import android.view.KeyEvent
 import androidx.core.content.IntentCompat
+import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionResult
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.player.AudioPlayerEngine
 
@@ -18,6 +20,22 @@ class WebDavMediaSessionCallback(
     ): Boolean {
         val handled = handleMediaButtonIntent(intent)
         return if (handled) true else super.onMediaButtonEvent(session, controllerInfo, intent)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onPlayerCommandRequest(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        playerCommand: Int,
+    ): Int {
+        return when (playerCommand) {
+            Player.COMMAND_SEEK_TO_NEXT,
+            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_PREVIOUS,
+            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            -> SessionResult.RESULT_SUCCESS
+            else -> super.onPlayerCommandRequest(session, controller, playerCommand)
+        }
     }
 
     fun handleMediaButtonIntent(intent: Intent): Boolean {

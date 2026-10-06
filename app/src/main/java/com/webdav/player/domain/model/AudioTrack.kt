@@ -27,6 +27,9 @@ data class AudioTrack(
     val isLossless: Boolean
         get() = qualityBadge.isLossless
 
+    val isVirtualTrack: Boolean
+        get() = id.contains("#cue_")
+
     val estimatedBitrateKbps: Int?
         get() = qualityBadge.estimatedBitrateKbps
 

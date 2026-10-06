@@ -36,6 +36,7 @@ interface MusicPlayerAppSession {
         directory: RemoteDirectory,
         selectedFile: RemoteFile,
         initialMetadata: Map<String, TrackMetadata> = emptyMap(),
+        virtualTracksByAudioPath: Map<String, List<VirtualTrack>> = emptyMap(),
     )
 
     fun playVirtualTracks(

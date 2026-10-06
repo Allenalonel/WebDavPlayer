@@ -210,4 +210,20 @@ class CueAssociationHelperTest {
 
         assertNull(result)
     }
+
+    @Test
+    fun referencedFiles_whenExplicitlyProvidedAndMismatched_doesNotFallbackToUnrelatedSingleAudio() {
+        val cue = createCueFile("Album.cue")
+        val audioFiles = listOf(createAudioFile("Unrelated.mp3"))
+
+        val result =
+            CueAssociationHelper.findMatchingAudioFile(
+                cueFile = cue,
+                audioFiles = audioFiles,
+                referencedFileNames = listOf("Missing.flac"),
+                totalCueFilesCount = 1,
+            )
+
+        assertNull(result)
+    }
 }

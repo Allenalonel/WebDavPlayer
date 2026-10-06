@@ -285,4 +285,138 @@ class PlaybackQueueTest {
         // Folder Ring looping over virtual tracks
         assertEquals(0, switched.getNextIndex(PlaybackMode.LIST_LOOP))
     }
+
+    @Test
+    fun fromTracks_withVirtualTracksMap_inlinesVirtualTracksAndAdjustsIndices() {
+        val t1 = createTrack("track_1", "Intro").copy(remotePath = "/music/01.mp3")
+        val tAlbum = createTrack("parent_album", "Full Album").copy(
+            remotePath = "/music/album.flac",
+            format = AudioFormat.FLAC,
+        )
+        val t3 = createTrack("track_3", "Outro").copy(remotePath = "/music/03.mp3")
+
+        val vt1 = VirtualTrack(
+            trackNumber = 1,
+            title = "Overture",
+            performer = "Orchestra",
+            startTimeMs = 0L,
+            endTimeMs = 120000L,
+            parentAudioPath = "/music/album.flac",
+        )
+        val vt2 = VirtualTrack(
+            trackNumber = 2,
+            title = "Movement 1",
+            performer = "Orchestra",
+            startTimeMs = 120000L,
+            endTimeMs = 300000L,
+            parentAudioPath = "/music/album.flac",
+        )
+        val vt3 = VirtualTrack(
+            trackNumber = 3,
+            title = "Movement 2",
+            performer = "Orchestra",
+            startTimeMs = 300000L,
+            endTimeMs = 500000L,
+            parentAudioPath = "/music/album.flac",
+        )
+
+        val virtualMap = mapOf("/music/album.flac" to listOf(vt1, vt2, vt3))
+        val rawTracks = listOf(t1, tAlbum, t3)
+
+        // Case 1: Clicked track before album (index 0)
+        val queueAt0 = PlaybackQueue.fromTracks(rawTracks, virtualMap, selectedIndex = 0)
+        assertEquals(5, queueAt0.size)
+        assertEquals(0, queueAt0.currentIndex)
+        assertEquals("Intro", queueAt0.currentTrack?.title)
+        assertFalse(queueAt0.currentTrack?.isVirtualTrack ?: true)
+
+        // Case 2: Clicked album (index 1) -> inlined and points to first virtual track (index 1)
+        val queueAt1 = PlaybackQueue.fromTracks(rawTracks, virtualMap, selectedIndex = 1)
+        assertEquals(5, queueAt1.size)
+        assertEquals(1, queueAt1.currentIndex)
+        assertEquals("Overture", queueAt1.currentTrack?.title)
+        assertTrue(queueAt1.currentTrack?.isVirtualTrack ?: false)
+        assertEquals("parent_album#cue_1", queueAt1.currentTrack?.id)
+
+        // Case 3: Clicked track after album (index 2) -> shifts by +2 to index 4
+        val queueAt2 = PlaybackQueue.fromTracks(rawTracks, virtualMap, selectedIndex = 2)
+        assertEquals(5, queueAt2.size)
+        assertEquals(4, queueAt2.currentIndex)
+        assertEquals("Outro", queueAt2.currentTrack?.title)
+        assertFalse(queueAt2.currentTrack?.isVirtualTrack ?: true)
+    }
+
+    @Test
+    fun inlineVirtualTracks_replacesTargetTrackInPlaceAndPreservesIntegrity() {
+        val t1 = createTrack("1", "Song 1").copy(remotePath = "/music/1.mp3")
+        val tAlbum = createTrack("album", "Album").copy(remotePath = "/music/album.flac")
+        val t3 = createTrack("3", "Song 3").copy(remotePath = "/music/3.mp3")
+
+        val vt1 = VirtualTrack(
+            trackNumber = 1,
+            title = "V1",
+            startTimeMs = 0L,
+            endTimeMs = 60000L,
+            parentAudioPath = "/music/album.flac",
+        )
+        val vt2 = VirtualTrack(
+            trackNumber = 2,
+            title = "V2",
+            startTimeMs = 60000L,
+            endTimeMs = 120000L,
+            parentAudioPath = "/music/album.flac",
+        )
+        val vts = listOf(vt1, vt2)
+
+        val queueWithCurrentAtAlbum = PlaybackQueue(tracks = listOf(t1, tAlbum, t3), currentIndex = 1)
+        val inlinedCurrent = queueWithCurrentAtAlbum.inlineVirtualTracks("/music/album.flac", vts)
+        assertEquals(4, inlinedCurrent.size)
+        assertEquals(1, inlinedCurrent.currentIndex)
+        assertEquals("V1", inlinedCurrent.currentTrack?.title)
+
+        val queueWithCurrentAfterAlbum = PlaybackQueue(tracks = listOf(t1, tAlbum, t3), currentIndex = 2)
+        val inlinedAfter = queueWithCurrentAfterAlbum.inlineVirtualTracks("/music/album.flac", vts)
+        assertEquals(4, inlinedAfter.size)
+        assertEquals(3, inlinedAfter.currentIndex)
+        assertEquals("Song 3", inlinedAfter.currentTrack?.title)
+
+        val queueWithCurrentBeforeAlbum = PlaybackQueue(tracks = listOf(t1, tAlbum, t3), currentIndex = 0)
+        val inlinedBefore = queueWithCurrentBeforeAlbum.inlineVirtualTracks("/music/album.flac", vts)
+        assertEquals(4, inlinedBefore.size)
+        assertEquals(0, inlinedBefore.currentIndex)
+        assertEquals("Song 1", inlinedBefore.currentTrack?.title)
+
+        // Non-matching path or empty virtual list returns identical queue
+        assertEquals(queueWithCurrentAtAlbum, queueWithCurrentAtAlbum.inlineVirtualTracks("/music/unknown.flac", vts))
+        assertEquals(queueWithCurrentAtAlbum, queueWithCurrentAtAlbum.inlineVirtualTracks("/music/album.flac", emptyList()))
+    }
+
+    @Test
+    fun toAudioTrack_producesValidVirtualTrackAttributes() {
+        val parent = createTrack("parent_id", "Parent Album").copy(
+            remotePath = "/remote/album.flac",
+            artist = "Original Artist",
+            album = "Master Album",
+            format = AudioFormat.FLAC,
+            coverThumbnailPath = "/covers/art.jpg",
+        )
+        val vt = VirtualTrack(
+            trackNumber = 4,
+            title = "Specific Movement",
+            performer = "Guest Soloist",
+            startTimeMs = 100000L,
+            endTimeMs = 250000L,
+            parentAudioPath = "/remote/album.flac",
+        )
+
+        val virtualAudioTrack = vt.toAudioTrack(parent)
+        assertEquals("parent_id#cue_4", virtualAudioTrack.id)
+        assertEquals("/remote/album.flac", virtualAudioTrack.remotePath)
+        assertEquals("Specific Movement", virtualAudioTrack.title)
+        assertEquals("Guest Soloist", virtualAudioTrack.artist)
+        assertEquals("Master Album", virtualAudioTrack.album)
+        assertEquals(150000L, virtualAudioTrack.durationMs)
+        assertEquals("/covers/art.jpg", virtualAudioTrack.coverThumbnailPath)
+        assertTrue(virtualAudioTrack.isVirtualTrack)
+    }
 }

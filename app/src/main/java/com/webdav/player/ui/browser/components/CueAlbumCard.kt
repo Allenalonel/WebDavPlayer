@@ -70,7 +70,7 @@ fun CueAlbumCard(
         }
 
     val displayTitle =
-        remember(album.audioFile.name, metadata?.title, metadata?.album) {
+        remember(album.audioFile?.name, album.cueFile.name, metadata?.title, metadata?.album) {
             metadata?.album?.takeIf { it.isNotBlank() }
                 ?: metadata?.title?.takeIf { it.isNotBlank() }
                 ?: album.albumTitle
@@ -85,7 +85,7 @@ fun CueAlbumCard(
 
     val badgeInfo =
         remember(album.audioFile, metadata) {
-            album.audioFile.resolveBadge(metadata)
+            album.audioFile?.resolveBadge(metadata)
         }
 
     val rotationAngle by animateFloatAsState(
@@ -217,13 +217,25 @@ fun CueAlbumCard(
                 // Trailing Buttons: Play Album & Expand Toggle
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        onClick = onPlayAlbum,
+                        onClick = {
+                            if (album.tracks.isNotEmpty()) {
+                                onPlayAlbum()
+                            } else if (album.audioFile != null) {
+                                onPlayAsWholeAudio()
+                            }
+                        },
+                        enabled = album.tracks.isNotEmpty() || album.audioFile != null,
                         modifier = Modifier.size(36.dp),
                     ) {
                         Icon(
                             imageVector = AppIcons.PlayArrow,
                             contentDescription = "播放整张专辑",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint =
+                                if (album.tracks.isNotEmpty() || album.audioFile != null) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                },
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -272,8 +284,10 @@ fun CueAlbumCard(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = onPlayAsWholeAudio) {
-                        Text("作为整轨播放", style = MaterialTheme.typography.labelMedium)
+                    if (album.audioFile != null) {
+                        TextButton(onClick = onPlayAsWholeAudio) {
+                            Text("作为整轨播放", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }
@@ -289,7 +303,7 @@ fun CueAlbumCard(
                     album.tracks.forEachIndexed { index, track ->
                         val isTrackActive =
                             album.isVirtualTrackActive(
-                                activeTrackPath = if (isAlbumActive) album.audioFile.path else null,
+                                activeTrackPath = if (isAlbumActive) album.audioFile?.path else null,
                                 activeTrackId = activeTrackId,
                                 track = track,
                             )

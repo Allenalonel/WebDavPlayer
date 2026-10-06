@@ -156,4 +156,35 @@ class WebDavMediaSessionCallbackTest {
 
         assertFalse(handled)
     }
+
+    @Test
+    fun handleMediaButton_next_and_previous_delegatesToSkipHandler_whenActive() {
+        fakeEngine.playTracks(testServer, testTracks, startIndex = 0)
+
+        var nextCount = 0
+        var prevCount = 0
+        fakeEngine.setSkipHandler(
+            object : com.webdav.player.domain.player.AudioPlayerEngine.SkipHandler {
+                override fun onSkipToNext(): Boolean {
+                    nextCount++
+                    return true
+                }
+
+                override fun onSkipToPrevious(): Boolean {
+                    prevCount++
+                    return true
+                }
+            },
+        )
+
+        val nextIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
+        val handledNext = callback.handleMediaButtonIntent(nextIntent)
+        assertTrue(handledNext)
+        assertEquals(1, nextCount)
+
+        val prevIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        val handledPrev = callback.handleMediaButtonIntent(prevIntent)
+        assertTrue(handledPrev)
+        assertEquals(1, prevCount)
+    }
 }

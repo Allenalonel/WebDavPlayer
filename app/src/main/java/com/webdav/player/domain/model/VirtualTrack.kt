@@ -17,4 +17,21 @@ data class VirtualTrack(
      */
     val durationMs: Long
         get() = if (endTimeMs != null && endTimeMs >= startTimeMs) endTimeMs - startTimeMs else 0L
+
+    /**
+     * Converts this virtual track into a playable AudioTrack instance bound to the parent physical audio file.
+     */
+    fun toAudioTrack(parentTrack: AudioTrack): AudioTrack =
+        AudioTrack(
+            id = "${parentTrack.id.substringBefore("#cue_")}#cue_$trackNumber",
+            serverId = parentTrack.serverId,
+            remotePath = parentTrack.remotePath,
+            title = title,
+            artist = performer?.takeIf { it.isNotBlank() } ?: parentTrack.artist,
+            album = parentTrack.album,
+            durationMs = durationMs,
+            size = parentTrack.size,
+            format = parentTrack.format,
+            coverThumbnailPath = parentTrack.coverThumbnailPath,
+        )
 }

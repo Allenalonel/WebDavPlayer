@@ -144,6 +144,11 @@ class Media3AudioPlayerEngine(
 
     private val activeTrackMetadataRef = AtomicReference<MediaMetadata?>(null)
     private val sessionListeners = CopyOnWriteArrayList<Player.Listener>()
+    private val skipHandlerRef = AtomicReference<AudioPlayerEngine.SkipHandler?>(null)
+
+    override fun setSkipHandler(handler: AudioPlayerEngine.SkipHandler?) {
+        skipHandlerRef.set(handler)
+    }
 
     val sessionPlayer: Player =
         object : ForwardingPlayer(player) {
@@ -164,6 +169,48 @@ class Media3AudioPlayerEngine(
                 } else {
                     super.getMediaMetadata()
                 }
+            }
+
+            override fun seekToNext() {
+                this@Media3AudioPlayerEngine.skipToNext()
+            }
+
+            override fun seekToNextMediaItem() {
+                this@Media3AudioPlayerEngine.skipToNext()
+            }
+
+            override fun seekToPrevious() {
+                this@Media3AudioPlayerEngine.skipToPrevious()
+            }
+
+            override fun seekToPreviousMediaItem() {
+                this@Media3AudioPlayerEngine.skipToPrevious()
+            }
+
+            override fun isCommandAvailable(command: Int): Boolean {
+                return if (player.mediaItemCount > 0 && (
+                        command == Player.COMMAND_SEEK_TO_NEXT ||
+                        command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
+                        command == Player.COMMAND_SEEK_TO_PREVIOUS ||
+                        command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+                    )) {
+                    true
+                } else {
+                    super.isCommandAvailable(command)
+                }
+            }
+
+            override fun getAvailableCommands(): Player.Commands {
+                val commands = super.getAvailableCommands().buildUpon()
+                if (player.mediaItemCount > 0) {
+                    commands.addAll(
+                        Player.COMMAND_SEEK_TO_NEXT,
+                        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                        Player.COMMAND_SEEK_TO_PREVIOUS,
+                        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                    )
+                }
+                return commands.build()
             }
         }
 
@@ -323,6 +370,9 @@ class Media3AudioPlayerEngine(
     }
 
     override fun skipToNext() {
+        if (skipHandlerRef.get()?.onSkipToNext() == true) {
+            return
+        }
         if (player.hasNextMediaItem()) {
             player.seekToNextMediaItem()
         } else if (player.mediaItemCount > 0) {
@@ -331,6 +381,9 @@ class Media3AudioPlayerEngine(
     }
 
     override fun skipToPrevious() {
+        if (skipHandlerRef.get()?.onSkipToPrevious() == true) {
+            return
+        }
         if (player.hasPreviousMediaItem()) {
             player.seekToPreviousMediaItem()
         } else if (player.mediaItemCount > 0) {

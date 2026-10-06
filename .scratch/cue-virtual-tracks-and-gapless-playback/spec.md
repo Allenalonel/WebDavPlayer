@@ -1,6 +1,6 @@
 # Spec: CUE 虚拟分轨与流式无缝衔接 (CUE Virtual Tracks & Streaming Gapless Playback)
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 

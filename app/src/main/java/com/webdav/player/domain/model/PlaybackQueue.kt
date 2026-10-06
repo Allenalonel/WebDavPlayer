@@ -92,7 +92,70 @@ data class PlaybackQueue(
         }
     }
 
+    fun inlineVirtualTracks(
+        parentAudioPath: String,
+        virtualTracks: List<VirtualTrack>,
+    ): PlaybackQueue {
+        if (virtualTracks.isEmpty() || tracks.isEmpty()) return this
+        val targetIndex = tracks.indexOfFirst {
+            it.remotePath == parentAudioPath || it.id.substringBefore("#cue_") == parentAudioPath
+        }
+        if (targetIndex < 0) return this
+
+        val parentTrack = tracks[targetIndex]
+        val inlinedTracks = virtualTracks.map { it.toAudioTrack(parentTrack) }
+        val newTracks = buildList {
+            addAll(tracks.subList(0, targetIndex))
+            addAll(inlinedTracks)
+            if (targetIndex + 1 < tracks.size) {
+                addAll(tracks.subList(targetIndex + 1, tracks.size))
+            }
+        }
+
+        val addedCount = inlinedTracks.size - 1
+        val newIndex = when {
+            currentIndex < targetIndex -> currentIndex
+            currentIndex == targetIndex -> targetIndex
+            else -> currentIndex + addedCount
+        }
+        return copy(tracks = newTracks, currentIndex = newIndex)
+    }
+
     companion object {
         val EMPTY = PlaybackQueue()
+
+        fun fromTracks(
+            tracks: List<AudioTrack>,
+            virtualTracksMap: Map<String, List<VirtualTrack>> = emptyMap(),
+            selectedIndex: Int = 0,
+        ): PlaybackQueue {
+            if (tracks.isEmpty()) return EMPTY
+            if (virtualTracksMap.isEmpty()) {
+                return PlaybackQueue(
+                    tracks = tracks,
+                    currentIndex = selectedIndex.coerceIn(tracks.indices),
+                )
+            }
+
+            val validSelectedIndex = selectedIndex.coerceIn(tracks.indices)
+            val mappedCurrentIndex = tracks.take(validSelectedIndex).sumOf { track ->
+                val vts = virtualTracksMap[track.remotePath]
+                if (!vts.isNullOrEmpty()) vts.size else 1
+            }
+
+            val expandedTracks = tracks.flatMap { track ->
+                val vts = virtualTracksMap[track.remotePath]
+                if (!vts.isNullOrEmpty()) {
+                    vts.map { it.toAudioTrack(track) }
+                } else {
+                    listOf(track)
+                }
+            }
+
+            return PlaybackQueue(
+                tracks = expandedTracks,
+                currentIndex = mappedCurrentIndex.coerceIn(expandedTracks.indices),
+            )
+        }
     }
 }
