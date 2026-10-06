@@ -4,6 +4,20 @@
 
 ---
 
+## [2.3] - 2026-10-07
+
+### 🚀 新增 (Added)
+- **单物理流 CUE 虚拟分轨回放 (Single Physical Stream + Logical Virtual Tracks)**：引入单物理流无缝虚拟分轨方案，针对整轨无损音频（FLAC/WAV/APE），底层播放引擎始终维持单条持久化 HTTP 长连接，不切断网络、不重建解码器，杜绝传统分轨方案的重连停顿与爆音。
+- **纯内存 CUE 状态机解析器 (In-Memory CueParser Module)**：实现无第三方库依赖的纯内存流式文本状态机解析器，支持双引号/无引号、多空白字符、REM 注释等变种格式，毫秒级帧转换（75 fps 精准换算），仅在点选时瞬态驻留，严格遵循纯流式无本地磁盘缓存红线。
+- **虚拟时间轴映射引擎 (Virtual Timeline Engine) 与零打扰元数据广播**：会话层高频双向映射物理时间与虚拟分轨相对时间；自然跨越分轨时响应式向 UI 与系统 MediaSession 广播分轨元数据（Non-Disruptive Metadata Enrichment），实现物理级绝对无缝回放（Bit-Perfect Gapless）。
+- **待播队列内联展开虚拟分轨 (Inlined Virtual Tracks in PlaybackQueue)**：曲库目录浏览与播放队列抽屉支持将包含 CUE 的整轨大音频平滑原地展开为完整分轨项，支持点选跳转、相对进度拖拽与等化器动态跳动指示（Equalizer Track Indicator）。
+- **文件夹环形闭环播放 (Folder Ring Playback)**：播放队列拓扑严格约束在当前活跃远程目录，列表循环时末曲自然回环至首曲，严禁跨越父级或同级兄弟目录。
+- **专用流式长连接池与双轨预卷缓冲 (Streaming Pre-roll & Keep-Alive Connection Pool)**：OkHttp 客户端保持持久化长连接池（保活 5 分钟），结合 10 秒回退缓冲区与双轨预卷机制消灭普通独立曲目切换时的声学空隙。
+- **会话现场持久化扩展 (Playback Session State Schema)**：DataStore 扩展记录 `cuePath` 与分轨序号/相对偏移量，支持冷启动与进程重建下的无缝精确续播。
+- **架构决策记录 (ADR)**：归档落地 [ADR 0014: CUE 虚拟分轨流内映射与目录闭环流式播放](docs/adr/0014-cue-virtual-track-and-folder-ring-gapless-streaming.md)。
+
+---
+
 ## [2.2] - 2026-10-05
 
 ### 🚀 新增 (Added)
