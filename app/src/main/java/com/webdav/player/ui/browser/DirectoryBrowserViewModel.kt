@@ -2,7 +2,6 @@ package com.webdav.player.ui.browser
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlin.coroutines.coroutineContext
 import com.webdav.player.data.cue.CueAssociationHelper
 import com.webdav.player.data.cue.CueParser
 import com.webdav.player.data.remote.WebDavClient
@@ -28,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.coroutines.coroutineContext
 
 class DirectoryBrowserViewModel(
     private val serverRepository: ServerRepository? = null,
@@ -475,6 +475,7 @@ class DirectoryBrowserViewModel(
             parentTrack = parentTrack,
             virtualTracks = album.tracks,
             startIndex = trackIndex,
+            cuePath = album.cueFile.path,
         )
     }
 
@@ -525,7 +526,10 @@ class DirectoryBrowserViewModel(
                 val resolvedAlbums =
                     initialAlbums.map { initialAlbum ->
                         try {
-                            val cueContent = webDavClient.fetchText(server, initialAlbum.cueFile.path)
+                            val cachedCue = com.webdav.player.data.cue.CueTextCache.get(server.id, initialAlbum.cueFile.path)
+                            val cueContent = cachedCue ?: webDavClient.fetchText(server, initialAlbum.cueFile.path)?.also {
+                                com.webdav.player.data.cue.CueTextCache.put(server.id, initialAlbum.cueFile.path, it)
+                            }
                             if (cueContent.isNullOrBlank()) {
                                 initialAlbum.copy(
                                     isLoading = false,

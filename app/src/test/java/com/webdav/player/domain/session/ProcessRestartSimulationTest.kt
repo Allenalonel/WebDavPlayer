@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.test.core.app.ApplicationProvider
+import com.webdav.player.data.cue.CueTextCache
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
@@ -12,6 +13,7 @@ import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.repository.ServerRepository
@@ -126,6 +128,7 @@ class ProcessRestartSimulationTest {
         if (dataStoreFile.exists()) {
             dataStoreFile.delete()
         }
+        CueTextCache.clear()
         Dispatchers.resetMain()
     }
 
@@ -399,6 +402,123 @@ class ProcessRestartSimulationTest {
             assertEquals(3, restoredState.queue.size)
             assertEquals(1, restoredState.queue.currentIndex)
             assertEquals("02-Solo.flac", restoredState.currentTrack?.title)
+
+            session2.release()
+            process2Scope.coroutineContext[Job]?.cancel()
+        }
+
+    @Test
+    fun simulatedProcessRestart_withVirtualTrackPlayback_persistsAndRestoresSeamlesslyAcrossProcesses() =
+        runTest(testDispatcher) {
+            val serverRepo = InMemoryServerRepository(mutableListOf(testServer))
+
+            val cueContent =
+                """
+                TITLE "Epic Symphony"
+                PERFORMER "Philharmonic Orchestra"
+                FILE "02-Solo.flac" WAVE
+                  TRACK 01 AUDIO
+                    TITLE "Movement I"
+                    INDEX 01 00:00:00
+                  TRACK 02 AUDIO
+                    TITLE "Movement II"
+                    INDEX 01 01:30:00
+                """.trimIndent()
+            CueTextCache.put(100L, "/Music/Rock/02-Solo.cue", cueContent)
+
+            val virtualTracks =
+                listOf(
+                    VirtualTrack(
+                        trackNumber = 1,
+                        title = "Movement I",
+                        performer = "Philharmonic Orchestra",
+                        startTimeMs = 0L,
+                        endTimeMs = 90000L,
+                        parentAudioPath = track2.remotePath,
+                    ),
+                    VirtualTrack(
+                        trackNumber = 2,
+                        title = "Movement II",
+                        performer = "Philharmonic Orchestra",
+                        startTimeMs = 90000L,
+                        endTimeMs = 260000L,
+                        parentAudioPath = track2.remotePath,
+                    ),
+                )
+
+            // === PROCESS 1 ===
+            val process1Scope = kotlinx.coroutines.CoroutineScope(testDispatcher + SupervisorJob())
+            val engine1 = FakeAudioPlayerEngine()
+            val session1 =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine1,
+                    serverRepository = serverRepo,
+                    sessionStore = sessionStore,
+                    coroutineScope = process1Scope,
+                )
+            session1.setActiveServer(testServer)
+
+            // Start playing Track 2 (Movement II: starts at 90000ms)
+            session1.playVirtualTracks(
+                parentTrack = track2,
+                virtualTracks = virtualTracks,
+                startIndex = 1,
+                cuePath = "/Music/Rock/02-Solo.cue",
+            )
+            runCurrent()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Progress reaches 115000ms (25000ms into Track 2)
+            engine1._currentPositionMs.value = 115000L
+            session1.seekTo(25000L)
+            runCurrent()
+
+            session1.flushSession()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // Verify session was saved in real DataStore
+            val savedInStore = sessionStore.getSavedSession()
+            assertNotNull(savedInStore)
+            assertEquals("/Music/Rock/02-Solo.cue", savedInStore?.cuePath)
+            assertEquals(2, savedInStore?.virtualTrackNumber)
+            assertEquals(25000L, savedInStore?.virtualPositionMs)
+
+            // Simulate process 1 death
+            session1.release()
+            process1Scope.coroutineContext[Job]?.cancel()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            // === PROCESS 2 (COLD START) ===
+            val process2Scope = kotlinx.coroutines.CoroutineScope(testDispatcher + SupervisorJob())
+            val engine2 = FakeAudioPlayerEngine()
+            val session2 =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = engine2,
+                    serverRepository = serverRepo,
+                    sessionStore = sessionStore,
+                    coroutineScope = process2Scope,
+                )
+
+            advanceUntilIdle()
+
+            // Verify cold start state
+            val restoredState = session2.sessionState.value
+            assertEquals(2, restoredState.queue.size)
+            assertEquals(1, restoredState.queue.currentIndex)
+            assertEquals("Movement II", restoredState.currentTrack?.title)
+            assertTrue(restoredState.isPaused)
+            assertEquals(25000L, session2.playbackProgress.value.currentPositionMs)
+            assertEquals(170000L, session2.playbackProgress.value.durationMs)
+
+            // Tapping play starts underlying stream at 90000 + 25000 = 115000ms
+            session2.togglePlayPause()
+            runCurrent()
+
+            assertEquals(testServer, engine2.lastServer)
+            assertEquals(1, engine2.lastTracks.size)
+            assertEquals(track2.remotePath, engine2.lastTracks[0].remotePath)
+            assertEquals(115000L, engine2.lastStartPositionMs)
+            assertTrue(session2.sessionState.value.isPlaying)
 
             session2.release()
             process2Scope.coroutineContext[Job]?.cancel()

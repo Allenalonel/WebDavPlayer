@@ -7,7 +7,10 @@ data class PlaybackSessionData(
     val currentTrackIndex: Int,
     val positionMs: Long,
     val playbackMode: PlaybackMode,
-    val serverLastDirectories: Map<Long, String> = emptyMap()
+    val serverLastDirectories: Map<Long, String> = emptyMap(),
+    val cuePath: String? = null,
+    val virtualTrackNumber: Int? = null,
+    val virtualPositionMs: Long? = null,
 ) {
     companion object {
         val EMPTY = PlaybackSessionData(
@@ -17,7 +20,10 @@ data class PlaybackSessionData(
             currentTrackIndex = -1,
             positionMs = 0L,
             playbackMode = PlaybackMode.LIST_LOOP,
-            serverLastDirectories = emptyMap()
+            serverLastDirectories = emptyMap(),
+            cuePath = null,
+            virtualTrackNumber = null,
+            virtualPositionMs = null,
         )
     }
 }

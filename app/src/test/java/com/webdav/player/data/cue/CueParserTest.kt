@@ -8,10 +8,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CueParserTest {
-
     @Test
     fun parse_standardSingleFileCue_returnsAllVirtualTracksWithCorrectIntervals() {
-        val cue = """
+        val cue =
+            """
             REM GENRE "Progressive Rock"
             REM DATE 1973
             PERFORMER "Pink Floyd"
@@ -29,7 +29,7 @@ class CueParserTest {
                 TITLE "On the Run"
                 PERFORMER "Pink Floyd"
                 INDEX 01 03:57:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
 
@@ -69,7 +69,8 @@ class CueParserTest {
 
     @Test
     fun parse_frameToMillisCalculation_matchesExactFormula() {
-        val cue = """
+        val cue =
+            """
             FILE "test.wav" WAVE
               TRACK 01 AUDIO
                 TITLE "Frame 0"
@@ -95,7 +96,7 @@ class CueParserTest {
               TRACK 08 AUDIO
                 TITLE "Max CD"
                 INDEX 01 79:59:74
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(8, tracks.size)
@@ -120,7 +121,8 @@ class CueParserTest {
 
     @Test
     fun parse_unquotedAndQuotedStrings_parsedCorrectly() {
-        val cue = """
+        val cue =
+            """
             PERFORMER Queen
             TITLE Greatest Hits
             FILE Bohemian.flac WAVE
@@ -132,7 +134,7 @@ class CueParserTest {
                 TITLE "Another One Bites the Dust"
                 PERFORMER "Queen feat. Guest"
                 INDEX 01 05:55:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(2, tracks.size)
@@ -148,7 +150,8 @@ class CueParserTest {
 
     @Test
     fun parse_performerInheritance_trackOverridesAlbumPerformer() {
-        val cue = """
+        val cue =
+            """
             PERFORMER "Album Artist"
             TITLE "Various Compilation"
             FILE "compilation.flac" WAVE
@@ -162,7 +165,7 @@ class CueParserTest {
               TRACK 03 AUDIO
                 TITLE "Track 3 - Inherited Again"
                 INDEX 01 06:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(3, tracks.size)
@@ -174,7 +177,8 @@ class CueParserTest {
 
     @Test
     fun parse_commentsAndRemLines_ignored() {
-        val cue = """
+        val cue =
+            """
             REM GENRE Rock
             REM DATE 1994
             REM DISCID 12345678
@@ -187,7 +191,7 @@ class CueParserTest {
                 REM Another comment
                 TITLE "Song 1"
                 INDEX 01 00:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(1, tracks.size)
@@ -196,7 +200,8 @@ class CueParserTest {
 
     @Test
     fun parse_caseInsensitiveCommands() {
-        val cue = """
+        val cue =
+            """
             performer "artist"
             title "album"
             file "album.flac" wave
@@ -206,7 +211,7 @@ class CueParserTest {
               track 02 audio
                 title "song 2"
                 index 01 02:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(2, tracks.size)
@@ -218,7 +223,8 @@ class CueParserTest {
 
     @Test
     fun parse_withParentAudioPath_resolvesFullPath() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "Song 1"
@@ -226,7 +232,7 @@ class CueParserTest {
               TRACK 02 AUDIO
                 TITLE "Song 2"
                 INDEX 01 03:15:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue, parentAudioPath = "/music/rock/album.flac")
         assertEquals(2, tracks.size)
@@ -236,7 +242,8 @@ class CueParserTest {
 
     @Test
     fun parse_withTotalDuration_setsLastTrackEndTime() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "Song 1"
@@ -244,7 +251,7 @@ class CueParserTest {
               TRACK 02 AUDIO
                 TITLE "Song 2"
                 INDEX 01 03:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val totalDurationMs = 360000L // 6 minutes
         val tracks = CueParser.parse(cue, totalDurationMs = totalDurationMs)
@@ -260,7 +267,8 @@ class CueParserTest {
 
     @Test
     fun parse_missingFileTag_returnsEmptyList() {
-        val cue = """
+        val cue =
+            """
             PERFORMER "Artist"
             TITLE "Album"
             TRACK 01 AUDIO
@@ -269,7 +277,7 @@ class CueParserTest {
             TRACK 02 AUDIO
               TITLE "Song 2"
               INDEX 01 03:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertTrue("CUE without FILE tag must return empty list", tracks.isEmpty())
@@ -283,13 +291,14 @@ class CueParserTest {
 
     @Test
     fun parse_corruptedOrNonCueText_returnsEmptyListWithoutCrashing() {
-        val htmlContent = """
+        val htmlContent =
+            """
             <!DOCTYPE html>
             <html>
             <head><title>404 Not Found</title></head>
             <body><h1>Not Found</h1></body>
             </html>
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(htmlContent)
         assertTrue(tracks.isEmpty())
@@ -301,7 +310,8 @@ class CueParserTest {
 
     @Test
     fun parse_disorderedTimestamps_returnsValidUsableSubset() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "Track 1"
@@ -315,7 +325,7 @@ class CueParserTest {
               TRACK 04 AUDIO
                 TITLE "Track 4 - forward again"
                 INDEX 01 05:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         // Disordered track 3 should be dropped or safely handled so timeline is strictly monotonic
@@ -323,7 +333,7 @@ class CueParserTest {
         for (i in 0 until tracks.size - 1) {
             assertTrue(
                 "Timestamps must be monotonically increasing: ${tracks[i].startTimeMs} < ${tracks[i + 1].startTimeMs}",
-                tracks[i].startTimeMs <= tracks[i + 1].startTimeMs
+                tracks[i].startTimeMs <= tracks[i + 1].startTimeMs,
             )
             assertEquals(tracks[i + 1].startTimeMs, tracks[i].endTimeMs)
         }
@@ -331,14 +341,15 @@ class CueParserTest {
 
     @Test
     fun parse_tracksWithoutIndex_skippedSafely() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "Track without index"
               TRACK 02 AUDIO
                 TITLE "Valid Track"
                 INDEX 01 02:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(1, tracks.size)
@@ -349,7 +360,8 @@ class CueParserTest {
 
     @Test
     fun parse_multipleFileCue_calculatesIntervalsPerFile() {
-        val cue = """
+        val cue =
+            """
             FILE "CD1.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "CD1 Track 1"
@@ -364,7 +376,7 @@ class CueParserTest {
               TRACK 04 AUDIO
                 TITLE "CD2 Track 2"
                 INDEX 01 03:30:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(4, tracks.size)
@@ -387,7 +399,8 @@ class CueParserTest {
 
     @Test
     fun parse_extraWhitespaceAndTabs_handledRobustly() {
-        val cue = "\t\tFILE   \"album.flac\"   WAVE  \r\n" +
+        val cue =
+            "\t\tFILE   \"album.flac\"   WAVE  \r\n" +
                 "  TRACK   01   AUDIO   \r\n" +
                 "\t  TITLE   \"Spaced Song\"  \r\n" +
                 "   PERFORMER   \"Spaced Artist\"   \r\n" +
@@ -403,7 +416,8 @@ class CueParserTest {
 
     @Test
     fun parse_index00AndIndex01_usesIndex01AsStartTime() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "Track with pregap"
@@ -413,7 +427,7 @@ class CueParserTest {
                 TITLE "Next Track"
                 INDEX 00 03:28:50
                 INDEX 01 03:30:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(2, tracks.size)
@@ -426,7 +440,8 @@ class CueParserTest {
 
     @Test
     fun parse_utf8Bom_handledGracefully() {
-        val cueWithBom = "\uFEFFFILE \"bom.flac\" WAVE\r\n" +
+        val cueWithBom =
+            "\uFEFFFILE \"bom.flac\" WAVE\r\n" +
                 "  TRACK 01 AUDIO\r\n" +
                 "    TITLE \"BOM Track\"\r\n" +
                 "    INDEX 01 00:00:00\r\n"
@@ -439,13 +454,14 @@ class CueParserTest {
 
     @Test
     fun parse_missingTrackTitle_fallsBackToTrackNumber() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 INDEX 01 00:00:00
               TRACK 02 AUDIO
                 INDEX 01 02:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(2, tracks.size)
@@ -455,12 +471,13 @@ class CueParserTest {
 
     @Test
     fun parse_noPerformerAtAll_performerIsNull() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "No Artist Track"
                 INDEX 01 00:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val tracks = CueParser.parse(cue)
         assertEquals(1, tracks.size)
@@ -469,12 +486,13 @@ class CueParserTest {
 
     @Test
     fun parse_totalDurationShorterThanStartTime_setsEndTimeToNull() {
-        val cue = """
+        val cue =
+            """
             FILE "album.flac" WAVE
               TRACK 01 AUDIO
                 TITLE "Track 1"
                 INDEX 01 05:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         // Total duration is 4 minutes, but track starts at 5 minutes
         val tracks = CueParser.parse(cue, totalDurationMs = 240000L)
@@ -486,20 +504,22 @@ class CueParserTest {
 
     @Test
     fun parse_allowMissingFileTag_withFallbackPath_parsesSuccessfully() {
-        val cueWithoutFile = """
+        val cueWithoutFile =
+            """
             TRACK 01 AUDIO
               TITLE "Fallback Track"
               INDEX 01 00:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val defaultResult = CueParser.parse(cueWithoutFile)
         assertTrue(defaultResult.isEmpty())
 
-        val allowedResult = CueParser.parse(
-            content = cueWithoutFile,
-            parentAudioPath = "/music/fallback.flac",
-            allowMissingFileTag = true
-        )
+        val allowedResult =
+            CueParser.parse(
+                content = cueWithoutFile,
+                parentAudioPath = "/music/fallback.flac",
+                allowMissingFileTag = true,
+            )
         assertEquals(1, allowedResult.size)
         assertEquals("Fallback Track", allowedResult[0].title)
         assertEquals("/music/fallback.flac", allowedResult[0].parentAudioPath)
@@ -507,12 +527,13 @@ class CueParserTest {
 
     @Test
     fun extractReferencedFiles_singleQuotedFile_returnsCleanFileName() {
-        val cue = """
+        val cue =
+            """
             TITLE "Test Album"
             FILE "DarkSide.flac" WAVE
               TRACK 01 AUDIO
                 INDEX 01 00:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val files = CueParser.extractReferencedFiles(cue)
         assertEquals(listOf("DarkSide.flac"), files)
@@ -520,14 +541,15 @@ class CueParserTest {
 
     @Test
     fun extractReferencedFiles_multipleFiles_returnsAllInOrder() {
-        val cue = """
+        val cue =
+            """
             FILE "Disc1.flac" WAVE
               TRACK 01 AUDIO
                 INDEX 01 00:00:00
             FILE "Disc2.flac" WAVE
               TRACK 02 AUDIO
                 INDEX 01 00:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         val files = CueParser.extractReferencedFiles(cue)
         assertEquals(listOf("Disc1.flac", "Disc2.flac"), files)
@@ -535,11 +557,12 @@ class CueParserTest {
 
     @Test
     fun extractReferencedFiles_blankOrNoFileDirective_returnsEmptyList() {
-        val cue = """
+        val cue =
+            """
             TITLE "No File Album"
             TRACK 01 AUDIO
               INDEX 01 00:00:00
-        """.trimIndent()
+            """.trimIndent()
 
         assertTrue(CueParser.extractReferencedFiles(cue).isEmpty())
         assertTrue(CueParser.extractReferencedFiles("").isEmpty())

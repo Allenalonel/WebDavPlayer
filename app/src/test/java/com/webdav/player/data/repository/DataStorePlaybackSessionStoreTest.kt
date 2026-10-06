@@ -216,4 +216,98 @@ class DataStorePlaybackSessionStoreTest {
         assertEquals("/Jazz/Miles/", restored?.serverLastDirectories?.get(2L))
         assertEquals("/Classical/Bach/", restored?.serverLastDirectories?.get(3L))
     }
+
+    @Test
+    fun saveSession_withVirtualTrackSession_serializesAndDeserializesAllFields() = runTest(testDispatcher) {
+        val parentTrack = AudioTrack(
+            id = "1:/Music/Rock/album.flac",
+            serverId = 1L,
+            remotePath = "/Music/Rock/album.flac",
+            title = "Album Track",
+            artist = "Rock Band",
+            album = "Greatest Album",
+            durationMs = 600000L,
+            size = 50000000L,
+            format = AudioFormat.FLAC,
+        )
+
+        val virtualSession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Rock/",
+            queueTracks = listOf(parentTrack),
+            currentTrackIndex = 0,
+            positionMs = 185000L,
+            playbackMode = PlaybackMode.LIST_LOOP,
+            cuePath = "/Music/Rock/album.cue",
+            virtualTrackNumber = 3,
+            virtualPositionMs = 25000L,
+        )
+
+        repository.saveSession(virtualSession)
+
+        val restored = repository.getSavedSession()
+        assertNotNull(restored)
+        assertEquals(1L, restored?.activeServerId)
+        assertEquals("/Music/Rock/", restored?.currentDirectoryPath)
+        assertEquals(1, restored?.queueTracks?.size)
+        assertEquals(0, restored?.currentTrackIndex)
+        assertEquals(185000L, restored?.positionMs)
+        assertEquals("/Music/Rock/album.cue", restored?.cuePath)
+        assertEquals(3, restored?.virtualTrackNumber)
+        assertEquals(25000L, restored?.virtualPositionMs)
+
+        // Now save an ordinary session without virtual fields -> virtual fields must be cleared
+        val ordinarySession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Pop/",
+            queueTracks = listOf(parentTrack),
+            currentTrackIndex = 0,
+            positionMs = 10000L,
+            playbackMode = PlaybackMode.LIST_LOOP,
+            cuePath = null,
+            virtualTrackNumber = null,
+            virtualPositionMs = null,
+        )
+        repository.saveSession(ordinarySession)
+
+        val restoredOrdinary = repository.getSavedSession()
+        assertNotNull(restoredOrdinary)
+        assertNull(restoredOrdinary?.cuePath)
+        assertNull(restoredOrdinary?.virtualTrackNumber)
+        assertNull(restoredOrdinary?.virtualPositionMs)
+    }
+
+    @Test
+    fun savePosition_withVirtualPosition_persistsBothPositions() = runTest(testDispatcher) {
+        val parentTrack = AudioTrack(
+            id = "1:/Music/Rock/album.flac",
+            serverId = 1L,
+            remotePath = "/Music/Rock/album.flac",
+            title = "Album Track",
+            artist = "Rock Band",
+            album = "Greatest Album",
+            durationMs = 600000L,
+            size = 50000000L,
+            format = AudioFormat.FLAC,
+        )
+        val initialSession = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/Rock/",
+            queueTracks = listOf(parentTrack),
+            currentTrackIndex = 0,
+            positionMs = 180000L,
+            playbackMode = PlaybackMode.LIST_LOOP,
+            cuePath = "/Music/Rock/album.cue",
+            virtualTrackNumber = 2,
+            virtualPositionMs = 10000L,
+        )
+        repository.saveSession(initialSession)
+
+        repository.savePosition(positionMs = 210000L, virtualPositionMs = 40000L)
+
+        val restored = repository.getSavedSession()
+        assertNotNull(restored)
+        assertEquals(210000L, restored?.positionMs)
+        assertEquals(40000L, restored?.virtualPositionMs)
+    }
 }

@@ -6,13 +6,13 @@
 **Blocked by:**
 03: 虚拟时间轴映射引擎（Virtual Timeline Engine）与零打扰元数据广播, 04: 目录浏览器 CUE 识别与虚拟分轨队列点播呈现
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] 扩展本地会话存储模型（DataStore / Room `PlaybackSessionState`）：新增可选的 `cuePath`、`virtualTrackNumber` 与 `virtualPositionMs` 字段。
-- [ ] 现场序列化接缝：在会话层定期（或状态变更时）保存当前现场时，若处于虚拟分轨播放状态，自动提取分轨相对进度并持久化。
-- [ ] 冷启动恢复控制器：应用启动恢复现场时，若检测到 `cuePath` 存在：
+- [x] 扩展本地会话存储模型（DataStore / Room `PlaybackSessionState`）：新增可选的 `cuePath`、`virtualTrackNumber` 与 `virtualPositionMs` 字段。
+- [x] 现场序列化接缝：在会话层定期（或状态变更时）保存当前现场时，若处于虚拟分轨播放状态，自动提取分轨相对进度并持久化。
+- [x] 冷启动恢复控制器：应用启动恢复现场时，若检测到 `cuePath` 存在：
   - 自动从缓存中解析 CUE 文本并重构 `VirtualTrack` 队列；
   - 建立底层大音频的流式连接，静默 Seek 定位至目标分轨的绝对毫秒；
   - 立即向 UI 和系统 MediaSession 广播分轨元数据与相对时间，消除全局大文件时间闪烁。
-- [ ] 异常降级兜底：若恢复现场时对应的 `.cue` 文件被删除或解析失败，安全回退至普通大音频播放，绝不破坏应用启动流程。
-- [ ] 编写测试覆盖：虚拟分轨状态序列化/反序列化测试、冷启动静默 Seek 换算测试及异常 CUE 降级恢复测试。
+- [x] 异常降级兜底：若恢复现场时对应的 `.cue` 文件被删除或解析失败，安全回退至普通大音频播放，绝不破坏应用启动流程。
+- [x] 编写测试覆盖：虚拟分轨状态序列化/反序列化测试、冷启动静默 Seek 换算测试及异常 CUE 降级恢复测试。

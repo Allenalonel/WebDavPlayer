@@ -1,5 +1,8 @@
 package com.webdav.player.domain.session
 
+import com.webdav.player.data.cue.CueParser
+import com.webdav.player.data.cue.CueTextCache
+import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
@@ -39,6 +42,7 @@ class MusicPlayerAppSessionImpl(
     private val trackMetadataRepository: TrackMetadataRepository? = null,
     private val lyricsRepository: LyricsRepository? = null,
     private val sessionStore: PlaybackSessionStore? = null,
+    private val webDavClient: WebDavClient? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
     private val progressDispatcher: CoroutineDispatcher =
         (coroutineScope.coroutineContext[kotlin.coroutines.ContinuationInterceptor] as? CoroutineDispatcher)?.takeIf {
@@ -62,6 +66,7 @@ class MusicPlayerAppSessionImpl(
 
     private val virtualTimelineEngine = VirtualTimelineEngine()
     private var activeParentAudioTrack: AudioTrack? = null
+    private var activeCuePath: String? = null
 
     init {
         internalJobs +=
@@ -127,11 +132,15 @@ class MusicPlayerAppSessionImpl(
                     playerEngine.bufferedPositionMs,
                 ) { pos, dur, buf ->
                     if (virtualTimelineEngine.isActive) {
-                        val transition = virtualTimelineEngine.onPositionUpdate(pos)
-                        if (transition is VirtualTimelineEngine.TransitionResult.Transitioned) {
-                            handleVirtualTrackTransition(transition.newIndex, transition.newTrack)
+                        if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                            val transition = virtualTimelineEngine.onPositionUpdate(pos)
+                            if (transition is VirtualTimelineEngine.TransitionResult.Transitioned) {
+                                handleVirtualTrackTransition(transition.newIndex, transition.newTrack)
+                            }
+                            virtualTimelineEngine.mapToVirtualProgress(pos, dur, buf)
+                        } else {
+                            _playbackProgress.value
                         }
-                        virtualTimelineEngine.mapToVirtualProgress(pos, dur, buf)
                     } else {
                         val fallbackDur = _sessionState.value.currentTrack?.durationMs ?: 0L
                         val effectiveDur = if (dur > 0L) dur else fallbackDur
@@ -308,6 +317,7 @@ class MusicPlayerAppSessionImpl(
                 }
                 virtualTimelineEngine.clear()
                 activeParentAudioTrack = null
+                activeCuePath = null
                 _playbackProgress.value = PlaybackProgress.ZERO
                 val lastPath = if (server != null) getLastDirectoryForServer(server.id) else "/"
                 current.copy(
@@ -334,6 +344,7 @@ class MusicPlayerAppSessionImpl(
         _isRestored.value = true
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
+        activeCuePath = null
         val server = _sessionState.value.activeServer ?: return
         val audioFiles = directory.files.filter { it.isAudio }
         if (audioFiles.isEmpty()) return
@@ -420,6 +431,7 @@ class MusicPlayerAppSessionImpl(
         _isRestored.value = true
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
+        activeCuePath = null
         val server = _sessionState.value.activeServer ?: return
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
         _playbackProgress.value =
@@ -476,18 +488,20 @@ class MusicPlayerAppSessionImpl(
         parentTrack: AudioTrack,
         virtualTracks: List<VirtualTrack>,
         startIndex: Int,
+        cuePath: String?,
     ) {
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         if (virtualTracks.isEmpty()) return
 
-        activeParentAudioTrack = parentTrack
+        activeParentAudioTrack = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
+        activeCuePath = cuePath ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
         val validStartIndex = startIndex.coerceIn(0, virtualTracks.lastIndex)
 
         val mappedTracks =
             virtualTracks.map { vt ->
                 AudioTrack(
-                    id = "${parentTrack.id}#cue_${vt.trackNumber}",
+                    id = "${activeParentAudioTrack!!.id}#cue_${vt.trackNumber}",
                     serverId = parentTrack.serverId,
                     remotePath = parentTrack.remotePath,
                     title = vt.title,
@@ -602,7 +616,13 @@ class MusicPlayerAppSessionImpl(
                     if (_isRestored.value) {
                         val pos = playerEngine.currentPositionMs.value
                         if (pos > 0L) {
-                            sessionStore?.savePosition(pos)
+                            if (virtualTimelineEngine.isActive) {
+                                val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
+                                val relPos = (pos - startMs).coerceAtLeast(0L)
+                                sessionStore?.savePosition(pos, relPos)
+                            } else {
+                                sessionStore?.savePosition(pos)
+                            }
                         }
                     }
                     flushSession()
@@ -717,7 +737,13 @@ class MusicPlayerAppSessionImpl(
             if (_isRestored.value) {
                 val pos = playerEngine.currentPositionMs.value
                 if (pos > 0L) {
-                    sessionStore?.savePosition(pos)
+                    if (virtualTimelineEngine.isActive) {
+                        val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
+                        val relPos = (pos - startMs).coerceAtLeast(0L)
+                        sessionStore?.savePosition(pos, relPos)
+                    } else {
+                        sessionStore?.savePosition(pos)
+                    }
                 }
             }
             flushSession()
@@ -738,7 +764,7 @@ class MusicPlayerAppSessionImpl(
             }
             coroutineScope.launch {
                 if (_isRestored.value) {
-                    sessionStore?.savePosition(globalTargetMs)
+                    sessionStore?.savePosition(globalTargetMs, clamped)
                 }
             }
         } else {
@@ -835,6 +861,7 @@ class MusicPlayerAppSessionImpl(
         stopPeriodicFlush()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
+        activeCuePath = null
         playerEngine.stop()
         _playbackProgress.value = PlaybackProgress.ZERO
         coroutineScope.launch { flushSession() }
@@ -844,6 +871,7 @@ class MusicPlayerAppSessionImpl(
         stopPeriodicFlush()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
+        activeCuePath = null
         internalJobs.forEach { it.cancel() }
         internalJobs.clear()
         playerEngine.release()
@@ -865,7 +893,13 @@ class MusicPlayerAppSessionImpl(
                     if (_isRestored.value && playerEngine.playbackState.value is PlaybackState.Playing) {
                         val pos = playerEngine.currentPositionMs.value
                         if (pos > 0L) {
-                            sessionStore.savePosition(pos)
+                            if (virtualTimelineEngine.isActive) {
+                                val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
+                                val relPos = (pos - startMs).coerceAtLeast(0L)
+                                sessionStore.savePosition(pos, relPos)
+                            } else {
+                                sessionStore.savePosition(pos)
+                            }
                         }
                     }
                 }
@@ -922,52 +956,182 @@ class MusicPlayerAppSessionImpl(
                 return
             }
 
-            val restoredQueue =
-                PlaybackQueue(
-                    tracks = savedSession.queueTracks,
-                    currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
-                )
-            val restoredTrack = restoredQueue.currentTrack
-            val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
-
-            val finalQueue =
-                if (server != null) {
-                    val updatedTracks =
-                        savedSession.queueTracks.map { track ->
-                            val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, track.remotePath)
-                            if (cachedMeta != null) track.withMetadata(cachedMeta) else track
-                        }
-                    PlaybackQueue(
-                        tracks = updatedTracks,
-                        currentIndex = savedSession.currentTrackIndex.coerceIn(-1, updatedTracks.lastIndex),
-                    )
-                } else {
-                    restoredQueue
+            // If CUE virtual track session is saved, attempt to reconstruct virtual queue
+            if (savedSession.cuePath != null && savedSession.queueTracks.isNotEmpty()) {
+                val restoredVirtual = restoreVirtualTrackSession(server, savedSession)
+                if (restoredVirtual) {
+                    playerEngine.setPlaybackMode(savedSession.playbackMode)
+                    return
                 }
-            val durationMs = finalQueue.currentTrack?.durationMs ?: restoredTrack?.durationMs ?: 0L
-
-            _sessionState.update {
-                it.copy(
-                    activeServer = server ?: it.activeServer,
-                    queue = finalQueue,
-                    playbackState = restoredPlaybackState,
-                    playbackMode = savedSession.playbackMode,
-                    durationMs = durationMs,
-                    currentDirectoryPath = savedSession.currentDirectoryPath,
-                    errorMessage = null,
-                )
+                // Fall back cleanly to ordinary playback
             }
-            _playbackProgress.value =
-                PlaybackProgress(
-                    currentPositionMs = savedSession.positionMs,
-                    durationMs = durationMs,
-                    bufferedPositionMs = 0L,
-                )
 
+            restoreOrdinarySession(server, savedSession)
             playerEngine.setPlaybackMode(savedSession.playbackMode)
         } finally {
             _isRestored.value = true
         }
+    }
+
+    private suspend fun restoreVirtualTrackSession(
+        server: WebDavServer?,
+        savedSession: PlaybackSessionData,
+    ): Boolean {
+        val cuePath = savedSession.cuePath ?: return false
+        val parentTrack = savedSession.queueTracks.firstOrNull() ?: return false
+        val normalizedParentTrack = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
+
+        // 1. Check in-memory CUE text cache
+        var cueText = CueTextCache.get(savedSession.activeServerId, cuePath)
+
+        // 2. Fetch from WebDavClient if not cached
+        if (cueText.isNullOrBlank() && server != null && webDavClient != null) {
+            cueText =
+                try {
+                    webDavClient.fetchText(server, cuePath)
+                } catch (e: Exception) {
+                    null
+                }
+            if (!cueText.isNullOrBlank()) {
+                CueTextCache.put(server.id, cuePath, cueText)
+            }
+        }
+
+        // 3. Fallback if CUE text is unavailable (deleted / network fail)
+        if (cueText.isNullOrBlank()) {
+            return false
+        }
+
+        // 4. Parse CUE into virtual tracks
+        val virtualTracks =
+            try {
+                CueParser.parse(
+                    content = cueText,
+                    parentAudioPath = normalizedParentTrack.remotePath,
+                    totalDurationMs = normalizedParentTrack.durationMs,
+                )
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+        // If CUE parsing failed or returned no tracks, fallback safely
+        if (virtualTracks.isEmpty()) {
+            return false
+        }
+
+        // 5. Identify the target virtual track index
+        val targetIndex =
+            if (savedSession.virtualTrackNumber != null) {
+                virtualTracks
+                    .indexOfFirst { it.trackNumber == savedSession.virtualTrackNumber }
+                    .takeIf { it >= 0 } ?: 0
+            } else {
+                savedSession.currentTrackIndex.coerceIn(0, virtualTracks.lastIndex)
+            }
+
+        val targetVirtualTrack = virtualTracks[targetIndex]
+
+        val mappedTracks =
+            virtualTracks.map { vt ->
+                AudioTrack(
+                    id = "${normalizedParentTrack.id}#cue_${vt.trackNumber}",
+                    serverId = normalizedParentTrack.serverId,
+                    remotePath = normalizedParentTrack.remotePath,
+                    title = vt.title,
+                    artist = vt.performer?.takeIf { it.isNotBlank() } ?: normalizedParentTrack.artist,
+                    album = normalizedParentTrack.album,
+                    durationMs = vt.durationMs,
+                    size = normalizedParentTrack.size,
+                    format = normalizedParentTrack.format,
+                    coverThumbnailPath = normalizedParentTrack.coverThumbnailPath,
+                )
+            }
+
+        val targetTrack = mappedTracks[targetIndex]
+
+        virtualTimelineEngine.loadTracks(virtualTracks, targetIndex)
+        activeParentAudioTrack = normalizedParentTrack
+        activeCuePath = cuePath
+
+        val relPositionMs =
+            (savedSession.virtualPositionMs
+                ?: (savedSession.positionMs - targetVirtualTrack.startTimeMs).coerceAtLeast(0L))
+                .coerceIn(0L, if (targetVirtualTrack.durationMs > 0L) targetVirtualTrack.durationMs else Long.MAX_VALUE)
+
+        val queue = PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex)
+
+        _sessionState.update {
+            it.copy(
+                activeServer = server ?: it.activeServer,
+                queue = queue,
+                playbackState = PlaybackState.Paused,
+                playbackMode = savedSession.playbackMode,
+                durationMs = targetVirtualTrack.durationMs,
+                currentDirectoryPath = savedSession.currentDirectoryPath,
+                errorMessage = null,
+            )
+        }
+
+        _playbackProgress.value =
+            PlaybackProgress(
+                currentPositionMs = relPositionMs,
+                durationMs = targetVirtualTrack.durationMs,
+                bufferedPositionMs = 0L,
+            )
+
+        playerEngine.updateTrack(0, targetTrack)
+        return true
+    }
+
+    private suspend fun restoreOrdinarySession(
+        server: WebDavServer?,
+        savedSession: PlaybackSessionData,
+    ) {
+        virtualTimelineEngine.clear()
+        activeParentAudioTrack = null
+        activeCuePath = null
+
+        val restoredQueue =
+            PlaybackQueue(
+                tracks = savedSession.queueTracks,
+                currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
+            )
+        val restoredTrack = restoredQueue.currentTrack
+        val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
+
+        val finalQueue =
+            if (server != null) {
+                val updatedTracks =
+                    savedSession.queueTracks.map { track ->
+                        val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, track.remotePath)
+                        if (cachedMeta != null) track.withMetadata(cachedMeta) else track
+                    }
+                PlaybackQueue(
+                    tracks = updatedTracks,
+                    currentIndex = savedSession.currentTrackIndex.coerceIn(-1, updatedTracks.lastIndex),
+                )
+            } else {
+                restoredQueue
+            }
+        val durationMs = finalQueue.currentTrack?.durationMs ?: restoredTrack?.durationMs ?: 0L
+
+        _sessionState.update {
+            it.copy(
+                activeServer = server ?: it.activeServer,
+                queue = finalQueue,
+                playbackState = restoredPlaybackState,
+                playbackMode = savedSession.playbackMode,
+                durationMs = durationMs,
+                currentDirectoryPath = savedSession.currentDirectoryPath,
+                errorMessage = null,
+            )
+        }
+        _playbackProgress.value =
+            PlaybackProgress(
+                currentPositionMs = savedSession.positionMs,
+                durationMs = durationMs,
+                bufferedPositionMs = 0L,
+            )
     }
 
     override suspend fun flushSession() {
@@ -983,24 +1147,70 @@ class MusicPlayerAppSessionImpl(
             return
         }
 
+        val isVirtual = virtualTimelineEngine.isActive
+        val activeVirtualTrack = virtualTimelineEngine.activeTrack
+
         // Query live engine position if active
         val livePositionMs =
             if (playerEngine.playbackState.value !is PlaybackState.Idle) {
                 val enginePos = playerEngine.currentPositionMs.value
-                if (enginePos > 0L) enginePos else _playbackProgress.value.currentPositionMs
+                if (enginePos > 0L) {
+                    enginePos
+                } else if (isVirtual) {
+                    (activeVirtualTrack?.startTimeMs ?: 0L) + _playbackProgress.value.currentPositionMs
+                } else {
+                    _playbackProgress.value.currentPositionMs
+                }
+            } else if (isVirtual) {
+                (activeVirtualTrack?.startTimeMs ?: 0L) + _playbackProgress.value.currentPositionMs
             } else {
                 _playbackProgress.value.currentPositionMs
             }
+
+        val virtualPosMs =
+            if (isVirtual) {
+                if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                    val enginePos = playerEngine.currentPositionMs.value
+                    val startMs = activeVirtualTrack?.startTimeMs ?: 0L
+                    if (enginePos >= startMs) {
+                        (enginePos - startMs)
+                    } else {
+                        _playbackProgress.value.currentPositionMs
+                    }
+                } else {
+                    _playbackProgress.value.currentPositionMs
+                }
+            } else {
+                null
+            }
+
+        val cuePath = if (isVirtual) activeCuePath else null
+        val virtualTrackNumber = if (isVirtual) activeVirtualTrack?.trackNumber else null
+
+        val queueTracksToSave =
+            if (isVirtual && activeParentAudioTrack != null) {
+                listOf(activeParentAudioTrack!!)
+            } else if (isVirtual && current.queue.currentTrack != null) {
+                val ct = current.queue.currentTrack!!
+                listOf(ct.copy(id = ct.id.substringBefore("#cue_"), title = ct.fileName))
+            } else {
+                current.queue.tracks
+            }
+
+        val currentTrackIndexToSave = if (isVirtual) 0 else current.queue.currentIndex
 
         val sessionData =
             PlaybackSessionData(
                 activeServerId = current.activeServer?.id,
                 currentDirectoryPath = current.currentDirectoryPath,
-                queueTracks = current.queue.tracks,
-                currentTrackIndex = current.queue.currentIndex,
+                queueTracks = queueTracksToSave,
+                currentTrackIndex = currentTrackIndexToSave,
                 positionMs = livePositionMs,
                 playbackMode = current.playbackMode,
                 serverLastDirectories = serverLastDirectories.toMap(),
+                cuePath = cuePath,
+                virtualTrackNumber = virtualTrackNumber,
+                virtualPositionMs = virtualPosMs,
             )
         store.saveSession(sessionData)
     }

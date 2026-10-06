@@ -232,40 +232,43 @@ class PlaybackQueueTest {
 
     @Test
     fun virtualTracks_queueMapping_maintainsVirtualTrackIdsAndTitles() {
-        val parentTrack = createTrack("parent_album", "Parent Album").copy(
-            remotePath = "/Music/album.flac",
-            format = AudioFormat.FLAC,
-        )
-        val virtualTracks = listOf(
-            VirtualTrack(
-                trackNumber = 1,
-                title = "Virtual Track 1",
-                performer = "Performer A",
-                startTimeMs = 0L,
-                endTimeMs = 180000L,
-                parentAudioPath = "/Music/album.flac",
-            ),
-            VirtualTrack(
-                trackNumber = 2,
-                title = "Virtual Track 2",
-                performer = "Performer B",
-                startTimeMs = 180000L,
-                endTimeMs = 360000L,
-                parentAudioPath = "/Music/album.flac",
-            ),
-        )
-
-        val queueTracks = virtualTracks.map { vt ->
-            AudioTrack(
-                id = "${parentTrack.id}#cue_${vt.trackNumber}",
-                serverId = parentTrack.serverId,
-                remotePath = parentTrack.remotePath,
-                title = vt.title,
-                artist = vt.performer ?: parentTrack.artist,
-                durationMs = vt.durationMs,
-                format = parentTrack.format,
+        val parentTrack =
+            createTrack("parent_album", "Parent Album").copy(
+                remotePath = "/Music/album.flac",
+                format = AudioFormat.FLAC,
             )
-        }
+        val virtualTracks =
+            listOf(
+                VirtualTrack(
+                    trackNumber = 1,
+                    title = "Virtual Track 1",
+                    performer = "Performer A",
+                    startTimeMs = 0L,
+                    endTimeMs = 180000L,
+                    parentAudioPath = "/Music/album.flac",
+                ),
+                VirtualTrack(
+                    trackNumber = 2,
+                    title = "Virtual Track 2",
+                    performer = "Performer B",
+                    startTimeMs = 180000L,
+                    endTimeMs = 360000L,
+                    parentAudioPath = "/Music/album.flac",
+                ),
+            )
+
+        val queueTracks =
+            virtualTracks.map { vt ->
+                AudioTrack(
+                    id = "${parentTrack.id}#cue_${vt.trackNumber}",
+                    serverId = parentTrack.serverId,
+                    remotePath = parentTrack.remotePath,
+                    title = vt.title,
+                    artist = vt.performer ?: parentTrack.artist,
+                    durationMs = vt.durationMs,
+                    format = parentTrack.format,
+                )
+            }
         val queue = PlaybackQueue(tracks = queueTracks, currentIndex = 0)
 
         assertEquals(2, queue.size)

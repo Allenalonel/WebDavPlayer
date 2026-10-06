@@ -89,6 +89,7 @@ class WebDavApplication : Application() {
                 trackMetadataRepository = trackMetadataRepository,
                 lyricsRepository = lyricsRepository,
                 sessionStore = sessionStore,
+                webDavClient = webDavClient,
             )
     }
 }

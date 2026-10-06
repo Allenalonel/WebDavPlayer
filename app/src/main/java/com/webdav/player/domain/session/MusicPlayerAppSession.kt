@@ -42,6 +42,7 @@ interface MusicPlayerAppSession {
         parentTrack: AudioTrack,
         virtualTracks: List<VirtualTrack>,
         startIndex: Int = 0,
+        cuePath: String? = null,
     ) {}
 
     fun playTrack(track: AudioTrack)

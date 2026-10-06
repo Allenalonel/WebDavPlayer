@@ -17,14 +17,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DirectoryBrowserPresentationTest {
-
-    private val sampleServer = WebDavServer(
-        id = 1L,
-        name = "Synology NAS",
-        url = "https://nas.example.com",
-        port = 5006,
-        isDefault = true
-    )
+    private val sampleServer =
+        WebDavServer(
+            id = 1L,
+            name = "Synology NAS",
+            url = "https://nas.example.com",
+            port = 5006,
+            isDefault = true,
+        )
 
     @Test
     fun breadcrumbStrip_generatesHierarchyWithActiveTail() {
@@ -132,11 +132,12 @@ class DirectoryBrowserPresentationTest {
 
     @Test
     fun audioQualityBadge_filenameBitrateTagHasPrecedence() {
-        val taggedFile = RemoteFile(
-            name = "Eagles - Hotel California (320kbps).mp3",
-            path = "/Music/Eagles - Hotel California (320kbps).mp3",
-            size = 5_000_000L
-        )
+        val taggedFile =
+            RemoteFile(
+                name = "Eagles - Hotel California (320kbps).mp3",
+                path = "/Music/Eagles - Hotel California (320kbps).mp3",
+                size = 5_000_000L,
+            )
 
         val badge = AudioQualityBadgeHelper.getBadge(taggedFile, null)
         assertNotNull(badge)
@@ -146,22 +147,25 @@ class DirectoryBrowserPresentationTest {
 
     @Test
     fun folderItem_itemCountHints() {
-        val audioDir = RemoteDirectory(
-            path = "/Music/Rock/",
-            name = "Rock",
-            subDirectories = listOf(RemoteDirectory(path = "/Music/Rock/Queen/", name = "Queen")),
-            files = listOf(
-                RemoteFile(name = "song1.mp3", path = "/Music/Rock/song1.mp3"),
-                RemoteFile(name = "song2.flac", path = "/Music/Rock/song2.flac")
+        val audioDir =
+            RemoteDirectory(
+                path = "/Music/Rock/",
+                name = "Rock",
+                subDirectories = listOf(RemoteDirectory(path = "/Music/Rock/Queen/", name = "Queen")),
+                files =
+                    listOf(
+                        RemoteFile(name = "song1.mp3", path = "/Music/Rock/song1.mp3"),
+                        RemoteFile(name = "song2.flac", path = "/Music/Rock/song2.flac"),
+                    ),
             )
-        )
 
-        val emptyDir = RemoteDirectory(
-            path = "/Music/Empty/",
-            name = "Empty",
-            subDirectories = emptyList(),
-            files = emptyList()
-        )
+        val emptyDir =
+            RemoteDirectory(
+                path = "/Music/Empty/",
+                name = "Empty",
+                subDirectories = emptyList(),
+                files = emptyList(),
+            )
 
         assertEquals(2, audioDir.audioFiles.size)
         assertTrue(emptyDir.isEmpty)
@@ -175,56 +179,61 @@ class DirectoryBrowserPresentationTest {
 
     @Test
     fun headerTitle_rootWithActiveServer_returnsServerName() {
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = sampleServer,
-            currentPath = "/"
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = sampleServer,
+                currentPath = "/",
+            )
         assertEquals("Synology NAS", state.headerTitle)
     }
 
     @Test
     fun headerTitle_rootWithoutActiveServer_returnsFallback() {
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = null,
-            currentPath = "/"
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = null,
+                currentPath = "/",
+            )
         assertEquals("远程目录", state.headerTitle)
     }
 
     @Test
     fun headerTitle_subDirectory_returnsDirectoryName() {
         val dir = RemoteDirectory(path = "/Music/Lossless/", name = "Lossless")
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = sampleServer,
-            currentPath = "/Music/Lossless/",
-            currentDirectory = dir
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = sampleServer,
+                currentPath = "/Music/Lossless/",
+                currentDirectory = dir,
+            )
         assertEquals("Lossless", state.headerTitle)
     }
 
     @Test
     fun headerTitle_subDirectoryWithoutCurrentDirectoryObject_derivesFromPath() {
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = sampleServer,
-            currentPath = "/Music/Jazz/",
-            currentDirectory = null
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = sampleServer,
+                currentPath = "/Music/Jazz/",
+                currentDirectory = null,
+            )
         assertEquals("Jazz", state.headerTitle)
     }
 
     @Test
     fun activeTrack_uiState_evaluatesActiveTrackCorrectly() {
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = sampleServer,
-            currentPath = "/Music/",
-            activeTrackPath = "/Music/song.flac",
-            isPlaying = true
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = sampleServer,
+                currentPath = "/Music/",
+                activeTrackPath = "/Music/song.flac",
+                isPlaying = true,
+            )
         assertTrue(state.isTrackActive("/Music/song.flac"))
         assertFalse(state.isTrackActive("/Music/other.mp3"))
         assertTrue(state.isPlaying)
@@ -232,13 +241,14 @@ class DirectoryBrowserPresentationTest {
 
     @Test
     fun activeTrack_uiState_whenNoActiveTrack_returnsFalse() {
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = sampleServer,
-            currentPath = "/Music/",
-            activeTrackPath = null,
-            isPlaying = false
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = sampleServer,
+                currentPath = "/Music/",
+                activeTrackPath = null,
+                isPlaying = false,
+            )
         assertFalse(state.isTrackActive("/Music/song.flac"))
         assertFalse(state.isPlaying)
     }
@@ -247,31 +257,34 @@ class DirectoryBrowserPresentationTest {
     fun cueAlbumItem_presentationState_and_activeTrackEvaluation() {
         val audioFile = RemoteFile(name = "Abbey_Road.flac", path = "/Music/Abbey_Road.flac", size = 300_000_000L)
         val cueFile = RemoteFile(name = "Abbey_Road.cue", path = "/Music/Abbey_Road.cue", size = 2048L)
-        val track1 = VirtualTrack(trackNumber = 1, title = "Come Together", startTimeMs = 0L, endTimeMs = 260000L, parentAudioPath = audioFile.path)
-        val track2 = VirtualTrack(trackNumber = 2, title = "Something", startTimeMs = 260000L, endTimeMs = 440000L, parentAudioPath = audioFile.path)
+        val track1 =
+            VirtualTrack(trackNumber = 1, title = "Come Together", startTimeMs = 0L, endTimeMs = 260000L, parentAudioPath = audioFile.path)
+        val track2 =
+            VirtualTrack(trackNumber = 2, title = "Something", startTimeMs = 260000L, endTimeMs = 440000L, parentAudioPath = audioFile.path)
 
-        val album = CueAlbumItem(
-            cueFile = cueFile,
-            audioFile = audioFile,
-            tracks = listOf(track1, track2),
-        )
+        val album =
+            CueAlbumItem(
+                cueFile = cueFile,
+                audioFile = audioFile,
+                tracks = listOf(track1, track2),
+            )
 
         assertEquals("Abbey_Road", album.albumTitle)
         assertEquals(2, album.totalTracksCount)
 
-        val state = DirectoryBrowserUiState(
-            isInitializing = false,
-            activeServer = sampleServer,
-            currentPath = "/Music/",
-            activeTrackPath = audioFile.path,
-            activeTrackId = "1:${audioFile.path}#cue_2",
-            isPlaying = true,
-            cueAlbums = listOf(album),
-        )
+        val state =
+            DirectoryBrowserUiState(
+                isInitializing = false,
+                activeServer = sampleServer,
+                currentPath = "/Music/",
+                activeTrackPath = audioFile.path,
+                activeTrackId = "1:${audioFile.path}#cue_2",
+                isPlaying = true,
+                cueAlbums = listOf(album),
+            )
 
         assertTrue(state.isCueAlbumActive(album))
         assertFalse(state.isVirtualTrackActive(album, track1))
         assertTrue(state.isVirtualTrackActive(album, track2))
     }
 }
-

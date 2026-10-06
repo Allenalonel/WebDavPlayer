@@ -12,7 +12,6 @@ import java.util.Locale
  * ms = (min * 60 + sec) * 1000 + (frames * 1000 / 75)
  */
 object CueParser {
-
     private const val FRAMES_PER_SECOND = 75L
     private val TIMESTAMP_REGEX = Regex("""^(\d+):(\d{1,2})(?::(\d{1,2}))?$""")
     private val WHITESPACE_REGEX = Regex("""\s+""")
@@ -65,8 +64,9 @@ object CueParser {
                 val startTime = currentIndex01Ms ?: currentIndex00Ms
                 if (startTime != null) {
                     val file = currentFile ?: ""
-                    val title = currentTrackTitle?.takeIf { it.isNotBlank() }
-                        ?: String.format(Locale.US, "Track %02d", trackNum)
+                    val title =
+                        currentTrackTitle?.takeIf { it.isNotBlank() }
+                            ?: String.format(Locale.US, "Track %02d", trackNum)
                     val performer = currentTrackPerformer?.takeIf { it.isNotBlank() } ?: albumPerformer
 
                     intermediateTracks.add(
@@ -76,7 +76,7 @@ object CueParser {
                             title = title,
                             performer = performer,
                             startTimeMs = startTime.coerceAtLeast(0L),
-                        )
+                        ),
                     )
                 }
 
@@ -186,21 +186,23 @@ object CueParser {
                 val current = monotonicTracks[i]
                 val nextInSameFile = monotonicTracks.getOrNull(i + 1)?.takeIf { it.file == current.file }
 
-                val resolvedPath = resolveAudioPath(
-                    rawFile = current.file,
-                    providedPath = parentAudioPath,
-                    singleFile = singleFile,
-                )
+                val resolvedPath =
+                    resolveAudioPath(
+                        rawFile = current.file,
+                        providedPath = parentAudioPath,
+                        singleFile = singleFile,
+                    )
 
-                val endTimeMs: Long? = if (nextInSameFile != null) {
-                    nextInSameFile.startTimeMs
-                } else {
-                    if (totalDurationMs != null && totalDurationMs > current.startTimeMs) {
-                        totalDurationMs
+                val endTimeMs: Long? =
+                    if (nextInSameFile != null) {
+                        nextInSameFile.startTimeMs
                     } else {
-                        null
+                        if (totalDurationMs != null && totalDurationMs > current.startTimeMs) {
+                            totalDurationMs
+                        } else {
+                            null
+                        }
                     }
-                }
 
                 result.add(
                     VirtualTrack(
@@ -210,7 +212,7 @@ object CueParser {
                         startTimeMs = current.startTimeMs,
                         endTimeMs = endTimeMs,
                         parentAudioPath = resolvedPath,
-                    )
+                    ),
                 )
             }
 
@@ -220,7 +222,10 @@ object CueParser {
         }
     }
 
-    private fun isCommand(line: String, command: String): Boolean {
+    private fun isCommand(
+        line: String,
+        command: String,
+    ): Boolean {
         if (!line.startsWith(command, ignoreCase = true)) return false
         val len = command.length
         return line.length == len || line[len].isWhitespace()
@@ -282,7 +287,11 @@ object CueParser {
         val match = TIMESTAMP_REGEX.matchEntire(timestamp.trim()) ?: return null
         val minutes = match.groupValues[1].toLongOrNull() ?: return null
         val seconds = match.groupValues[2].toLongOrNull() ?: return null
-        val frames = match.groupValues.getOrNull(3)?.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+        val frames =
+            match.groupValues
+                .getOrNull(3)
+                ?.takeIf { it.isNotEmpty() }
+                ?.toLongOrNull() ?: 0L
 
         return (minutes * 60L + seconds) * 1000L + (frames * 1000L / FRAMES_PER_SECOND)
     }
@@ -318,11 +327,12 @@ object CueParser {
             return providedPath
         }
 
-        val dir = when {
-            providedPath.contains('/') -> providedPath.substringBeforeLast('/') + "/"
-            providedPath.contains('\\') -> providedPath.substringBeforeLast('\\') + "\\"
-            else -> ""
-        }
+        val dir =
+            when {
+                providedPath.contains('/') -> providedPath.substringBeforeLast('/') + "/"
+                providedPath.contains('\\') -> providedPath.substringBeforeLast('\\') + "\\"
+                else -> ""
+            }
 
         val normalizedRaw = rawFile.replace('\\', '/')
         val isAbsolute = normalizedRaw.startsWith('/') || (normalizedRaw.length > 2 && normalizedRaw[1] == ':')

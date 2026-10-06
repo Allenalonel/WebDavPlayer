@@ -900,18 +900,20 @@ class DirectoryBrowserViewModelTest {
         runTest {
             advanceUntilIdle()
 
-            val playingTrack = AudioTrack(
-                id = "1:/root_track.mp3",
-                serverId = sampleServer.id,
-                remotePath = "/root_track.mp3",
-                title = "Root Track",
-                format = AudioFormat.MP3,
-            )
+            val playingTrack =
+                AudioTrack(
+                    id = "1:/root_track.mp3",
+                    serverId = sampleServer.id,
+                    remotePath = "/root_track.mp3",
+                    title = "Root Track",
+                    format = AudioFormat.MP3,
+                )
 
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                queue = PlaybackQueue(tracks = listOf(playingTrack), currentIndex = 0),
-                playbackState = PlaybackState.Playing,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    queue = PlaybackQueue(tracks = listOf(playingTrack), currentIndex = 0),
+                    playbackState = PlaybackState.Playing,
+                )
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
@@ -926,26 +928,29 @@ class DirectoryBrowserViewModelTest {
         runTest {
             advanceUntilIdle()
 
-            val activeTrack = AudioTrack(
-                id = "1:/root_track.mp3",
-                serverId = sampleServer.id,
-                remotePath = "/root_track.mp3",
-                title = "Root Track",
-                format = AudioFormat.MP3,
-            )
+            val activeTrack =
+                AudioTrack(
+                    id = "1:/root_track.mp3",
+                    serverId = sampleServer.id,
+                    remotePath = "/root_track.mp3",
+                    title = "Root Track",
+                    format = AudioFormat.MP3,
+                )
 
             // First playing
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                queue = PlaybackQueue(tracks = listOf(activeTrack), currentIndex = 0),
-                playbackState = PlaybackState.Playing,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    queue = PlaybackQueue(tracks = listOf(activeTrack), currentIndex = 0),
+                    playbackState = PlaybackState.Playing,
+                )
             advanceUntilIdle()
             assertTrue(viewModel.uiState.value.isPlaying)
 
             // Then paused
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                playbackState = PlaybackState.Paused,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    playbackState = PlaybackState.Paused,
+                )
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
@@ -959,26 +964,29 @@ class DirectoryBrowserViewModelTest {
         runTest {
             advanceUntilIdle()
 
-            val activeTrack = AudioTrack(
-                id = "1:/root_track.mp3",
-                serverId = sampleServer.id,
-                remotePath = "/root_track.mp3",
-                title = "Root Track",
-                format = AudioFormat.MP3,
-            )
+            val activeTrack =
+                AudioTrack(
+                    id = "1:/root_track.mp3",
+                    serverId = sampleServer.id,
+                    remotePath = "/root_track.mp3",
+                    title = "Root Track",
+                    format = AudioFormat.MP3,
+                )
 
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                queue = PlaybackQueue(tracks = listOf(activeTrack), currentIndex = 0),
-                playbackState = PlaybackState.Playing,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    queue = PlaybackQueue(tracks = listOf(activeTrack), currentIndex = 0),
+                    playbackState = PlaybackState.Playing,
+                )
             advanceUntilIdle()
             assertEquals("/root_track.mp3", viewModel.uiState.value.activeTrackPath)
 
             // Track stopped / queue cleared
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                queue = PlaybackQueue.EMPTY,
-                playbackState = PlaybackState.Idle,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    queue = PlaybackQueue.EMPTY,
+                    playbackState = PlaybackState.Idle,
+                )
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
@@ -993,18 +1001,20 @@ class DirectoryBrowserViewModelTest {
             advanceUntilIdle()
 
             // Active track belongs to server id 999, but browser is viewing sampleServer (id = 1)
-            val otherServerTrack = AudioTrack(
-                id = "999:/root_track.mp3",
-                serverId = 999L,
-                remotePath = "/root_track.mp3",
-                title = "Root Track",
-                format = AudioFormat.MP3,
-            )
+            val otherServerTrack =
+                AudioTrack(
+                    id = "999:/root_track.mp3",
+                    serverId = 999L,
+                    remotePath = "/root_track.mp3",
+                    title = "Root Track",
+                    format = AudioFormat.MP3,
+                )
 
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                queue = PlaybackQueue(tracks = listOf(otherServerTrack), currentIndex = 0),
-                playbackState = PlaybackState.Playing,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    queue = PlaybackQueue(tracks = listOf(otherServerTrack), currentIndex = 0),
+                    playbackState = PlaybackState.Playing,
+                )
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
@@ -1021,18 +1031,20 @@ class DirectoryBrowserViewModelTest {
             val server2RootDir = RemoteDirectory(path = "/", name = "Server 2 Root")
             fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(server2RootDir))
 
-            val server1Track = AudioTrack(
-                id = "1:/root_track.mp3",
-                serverId = sampleServer.id,
-                remotePath = "/root_track.mp3",
-                title = "Server 1 Track",
-                format = AudioFormat.MP3,
-            )
+            val server1Track =
+                AudioTrack(
+                    id = "1:/root_track.mp3",
+                    serverId = sampleServer.id,
+                    remotePath = "/root_track.mp3",
+                    title = "Server 1 Track",
+                    format = AudioFormat.MP3,
+                )
 
-            fakeMusicPlayerAppSession._sessionState.value = fakeMusicPlayerAppSession._sessionState.value.copy(
-                queue = PlaybackQueue(tracks = listOf(server1Track), currentIndex = 0),
-                playbackState = PlaybackState.Playing,
-            )
+            fakeMusicPlayerAppSession._sessionState.value =
+                fakeMusicPlayerAppSession._sessionState.value.copy(
+                    queue = PlaybackQueue(tracks = listOf(server1Track), currentIndex = 0),
+                    playbackState = PlaybackState.Playing,
+                )
             advanceUntilIdle()
 
             // On Server 1, track is active
@@ -1061,7 +1073,8 @@ class DirectoryBrowserViewModelTest {
     @Test
     fun cueAlbum_automaticallyDiscoveredAndParsed() =
         runTest {
-            val cueContent = """
+            val cueContent =
+                """
                 PERFORMER "Pink Floyd"
                 TITLE "The Dark Side of the Moon"
                 FILE "DarkSide.flac" WAVE
@@ -1071,7 +1084,7 @@ class DirectoryBrowserViewModelTest {
                   TRACK 02 AUDIO
                     TITLE "Breathe"
                     INDEX 01 01:07:25
-            """.trimIndent()
+                """.trimIndent()
 
             val albumDir =
                 RemoteDirectory(
@@ -1104,12 +1117,13 @@ class DirectoryBrowserViewModelTest {
     @Test
     fun cueAlbum_toggleExpanded_updatesIsExpandedState() =
         runTest {
-            val cueContent = """
+            val cueContent =
+                """
                 FILE "Album.flac" WAVE
                   TRACK 01 AUDIO
                     TITLE "Track 1"
                     INDEX 01 00:00:00
-            """.trimIndent()
+                """.trimIndent()
             val albumDir =
                 RemoteDirectory(
                     path = "/Music/Album/",
@@ -1126,19 +1140,32 @@ class DirectoryBrowserViewModelTest {
             viewModel.onDirectoryClicked(albumDir)
             advanceUntilIdle()
 
-            assertFalse(viewModel.uiState.value.cueAlbums.first().isExpanded)
+            assertFalse(
+                viewModel.uiState.value.cueAlbums
+                    .first()
+                    .isExpanded,
+            )
 
             viewModel.toggleCueAlbumExpanded("/Music/Album/Album.cue")
-            assertTrue(viewModel.uiState.value.cueAlbums.first().isExpanded)
+            assertTrue(
+                viewModel.uiState.value.cueAlbums
+                    .first()
+                    .isExpanded,
+            )
 
             viewModel.toggleCueAlbumExpanded("/Music/Album/Album.cue")
-            assertFalse(viewModel.uiState.value.cueAlbums.first().isExpanded)
+            assertFalse(
+                viewModel.uiState.value.cueAlbums
+                    .first()
+                    .isExpanded,
+            )
         }
 
     @Test
     fun cueAlbum_playVirtualTrack_dispatchesToSessionWithCorrectStartIndex() =
         runTest {
-            val cueContent = """
+            val cueContent =
+                """
                 FILE "Live.flac" WAVE
                   TRACK 01 AUDIO
                     TITLE "Intro"
@@ -1146,7 +1173,7 @@ class DirectoryBrowserViewModelTest {
                   TRACK 02 AUDIO
                     TITLE "Main Song"
                     INDEX 01 02:30:00
-            """.trimIndent()
+                """.trimIndent()
             val albumDir =
                 RemoteDirectory(
                     path = "/Music/Live/",
@@ -1163,7 +1190,9 @@ class DirectoryBrowserViewModelTest {
             viewModel.onDirectoryClicked(albumDir)
             advanceUntilIdle()
 
-            val album = viewModel.uiState.value.cueAlbums.first()
+            val album =
+                viewModel.uiState.value.cueAlbums
+                    .first()
             viewModel.playVirtualTrack(album, trackIndex = 1)
             advanceUntilIdle()
 
@@ -1177,7 +1206,8 @@ class DirectoryBrowserViewModelTest {
     @Test
     fun cueAlbum_playCueAlbum_startsFromTrackZero() =
         runTest {
-            val cueContent = """
+            val cueContent =
+                """
                 FILE "Concert.flac" WAVE
                   TRACK 01 AUDIO
                     TITLE "Track 1"
@@ -1185,7 +1215,7 @@ class DirectoryBrowserViewModelTest {
                   TRACK 02 AUDIO
                     TITLE "Track 2"
                     INDEX 01 01:00:00
-            """.trimIndent()
+                """.trimIndent()
             val albumDir =
                 RemoteDirectory(
                     path = "/Music/Concert/",
@@ -1202,7 +1232,9 @@ class DirectoryBrowserViewModelTest {
             viewModel.onDirectoryClicked(albumDir)
             advanceUntilIdle()
 
-            val album = viewModel.uiState.value.cueAlbums.first()
+            val album =
+                viewModel.uiState.value.cueAlbums
+                    .first()
             viewModel.playCueAlbum(album)
             advanceUntilIdle()
 
@@ -1212,7 +1244,8 @@ class DirectoryBrowserViewModelTest {
     @Test
     fun cueAlbum_activeTrackAndVirtualTrackHighlighting() =
         runTest {
-            val cueContent = """
+            val cueContent =
+                """
                 FILE "Sym9.flac" WAVE
                   TRACK 01 AUDIO
                     TITLE "Allegro"
@@ -1220,7 +1253,7 @@ class DirectoryBrowserViewModelTest {
                   TRACK 02 AUDIO
                     TITLE "Adagio"
                     INDEX 01 05:00:00
-            """.trimIndent()
+                """.trimIndent()
             val albumDir =
                 RemoteDirectory(
                     path = "/Music/Beethoven/",
@@ -1237,7 +1270,9 @@ class DirectoryBrowserViewModelTest {
             viewModel.onDirectoryClicked(albumDir)
             advanceUntilIdle()
 
-            val album = viewModel.uiState.value.cueAlbums.first()
+            val album =
+                viewModel.uiState.value.cueAlbums
+                    .first()
             val track1 = album.tracks[0]
             val track2 = album.tracks[1]
 

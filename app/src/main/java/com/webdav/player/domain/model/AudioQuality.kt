@@ -285,7 +285,9 @@ object AudioQuality {
             }
         }
         val comboMatch = SAMPLE_RATE_COMBO_PATTERN.find(text)
-        if (comboMatch != null && (text.contains("bit", ignoreCase = true) || text.contains("24b", ignoreCase = true) || text.contains("16b", ignoreCase = true))) {
+        if (comboMatch != null &&
+            (text.contains("bit", ignoreCase = true) || text.contains("24b", ignoreCase = true) || text.contains("16b", ignoreCase = true))
+        ) {
             return "${comboMatch.groupValues[1]}kHz"
         }
         return null
@@ -297,7 +299,16 @@ object AudioQuality {
             return "${match.groupValues[1]}-bit"
         }
         val shortMatch = BIT_DEPTH_SHORT_PATTERN.find(text)
-        if (shortMatch != null && (text.contains("kHz", ignoreCase = true) || text.contains("96k", ignoreCase = true) || text.contains("192k", ignoreCase = true) || text.contains("44.1k", ignoreCase = true) || text.contains("48k", ignoreCase = true))) {
+        if (shortMatch != null &&
+            (
+                text.contains(
+                    "kHz",
+                    ignoreCase = true,
+                ) || text.contains("96k", ignoreCase = true) || text.contains("192k", ignoreCase = true) ||
+                    text.contains("44.1k", ignoreCase = true) ||
+                    text.contains("48k", ignoreCase = true)
+            )
+        ) {
             return "${shortMatch.groupValues[1]}-bit"
         }
         return null
@@ -429,11 +440,9 @@ object AudioQuality {
 }
 
 // Top-level convenience functions
-fun resolveAudiophileSpecs(track: AudioTrack?): AudiophileSpecs? =
-    AudioQuality.resolveAudiophileSpecs(track)
+fun resolveAudiophileSpecs(track: AudioTrack?): AudiophileSpecs? = AudioQuality.resolveAudiophileSpecs(track)
 
-fun formatAudiophileSpecs(track: AudioTrack?): String =
-    AudioQuality.formatAudiophileSpecs(track)
+fun formatAudiophileSpecs(track: AudioTrack?): String = AudioQuality.formatAudiophileSpecs(track)
 
 fun formatAudiophileSpecs(
     file: RemoteFile,
@@ -446,6 +455,7 @@ fun resolveAudiophileSpecs(
     fileSize: Long = 0L,
     durationMs: Long = 0L,
 ): AudiophileSpecs = AudioQuality.resolveAudiophileSpecs(format, fileName, fileSize, durationMs)
+
 fun estimateBitrateKbps(
     fileName: String,
     fileSize: Long,

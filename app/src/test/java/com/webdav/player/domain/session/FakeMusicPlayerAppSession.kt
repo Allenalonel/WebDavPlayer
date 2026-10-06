@@ -126,15 +126,18 @@ class FakeMusicPlayerAppSession(
     var lastPlayVirtualTracksParent: AudioTrack? = null
     var lastPlayVirtualTracksList: List<com.webdav.player.domain.model.VirtualTrack> = emptyList()
     var lastPlayVirtualTracksStartIndex: Int? = null
+    var lastPlayVirtualTracksCuePath: String? = null
 
     override fun playVirtualTracks(
         parentTrack: AudioTrack,
         virtualTracks: List<com.webdav.player.domain.model.VirtualTrack>,
         startIndex: Int,
+        cuePath: String?,
     ) {
         lastPlayVirtualTracksParent = parentTrack
         lastPlayVirtualTracksList = virtualTracks
         lastPlayVirtualTracksStartIndex = startIndex
+        lastPlayVirtualTracksCuePath = cuePath
         val mappedTracks =
             virtualTracks.map { vt ->
                 AudioTrack(

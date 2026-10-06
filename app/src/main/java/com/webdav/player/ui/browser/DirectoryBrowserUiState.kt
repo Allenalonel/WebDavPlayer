@@ -35,21 +35,22 @@ data class DirectoryBrowserUiState(
         get() = currentDirectory?.files ?: emptyList()
 
     val headerTitle: String
-        get() = if (isInitializing) {
-            "媒体库"
-        } else if (currentPath == "/") {
-            activeServer?.name ?: "远程目录"
-        } else {
-            currentDirectory?.name
-                ?: currentPath.trimEnd('/').substringAfterLast('/')
-        }
+        get() =
+            if (isInitializing) {
+                "媒体库"
+            } else if (currentPath == "/") {
+                activeServer?.name ?: "远程目录"
+            } else {
+                currentDirectory?.name
+                    ?: currentPath.trimEnd('/').substringAfterLast('/')
+            }
 
-    fun isTrackActive(filePath: String): Boolean =
-        EqualizerStateHelper.isTrackActive(filePath, activeTrackPath)
+    fun isTrackActive(filePath: String): Boolean = EqualizerStateHelper.isTrackActive(filePath, activeTrackPath)
 
-    fun isCueAlbumActive(cueAlbum: CueAlbumItem): Boolean =
-        cueAlbum.isAlbumActive(activeTrackPath)
+    fun isCueAlbumActive(cueAlbum: CueAlbumItem): Boolean = cueAlbum.isAlbumActive(activeTrackPath)
 
-    fun isVirtualTrackActive(cueAlbum: CueAlbumItem, track: VirtualTrack): Boolean =
-        cueAlbum.isVirtualTrackActive(activeTrackPath, activeTrackId, track)
+    fun isVirtualTrackActive(
+        cueAlbum: CueAlbumItem,
+        track: VirtualTrack,
+    ): Boolean = cueAlbum.isVirtualTrackActive(activeTrackPath, activeTrackId, track)
 }
