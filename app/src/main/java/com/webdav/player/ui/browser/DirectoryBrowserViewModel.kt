@@ -3,8 +3,12 @@ package com.webdav.player.ui.browser
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlin.coroutines.coroutineContext
+import com.webdav.player.data.cue.CueAssociationHelper
+import com.webdav.player.data.cue.CueParser
+import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
+import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
@@ -30,6 +34,7 @@ class DirectoryBrowserViewModel(
     private val directoryRepository: DirectoryRepository,
     val musicPlayerAppSession: MusicPlayerAppSession? = null,
     val trackMetadataRepository: TrackMetadataRepository? = null,
+    val webDavClient: WebDavClient? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
     val uiState: StateFlow<DirectoryBrowserUiState> = _uiState.asStateFlow()
@@ -38,6 +43,7 @@ class DirectoryBrowserViewModel(
     private var metadataResolutionJob: Job? = null
     private var currentLoadJob: Job? = null
     private var activeRefreshJob: Job? = null
+    private var cueResolutionJob: Job? = null
     private var activeMetadataPath: String? = null
 
     init {
@@ -48,10 +54,11 @@ class DirectoryBrowserViewModel(
                     val currentTrack = sessionState.currentTrack
                     val isPlaying = sessionState.isPlaying
                     _uiState.update { current ->
-                        val (activeTrackPath, trackIsPlaying) =
+                        val (activeTrackPath, activeTrackId, trackIsPlaying) =
                             resolveActivePlayback(current.activeServer, currentTrack, isPlaying)
                         current.copy(
                             activeTrackPath = activeTrackPath,
+                            activeTrackId = activeTrackId,
                             isPlaying = trackIsPlaying,
                         )
                     }
@@ -76,6 +83,7 @@ class DirectoryBrowserViewModel(
                     metadataResolutionJob?.cancel()
                     currentLoadJob?.cancel()
                     activeRefreshJob?.cancel()
+                    cueResolutionJob?.cancel()
                     activeMetadataPath = null
 
                     // If previousServer == null, this is app startup -> restore saved directory from session.
@@ -100,7 +108,7 @@ class DirectoryBrowserViewModel(
                         }
 
                     val session = musicPlayerAppSession?.sessionState?.value
-                    val (activeTrackPath, isPlaying) =
+                    val (activeTrackPath, activeTrackId, isPlaying) =
                         resolveActivePlayback(server, session?.currentTrack, session?.isPlaying == true)
 
                     _uiState.update {
@@ -114,7 +122,9 @@ class DirectoryBrowserViewModel(
                             errorMessage = null,
                             metadataMap = emptyMap(),
                             activeTrackPath = activeTrackPath,
+                            activeTrackId = activeTrackId,
                             isPlaying = isPlaying,
+                            cueAlbums = emptyList(),
                         )
                     }
 
@@ -124,7 +134,25 @@ class DirectoryBrowserViewModel(
                                 viewModelScope.launch {
                                     trackMetadataRepository.getAllMetadataFlow(server.id).collect { list ->
                                         val map = list.associateBy { it.remotePath }
-                                        _uiState.update { it.copy(metadataMap = map) }
+                                        _uiState.update { current ->
+                                            val updatedAlbums =
+                                                current.cueAlbums.map { album ->
+                                                    val dur = map[album.audioFile.path]?.durationMs
+                                                    if (dur != null && dur > 0L && album.tracks.isNotEmpty()) {
+                                                        val lastTrack = album.tracks.last()
+                                                        if (lastTrack.endTimeMs == null && dur > lastTrack.startTimeMs) {
+                                                            val updatedTracks = album.tracks.toMutableList()
+                                                            updatedTracks[updatedTracks.lastIndex] = lastTrack.copy(endTimeMs = dur)
+                                                            album.copy(tracks = updatedTracks)
+                                                        } else {
+                                                            album
+                                                        }
+                                                    } else {
+                                                        album
+                                                    }
+                                                }
+                                            current.copy(metadataMap = map, cueAlbums = updatedAlbums)
+                                        }
                                     }
                                 }
                         }
@@ -141,7 +169,9 @@ class DirectoryBrowserViewModel(
                                 errorMessage = null,
                                 metadataMap = emptyMap(),
                                 activeTrackPath = null,
+                                activeTrackId = null,
                                 isPlaying = false,
+                                cueAlbums = emptyList(),
                             )
                         }
                     }
@@ -242,6 +272,7 @@ class DirectoryBrowserViewModel(
                     is ListDirectoryResult.Success -> {
                         refreshedDirectory = result.directory
                         musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
+                        processDirectoryCueAlbums(server, result.directory)
                         _uiState.update { current ->
                             if (current.currentPath == normalizedPath) {
                                 current.copy(
@@ -332,6 +363,7 @@ class DirectoryBrowserViewModel(
 
         currentLoadJob?.cancel()
         activeRefreshJob?.cancel()
+        cueResolutionJob?.cancel()
         if (activeMetadataPath != normalizedPath) {
             metadataResolutionJob?.cancel()
             activeMetadataPath = null
@@ -357,6 +389,7 @@ class DirectoryBrowserViewModel(
                         is ListDirectoryResult.Success -> {
                             hasEmittedContent = true
                             musicPlayerAppSession?.setCurrentDirectoryPath(normalizedPath)
+                            processDirectoryCueAlbums(server, result.directory)
                             val audioFiles = result.directory.files.filter { it.isAudio }
                             if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
                                 if (activeMetadataPath != normalizedPath || metadataResolutionJob?.isActive != true) {
@@ -416,16 +449,155 @@ class DirectoryBrowserViewModel(
             }
     }
 
+    fun toggleCueAlbumExpanded(cuePath: String) {
+        _uiState.update { current ->
+            val updated =
+                current.cueAlbums.map { album ->
+                    if (album.cueFile.path == cuePath) {
+                        album.copy(isExpanded = !album.isExpanded)
+                    } else {
+                        album
+                    }
+                }
+            current.copy(cueAlbums = updated)
+        }
+    }
+
+    fun playVirtualTrack(
+        album: CueAlbumItem,
+        trackIndex: Int,
+    ) {
+        val server = _uiState.value.activeServer ?: return
+        if (album.tracks.isEmpty()) return
+        val metadata = _uiState.value.metadataMap[album.audioFile.path]
+        val parentTrack = AudioTrack.fromRemoteFile(server, album.audioFile, metadata) ?: return
+        musicPlayerAppSession?.playVirtualTracks(
+            parentTrack = parentTrack,
+            virtualTracks = album.tracks,
+            startIndex = trackIndex,
+        )
+    }
+
+    fun playCueAlbum(album: CueAlbumItem) {
+        playVirtualTrack(album, trackIndex = 0)
+    }
+
+    private fun processDirectoryCueAlbums(
+        server: WebDavServer,
+        directory: RemoteDirectory,
+    ) {
+        cueResolutionJob?.cancel()
+        val cueFiles = directory.files.filter { it.isCue }
+        val audioFiles = directory.files.filter { it.isAudio }
+
+        if (cueFiles.isEmpty() || audioFiles.isEmpty()) {
+            _uiState.update { it.copy(cueAlbums = emptyList()) }
+            return
+        }
+
+        val initialAlbums =
+            cueFiles.mapNotNull { cueFile ->
+                val matchedAudio =
+                    CueAssociationHelper.findMatchingAudioFile(
+                        cueFile = cueFile,
+                        audioFiles = audioFiles,
+                        totalCueFilesCount = cueFiles.size,
+                    )
+                matchedAudio?.let { audio ->
+                    CueAlbumItem(
+                        cueFile = cueFile,
+                        audioFile = audio,
+                        tracks = emptyList(),
+                        isExpanded = false,
+                        isLoading = webDavClient != null,
+                    )
+                }
+            }
+
+        _uiState.update { it.copy(cueAlbums = initialAlbums) }
+
+        if (webDavClient == null || initialAlbums.isEmpty()) {
+            return
+        }
+
+        cueResolutionJob =
+            viewModelScope.launch {
+                val resolvedAlbums =
+                    initialAlbums.map { initialAlbum ->
+                        try {
+                            val cueContent = webDavClient.fetchText(server, initialAlbum.cueFile.path)
+                            if (cueContent.isNullOrBlank()) {
+                                initialAlbum.copy(
+                                    isLoading = false,
+                                    errorMessage = "无法读取 CUE 文件内容",
+                                )
+                            } else {
+                                val referencedFiles = CueParser.extractReferencedFiles(cueContent)
+                                val matchedAudio =
+                                    CueAssociationHelper.findMatchingAudioFile(
+                                        cueFile = initialAlbum.cueFile,
+                                        audioFiles = audioFiles,
+                                        referencedFileNames = referencedFiles,
+                                        totalCueFilesCount = cueFiles.size,
+                                    ) ?: initialAlbum.audioFile
+
+                                val parentDurationMs = _uiState.value.metadataMap[matchedAudio.path]?.durationMs
+                                val tracks =
+                                    CueParser.parse(
+                                        content = cueContent,
+                                        parentAudioPath = matchedAudio.path,
+                                        totalDurationMs = parentDurationMs,
+                                    )
+
+                                if (tracks.isEmpty()) {
+                                    initialAlbum.copy(
+                                        audioFile = matchedAudio,
+                                        isLoading = false,
+                                        errorMessage = "CUE 文件未包含有效分轨",
+                                    )
+                                } else {
+                                    initialAlbum.copy(
+                                        audioFile = matchedAudio,
+                                        tracks = tracks,
+                                        isLoading = false,
+                                        errorMessage = null,
+                                    )
+                                }
+                            }
+                        } catch (e: Exception) {
+                            initialAlbum.copy(
+                                isLoading = false,
+                                errorMessage = e.message ?: "解析 CUE 文件失败",
+                            )
+                        }
+                    }
+
+                _uiState.update { current ->
+                    if (current.currentPath == directory.path) {
+                        val prevMap = current.cueAlbums.associateBy { it.cueFile.path }
+                        val merged =
+                            resolvedAlbums.map { alb ->
+                                val prev = prevMap[alb.cueFile.path]
+                                if (prev != null) alb.copy(isExpanded = prev.isExpanded) else alb
+                            }
+                        current.copy(cueAlbums = merged)
+                    } else {
+                        current
+                    }
+                }
+            }
+    }
+
     private fun resolveActivePlayback(
         server: WebDavServer?,
         track: AudioTrack?,
         isPlaying: Boolean,
-    ): Pair<String?, Boolean> {
+    ): Triple<String?, String?, Boolean> {
         val matchesServer = track != null && server != null && track.serverId == server.id
         return if (matchesServer) {
-            Pair(track?.remotePath, isPlaying)
+            Triple(track?.remotePath, track?.id, isPlaying)
         } else {
-            Pair(null, false)
+            Triple(null, null, false)
         }
     }
 

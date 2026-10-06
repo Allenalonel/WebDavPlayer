@@ -73,7 +73,8 @@ fun AudioTrackItemRow(
 
     val isAudio = file.isAudio
     val isLyrics = file.isLyrics
-    val isOther = !isAudio && !isLyrics
+    val isCue = file.isCue
+    val isOther = !isAudio && !isLyrics && !isCue
 
     val displayTitle =
         remember(file.name, metadata?.title) {
@@ -192,6 +193,23 @@ fun AudioTrackItemRow(
                             Icon(
                                 imageVector = AppIcons.Description,
                                 contentDescription = "歌词",
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    }
+                }
+
+                isCue -> {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.size(46.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = AppIcons.QueueMusic,
+                                contentDescription = "CUE 分轨",
                                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
                                 modifier = Modifier.size(24.dp),
                             )

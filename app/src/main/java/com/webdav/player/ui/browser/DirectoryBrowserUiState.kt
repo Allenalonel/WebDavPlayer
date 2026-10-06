@@ -1,9 +1,11 @@
 package com.webdav.player.ui.browser
 
 import com.webdav.player.domain.model.Breadcrumb
+import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.ui.browser.components.EqualizerStateHelper
 
@@ -19,7 +21,9 @@ data class DirectoryBrowserUiState(
     val canNavigateUp: Boolean = false,
     val metadataMap: Map<String, TrackMetadata> = emptyMap(),
     val activeTrackPath: String? = null,
+    val activeTrackId: String? = null,
     val isPlaying: Boolean = false,
+    val cueAlbums: List<CueAlbumItem> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() = currentDirectory?.isEmpty == true
@@ -42,4 +46,10 @@ data class DirectoryBrowserUiState(
 
     fun isTrackActive(filePath: String): Boolean =
         EqualizerStateHelper.isTrackActive(filePath, activeTrackPath)
+
+    fun isCueAlbumActive(cueAlbum: CueAlbumItem): Boolean =
+        cueAlbum.isAlbumActive(activeTrackPath)
+
+    fun isVirtualTrackActive(cueAlbum: CueAlbumItem, track: VirtualTrack): Boolean =
+        cueAlbum.isVirtualTrackActive(activeTrackPath, activeTrackId, track)
 }

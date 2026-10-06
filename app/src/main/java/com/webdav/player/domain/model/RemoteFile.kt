@@ -10,6 +10,7 @@ data class RemoteFile(
 ) {
     val isAudio: Boolean get() = fileType is RemoteFileType.Audio
     val isLyrics: Boolean get() = fileType is RemoteFileType.Lyrics
+    val isCue: Boolean get() = fileType is RemoteFileType.Cue || name.endsWith(".cue", ignoreCase = true)
 
     val qualityBadge: AudioQualityBadge?
         get() = resolveBadge(null)

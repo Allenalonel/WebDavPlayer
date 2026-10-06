@@ -229,4 +229,57 @@ class PlaybackQueueTest {
         assertEquals(0, singleTrackQueue.getNextIndex(PlaybackMode.LIST_LOOP))
         assertEquals(0, singleTrackQueue.getPreviousIndex(PlaybackMode.LIST_LOOP))
     }
+
+    @Test
+    fun virtualTracks_queueMapping_maintainsVirtualTrackIdsAndTitles() {
+        val parentTrack = createTrack("parent_album", "Parent Album").copy(
+            remotePath = "/Music/album.flac",
+            format = AudioFormat.FLAC,
+        )
+        val virtualTracks = listOf(
+            VirtualTrack(
+                trackNumber = 1,
+                title = "Virtual Track 1",
+                performer = "Performer A",
+                startTimeMs = 0L,
+                endTimeMs = 180000L,
+                parentAudioPath = "/Music/album.flac",
+            ),
+            VirtualTrack(
+                trackNumber = 2,
+                title = "Virtual Track 2",
+                performer = "Performer B",
+                startTimeMs = 180000L,
+                endTimeMs = 360000L,
+                parentAudioPath = "/Music/album.flac",
+            ),
+        )
+
+        val queueTracks = virtualTracks.map { vt ->
+            AudioTrack(
+                id = "${parentTrack.id}#cue_${vt.trackNumber}",
+                serverId = parentTrack.serverId,
+                remotePath = parentTrack.remotePath,
+                title = vt.title,
+                artist = vt.performer ?: parentTrack.artist,
+                durationMs = vt.durationMs,
+                format = parentTrack.format,
+            )
+        }
+        val queue = PlaybackQueue(tracks = queueTracks, currentIndex = 0)
+
+        assertEquals(2, queue.size)
+        assertEquals("parent_album#cue_1", queue.currentTrack?.id)
+        assertEquals("Virtual Track 1", queue.currentTrack?.title)
+        assertEquals("Performer A", queue.currentTrack?.artist)
+        assertEquals(180000L, queue.currentTrack?.durationMs)
+
+        val switched = queue.playTrackAt(1)
+        assertEquals(1, switched.currentIndex)
+        assertEquals("parent_album#cue_2", switched.currentTrack?.id)
+        assertEquals("Virtual Track 2", switched.currentTrack?.title)
+
+        // Folder Ring looping over virtual tracks
+        assertEquals(0, switched.getNextIndex(PlaybackMode.LIST_LOOP))
+    }
 }

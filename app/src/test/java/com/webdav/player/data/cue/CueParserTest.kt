@@ -504,4 +504,44 @@ class CueParserTest {
         assertEquals("Fallback Track", allowedResult[0].title)
         assertEquals("/music/fallback.flac", allowedResult[0].parentAudioPath)
     }
+
+    @Test
+    fun extractReferencedFiles_singleQuotedFile_returnsCleanFileName() {
+        val cue = """
+            TITLE "Test Album"
+            FILE "DarkSide.flac" WAVE
+              TRACK 01 AUDIO
+                INDEX 01 00:00:00
+        """.trimIndent()
+
+        val files = CueParser.extractReferencedFiles(cue)
+        assertEquals(listOf("DarkSide.flac"), files)
+    }
+
+    @Test
+    fun extractReferencedFiles_multipleFiles_returnsAllInOrder() {
+        val cue = """
+            FILE "Disc1.flac" WAVE
+              TRACK 01 AUDIO
+                INDEX 01 00:00:00
+            FILE "Disc2.flac" WAVE
+              TRACK 02 AUDIO
+                INDEX 01 00:00:00
+        """.trimIndent()
+
+        val files = CueParser.extractReferencedFiles(cue)
+        assertEquals(listOf("Disc1.flac", "Disc2.flac"), files)
+    }
+
+    @Test
+    fun extractReferencedFiles_blankOrNoFileDirective_returnsEmptyList() {
+        val cue = """
+            TITLE "No File Album"
+            TRACK 01 AUDIO
+              INDEX 01 00:00:00
+        """.trimIndent()
+
+        assertTrue(CueParser.extractReferencedFiles(cue).isEmpty())
+        assertTrue(CueParser.extractReferencedFiles("").isEmpty())
+    }
 }

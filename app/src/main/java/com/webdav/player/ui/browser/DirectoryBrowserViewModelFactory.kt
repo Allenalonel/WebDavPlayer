@@ -52,6 +52,7 @@ class DirectoryBrowserViewModelFactory(
                 directoryRepository = directoryRepository,
                 musicPlayerAppSession = session,
                 trackMetadataRepository = metadataRepository,
+                webDavClient = client,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

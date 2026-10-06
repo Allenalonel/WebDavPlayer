@@ -47,6 +47,9 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
+import com.webdav.player.ui.browser.components.EqualizerStateHelper
+import com.webdav.player.ui.browser.components.EqualizerTrackIndicator
+import com.webdav.player.ui.browser.components.EqualizerWaveState
 import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
@@ -61,6 +64,7 @@ fun PlaybackQueueBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
+    isPlaying: Boolean = false,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     ModalBottomSheet(
@@ -182,6 +186,7 @@ fun PlaybackQueueBottomSheet(
                             track = track,
                             index = index,
                             isActive = isActive,
+                            isPlaying = isPlaying,
                             playbackProgress = if (isActive) playbackProgress else PlaybackProgress.ZERO,
                             onClick = { onTrackClick(index) },
                             onRemove = { onRemoveTrack(index) },
@@ -199,6 +204,7 @@ private fun QueueTrackItemRow(
     track: AudioTrack,
     index: Int,
     isActive: Boolean,
+    isPlaying: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -258,6 +264,12 @@ private fun QueueTrackItemRow(
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val waveState =
+                    EqualizerStateHelper.resolveEqualizerState(
+                        isActive = isActive,
+                        isPlaying = isPlaying,
+                    )
+
                 // Leading Icon or Track Number or Cover Art
                 Box(
                     modifier =
@@ -272,13 +284,8 @@ private fun QueueTrackItemRow(
                             contentDescription = "封面",
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            if (isActive) {
-                                Icon(
-                                    imageVector = AppIcons.GraphicEq,
-                                    contentDescription = "正在播放",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
-                                )
+                            if (waveState != EqualizerWaveState.IDLE) {
+                                EqualizerTrackIndicator(waveState = waveState)
                             } else {
                                 Text(
                                     text = "${index + 1}",
@@ -287,13 +294,8 @@ private fun QueueTrackItemRow(
                                 )
                             }
                         }
-                    } else if (isActive) {
-                        Icon(
-                            imageVector = AppIcons.GraphicEq,
-                            contentDescription = "正在播放",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
+                    } else if (waveState != EqualizerWaveState.IDLE) {
+                        EqualizerTrackIndicator(waveState = waveState)
                     } else {
                         Text(
                             text = "${index + 1}",

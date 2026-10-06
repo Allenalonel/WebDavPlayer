@@ -25,6 +25,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -33,10 +34,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.ui.browser.components.AudioTrackItemRow
+import com.webdav.player.ui.browser.components.CueAlbumCard
 import com.webdav.player.ui.browser.components.DirectoryBreadcrumbStrip
 import com.webdav.player.ui.browser.components.DirectoryItemRow
 import com.webdav.player.ui.browser.components.EmptyFolderState
@@ -192,10 +195,15 @@ fun DirectoryBrowserScreen(
                             files = uiState.files,
                             metadataMap = uiState.metadataMap,
                             activeTrackPath = uiState.activeTrackPath,
+                            activeTrackId = uiState.activeTrackId,
+                            cueAlbums = uiState.cueAlbums,
                             isPlaying = uiState.isPlaying,
                             onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
                             onFileClicked = onFileClicked,
                             onPlayNext = { viewModel.playNext(it) },
+                            onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
+                            onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
+                            onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
                         )
                     }
                 }
@@ -217,12 +225,24 @@ fun DirectoryContentList(
     files: List<RemoteFile>,
     metadataMap: Map<String, TrackMetadata> = emptyMap(),
     activeTrackPath: String? = null,
+    activeTrackId: String? = null,
+    cueAlbums: List<CueAlbumItem> = emptyList(),
     isPlaying: Boolean = false,
     onDirectoryClicked: (RemoteDirectory) -> Unit,
     onFileClicked: (RemoteFile) -> Unit,
     onPlayNext: (RemoteFile) -> Unit = {},
+    onVirtualTrackClick: (CueAlbumItem, Int) -> Unit = { _, _ -> },
+    onPlayCueAlbum: (CueAlbumItem) -> Unit = {},
+    onToggleCueAlbumExpanded: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val cueAudioPaths = remember(cueAlbums) { cueAlbums.map { it.audioFile.path }.toSet() }
+    val cueFilePaths = remember(cueAlbums) { cueAlbums.map { it.cueFile.path }.toSet() }
+    val standaloneFiles =
+        remember(files, cueAudioPaths, cueFilePaths) {
+            files.filter { it.path !in cueAudioPaths && it.path !in cueFilePaths }
+        }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
@@ -236,14 +256,31 @@ fun DirectoryContentList(
         }
 
         // Space between folders and files if both exist
-        if (directories.isNotEmpty() && files.isNotEmpty()) {
+        if (directories.isNotEmpty() && (cueAlbums.isNotEmpty() || standaloneFiles.isNotEmpty())) {
             item(key = "divider_folder_files") {
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
-        // Files next (MD3 ListItems)
-        items(files, key = { "file_${it.path}" }) { file ->
+        // CUE Albums next (MD3 CueAlbumCard with collapse/expand)
+        items(cueAlbums, key = { "cue_album_${it.cueFile.path}" }) { album ->
+            val metadata = metadataMap[album.audioFile.path]
+            val isAlbumActive = album.isAlbumActive(activeTrackPath)
+            CueAlbumCard(
+                album = album,
+                metadata = metadata,
+                isAlbumActive = isAlbumActive,
+                activeTrackId = activeTrackId,
+                isPlaying = isPlaying,
+                onPlayAlbum = { onPlayCueAlbum(album) },
+                onVirtualTrackClick = { trackIndex -> onVirtualTrackClick(album, trackIndex) },
+                onToggleExpand = { onToggleCueAlbumExpanded(album.cueFile.path) },
+                onPlayAsWholeAudio = { onFileClicked(album.audioFile) },
+            )
+        }
+
+        // Standalone audio and other files next (MD3 ListItems)
+        items(standaloneFiles, key = { "file_${it.path}" }) { file ->
             val metadata = metadataMap[file.path]
             val isActive = file.isAudio && file.path == activeTrackPath
             AudioTrackItemRow(

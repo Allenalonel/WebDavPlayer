@@ -176,6 +176,16 @@ object AudioQuality {
                     qualityLevel = AudioQualityLevel.COMPRESSED,
                 )
             }
+
+            AudioFormat.APE -> {
+                AudioQualityBadge(
+                    label = "APE",
+                    format = AudioFormat.APE,
+                    isLossless = true,
+                    estimatedBitrateKbps = null,
+                    qualityLevel = AudioQualityLevel.LOSSLESS,
+                )
+            }
         }
 
     fun resolveBadge(
@@ -195,6 +205,15 @@ object AudioQuality {
             is RemoteFileType.Lyrics -> {
                 AudioQualityBadge(
                     label = "LRC",
+                    format = null,
+                    isLossless = false,
+                    qualityLevel = AudioQualityLevel.STANDARD,
+                )
+            }
+
+            is RemoteFileType.Cue -> {
+                AudioQualityBadge(
+                    label = "CUE",
                     format = null,
                     isLossless = false,
                     qualityLevel = AudioQualityLevel.STANDARD,
@@ -231,6 +250,7 @@ object AudioQuality {
             badge.qualityLevel == AudioQualityLevel.STANDARD && badge.format != null -> "${badge.format.extension.uppercase()} 标准音质$bitrateStr"
             badge.qualityLevel == AudioQualityLevel.COMPRESSED && badge.format != null -> "${badge.format.extension.uppercase()} 压缩音频$bitrateStr"
             isLyrics -> "LRC 歌词文件"
+            badge.label == "CUE" -> "CUE 分轨索引"
             else -> "${badge.label} 文件"
         }
     }

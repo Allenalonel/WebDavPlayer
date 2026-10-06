@@ -498,6 +498,7 @@ fun FullPlayerView(
             queue = sessionState.queue,
             playbackMode = sessionState.playbackMode,
             playbackProgress = playbackProgress,
+            isPlaying = sessionState.isPlaying,
             onTrackClick = { index ->
                 onPlayQueueIndex(index)
             },

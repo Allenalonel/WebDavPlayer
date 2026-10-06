@@ -7,7 +7,8 @@ enum class AudioFormat(val extension: String, val mimeType: String) {
     WMA("wma", "audio/x-ms-wma"),
     AAC("aac", "audio/aac"),
     OGG("ogg", "audio/ogg"),
-    M4A("m4a", "audio/mp4");
+    M4A("m4a", "audio/mp4"),
+    APE("ape", "audio/x-ape");
 
     companion object {
         fun fromExtension(ext: String): AudioFormat? =
@@ -23,6 +24,7 @@ enum class AudioFormat(val extension: String, val mimeType: String) {
 sealed interface RemoteFileType {
     data class Audio(val format: AudioFormat) : RemoteFileType
     data object Lyrics : RemoteFileType
+    data object Cue : RemoteFileType
     data object Other : RemoteFileType
 
     companion object {
@@ -32,6 +34,7 @@ sealed interface RemoteFileType {
             return when {
                 audioFormat != null -> Audio(audioFormat)
                 ext == "lrc" -> Lyrics
+                ext == "cue" -> Cue
                 else -> Other
             }
         }

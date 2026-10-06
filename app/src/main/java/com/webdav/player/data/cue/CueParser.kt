@@ -287,6 +287,25 @@ object CueParser {
         return (minutes * 60L + seconds) * 1000L + (frames * 1000L / FRAMES_PER_SECOND)
     }
 
+    /**
+     * Extracts referenced audio file paths/names from FILE directives in the CUE sheet.
+     */
+    fun extractReferencedFiles(content: String): List<String> {
+        if (content.isBlank()) return emptyList()
+        val result = mutableListOf<String>()
+        val lines = content.removePrefix("\uFEFF").lines()
+        for (rawLine in lines) {
+            val line = rawLine.trim()
+            if (isCommand(line, "FILE")) {
+                val file = parseFileDirective(line)
+                if (file.isNotBlank()) {
+                    result.add(file)
+                }
+            }
+        }
+        return result
+    }
+
     private fun resolveAudioPath(
         rawFile: String,
         providedPath: String?,

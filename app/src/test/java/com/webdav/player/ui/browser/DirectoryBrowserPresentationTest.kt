@@ -2,10 +2,12 @@ package com.webdav.player.ui.browser
 
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.Breadcrumb
+import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
 import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -68,6 +70,7 @@ class DirectoryBrowserPresentationTest {
     fun audioQualityBadge_mapsLosslessFormatsCorrectly() {
         val flacFile = RemoteFile(name = "Time.flac", path = "/Music/Time.flac", size = 45_000_000L)
         val wavFile = RemoteFile(name = "Money.wav", path = "/Music/Money.wav", size = 60_000_000L)
+        val apeFile = RemoteFile(name = "UsAndThem.ape", path = "/Music/UsAndThem.ape", size = 40_000_000L)
 
         val flacBadge = AudioQualityBadgeHelper.getBadge(flacFile)
         assertNotNull(flacBadge)
@@ -80,6 +83,21 @@ class DirectoryBrowserPresentationTest {
         assertEquals("WAV", wavBadge!!.label)
         assertTrue(wavBadge.isLossless)
         assertEquals(AudioQualityLevel.LOSSLESS, wavBadge.qualityLevel)
+
+        val apeBadge = AudioQualityBadgeHelper.getBadge(apeFile)
+        assertNotNull(apeBadge)
+        assertEquals("APE", apeBadge!!.label)
+        assertTrue(apeBadge.isLossless)
+        assertEquals(AudioQualityLevel.LOSSLESS, apeBadge.qualityLevel)
+    }
+
+    @Test
+    fun audioQualityBadge_cueFile_mapsCueBadge() {
+        val cueFile = RemoteFile(name = "DarkSide.cue", path = "/Music/DarkSide.cue", size = 1024L)
+        assertTrue(cueFile.isCue)
+        val badge = AudioQualityBadgeHelper.getBadge(cueFile)
+        assertNotNull(badge)
+        assertEquals("CUE", badge!!.label)
     }
 
     @Test
@@ -223,6 +241,37 @@ class DirectoryBrowserPresentationTest {
         )
         assertFalse(state.isTrackActive("/Music/song.flac"))
         assertFalse(state.isPlaying)
+    }
+
+    @Test
+    fun cueAlbumItem_presentationState_and_activeTrackEvaluation() {
+        val audioFile = RemoteFile(name = "Abbey_Road.flac", path = "/Music/Abbey_Road.flac", size = 300_000_000L)
+        val cueFile = RemoteFile(name = "Abbey_Road.cue", path = "/Music/Abbey_Road.cue", size = 2048L)
+        val track1 = VirtualTrack(trackNumber = 1, title = "Come Together", startTimeMs = 0L, endTimeMs = 260000L, parentAudioPath = audioFile.path)
+        val track2 = VirtualTrack(trackNumber = 2, title = "Something", startTimeMs = 260000L, endTimeMs = 440000L, parentAudioPath = audioFile.path)
+
+        val album = CueAlbumItem(
+            cueFile = cueFile,
+            audioFile = audioFile,
+            tracks = listOf(track1, track2),
+        )
+
+        assertEquals("Abbey_Road", album.albumTitle)
+        assertEquals(2, album.totalTracksCount)
+
+        val state = DirectoryBrowserUiState(
+            isInitializing = false,
+            activeServer = sampleServer,
+            currentPath = "/Music/",
+            activeTrackPath = audioFile.path,
+            activeTrackId = "1:${audioFile.path}#cue_2",
+            isPlaying = true,
+            cueAlbums = listOf(album),
+        )
+
+        assertTrue(state.isCueAlbumActive(album))
+        assertFalse(state.isVirtualTrackActive(album, track1))
+        assertTrue(state.isVirtualTrackActive(album, track2))
     }
 }
 
