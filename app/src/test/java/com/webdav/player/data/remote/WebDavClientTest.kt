@@ -608,4 +608,29 @@ class WebDavClientTest {
             )
         }
     }
+
+    @Test
+    fun streamingConnectionPool_parametersAndSharing_verified() {
+        val client = OkHttpWebDavClient()
+        assertEquals(8, OkHttpWebDavClient.DEFAULT_STREAMING_MAX_IDLE_CONNECTIONS)
+        assertTrue(OkHttpWebDavClient.DEFAULT_STREAMING_MAX_IDLE_CONNECTIONS >= 4)
+        assertEquals(5L, OkHttpWebDavClient.DEFAULT_STREAMING_KEEP_ALIVE_MINUTES)
+
+        val server1 = WebDavServer(id = 1L, name = "S1", url = "http://192.168.1.1:8080/dav")
+        val server2 = WebDavServer(id = 2L, name = "S2", url = "http://192.168.1.2:8080/dav")
+
+        val streamClient1 = client.buildStreamingClientForServer(server1)
+        val streamClient2 = client.buildStreamingClientForServer(server2)
+
+        assertSame(
+            "All streaming clients must reuse the dedicated streaming connection pool",
+            client.streamingConnectionPool,
+            streamClient1.connectionPool
+        )
+        assertSame(
+            "Streaming clients for different servers must share the same connection pool",
+            streamClient1.connectionPool,
+            streamClient2.connectionPool
+        )
+    }
 }

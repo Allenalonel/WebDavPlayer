@@ -6,10 +6,10 @@
 **Blocked by:**
 None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] 在 `OkHttpWebDavClient` 与流式适配器中配置专用的流式 `ConnectionPool`，确保同服务器请求复用活跃的 TCP/TLS 链路，降低切歌握手时延至 0ms。
-- [ ] 调整 `Media3AudioPlayerEngine` 的 `DefaultLoadControl`，配置 10 秒回退缓冲区与前向预卷缓冲窗口，确保当前音频播至末尾前提前触发下一音轨的数据装填。
-- [ ] 在 `DefaultAudioSink` 与格式提取器保持同规格的前提下，实现跨文件连续 PCM 数据流馈送，消除声学空白停顿。
-- [ ] 确立 `Folder Ring Playback` 契约：当播放模式为列表循环且队列到达末尾时，无缝衔接当前目录的第一首，严格禁止扫描兄弟目录或跨目录跳转。
-- [ ] 编写测试验证：列表末尾循环回环逻辑、连接池参数与 LoadControl 缓冲阈值校验。
+- [x] 在 `OkHttpWebDavClient` 与流式适配器中配置专用的流式 `ConnectionPool`，确保同服务器请求复用活跃的 TCP/TLS 链路，降低切歌握手时延至 0ms。
+- [x] 调整 `Media3AudioPlayerEngine` 的 `DefaultLoadControl`，配置 10 秒回退缓冲区与前向预卷缓冲窗口，确保当前音频播至末尾前提前触发下一音轨的数据装填。
+- [x] 在 `DefaultAudioSink` 与格式提取器保持同规格的前提下，实现跨文件连续 PCM 数据流馈送，消除声学空白停顿。
+- [x] 确立 `Folder Ring Playback` 契约：当播放模式为列表循环且队列到达末尾时，无缝衔接当前目录的第一首，严格禁止扫描兄弟目录或跨目录跳转。
+- [x] 编写测试验证：列表末尾循环回环逻辑、连接池参数与 LoadControl 缓冲阈值校验。

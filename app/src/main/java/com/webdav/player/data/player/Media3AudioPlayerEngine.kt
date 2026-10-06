@@ -19,6 +19,8 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
@@ -44,6 +46,16 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
+data class StreamingLoadControlConfig(
+    val backBufferDurationMs: Int = 10_000,
+    val retainBackBufferFromKeyframe: Boolean = false,
+    val minBufferMs: Int = 15_000,
+    val maxBufferMs: Int = 50_000,
+    val bufferForPlaybackMs: Int = 1_500,
+    val bufferForPlaybackAfterRebufferMs: Int = 3_000,
+    val prioritizeTimeOverSizeThresholds: Boolean = true,
+)
+
 @OptIn(UnstableApi::class)
 class Media3AudioPlayerEngine(
     private val context: Context,
@@ -51,6 +63,7 @@ class Media3AudioPlayerEngine(
     customPlayer: Player? = null,
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
+    val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
 ) : AudioPlayerEngine {
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
 
@@ -75,21 +88,31 @@ class Media3AudioPlayerEngine(
             val loadControl =
                 DefaultLoadControl
                     .Builder()
+                    .setBackBuffer(
+                        loadControlConfig.backBufferDurationMs,
+                        loadControlConfig.retainBackBufferFromKeyframe,
+                    )
                     .setBufferDurationsMs(
-                        // minBufferMs =
-                        15_000,
-                        // maxBufferMs =
-                        50_000,
-                        // bufferForPlaybackMs =
-                        1_500,
-                        // bufferForPlaybackAfterRebufferMs =
-                        3_000,
-                    ).setPrioritizeTimeOverSizeThresholds(true)
+                        loadControlConfig.minBufferMs,
+                        loadControlConfig.maxBufferMs,
+                        loadControlConfig.bufferForPlaybackMs,
+                        loadControlConfig.bufferForPlaybackAfterRebufferMs,
+                    ).setPrioritizeTimeOverSizeThresholds(loadControlConfig.prioritizeTimeOverSizeThresholds)
                     .build()
 
             val renderersFactory =
-                DefaultRenderersFactory(context)
-                    .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                object : DefaultRenderersFactory(context) {
+                    override fun buildAudioSink(
+                        context: Context,
+                        enableFloatOutput: Boolean,
+                        enableAudioTrackPlaybackParams: Boolean,
+                    ): AudioSink? {
+                        return DefaultAudioSink.Builder(context)
+                            .setEnableFloatOutput(enableFloatOutput)
+                            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                            .build()
+                    }
+                }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
 
             val extractorsFactory =
                 ExtractorsFactory {

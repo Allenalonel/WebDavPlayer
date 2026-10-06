@@ -18,6 +18,7 @@ import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.WebDavServer
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -55,6 +56,12 @@ interface WebDavMediaSourceAdapter {
      * including authentication credentials, timeouts, and custom SSL configuration.
      */
     fun getDataSourceFactory(server: WebDavServer): DataSource.Factory
+
+    /**
+     * Dedicated streaming connection pool reused across audio stream sessions.
+     */
+    val streamingConnectionPool: ConnectionPool?
+        get() = null
 }
 
 @OptIn(UnstableApi::class)
@@ -72,6 +79,9 @@ class DefaultWebDavMediaSourceAdapter(
     )
 
     private val dataSourceFactoryCache = ConcurrentHashMap<DataSourceCacheKey, DataSource.Factory>()
+
+    override val streamingConnectionPool: ConnectionPool
+        get() = webDavClient.streamingConnectionPool
 
     @VisibleForTesting
     fun getStreamingClientForServer(server: WebDavServer): OkHttpClient = webDavClient.getStreamingClientForServer(server)

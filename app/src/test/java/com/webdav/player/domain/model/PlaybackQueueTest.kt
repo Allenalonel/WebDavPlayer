@@ -205,4 +205,27 @@ class PlaybackQueueTest {
         assertEquals(t2, updated.currentTrack)
         assertEquals(listOf(t1, t2, tNew), updated.tracks)
     }
+
+    @Test
+    fun folderRingPlayback_strictlyConfinedWithinCurrentFolder() {
+        val folderTracks = (1..5).map { createTrack("f_$it", "Folder Track $it") }
+        val queue = PlaybackQueue(tracks = folderTracks, currentIndex = 0)
+
+        // Forward traversal: 0 -> 1 -> 2 -> 3 -> 4 -> 0 (loop back)
+        var current = queue
+        for (expectedIndex in listOf(1, 2, 3, 4, 0, 1)) {
+            val nextIndex = current.getNextIndex(PlaybackMode.LIST_LOOP)!!
+            assertEquals(expectedIndex, nextIndex)
+            current = current.copy(currentIndex = nextIndex)
+        }
+
+        // Backward traversal from 0 wraps back to the end of the folder (index 4)
+        val atStart = queue.copy(currentIndex = 0)
+        assertEquals(4, atStart.getPreviousIndex(PlaybackMode.LIST_LOOP))
+
+        // Single track folder strictly returns 0 and does not jump out
+        val singleTrackQueue = PlaybackQueue(tracks = listOf(createTrack("solo", "Solo")), currentIndex = 0)
+        assertEquals(0, singleTrackQueue.getNextIndex(PlaybackMode.LIST_LOOP))
+        assertEquals(0, singleTrackQueue.getPreviousIndex(PlaybackMode.LIST_LOOP))
+    }
 }

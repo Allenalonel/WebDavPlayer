@@ -4,6 +4,7 @@ import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -18,6 +19,12 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 class OkHttpWebDavClient(
+    val streamingConnectionPool: ConnectionPool =
+        ConnectionPool(
+            DEFAULT_STREAMING_MAX_IDLE_CONNECTIONS,
+            DEFAULT_STREAMING_KEEP_ALIVE_MINUTES,
+            TimeUnit.MINUTES,
+        ),
     private val baseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
@@ -28,12 +35,26 @@ class OkHttpWebDavClient(
     private val streamingBaseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
+            .connectionPool(streamingConnectionPool)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build(),
 ) : WebDavClient {
+    constructor(
+        baseOkHttpClient: OkHttpClient,
+        streamingBaseOkHttpClient: OkHttpClient,
+    ) : this(
+        streamingConnectionPool = streamingBaseOkHttpClient.connectionPool,
+        baseOkHttpClient = baseOkHttpClient,
+        streamingBaseOkHttpClient = streamingBaseOkHttpClient,
+    )
+
+    companion object {
+        const val DEFAULT_STREAMING_MAX_IDLE_CONNECTIONS: Int = 8
+        const val DEFAULT_STREAMING_KEEP_ALIVE_MINUTES: Long = 5L
+    }
     private val clientCache = ConcurrentHashMap<String, OkHttpClient>()
 
     override suspend fun testConnection(server: WebDavServer): ConnectionResult =
@@ -339,6 +360,9 @@ class OkHttpWebDavClient(
     ): OkHttpClient {
         val base = if (isStreaming) streamingBaseOkHttpClient else baseOkHttpClient
         val builder = base.newBuilder()
+        if (isStreaming) {
+            builder.connectionPool(streamingConnectionPool)
+        }
 
         if (server.username.isNotBlank()) {
             val credential = Credentials.basic(server.username, server.password)

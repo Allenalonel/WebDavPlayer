@@ -2,6 +2,7 @@ package com.webdav.player.data.player
 
 import android.content.Context
 import androidx.annotation.OptIn
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -534,5 +535,64 @@ class Media3AudioPlayerEngineTest {
         // Delegating factory provides active server's OkHttpDataSource
         val dataSource = engine.delegatingDataSourceFactory.createDataSource()
         assertTrue(dataSource is OkHttpDataSource)
+    }
+
+    @Test
+    fun loadControl_bufferThresholds_andBackBuffer_verified() {
+        val defaultConfig = engine.loadControlConfig
+        assertEquals(10_000, defaultConfig.backBufferDurationMs)
+        assertEquals(false, defaultConfig.retainBackBufferFromKeyframe)
+        assertEquals(15_000, defaultConfig.minBufferMs)
+        assertEquals(50_000, defaultConfig.maxBufferMs)
+        assertEquals(1_500, defaultConfig.bufferForPlaybackMs)
+        assertEquals(3_000, defaultConfig.bufferForPlaybackAfterRebufferMs)
+        assertEquals(true, defaultConfig.prioritizeTimeOverSizeThresholds)
+
+        val customConfig =
+            StreamingLoadControlConfig(
+                backBufferDurationMs = 20_000,
+                minBufferMs = 30_000,
+                maxBufferMs = 60_000,
+            )
+        val customEngine =
+            Media3AudioPlayerEngine(
+                context = context,
+                loadControlConfig = customConfig,
+            )
+        assertEquals(20_000, customEngine.loadControlConfig.backBufferDurationMs)
+        assertEquals(30_000, customEngine.loadControlConfig.minBufferMs)
+        assertEquals(60_000, customEngine.loadControlConfig.maxBufferMs)
+        customEngine.release()
+    }
+
+    @Test
+    fun folderRingPlayback_listLoopWrapsAroundSeamlessly() {
+        val tracks = listOf(track1, track2, track3)
+        engine.setPlaybackMode(PlaybackMode.LIST_LOOP)
+        assertEquals(Player.REPEAT_MODE_ALL, engine.player.repeatMode)
+        assertFalse(engine.player.shuffleModeEnabled)
+
+        engine.playTracks(
+            server = testServer,
+            tracks = tracks,
+            startIndex = 0,
+        )
+        assertEquals(0, engine.currentTrackIndex.value)
+
+        // Step to track 1
+        engine.skipToNext()
+        assertEquals(1, engine.currentTrackIndex.value)
+
+        // Step to track 2 (last track in directory)
+        engine.skipToNext()
+        assertEquals(2, engine.currentTrackIndex.value)
+
+        // Reaching the end in LIST_LOOP wraps back to track 0 (Folder Ring closure)
+        engine.skipToNext()
+        assertEquals(0, engine.currentTrackIndex.value)
+
+        // From track 0, skipToPrevious wraps back to the last track (track 2)
+        engine.skipToPrevious()
+        assertEquals(2, engine.currentTrackIndex.value)
     }
 }

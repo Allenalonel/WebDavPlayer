@@ -417,4 +417,19 @@ class WebDavMediaSourceAdapterTest {
         assertNotNull(mediaSource)
         assertEquals("audio/x-ms-wma", mediaSource.mediaItem.localConfiguration?.mimeType)
     }
+
+    @Test
+    fun adapter_exposesDedicatedStreamingConnectionPool() {
+        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
+        assertNotNull(adapter.streamingConnectionPool)
+        org.junit.Assert.assertSame(
+            defaultAdapter.webDavClient.streamingConnectionPool,
+            adapter.streamingConnectionPool,
+        )
+        val streamingClient = defaultAdapter.getStreamingClientForServer(testServer)
+        org.junit.Assert.assertSame(
+            adapter.streamingConnectionPool,
+            streamingClient.connectionPool,
+        )
+    }
 }
