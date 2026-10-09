@@ -15,6 +15,7 @@ import androidx.media3.session.MediaSession
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.collect.ImmutableList
 import com.webdav.player.R
+import com.webdav.player.domain.model.PlaybackState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -304,5 +305,30 @@ class WebDavNotificationProviderTest {
         assertNotNull(notification)
         assertEquals(R.drawable.ic_notification_playback, notification.smallIcon.resId)
         assertNull("Large icon should be null when artwork file does not exist", notification.getLargeIcon())
+    }
+
+    @Test
+    fun buildNotification_whenWeakNetwork_displaysWeakNetworkSubtitle() {
+        val mediaMetadata =
+            MediaMetadata
+                .Builder()
+                .setTitle("Buffering Song")
+                .setArtist("Buffering Artist")
+                .setAlbumTitle("Original Album")
+                .build()
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:weak_net")
+                .setMediaMetadata(mediaMetadata)
+                .build()
+        player.setMediaItem(mediaItem)
+
+        val notification = provider.buildNotification(session, PlaybackState.Buffering, isWeakNetwork = true)
+        assertEquals("Buffering Song", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
+        assertEquals("Buffering Artist", notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+        assertEquals("网络受阻，正在重连...", notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString())
+        assertTrue("Weak network notification should remain ongoing", notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
     }
 }

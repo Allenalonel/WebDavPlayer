@@ -6,6 +6,7 @@ import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
+import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
@@ -1673,6 +1674,63 @@ class MusicPlayerAppSessionTest {
             assertFalse("Pre-roll must be cancelled on pause", fakeEngine.isPrerollActive)
             assertTrue("Clear preroll must be called", fakeEngine.clearPrerollCount > 0)
             assertTrue(session.sessionState.value.isPaused)
+        }
+
+    @Test
+    fun weakNetwork_stateAndRetryFlag_exposedAndClearedOnResume() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // 1. Enter buffering
+            fakeEngine._playbackState.value = PlaybackState.Buffering
+            advanceUntilIdle()
+
+            // Weak network reached (>= 15s buffering)
+            session.setWeakNetworkState(isWeakNetwork = true, canManualRetry = false)
+            assertTrue(session.sessionState.value.isWeakNetwork)
+            assertFalse(session.sessionState.value.canManualRetry)
+            assertTrue(session.sessionState.value.isReconnecting)
+            assertEquals("网络受阻，正在重连...", PlayerSessionState.WEAK_NETWORK_MESSAGE)
+
+            // 2. Manual retry available (>= 30s buffering)
+            session.setWeakNetworkState(isWeakNetwork = true, canManualRetry = true)
+            assertTrue(session.sessionState.value.isWeakNetwork)
+            assertTrue(session.sessionState.value.canManualRetry)
+
+            // 3. Network recovers and transitions back to Playing
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertFalse("Weak network must clear upon playing resume", session.sessionState.value.isWeakNetwork)
+            assertFalse("Manual retry must clear upon playing resume", session.sessionState.value.canManualRetry)
+            assertFalse("Reconnecting flag must clear", session.sessionState.value.isReconnecting)
+        }
+
+    @Test
+    fun manualRetry_reconnectsInPlace_preservingCurrentPosition() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            session.seekTo(42_000L)
+            advanceUntilIdle()
+
+            val initialPlayTracksCount = fakeEngine.playTracksCount
+
+            // User triggers manual retry
+            session.retryPlayback()
+            advanceUntilIdle()
+
+            assertTrue(fakeEngine.playTracksCount > initialPlayTracksCount)
+            assertEquals(42_000L, fakeEngine.lastStartPositionMs)
+            assertEquals("01.mp3", fakeEngine.lastTracks[0].title)
         }
 
     private class TestServerRepository(

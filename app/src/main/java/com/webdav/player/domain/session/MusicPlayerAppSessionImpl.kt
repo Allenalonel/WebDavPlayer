@@ -69,6 +69,8 @@ class MusicPlayerAppSessionImpl(
     private var activeCuePath: String? = null
     private var activePhysicalTracks: List<AudioTrack> = emptyList()
 
+    private val bufferingWatchdogJobRef = java.util.concurrent.atomic.AtomicReference<Job?>(null)
+
     @androidx.annotation.VisibleForTesting
     val lastBufferingTimestampMs =
         java.util.concurrent.atomic
@@ -158,6 +160,31 @@ class MusicPlayerAppSessionImpl(
                         lastBufferingTimestampMs.set(System.currentTimeMillis())
                         if (isPrerollAppended.compareAndSet(true, false)) {
                             playerEngine.clearPrerollTrack()
+                        }
+                        if (bufferingWatchdogJobRef.get()?.isActive != true) {
+                            val job =
+                                coroutineScope.launch {
+                                    delay(15_000L)
+                                    if (isActive) {
+                                        _sessionState.update {
+                                            it.copy(isWeakNetwork = true, canManualRetry = false, isReconnecting = true)
+                                        }
+                                        delay(15_000L)
+                                        if (isActive) {
+                                            _sessionState.update {
+                                                it.copy(isWeakNetwork = true, canManualRetry = true, isReconnecting = true)
+                                            }
+                                        }
+                                    }
+                                }
+                            bufferingWatchdogJobRef.set(job)
+                        }
+                    } else {
+                        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+                        if (_sessionState.value.isWeakNetwork || _sessionState.value.canManualRetry || _sessionState.value.isReconnecting) {
+                            _sessionState.update {
+                                it.copy(isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
+                            }
                         }
                     }
                     _sessionState.update { current ->
@@ -1144,6 +1171,42 @@ class MusicPlayerAppSessionImpl(
             }
         }
         coroutineScope.launch { flushSession() }
+    }
+
+    override fun retryPlayback() {
+        val server = _sessionState.value.activeServer ?: return
+        val currentTrack = _sessionState.value.currentTrack ?: return
+        val currentPos = _playbackProgress.value.currentPositionMs
+
+        if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
+            val resumePos =
+                (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) + currentPos
+            playerEngine.playTracks(
+                server = server,
+                tracks = listOf(activeParentAudioTrack!!),
+                startIndex = 0,
+                startPositionMs = resumePos,
+            )
+            playerEngine.updateTrack(0, currentTrack)
+        } else {
+            playerEngine.playTracks(
+                server = server,
+                tracks = _sessionState.value.queue.tracks,
+                startIndex = _sessionState.value.queue.currentIndex.coerceAtLeast(0),
+                startPositionMs = currentPos,
+            )
+            playerEngine.updateTrack(0, currentTrack)
+        }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    fun setWeakNetworkState(
+        isWeakNetwork: Boolean,
+        canManualRetry: Boolean,
+    ) {
+        _sessionState.update {
+            it.copy(isWeakNetwork = isWeakNetwork, canManualRetry = canManualRetry, isReconnecting = isWeakNetwork)
+        }
     }
 
     override fun stop() {

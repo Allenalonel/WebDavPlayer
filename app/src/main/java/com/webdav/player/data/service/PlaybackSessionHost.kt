@@ -137,9 +137,12 @@ class PlaybackSessionHost(
         }
     }
 
-    fun buildCurrentNotification(playbackState: PlaybackState? = null): Notification {
+    fun buildCurrentNotification(
+        playbackState: PlaybackState? = null,
+        isWeakNetwork: Boolean = false,
+    ): Notification {
         val targetState = playbackState ?: playerEngine.playbackState.value
-        return notificationProvider.buildNotification(mediaSession, targetState)
+        return notificationProvider.buildNotification(mediaSession, targetState, isWeakNetwork)
     }
 
     fun elevateForeground(playbackState: PlaybackState? = null) {

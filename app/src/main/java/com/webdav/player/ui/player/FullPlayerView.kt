@@ -86,6 +86,7 @@ fun FullPlayerView(
     onPlayQueueIndex: (Int) -> Unit,
     onRemoveQueueTrack: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onRetryPlayback: () -> Unit = onTogglePlayPause,
 ) {
     var showQueueSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -213,6 +214,7 @@ fun FullPlayerView(
                         // Page 0: Cover Artwork & Metadata view
                         ArtworkPage(
                             currentTrack = currentTrack,
+                            sessionState = sessionState,
                             onArtworkClick = {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(1)
@@ -415,7 +417,9 @@ fun FullPlayerView(
 
                 // Expressive Prominent Play / Pause / Buffering Toggle Button
                 FilledIconButton(
-                    onClick = onTogglePlayPause,
+                    onClick = {
+                        if (sessionState.canManualRetry) onRetryPlayback() else onTogglePlayPause()
+                    },
                     modifier = Modifier.size(72.dp),
                     shape = CircleShape,
                     colors =
@@ -431,11 +435,19 @@ fun FullPlayerView(
                     ) { state ->
                         when (state) {
                             is PlaybackState.Buffering -> {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(32.dp),
-                                    strokeWidth = 3.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
+                                if (sessionState.canManualRetry) {
+                                    Icon(
+                                        imageVector = AppIcons.Refresh,
+                                        contentDescription = "重试",
+                                        modifier = Modifier.size(38.dp),
+                                    )
+                                } else {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(32.dp),
+                                        strokeWidth = 3.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
                             }
 
                             is PlaybackState.Playing -> {
@@ -515,6 +527,7 @@ fun FullPlayerView(
 @Composable
 private fun ArtworkPage(
     currentTrack: AudioTrack?,
+    sessionState: PlayerSessionState,
     onArtworkClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -571,11 +584,17 @@ private fun ArtworkPage(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Artist Name
+        // Artist Name or Weak Network Alert Subtitle
+        val subtitleText =
+            if (sessionState.isWeakNetwork) {
+                PlayerSessionState.WEAK_NETWORK_MESSAGE
+            } else {
+                currentTrack?.artist?.trim()?.takeIf { it.isNotBlank() } ?: "未知艺术家"
+            }
         Text(
-            text = currentTrack?.artist?.trim()?.takeIf { it.isNotBlank() } ?: "未知艺术家",
+            text = subtitleText,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (sessionState.isWeakNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

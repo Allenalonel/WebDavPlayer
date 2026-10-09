@@ -82,6 +82,7 @@ class WebDavNotificationProvider(
     fun buildNotification(
         mediaSession: MediaSession,
         playbackState: PlaybackState? = null,
+        isWeakNetwork: Boolean = false,
     ): Notification {
         val player = mediaSession.player
         val metadata = player.mediaMetadata
@@ -109,13 +110,17 @@ class WebDavNotificationProvider(
                     )
             }
         val album =
-            metadata.albumTitle?.toString()
-                ?: (
-                    player.currentMediaItem
-                        ?.mediaMetadata
-                        ?.albumTitle
-                        ?.toString()
-                )
+            if (isWeakNetwork) {
+                "网络受阻，正在重连..."
+            } else {
+                metadata.albumTitle?.toString()
+                    ?: (
+                        player.currentMediaItem
+                            ?.mediaMetadata
+                            ?.albumTitle
+                            ?.toString()
+                    )
+            }
 
         val contentIntent =
             PendingIntent.getActivity(

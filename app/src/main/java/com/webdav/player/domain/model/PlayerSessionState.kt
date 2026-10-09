@@ -10,6 +10,9 @@ data class PlayerSessionState(
     val lyrics: Lyrics? = null,
     val isLoadingLyrics: Boolean = false,
     val currentDirectoryPath: String = "/",
+    val isWeakNetwork: Boolean = false,
+    val canManualRetry: Boolean = false,
+    val isReconnecting: Boolean = false,
 ) {
     val currentTrack: AudioTrack? get() = queue.currentTrack
     val isPlaying: Boolean get() = playbackState is PlaybackState.Playing
@@ -17,4 +20,8 @@ data class PlayerSessionState(
     val isPaused: Boolean get() = playbackState is PlaybackState.Paused
     val isIdle: Boolean get() = playbackState is PlaybackState.Idle
     val hasTrack: Boolean get() = currentTrack != null
+
+    companion object {
+        const val WEAK_NETWORK_MESSAGE = "网络受阻，正在重连..."
+    }
 }

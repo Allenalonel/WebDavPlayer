@@ -70,6 +70,8 @@ interface MusicPlayerAppSession {
 
     fun removeQueueTrack(index: Int)
 
+    fun retryPlayback() {}
+
     fun stop()
 
     fun release()

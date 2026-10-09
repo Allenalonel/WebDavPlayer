@@ -64,6 +64,7 @@ fun MiniPlayer(
     onSkipToNext: () -> Unit = {},
     onMiniPlayerClick: () -> Unit = {},
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
+    onRetryPlayback: () -> Unit = onTogglePlayPause,
 ) {
     val currentTrack = sessionState.currentTrack ?: return
 
@@ -148,7 +149,7 @@ fun MiniPlayer(
                 // Play / Pause / Buffering Toggle Button
                 PlayPauseToggleButton(
                     sessionState = sessionState,
-                    onTogglePlayPause = onTogglePlayPause,
+                    onTogglePlayPause = if (sessionState.canManualRetry) onRetryPlayback else onTogglePlayPause,
                 )
 
                 Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
@@ -192,6 +193,7 @@ fun DockedMiniPlayer(
     onSkipToNext: () -> Unit = {},
     onMiniPlayerClick: () -> Unit = {},
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
+    onRetryPlayback: () -> Unit = onTogglePlayPause,
 ) {
     MiniPlayer(
         sessionState = sessionState,
@@ -200,6 +202,7 @@ fun DockedMiniPlayer(
         onSkipToNext = onSkipToNext,
         onMiniPlayerClick = onMiniPlayerClick,
         playbackProgress = playbackProgress,
+        onRetryPlayback = onRetryPlayback,
     )
 }
 
@@ -217,14 +220,20 @@ private fun PlaybackStateIndicator(
             sessionState.isBuffering -> {
                 CircularProgressIndicator(
                     strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (sessionState.isWeakNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(10.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
+                val bufferText =
+                    if (sessionState.isWeakNetwork) {
+                        PlayerSessionState.WEAK_NETWORK_MESSAGE
+                    } else {
+                        "正在缓冲..."
+                    }
                 Text(
-                    text = "正在缓冲...",
+                    text = bufferText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (sessionState.isWeakNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 )
             }
 
@@ -305,11 +314,19 @@ private fun PlayPauseToggleButton(
         ) { state ->
             when (state) {
                 is PlaybackState.Buffering -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    if (sessionState.canManualRetry) {
+                        Icon(
+                            imageVector = AppIcons.Refresh,
+                            contentDescription = "重试",
+                            modifier = Modifier.size(22.dp),
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                 }
 
                 is PlaybackState.Playing -> {
