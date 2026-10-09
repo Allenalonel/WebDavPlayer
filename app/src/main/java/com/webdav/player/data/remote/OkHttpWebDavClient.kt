@@ -35,10 +35,11 @@ class OkHttpWebDavClient(
     private val streamingBaseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectionPool(streamingConnectionPool)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build(),
 ) : WebDavClient {
@@ -363,6 +364,7 @@ class OkHttpWebDavClient(
         val builder = base.newBuilder()
         if (isStreaming) {
             builder.connectionPool(streamingConnectionPool)
+            builder.protocols(listOf(okhttp3.Protocol.HTTP_1_1))
         }
 
         if (server.username.isNotBlank()) {

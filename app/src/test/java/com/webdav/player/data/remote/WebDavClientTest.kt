@@ -682,4 +682,55 @@ class WebDavClientTest {
             streamClient2.connectionPool,
         )
     }
+
+    @Test
+    fun streamingClient_protocolLockedToHttp11_andTimeoutsHardened() {
+        val client = OkHttpWebDavClient()
+        val server = WebDavServer(id = 10L, name = "StreamServer", url = "http://192.168.1.50:8080/dav")
+        val streamClient = client.buildStreamingClientForServer(server)
+
+        assertEquals(
+            "Streaming client must strictly use HTTP/1.1 protocol",
+            listOf(okhttp3.Protocol.HTTP_1_1),
+            streamClient.protocols,
+        )
+        assertEquals(
+            "Streaming client connect timeout must be 30 seconds",
+            30_000,
+            streamClient.connectTimeoutMillis,
+        )
+        assertEquals(
+            "Streaming client read timeout must be 60 seconds",
+            60_000,
+            streamClient.readTimeoutMillis,
+        )
+        assertEquals(
+            "Streaming client write timeout must be 60 seconds",
+            60_000,
+            streamClient.writeTimeoutMillis,
+        )
+    }
+
+    @Test
+    fun standardClient_maintainsDefaultProtocolsAndTimeouts() {
+        val client = OkHttpWebDavClient()
+        val server = WebDavServer(id = 11L, name = "StandardServer", url = "http://192.168.1.50:8080/dav")
+        val standardClient = client.buildClientForServer(server)
+
+        assertTrue(
+            "Standard client must support HTTP/2 and HTTP/1.1",
+            standardClient.protocols.contains(okhttp3.Protocol.HTTP_2) &&
+                standardClient.protocols.contains(okhttp3.Protocol.HTTP_1_1),
+        )
+        assertEquals(
+            "Standard client connect timeout must be 10 seconds",
+            10_000,
+            standardClient.connectTimeoutMillis,
+        )
+        assertEquals(
+            "Standard client read timeout must be 10 seconds",
+            10_000,
+            standardClient.readTimeoutMillis,
+        )
+    }
 }
