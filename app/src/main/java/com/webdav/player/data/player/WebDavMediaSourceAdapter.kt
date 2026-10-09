@@ -69,6 +69,7 @@ class DefaultWebDavMediaSourceAdapter(
     private val context: Context,
     val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
     val loadErrorHandlingPolicy: LoadErrorHandlingPolicy = WebDavLoadErrorHandlingPolicy(),
+    val resilientSleeper: ((Long) -> Unit)? = null,
 ) : WebDavMediaSourceAdapter {
     private data class DataSourceCacheKey(
         val serverId: Long,
@@ -99,9 +100,15 @@ class DefaultWebDavMediaSourceAdapter(
             )
         return dataSourceFactoryCache.computeIfAbsent(cacheKey) {
             val client = getStreamingClientForServer(server)
-            OkHttpDataSource
-                .Factory(client)
-                .setUserAgent("WebDavPlayer/1.0")
+            val okHttpFactory =
+                OkHttpDataSource
+                    .Factory(client)
+                    .setUserAgent("WebDavPlayer/1.0")
+            if (resilientSleeper != null) {
+                ResilientWebDavDataSource.Factory(okHttpFactory, sleeper = resilientSleeper)
+            } else {
+                ResilientWebDavDataSource.Factory(okHttpFactory)
+            }
         }
     }
 

@@ -552,8 +552,8 @@ class Media3AudioPlayerEngineTest {
         val dataSource = engine.delegatingDataSourceFactory.createDataSource()
         assertNotNull(dataSource)
         assertTrue(
-            "Expected OkHttpDataSource when activeServer is set, but was ${dataSource::class.java.name}",
-            dataSource is OkHttpDataSource,
+            "Expected ResilientWebDavDataSource when activeServer is set, but was ${dataSource::class.java.name}",
+            dataSource is ResilientWebDavDataSource,
         )
     }
 
@@ -574,9 +574,9 @@ class Media3AudioPlayerEngineTest {
         val item = engine.player.getMediaItemAt(1)
         assertEquals("Rebuilt Title", item.mediaMetadata.title?.toString())
 
-        // Delegating factory provides active server's OkHttpDataSource
+        // Delegating factory provides active server's ResilientWebDavDataSource
         val dataSource = engine.delegatingDataSourceFactory.createDataSource()
-        assertTrue(dataSource is OkHttpDataSource)
+        assertTrue(dataSource is ResilientWebDavDataSource)
     }
 
     @Test

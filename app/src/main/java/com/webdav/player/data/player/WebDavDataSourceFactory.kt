@@ -27,9 +27,10 @@ class WebDavDataSourceFactory(
                 ?: webDavClient.buildStreamingClientForServer(
                     WebDavServer(name = "Default", url = "http://localhost"),
                 )
-        return OkHttpDataSource
-            .Factory(client)
-            .setUserAgent("WebDavPlayer/1.0")
-            .createDataSource()
+        val okHttpFactory =
+            OkHttpDataSource
+                .Factory(client)
+                .setUserAgent("WebDavPlayer/1.0")
+        return ResilientWebDavDataSource.Factory(okHttpFactory).createDataSource()
     }
 }

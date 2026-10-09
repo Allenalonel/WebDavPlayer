@@ -80,7 +80,7 @@ class WebDavStreamingPlaybackTest {
         val adapter = DefaultWebDavMediaSourceAdapter(context)
 
         val streamingClient = adapter.getStreamingClientForServer(testServer)
-        assertEquals(30_000, streamingClient.readTimeoutMillis)
+        assertEquals(60_000, streamingClient.readTimeoutMillis)
         val dataSource = adapter.getDataSourceFactory(testServer).createDataSource()
         assertNotNull(dataSource)
     }
