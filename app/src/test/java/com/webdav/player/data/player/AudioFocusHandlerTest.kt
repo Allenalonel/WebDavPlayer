@@ -18,27 +18,28 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class AudioFocusHandlerTest {
-
     private lateinit var context: Context
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var focusHandler: AudioFocusHandler
 
-    private val testServer = WebDavServer(
-        id = 1L,
-        name = "Test",
-        url = "http://localhost:8080/dav",
-        port = 8080,
-        pathPrefix = "/dav"
-    )
+    private val testServer =
+        WebDavServer(
+            id = 1L,
+            name = "Test",
+            url = "http://localhost:8080/dav",
+            port = 8080,
+            pathPrefix = "/dav",
+        )
 
-    private val testTrack = AudioTrack(
-        id = "1",
-        serverId = 1L,
-        remotePath = "/1.mp3",
-        title = "Song 1",
-        format = AudioFormat.MP3,
-        size = 100L
-    )
+    private val testTrack =
+        AudioTrack(
+            id = "1",
+            serverId = 1L,
+            remotePath = "/1.mp3",
+            title = "Song 1",
+            format = AudioFormat.MP3,
+            size = 100L,
+        )
 
     @Before
     fun setUp() {
@@ -86,11 +87,12 @@ class AudioFocusHandlerTest {
     @Test
     fun systemNotification_lossTransientCanDuck_setsDucked_andRestoresOnGain() {
         var recordedVolume: Float? = null
-        val customHandler = AudioFocusHandler(
-            context = context,
-            playerEngine = fakeEngine,
-            onVolumeChanged = { volume -> recordedVolume = volume }
-        )
+        val customHandler =
+            AudioFocusHandler(
+                context = context,
+                playerEngine = fakeEngine,
+                onVolumeChanged = { volume -> recordedVolume = volume },
+            )
 
         // System notification / navigation prompt
         customHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)

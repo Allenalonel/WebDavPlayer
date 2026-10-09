@@ -9,4 +9,4 @@
 - [x] All unit and integration test suites are updated to reflect the removal of shallow helper objects and transitional factories.
 - [x] End-to-end playback, browsing, session persistence, and metadata pipelines pass all tests deterministically (`./gradlew testDebugUnitTest`).
 - [x] Zero deprecated module usages remain across production and test codebases.
-- [x] Codebase conforms fully to domain terms in `CONTEXT.md` and architecture principles in `codebase-design`.
+- [x] Codebase conforms fully to domain terms in `GLOSSARY.md` and architecture principles in `codebase-design`.

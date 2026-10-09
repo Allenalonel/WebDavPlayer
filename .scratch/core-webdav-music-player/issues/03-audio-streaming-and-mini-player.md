@@ -18,7 +18,7 @@
 
 ### Implementation Summary
 1. **Domain Layer**:
-   - Added `AudioTrack`, `PlaybackQueue`, `PlaybackState`, and `PlayerSessionState` reflecting CONTEXT.md domain language.
+   - Added `AudioTrack`, `PlaybackQueue`, `PlaybackState`, and `PlayerSessionState` reflecting GLOSSARY.md domain language.
    - Defined `AudioPlayerEngine` abstraction allowing clean test separation between business logic and media decoding.
    - Defined `MusicPlayerAppSession` facade coordinating WebDAV servers, directory queues, and player engine commands.
 2. **Media3 Integration & Data Layer**:

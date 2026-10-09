@@ -81,4 +81,4 @@ A targeted, robust architecture fix that eliminates the lifecycle race condition
 ## Further Notes
 
 - Resolving these two P0 issues establishes the fundamental operational baseline of the application: uninterrupted authenticated streaming and zero-crash service lifecycle compliance on Android 8.0+.
-- All domain vocabulary strictly matches `CONTEXT.md` (Active Server, Audio Track, Streaming Buffer, Playback Session State).
+- All domain vocabulary strictly matches `GLOSSARY.md` (Active Server, Audio Track, Streaming Buffer, Playback Session State).

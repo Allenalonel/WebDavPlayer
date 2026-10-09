@@ -86,5 +86,5 @@ A cohesive architectural deepening and de-duplication effort that eliminates sha
 
 ## Further Notes
 
-- All changes adhere strictly to the vocabulary established in `CONTEXT.md` and the architecture principles in `codebase-design`.
+- All changes adhere strictly to the vocabulary established in `GLOSSARY.md` and the architecture principles in `codebase-design`.
 - All modifications will be validated through `./gradlew testDebugUnitTest` prior to final completion.

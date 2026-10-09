@@ -18,7 +18,7 @@
 
 ### Implementation Summary
 1. **Domain Layer**:
-   - Added `RemoteDirectory`, `RemoteFile`, `RemoteFileType`, `AudioFormat`, `Breadcrumb`, and `ListDirectoryResult` following CONTEXT.md naming standards.
+   - Added `RemoteDirectory`, `RemoteFile`, `RemoteFileType`, `AudioFormat`, `Breadcrumb`, and `ListDirectoryResult` following GLOSSARY.md naming standards.
    - Identified recognized audio formats (MP3, FLAC, WAV, WMA, AAC, OGG, M4A) and `.lrc` lyric files.
 2. **Data & Remote Layer**:
    - Extended `WebDavClient` with `listDirectory(server, path)`.
