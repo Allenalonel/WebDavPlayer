@@ -292,6 +292,24 @@ class Media3AudioPlayerEngine(
                 reason: Int,
             ) {
                 val oldIndex = _currentTrackIndex.value
+                val playerIndex = player.currentMediaItemIndex
+
+                if (playerIndex == 1 && player.mediaItemCount >= 2) {
+                    val nextTrackIndex =
+                        if (_playbackMode.value == PlaybackMode.SHUFFLE && loadedTracks.size > 1) {
+                            (loadedTracks.indices.filter { it != oldIndex }.randomOrNull()) ?: 0
+                        } else {
+                            if (oldIndex < loadedTracks.lastIndex) oldIndex + 1 else 0
+                        }
+                    _currentTrackIndex.value = nextTrackIndex
+                    player.removeMediaItem(0)
+                    commitPendingEnrichedItem(oldIndex)
+                    activeTrackMetadataRef.set(null)
+                    player.playlistMetadata = MediaMetadata.EMPTY
+                    updatePositionAndDuration()
+                    return
+                }
+
                 val newIndex =
                     if (loadedTracks.isNotEmpty()) {
                         _currentTrackIndex.value
@@ -478,6 +496,26 @@ class Media3AudioPlayerEngine(
                     seekToTrack(newIndex, 0L)
                 }
             }
+        }
+    }
+
+    override fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+    ) {
+        if (player.mediaItemCount >= 2) return
+        if (player is ExoPlayer) {
+            val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
+            player.addMediaSource(mediaSource)
+        } else {
+            val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
+            player.addMediaItem(mediaItem)
+        }
+    }
+
+    override fun clearPrerollTrack() {
+        if (player.mediaItemCount > 1) {
+            player.removeMediaItem(1)
         }
     }
 

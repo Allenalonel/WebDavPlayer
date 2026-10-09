@@ -44,6 +44,24 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var shufflePermutation: List<Int>? = null
     var registeredSkipHandler: AudioPlayerEngine.SkipHandler? = null
 
+    var isPrerollActive: Boolean = false
+    var prerolledTrack: AudioTrack? = null
+    var clearPrerollCount: Int = 0
+
+    override fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+    ) {
+        isPrerollActive = true
+        prerolledTrack = track
+    }
+
+    override fun clearPrerollTrack() {
+        isPrerollActive = false
+        prerolledTrack = null
+        clearPrerollCount++
+    }
+
     override fun setSkipHandler(handler: AudioPlayerEngine.SkipHandler?) {
         this.registeredSkipHandler = handler
     }

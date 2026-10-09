@@ -1582,6 +1582,99 @@ class MusicPlayerAppSessionTest {
             assertTrue(fakeEngine.playCount > initialPlayCount)
         }
 
+    @Test
+    fun adaptivePreroll_triggered_whenRemainingTimeWithin10Seconds_andNetworkHealthy() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            fakeEngine._durationMs.value = 100_000L
+            // Position at 92s (8s remaining <= 10s)
+            fakeEngine._currentPositionMs.value = 92_000L
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertTrue("Pre-roll must be active when remaining <= 10s on healthy network", fakeEngine.isPrerollActive)
+            assertEquals("02.mp3", fakeEngine.prerolledTrack?.title)
+        }
+
+    @Test
+    fun adaptivePreroll_suppressed_whenRecentBufferingOccurred() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // Mark recent buffering (5 seconds ago)
+            session.lastBufferingTimestampMs.set(System.currentTimeMillis() - 5_000L)
+
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 92_000L
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertFalse("Pre-roll must be suppressed when buffering occurred recently", fakeEngine.isPrerollActive)
+            assertNull(fakeEngine.prerolledTrack)
+        }
+
+    @Test
+    fun adaptivePreroll_dynamicallyCancelled_whenBufferingOccursDuringPrerollWindow() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 92_000L
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertTrue("Pre-roll should initially be active", fakeEngine.isPrerollActive)
+
+            // Network hiccup triggers buffering
+            fakeEngine._playbackState.value = PlaybackState.Buffering
+            advanceUntilIdle()
+
+            assertFalse("Pre-roll must be dynamically cancelled upon buffering", fakeEngine.isPrerollActive)
+            assertTrue("Clear preroll must be dispatched to engine", fakeEngine.clearPrerollCount > 0)
+        }
+
+    @Test
+    fun userPreemption_pauseAndSkip_instantlyCancelsPreroll() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 92_000L
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertTrue(fakeEngine.isPrerollActive)
+
+            // User clicks pause
+            session.pause()
+            advanceUntilIdle()
+
+            assertFalse("Pre-roll must be cancelled on pause", fakeEngine.isPrerollActive)
+            assertTrue("Clear preroll must be called", fakeEngine.clearPrerollCount > 0)
+            assertTrue(session.sessionState.value.isPaused)
+        }
+
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),
     ) : com.webdav.player.domain.repository.ServerRepository {

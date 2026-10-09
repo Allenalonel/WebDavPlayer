@@ -69,6 +69,16 @@ class MusicPlayerAppSessionImpl(
     private var activeCuePath: String? = null
     private var activePhysicalTracks: List<AudioTrack> = emptyList()
 
+    @androidx.annotation.VisibleForTesting
+    val lastBufferingTimestampMs =
+        java.util.concurrent.atomic
+            .AtomicLong(0L)
+
+    @androidx.annotation.VisibleForTesting
+    val isPrerollAppended =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
+
     init {
         playerEngine.setSkipHandler(
             object : AudioPlayerEngine.SkipHandler {
@@ -144,6 +154,12 @@ class MusicPlayerAppSessionImpl(
                         handlePlaybackEnded()
                         return@collect
                     }
+                    if (state is PlaybackState.Buffering) {
+                        lastBufferingTimestampMs.set(System.currentTimeMillis())
+                        if (isPrerollAppended.compareAndSet(true, false)) {
+                            playerEngine.clearPrerollTrack()
+                        }
+                    }
                     _sessionState.update { current ->
                         val targetState =
                             if (state is PlaybackState.Idle && current.isPaused && current.hasTrack &&
@@ -197,6 +213,7 @@ class MusicPlayerAppSessionImpl(
                     .collect { progress ->
                         if (playerEngine.playbackState.value !is PlaybackState.Idle) {
                             _playbackProgress.value = progress
+                            checkAndTriggerAdaptivePreroll(progress)
                         }
                     }
             }
@@ -226,7 +243,8 @@ class MusicPlayerAppSessionImpl(
                                 if (currentTrack?.remotePath == physTrack.remotePath) {
                                     _sessionState.value.queue.currentIndex
                                 } else {
-                                    _sessionState.value.queue.tracks.indexOfFirst { it.remotePath == physTrack.remotePath }
+                                    _sessionState.value.queue.tracks
+                                        .indexOfFirst { it.remotePath == physTrack.remotePath }
                                         .takeIf { it >= 0 } ?: index
                                 }
                             } else {
@@ -428,7 +446,9 @@ class MusicPlayerAppSessionImpl(
                 if (cueFiles.isNotEmpty()) {
                     val map = mutableMapOf<String, List<VirtualTrack>>()
                     for (cueFile in cueFiles) {
-                        val cachedText = com.webdav.player.data.cue.CueTextCache.get(server.id, cueFile.path)
+                        val cachedText =
+                            com.webdav.player.data.cue.CueTextCache
+                                .get(server.id, cueFile.path)
                         if (!cachedText.isNullOrBlank()) {
                             val matchedAudio =
                                 com.webdav.player.data.cue.CueAssociationHelper.findMatchingAudioFile(
@@ -910,6 +930,9 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun pause() {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
         playerEngine.pause()
         coroutineScope.launch {
             if (_isRestored.value) {
@@ -959,6 +982,9 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun skipToNext() {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
         if (virtualTimelineEngine.isActive) {
             val seekResult = virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)
             if (seekResult != null) {
@@ -998,6 +1024,9 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun skipToPrevious() {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
         if (virtualTimelineEngine.isActive) {
             val seekResult =
                 virtualTimelineEngine.getPreviousTrackSeekPosition(
@@ -1047,6 +1076,9 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun playQueueIndex(index: Int) {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
         if (virtualTimelineEngine.isActive) {
             val seekResult = virtualTimelineEngine.seekToTrackIndex(index)
             if (seekResult != null) {
@@ -1115,6 +1147,9 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun stop() {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
         stopPeriodicFlush()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
@@ -1125,6 +1160,9 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun release() {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
         stopPeriodicFlush()
         playerEngine.setSkipHandler(null)
         virtualTimelineEngine.clear()
@@ -1312,9 +1350,10 @@ class MusicPlayerAppSessionImpl(
         activeCuePath = cuePath
 
         val relPositionMs =
-            (savedSession.virtualPositionMs
-                ?: (savedSession.positionMs - targetVirtualTrack.startTimeMs).coerceAtLeast(0L))
-                .coerceIn(0L, if (targetVirtualTrack.durationMs > 0L) targetVirtualTrack.durationMs else Long.MAX_VALUE)
+            (
+                savedSession.virtualPositionMs
+                    ?: (savedSession.positionMs - targetVirtualTrack.startTimeMs).coerceAtLeast(0L)
+            ).coerceIn(0L, if (targetVirtualTrack.durationMs > 0L) targetVirtualTrack.durationMs else Long.MAX_VALUE)
 
         val queue = PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex)
 
@@ -1475,9 +1514,41 @@ class MusicPlayerAppSessionImpl(
 
     companion object {
         const val DURATION_COMPLETION_TOLERANCE_MS: Long = 3000L
+        const val PREROLL_TRIGGER_WINDOW_MS: Long = 10_000L
+        const val HEALTHY_NETWORK_QUIET_PERIOD_MS: Long = 30_000L
+    }
+
+    private fun checkAndTriggerAdaptivePreroll(progress: PlaybackProgress) {
+        if (virtualTimelineEngine.isActive || isPrerollAppended.get()) return
+        val queue = _sessionState.value.queue
+        if (queue.tracks.size <= 1) return
+        val duration = progress.durationMs
+        val position = progress.currentPositionMs
+        val remainingMs = duration - position
+
+        if (remainingMs in 1..PREROLL_TRIGGER_WINDOW_MS) {
+            val isPlaying = _sessionState.value.playbackState is PlaybackState.Playing
+            val isHealthyNetwork = (System.currentTimeMillis() - lastBufferingTimestampMs.get()) >= HEALTHY_NETWORK_QUIET_PERIOD_MS
+
+            if (isPlaying && isHealthyNetwork) {
+                if (isPrerollAppended.compareAndSet(false, true)) {
+                    val server = _sessionState.value.activeServer ?: return
+                    val nextIndex =
+                        if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
+                            val available = queue.tracks.indices.filter { it != queue.currentIndex }
+                            available.randomOrNull() ?: 0
+                        } else {
+                            if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
+                        }
+                    val nextTrack = queue.tracks[nextIndex]
+                    playerEngine.prerollTrack(server, nextTrack)
+                }
+            }
+        }
     }
 
     private fun handlePlaybackEnded() {
+        isPrerollAppended.set(false)
         val currentPos = playerEngine.currentPositionMs.value
         val currentTrack = _sessionState.value.currentTrack
         val duration =

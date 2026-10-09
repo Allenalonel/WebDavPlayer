@@ -59,6 +59,13 @@ interface AudioPlayerEngine {
         track: AudioTrack,
     ) {}
 
+    fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+    ) {}
+
+    fun clearPrerollTrack() {}
+
     fun stop()
 
     fun release()
