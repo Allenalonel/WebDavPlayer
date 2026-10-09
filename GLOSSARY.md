@@ -108,6 +108,18 @@ _Avoid_: Local Download, Offline Cache, CacheDataSource
 `TrackMetadataRepositoryImpl` 内部私有的深层网络与音频提取适配器，专职负责通过受限网络 HTTP Range 分片提取、自适应两阶段拼接、双源封面探测（内嵌封面优先，同目录外置封面回退并持锁）及图片缩略图本地落盘。对外不设立冗余公共接缝，调用方统一通过 `TrackMetadataRepository` 交互。
 _Avoid_: Metadata Parser, Artwork Helper, Tag Downloader
 
+**Session-Managed Queue Progression**:
+由应用会话层集中管控与仲裁的播放队列流转机制。底层媒体播放引擎仅作为当前曲目或双轨预热的流式渲染容器，丧失自主跨曲跳过权。
+_Avoid_: Autonomous Player Transition, Engine Skip, Internal Playlist Advancement
+
+**Premature EOF Guard**:
+在纯流式无磁盘缓存回放过程中，由底层数据源（传输字节计数比对）与上层会话层（播放进度与音轨实际时长比对）协同构成的双重熔断防线，杜绝因网络闪断或连接静默关闭被误判为曲目正常播放结束而诱发意外跳集。
+_Avoid_: End-of-Stream Hack, Fake Completion, Silent Disconnect
+
+**Transparent Range Reconnection**:
+底层流式数据源在遭遇读取超时或网络抖动时，在数据传输层记录字节偏移量并以退避重试自动发起 HTTP Range 请求接续流数据的自愈机制。对音频解码器及播放器状态机完全透明，不触发解码管道销毁，不发生进度跳变。
+_Avoid_: Player Re-prepare, Seek Reload, Fatal Source Error
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
