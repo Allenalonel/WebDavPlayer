@@ -109,7 +109,7 @@ class Media3AudioPlayerEngineTest {
         )
 
         assertEquals(1, engine.currentTrackIndex.value)
-        assertEquals(2, engine.player.mediaItemCount)
+        assertEquals(1, engine.player.mediaItemCount)
     }
 
     @Test
@@ -124,18 +124,11 @@ class Media3AudioPlayerEngineTest {
                 startPositionMs = 0L,
             )
             assertEquals(0, customEngine.currentTrackIndex.value)
-            assertEquals(2, customEngine.player.mediaItemCount)
+            assertEquals(1, customEngine.player.mediaItemCount)
             assertEquals(
                 "audio/mpeg",
                 customEngine.player
                     .getMediaItemAt(0)
-                    .localConfiguration
-                    ?.mimeType,
-            )
-            assertEquals(
-                "audio/x-ms-wma",
-                customEngine.player
-                    .getMediaItemAt(1)
                     .localConfiguration
                     ?.mimeType,
             )
@@ -319,21 +312,14 @@ class Media3AudioPlayerEngineTest {
                 ?.toString(),
         )
 
-        // Transition to next track: track 0 transitions to non-active and pending enrichment is safely committed to playlist
+        // Transition to next track: track 1 is loaded into player container
         engine.skipToNext()
         assertEquals(1, engine.currentTrackIndex.value)
         assertEquals(
-            "Enriched Song 1",
+            "02.flac",
             engine.player
                 .getMediaItemAt(0)
                 .mediaMetadata.title
-                ?.toString(),
-        )
-        assertEquals(
-            "Enriched Artist 1",
-            engine.player
-                .getMediaItemAt(0)
-                .mediaMetadata.artist
                 ?.toString(),
         )
 
@@ -393,14 +379,15 @@ class Media3AudioPlayerEngineTest {
         val updatedQueued = track2.copy(title = "Updated Track 2", artist = "Updated Artist 2")
         engine.updateTrack(1, updatedQueued)
 
-        // Queued / upcoming item is safely replaced in player playlist
-        val queuedItem = engine.player.getMediaItemAt(1)
-        assertEquals("Updated Track 2", queuedItem.mediaMetadata.title?.toString())
-        assertEquals("Updated Artist 2", queuedItem.mediaMetadata.artist?.toString())
-
         // Active track item remains intact
         val activeItem = engine.player.getMediaItemAt(0)
         assertEquals("01.mp3", activeItem.mediaMetadata.title?.toString())
+
+        // Upon transition, the updated metadata is applied to the player item
+        engine.skipToNext()
+        val nextItem = engine.player.getMediaItemAt(0)
+        assertEquals("Updated Track 2", nextItem.mediaMetadata.title?.toString())
+        assertEquals("Updated Artist 2", nextItem.mediaMetadata.artist?.toString())
     }
 
     @Test
@@ -479,16 +466,10 @@ class Media3AudioPlayerEngineTest {
                 ?.toString(),
         )
 
-        // Queued track enrichment safely updates media item
+        // Queued track enrichment safely updates engine's pending state without loading into player container
         val enrichedTrack2 = track2.copy(title = "Enriched Title 2")
         engine.updateTrack(1, enrichedTrack2)
-        assertEquals(
-            "Enriched Title 2",
-            engine.player
-                .getMediaItemAt(1)
-                .mediaMetadata.title
-                ?.toString(),
-        )
+        assertEquals(1, engine.player.mediaItemCount)
 
         appSession.release()
     }
@@ -571,7 +552,8 @@ class Media3AudioPlayerEngineTest {
 
         // Verifies activeServer remains preserved
         assertEquals(testServer, engine.activeServer)
-        val item = engine.player.getMediaItemAt(1)
+        engine.skipToNext()
+        val item = engine.player.getMediaItemAt(0)
         assertEquals("Rebuilt Title", item.mediaMetadata.title?.toString())
 
         // Delegating factory provides active server's ResilientWebDavDataSource
@@ -611,7 +593,7 @@ class Media3AudioPlayerEngineTest {
     fun folderRingPlayback_listLoopWrapsAroundSeamlessly() {
         val tracks = listOf(track1, track2, track3)
         engine.setPlaybackMode(PlaybackMode.LIST_LOOP)
-        assertEquals(Player.REPEAT_MODE_ALL, engine.player.repeatMode)
+        assertEquals(Player.REPEAT_MODE_OFF, engine.player.repeatMode)
         assertFalse(engine.player.shuffleModeEnabled)
 
         engine.playTracks(

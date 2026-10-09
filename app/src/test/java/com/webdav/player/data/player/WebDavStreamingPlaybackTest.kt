@@ -365,17 +365,17 @@ class WebDavStreamingPlaybackTest {
             assertNotNull("Initial chunk request should reach server", request1)
             assertEquals("Basic auth must be present on initial request", expectedAuth, request1!!.getHeader("Authorization"))
 
-            // Trigger track metadata update on queued non-active track2, which explicitly executes player.replaceMediaItem(1, ...)
+            // Trigger track metadata update on queued non-active track2
             val updatedTrack2 = track2.copy(title = "Updated Metadata Title 2")
             engine.updateTrack(1, updatedTrack2)
 
-            // Verify item was replaced in ExoPlayer playlist
-            val replacedItem = engine.player.getMediaItemAt(1)
-            assertEquals("Updated Metadata Title 2", replacedItem.mediaMetadata.title?.toString())
-
-            // Skip to track2: ExoPlayer uses the rebuilt MediaSource from DefaultMediaSourceFactory
+            // Skip to track2: engine loads the updated track
             engine.skipToNext()
             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+
+            // Verify item in ExoPlayer was loaded with updated metadata
+            val replacedItem = engine.player.getMediaItemAt(0)
+            assertEquals("Updated Metadata Title 2", replacedItem.mediaMetadata.title?.toString())
 
             // Request for track2 must inherit active server Basic Auth via delegatingDataSourceFactory
             val request2 = server.takeRequest(5, TimeUnit.SECONDS)

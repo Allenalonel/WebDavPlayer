@@ -327,26 +327,12 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val expectedStreamUrl = state.currentTrack!!.streamUrl(testServer)
             assertTrue("Stream URL resolves to mock server", expectedStreamUrl.contains(mockWebServer.port.toString()))
 
-            // Verify ExoPlayer media item count and configuration
-            assertEquals(3, engine.player.mediaItemCount)
+            // Verify ExoPlayer media item count and configuration for active track
+            assertEquals(1, engine.player.mediaItemCount)
             assertEquals(
                 "audio/flac",
                 engine.player
                     .getMediaItemAt(0)
-                    .localConfiguration
-                    ?.mimeType,
-            )
-            assertEquals(
-                "audio/mpeg",
-                engine.player
-                    .getMediaItemAt(1)
-                    .localConfiguration
-                    ?.mimeType,
-            )
-            assertEquals(
-                "audio/x-ms-wma",
-                engine.player
-                    .getMediaItemAt(2)
                     .localConfiguration
                     ?.mimeType,
             )

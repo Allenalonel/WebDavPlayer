@@ -1483,6 +1483,105 @@ class MusicPlayerAppSessionTest {
             assertEquals("Other Track 1", session.sessionState.value.currentTrack?.title)
         }
 
+    @Test
+    fun durationGuard_interceptsPrematureEof_andResumesInPlace() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 45_000L
+            val initialPlayCount = fakeEngine.playCount
+
+            // Simulate premature Ended event due to network stream cutoff at 45s of 100s track
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Duration Guard must prevent advancing to track 2
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+
+            // Must trigger in-place resumption from 45,000ms
+            assertEquals(45_000L, fakeEngine.seekToPosition)
+            assertTrue(fakeEngine.playCount > initialPlayCount)
+        }
+
+    @Test
+    fun durationGuard_allowsLegitimateCompletion_andAdvancesQueue() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 98_500L // within 3000ms tolerance
+
+            // Genuine Ended event
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Successfully advanced to track 2
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+        }
+
+    @Test
+    fun durationGuard_folderRing_loopsBackToBeginningAtEndOfQueue() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            // Start at track 2 (last track)
+            session.playDirectoryTrack(directory, track2)
+            advanceUntilIdle()
+
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 99_500L
+
+            // Genuine Ended event on last track
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Folder Ring: loops back to index 0, never leaves directory
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+        }
+
+    @Test
+    fun durationGuard_singleLoop_replaysTrackWhenLegitimatelyCompleted() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            session.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 99_000L
+            val initialPlayCount = fakeEngine.playCount
+
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Single loop: stays on track 0, seeks to 0L, and replays
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals(0L, fakeEngine.seekToPosition)
+            assertTrue(fakeEngine.playCount > initialPlayCount)
+        }
+
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),
     ) : com.webdav.player.domain.repository.ServerRepository {

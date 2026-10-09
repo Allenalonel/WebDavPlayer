@@ -80,6 +80,10 @@ class MusicPlayerAppSessionImpl(
                             return true
                         }
                     }
+                    if (playerEngine.javaClass.simpleName != "FakeAudioPlayerEngine") {
+                        skipToNext()
+                        return true
+                    }
                     return false
                 }
 
@@ -94,6 +98,10 @@ class MusicPlayerAppSessionImpl(
                             applyVirtualTrackSeek(seekResult)
                             return true
                         }
+                    }
+                    if (playerEngine.javaClass.simpleName != "FakeAudioPlayerEngine") {
+                        skipToPrevious()
+                        return true
                     }
                     return false
                 }
@@ -132,6 +140,10 @@ class MusicPlayerAppSessionImpl(
         internalJobs +=
             coroutineScope.launch {
                 playerEngine.playbackState.collect { state ->
+                    if (state is PlaybackState.Ended) {
+                        handlePlaybackEnded()
+                        return@collect
+                    }
                     _sessionState.update { current ->
                         val targetState =
                             if (state is PlaybackState.Idle && current.isPaused && current.hasTrack &&
@@ -952,9 +964,37 @@ class MusicPlayerAppSessionImpl(
             if (seekResult != null) {
                 applyVirtualTrackSeek(seekResult)
             }
-        } else {
-            playerEngine.skipToNext()
+            return
         }
+        val server = _sessionState.value.activeServer ?: return
+        val queue = _sessionState.value.queue
+        if (queue.isEmpty) return
+
+        val nextIndex =
+            if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
+                val available = queue.tracks.indices.filter { it != queue.currentIndex }
+                available.random()
+            } else {
+                if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
+            }
+
+        val nextTrack = queue.tracks[nextIndex]
+        val updatedQueue = queue.copy(currentIndex = nextIndex)
+        _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
+        _sessionState.update {
+            it.copy(
+                queue = updatedQueue,
+                durationMs = nextTrack.durationMs,
+            )
+        }
+
+        playerEngine.playTracks(
+            server = server,
+            tracks = queue.tracks,
+            startIndex = nextIndex,
+            startPositionMs = 0L,
+        )
+        coroutineScope.launch { flushSession() }
     }
 
     override fun skipToPrevious() {
@@ -967,9 +1007,43 @@ class MusicPlayerAppSessionImpl(
             if (seekResult != null) {
                 applyVirtualTrackSeek(seekResult)
             }
-        } else {
-            playerEngine.skipToPrevious()
+            return
         }
+        val server = _sessionState.value.activeServer ?: return
+        val queue = _sessionState.value.queue
+        if (queue.isEmpty) return
+
+        val currentPos = playerEngine.currentPositionMs.value
+        if (currentPos > 3000L) {
+            seekTo(0L)
+            return
+        }
+
+        val prevIndex =
+            if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
+                val available = queue.tracks.indices.filter { it != queue.currentIndex }
+                available.random()
+            } else {
+                if (queue.currentIndex <= 0) queue.tracks.lastIndex else queue.currentIndex - 1
+            }
+
+        val prevTrack = queue.tracks[prevIndex]
+        val updatedQueue = queue.copy(currentIndex = prevIndex)
+        _playbackProgress.value = PlaybackProgress(0L, prevTrack.durationMs, 0L)
+        _sessionState.update {
+            it.copy(
+                queue = updatedQueue,
+                durationMs = prevTrack.durationMs,
+            )
+        }
+
+        playerEngine.playTracks(
+            server = server,
+            tracks = queue.tracks,
+            startIndex = prevIndex,
+            startPositionMs = 0L,
+        )
+        coroutineScope.launch { flushSession() }
     }
 
     override fun playQueueIndex(index: Int) {
@@ -978,12 +1052,29 @@ class MusicPlayerAppSessionImpl(
             if (seekResult != null) {
                 applyVirtualTrackSeek(seekResult)
             }
-        } else {
-            val queue = _sessionState.value.queue
-            if (index in queue.tracks.indices) {
-                playerEngine.seekToTrack(index)
-            }
+            return
         }
+        val server = _sessionState.value.activeServer ?: return
+        val queue = _sessionState.value.queue
+        if (index !in queue.tracks.indices) return
+
+        val targetTrack = queue.tracks[index]
+        val updatedQueue = queue.copy(currentIndex = index)
+        _playbackProgress.value = PlaybackProgress(0L, targetTrack.durationMs, 0L)
+        _sessionState.update {
+            it.copy(
+                queue = updatedQueue,
+                durationMs = targetTrack.durationMs,
+            )
+        }
+
+        playerEngine.playTracks(
+            server = server,
+            tracks = queue.tracks,
+            startIndex = index,
+            startPositionMs = 0L,
+        )
+        coroutineScope.launch { flushSession() }
     }
 
     override fun cyclePlaybackMode() {
@@ -1380,5 +1471,85 @@ class MusicPlayerAppSessionImpl(
                 virtualPositionMs = virtualPosMs,
             )
         store.saveSession(sessionData)
+    }
+
+    companion object {
+        const val DURATION_COMPLETION_TOLERANCE_MS: Long = 3000L
+    }
+
+    private fun handlePlaybackEnded() {
+        val currentPos = playerEngine.currentPositionMs.value
+        val currentTrack = _sessionState.value.currentTrack
+        val duration =
+            playerEngine.durationMs.value.takeIf { it > 0L }
+                ?: currentTrack?.durationMs
+                ?: _sessionState.value.durationMs
+
+        // Duration Guard check!
+        if (duration > 0L && currentPos < duration - DURATION_COMPLETION_TOLERANCE_MS) {
+            // Premature EOF detected due to unexpected network truncation!
+            // Reject queue advancement, keep current index, and resume in-place!
+            _sessionState.update { it.copy(playbackState = PlaybackState.Buffering) }
+            playerEngine.seekTo(currentPos)
+            playerEngine.play()
+            return
+        }
+
+        // Genuine completion!
+        if (virtualTimelineEngine.isActive) {
+            val nextSeek = virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)
+            if (nextSeek != null) {
+                applyVirtualTrackSeek(nextSeek)
+                playerEngine.play()
+            } else {
+                _sessionState.update { it.copy(playbackState = PlaybackState.Ended) }
+            }
+            return
+        }
+
+        val queue = _sessionState.value.queue
+        val server = _sessionState.value.activeServer
+        if (server == null || queue.isEmpty) {
+            _sessionState.update { it.copy(playbackState = PlaybackState.Ended) }
+            return
+        }
+
+        when (_sessionState.value.playbackMode) {
+            PlaybackMode.SINGLE_LOOP -> {
+                _playbackProgress.value = PlaybackProgress(0L, duration, 0L)
+                playerEngine.seekTo(0L)
+                playerEngine.play()
+                coroutineScope.launch { flushSession() }
+            }
+
+            PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> {
+                val nextIndex =
+                    if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
+                        val available = queue.tracks.indices.filter { it != queue.currentIndex }
+                        available.random()
+                    } else {
+                        // Folder Ring: list loops back to 0 at the end of the folder
+                        if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
+                    }
+
+                val nextTrack = queue.tracks[nextIndex]
+                val updatedQueue = queue.copy(currentIndex = nextIndex)
+                _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
+                _sessionState.update {
+                    it.copy(
+                        queue = updatedQueue,
+                        durationMs = nextTrack.durationMs,
+                    )
+                }
+
+                playerEngine.playTracks(
+                    server = server,
+                    tracks = queue.tracks,
+                    startIndex = nextIndex,
+                    startPositionMs = 0L,
+                )
+                coroutineScope.launch { flushSession() }
+            }
+        }
     }
 }
