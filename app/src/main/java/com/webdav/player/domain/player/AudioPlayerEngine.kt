@@ -14,6 +14,8 @@ interface AudioPlayerEngine {
         get() = kotlinx.coroutines.flow.MutableStateFlow(0L)
     val currentTrackIndex: StateFlow<Int>
     val playbackMode: StateFlow<PlaybackMode>
+    val shufflePermutation: List<Int>?
+        get() = null
 
     interface SkipHandler {
         fun onSkipToNext(): Boolean
@@ -62,6 +64,7 @@ interface AudioPlayerEngine {
     fun prerollTrack(
         server: WebDavServer,
         track: AudioTrack,
+        targetTrackIndex: Int = -1,
     ) {}
 
     fun clearPrerollTrack() {}

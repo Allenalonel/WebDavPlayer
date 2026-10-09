@@ -109,7 +109,7 @@ class WebDavNotificationProvider(
                             ?.toString()
                     )
             }
-        val album =
+        val subText =
             if (isWeakNetwork) {
                 "网络受阻，正在重连..."
             } else {
@@ -171,7 +171,7 @@ class WebDavNotificationProvider(
                 .setSmallIcon(R.drawable.ic_notification_playback)
                 .setContentTitle(title)
                 .setContentText(artist)
-                .setSubText(album)
+                .setSubText(subText)
                 .setContentIntent(contentIntent)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(isPlaying)

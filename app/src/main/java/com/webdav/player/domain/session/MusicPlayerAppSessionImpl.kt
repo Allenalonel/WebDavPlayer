@@ -92,11 +92,8 @@ class MusicPlayerAppSessionImpl(
                             return true
                         }
                     }
-                    if (playerEngine.javaClass.simpleName != "FakeAudioPlayerEngine") {
-                        skipToNext()
-                        return true
-                    }
-                    return false
+                    skipToNext()
+                    return true
                 }
 
                 override fun onSkipToPrevious(): Boolean {
@@ -111,11 +108,8 @@ class MusicPlayerAppSessionImpl(
                             return true
                         }
                     }
-                    if (playerEngine.javaClass.simpleName != "FakeAudioPlayerEngine") {
-                        skipToPrevious()
-                        return true
-                    }
-                    return false
+                    skipToPrevious()
+                    return true
                 }
             },
         )
@@ -1023,13 +1017,7 @@ class MusicPlayerAppSessionImpl(
         val queue = _sessionState.value.queue
         if (queue.isEmpty) return
 
-        val nextIndex =
-            if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
-                val available = queue.tracks.indices.filter { it != queue.currentIndex }
-                available.random()
-            } else {
-                if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
-            }
+        val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
 
         val nextTrack = queue.tracks[nextIndex]
         val updatedQueue = queue.copy(currentIndex = nextIndex)
@@ -1581,6 +1569,25 @@ class MusicPlayerAppSessionImpl(
         const val HEALTHY_NETWORK_QUIET_PERIOD_MS: Long = 30_000L
     }
 
+    private fun calculateNextQueueIndex(
+        queue: PlaybackQueue,
+        mode: PlaybackMode,
+    ): Int {
+        if (queue.tracks.size <= 1) return 0
+        val perm = playerEngine.shufflePermutation
+        return if (mode == PlaybackMode.SHUFFLE) {
+            if (!perm.isNullOrEmpty()) {
+                val currPos = perm.indexOf(queue.currentIndex)
+                if (currPos in 0 until perm.lastIndex) perm[currPos + 1] else perm.first()
+            } else {
+                val available = queue.tracks.indices.filter { it != queue.currentIndex }
+                available.randomOrNull() ?: 0
+            }
+        } else {
+            if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
+        }
+    }
+
     private fun checkAndTriggerAdaptivePreroll(progress: PlaybackProgress) {
         if (virtualTimelineEngine.isActive || isPrerollAppended.get()) return
         val queue = _sessionState.value.queue
@@ -1596,15 +1603,9 @@ class MusicPlayerAppSessionImpl(
             if (isPlaying && isHealthyNetwork) {
                 if (isPrerollAppended.compareAndSet(false, true)) {
                     val server = _sessionState.value.activeServer ?: return
-                    val nextIndex =
-                        if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
-                            val available = queue.tracks.indices.filter { it != queue.currentIndex }
-                            available.randomOrNull() ?: 0
-                        } else {
-                            if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
-                        }
+                    val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
                     val nextTrack = queue.tracks[nextIndex]
-                    playerEngine.prerollTrack(server, nextTrack)
+                    playerEngine.prerollTrack(server, nextTrack, nextIndex)
                 }
             }
         }
@@ -1657,14 +1658,7 @@ class MusicPlayerAppSessionImpl(
             }
 
             PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> {
-                val nextIndex =
-                    if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE && queue.tracks.size > 1) {
-                        val available = queue.tracks.indices.filter { it != queue.currentIndex }
-                        available.random()
-                    } else {
-                        // Folder Ring: list loops back to 0 at the end of the folder
-                        if (queue.currentIndex >= queue.tracks.lastIndex) 0 else queue.currentIndex + 1
-                    }
+                val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
 
                 val nextTrack = queue.tracks[nextIndex]
                 val updatedQueue = queue.copy(currentIndex = nextIndex)

@@ -67,6 +67,7 @@ class Media3AudioPlayerEngine(
 ) : AudioPlayerEngine {
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
     private var loadedTracks: List<AudioTrack> = emptyList()
+    private val prerollTargetTrackIndex = java.util.concurrent.atomic.AtomicInteger(-1)
 
     val activeServer: WebDavServer?
         get() = activeServerRef.get()
@@ -295,8 +296,11 @@ class Media3AudioPlayerEngine(
                 val playerIndex = player.currentMediaItemIndex
 
                 if (playerIndex == 1 && player.mediaItemCount >= 2) {
+                    val targetIndex = prerollTargetTrackIndex.getAndSet(-1)
                     val nextTrackIndex =
-                        if (_playbackMode.value == PlaybackMode.SHUFFLE && loadedTracks.size > 1) {
+                        if (targetIndex >= 0) {
+                            targetIndex
+                        } else if (_playbackMode.value == PlaybackMode.SHUFFLE && loadedTracks.size > 1) {
                             (loadedTracks.indices.filter { it != oldIndex }.randomOrNull()) ?: 0
                         } else {
                             if (oldIndex < loadedTracks.lastIndex) oldIndex + 1 else 0
@@ -502,8 +506,10 @@ class Media3AudioPlayerEngine(
     override fun prerollTrack(
         server: WebDavServer,
         track: AudioTrack,
+        targetTrackIndex: Int,
     ) {
         if (player.mediaItemCount >= 2) return
+        prerollTargetTrackIndex.set(targetTrackIndex)
         if (player is ExoPlayer) {
             val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
             player.addMediaSource(mediaSource)
@@ -514,6 +520,7 @@ class Media3AudioPlayerEngine(
     }
 
     override fun clearPrerollTrack() {
+        prerollTargetTrackIndex.set(-1)
         if (player.mediaItemCount > 1) {
             player.removeMediaItem(1)
         }
