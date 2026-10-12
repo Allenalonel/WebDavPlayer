@@ -20,46 +20,110 @@ import java.io.EOFException
 
 @OptIn(UnstableApi::class)
 class AsfExtractor : Extractor {
-
     companion object {
         private const val TAG = "AsfExtractor"
         private const val DIRECT_BUFFER_CAPACITY = 65536
         private const val DEFAULT_PACKET_SIZE = 8192
 
-        val ASF_HEADER_GUID = byteArrayOf(
-            0x30.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-            0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-            0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-        )
+        val ASF_HEADER_GUID =
+            byteArrayOf(
+                0x30.toByte(),
+                0x26.toByte(),
+                0xB2.toByte(),
+                0x75.toByte(),
+                0x8E.toByte(),
+                0x66.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0xA6.toByte(),
+                0xD9.toByte(),
+                0x00.toByte(),
+                0xAA.toByte(),
+                0x00.toByte(),
+                0x62.toByte(),
+                0xCE.toByte(),
+                0x6C.toByte(),
+            )
 
-        val STREAM_PROPERTIES_GUID = byteArrayOf(
-            0x91.toByte(), 0x07.toByte(), 0xDC.toByte(), 0xB7.toByte(),
-            0xB7.toByte(), 0xA9.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0x8E.toByte(), 0xE6.toByte(), 0x00.toByte(), 0xC0.toByte(),
-            0x0C.toByte(), 0x20.toByte(), 0x53.toByte(), 0x65.toByte()
-        )
+        val STREAM_PROPERTIES_GUID =
+            byteArrayOf(
+                0x91.toByte(),
+                0x07.toByte(),
+                0xDC.toByte(),
+                0xB7.toByte(),
+                0xB7.toByte(),
+                0xA9.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0x8E.toByte(),
+                0xE6.toByte(),
+                0x00.toByte(),
+                0xC0.toByte(),
+                0x0C.toByte(),
+                0x20.toByte(),
+                0x53.toByte(),
+                0x65.toByte(),
+            )
 
-        val FILE_PROPERTIES_GUID = byteArrayOf(
-            0xA1.toByte(), 0xDC.toByte(), 0xAB.toByte(), 0x8C.toByte(),
-            0x47.toByte(), 0xA9.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0x8E.toByte(), 0xE4.toByte(), 0x00.toByte(), 0xC0.toByte(),
-            0x0C.toByte(), 0x20.toByte(), 0x53.toByte(), 0x65.toByte()
-        )
+        val FILE_PROPERTIES_GUID =
+            byteArrayOf(
+                0xA1.toByte(),
+                0xDC.toByte(),
+                0xAB.toByte(),
+                0x8C.toByte(),
+                0x47.toByte(),
+                0xA9.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0x8E.toByte(),
+                0xE4.toByte(),
+                0x00.toByte(),
+                0xC0.toByte(),
+                0x0C.toByte(),
+                0x20.toByte(),
+                0x53.toByte(),
+                0x65.toByte(),
+            )
 
-        val DATA_OBJECT_GUID = byteArrayOf(
-            0x36.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-            0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-            0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-        )
+        val DATA_OBJECT_GUID =
+            byteArrayOf(
+                0x36.toByte(),
+                0x26.toByte(),
+                0xB2.toByte(),
+                0x75.toByte(),
+                0x8E.toByte(),
+                0x66.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0xA6.toByte(),
+                0xD9.toByte(),
+                0x00.toByte(),
+                0xAA.toByte(),
+                0x00.toByte(),
+                0x62.toByte(),
+                0xCE.toByte(),
+                0x6C.toByte(),
+            )
 
-        val AUDIO_MEDIA_TYPE_GUID = byteArrayOf(
-            0x40.toByte(), 0x9E.toByte(), 0x69.toByte(), 0xF8.toByte(),
-            0x4D.toByte(), 0x5B.toByte(), 0xCF.toByte(), 0x11.toByte(),
-            0xA8.toByte(), 0xFD.toByte(), 0x00.toByte(), 0x80.toByte(),
-            0x5F.toByte(), 0x5C.toByte(), 0x44.toByte(), 0x2B.toByte()
-        )
+        val AUDIO_MEDIA_TYPE_GUID =
+            byteArrayOf(
+                0x40.toByte(),
+                0x9E.toByte(),
+                0x69.toByte(),
+                0xF8.toByte(),
+                0x4D.toByte(),
+                0x5B.toByte(),
+                0xCF.toByte(),
+                0x11.toByte(),
+                0xA8.toByte(),
+                0xFD.toByte(),
+                0x00.toByte(),
+                0x80.toByte(),
+                0x5F.toByte(),
+                0x5C.toByte(),
+                0x44.toByte(),
+                0x2B.toByte(),
+            )
     }
 
     private var extractorOutput: ExtractorOutput? = null
@@ -86,12 +150,13 @@ class AsfExtractor : Extractor {
 
     override fun sniff(input: ExtractorInput): Boolean {
         val header = ByteArray(16)
-        val matched = try {
-            input.peekFully(header, 0, 16)
-            header.contentEquals(ASF_HEADER_GUID)
-        } catch (e: Exception) {
-            false
-        }
+        val matched =
+            try {
+                input.peekFully(header, 0, 16)
+                header.contentEquals(ASF_HEADER_GUID)
+            } catch (e: Exception) {
+                false
+            }
         return matched
     }
 
@@ -100,7 +165,10 @@ class AsfExtractor : Extractor {
         this.trackOutput = output.track(0, C.TRACK_TYPE_AUDIO)
     }
 
-    override fun read(input: ExtractorInput, seekPosition: PositionHolder): Int {
+    override fun read(
+        input: ExtractorInput,
+        seekPosition: PositionHolder,
+    ): Int {
         val track = trackOutput ?: return Extractor.RESULT_END_OF_INPUT
 
         if (!headerParsed) {
@@ -162,19 +230,22 @@ class AsfExtractor : Extractor {
         if (durUs > 0) durationUs = durUs
         if (extra != null && extra.isNotEmpty()) extraData = extra
 
-        val mimeType = when (codecName) {
-            "wmav1" -> "audio/x-ms-wmav1"
-            "wmav2" -> "audio/x-ms-wma"
-            "wmapro" -> "audio/x-ms-wmapro"
-            "wmalossless" -> "audio/x-ms-wmalossless"
-            else -> AudioFormat.WMA.mimeType
-        }
+        val mimeType =
+            when (codecName) {
+                "wmav1" -> "audio/x-ms-wmav1"
+                "wmav2" -> "audio/x-ms-wma"
+                "wmapro" -> "audio/x-ms-wmapro"
+                "wmalossless" -> "audio/x-ms-wmalossless"
+                else -> AudioFormat.WMA.mimeType
+            }
 
-        val formatBuilder = Format.Builder()
-            .setId("audio/0")
-            .setSampleMimeType(mimeType)
-            .setChannelCount(channelCount)
-            .setSampleRate(sampleRate)
+        val formatBuilder =
+            Format
+                .Builder()
+                .setId("audio/0")
+                .setSampleMimeType(mimeType)
+                .setChannelCount(channelCount)
+                .setSampleRate(sampleRate)
 
         if (br > 0) {
             formatBuilder.setAverageBitrate(br)
@@ -191,15 +262,19 @@ class AsfExtractor : Extractor {
         track.format(builtFormat)
         output.endTracks()
 
-        val seekMap = if (durationUs > 0 && packetSize > 0 && totalDataPackets > 0) {
-            AsfSeekMap(durationUs, dataStartOffset, packetSize, totalDataPackets)
-        } else {
-            SeekMap.Unseekable(if (durationUs > 0) durationUs else C.TIME_UNSET)
-        }
+        val seekMap =
+            if (durationUs > 0 && packetSize > 0 && totalDataPackets > 0) {
+                AsfSeekMap(durationUs, dataStartOffset, packetSize, totalDataPackets)
+            } else {
+                SeekMap.Unseekable(if (durationUs > 0) durationUs else C.TIME_UNSET)
+            }
         output.seekMap(seekMap)
     }
 
-    private fun readNativeFrame(input: ExtractorInput, track: TrackOutput): Int {
+    private fun readNativeFrame(
+        input: ExtractorInput,
+        track: TrackOutput,
+    ): Int {
         val ret = nativeReadFrame(nativeHandle, input, frameByteArray, metaArray)
         if (ret == 0) {
             val frameSize = metaArray[0].toInt()
@@ -209,15 +284,22 @@ class AsfExtractor : Extractor {
 
             // Defense-in-depth: normalize any 32-bit unsigned timestamp underflow (> 24 hours)
             // 0x100000000L ms = 4294967296000L us (approx 1193 hours).
-            val framePtsUs = when {
-                rawPtsUs > 86_400_000_000L -> {
-                    val wrapUs = 0x100000000L * 1000L
-                    val normalized = rawPtsUs % wrapUs
-                    if (durationUs > 0 && normalized > durationUs) 0L else normalized
+            val framePtsUs =
+                when {
+                    rawPtsUs > 86_400_000_000L -> {
+                        val wrapUs = 0x100000000L * 1000L
+                        val normalized = rawPtsUs % wrapUs
+                        if (durationUs > 0 && normalized > durationUs) 0L else normalized
+                    }
+
+                    rawPtsUs < 0L -> {
+                        0L
+                    }
+
+                    else -> {
+                        rawPtsUs
+                    }
                 }
-                rawPtsUs < 0L -> 0L
-                else -> rawPtsUs
-            }
 
             currentTimeUs = framePtsUs
             parsableByteArray.reset(frameByteArray, frameSize)
@@ -232,11 +314,12 @@ class AsfExtractor : Extractor {
 
     private fun peekAsfHeaderParameters(input: ExtractorInput) {
         val peekBuffer = ByteArray(32768)
-        val peeked = try {
-            input.peek(peekBuffer, 0, peekBuffer.size)
-        } catch (e: Exception) {
-            0
-        }
+        val peeked =
+            try {
+                input.peek(peekBuffer, 0, peekBuffer.size)
+            } catch (e: Exception) {
+                0
+            }
 
         if (peeked >= 30) {
             val reader = ByteSliceReader(peekBuffer, 0)
@@ -261,13 +344,17 @@ class AsfExtractor : Extractor {
                             filePropertiesFound = true
                             if (reader.hasRemaining(72)) {
                                 reader.skip(24) // file id, file size
-                                reader.skip(8)  // creation time
+                                reader.skip(8) // creation time
                                 totalDataPackets = reader.readLongLe()
                                 val playDuration100ns = reader.readLongLe()
+                                reader.skip(8) // send duration
+                                val prerollMs = reader.readLongLe()
                                 if (playDuration100ns > 0) {
-                                    durationUs = playDuration100ns / 10L
+                                    val totalUs = playDuration100ns / 10L
+                                    val prerollUs = prerollMs * 1000L
+                                    durationUs = (totalUs - prerollUs).coerceAtLeast(0L)
                                 }
-                                reader.skip(20) // send duration, preroll, flags
+                                reader.skip(4) // flags
                                 val minPacket = reader.readIntLe()
                                 val maxPacket = reader.readIntLe()
                                 if (maxPacket > 0) {
@@ -277,17 +364,18 @@ class AsfExtractor : Extractor {
                                 }
                             }
                         }
+
                         subGuid.contentEquals(STREAM_PROPERTIES_GUID) -> {
                             streamPropertiesFound = true
                             if (reader.hasRemaining(54)) {
                                 val streamTypeGuid = reader.readBytes(16)
                                 reader.skip(16) // error correction guid
-                                reader.skip(8)  // time offset
+                                reader.skip(8) // time offset
                                 val typeDataLen = reader.readIntLe()
-                                reader.skip(4)  // error correction data len
+                                reader.skip(4) // error correction data len
                                 val flags = reader.readShortLe()
                                 val streamNum = flags and 0x7F
-                                reader.skip(4)  // reserved
+                                reader.skip(4) // reserved
 
                                 if (streamTypeGuid.contentEquals(AUDIO_MEDIA_TYPE_GUID) && typeDataLen >= 16) {
                                     audioStreamId = streamNum
@@ -336,12 +424,17 @@ class AsfExtractor : Extractor {
         }
     }
 
-    private fun initTracksFallback(input: ExtractorInput, track: TrackOutput) {
-        val formatBuilder = Format.Builder()
-            .setId("1")
-            .setSampleMimeType(AudioFormat.WMA.mimeType)
-            .setChannelCount(channelCount)
-            .setSampleRate(sampleRate)
+    private fun initTracksFallback(
+        input: ExtractorInput,
+        track: TrackOutput,
+    ) {
+        val formatBuilder =
+            Format
+                .Builder()
+                .setId("1")
+                .setSampleMimeType(AudioFormat.WMA.mimeType)
+                .setChannelCount(channelCount)
+                .setSampleRate(sampleRate)
 
         extraData?.let {
             formatBuilder.setInitializationData(listOf(it))
@@ -351,11 +444,12 @@ class AsfExtractor : Extractor {
         val output = extractorOutput
         if (output != null) {
             output.endTracks()
-            val seekMap = if (durationUs > 0 && packetSize > 0 && totalDataPackets > 0) {
-                AsfSeekMap(durationUs, dataStartOffset, packetSize, totalDataPackets)
-            } else {
-                SeekMap.Unseekable(durationUs)
-            }
+            val seekMap =
+                if (durationUs > 0 && packetSize > 0 && totalDataPackets > 0) {
+                    AsfSeekMap(durationUs, dataStartOffset, packetSize, totalDataPackets)
+                } else {
+                    SeekMap.Unseekable(durationUs)
+                }
             output.seekMap(seekMap)
         }
 
@@ -368,7 +462,10 @@ class AsfExtractor : Extractor {
         }
     }
 
-    private fun readFallbackPacket(input: ExtractorInput, track: TrackOutput): Int {
+    private fun readFallbackPacket(
+        input: ExtractorInput,
+        track: TrackOutput,
+    ): Int {
         val targetSize = packetSize.coerceIn(512, 65536)
         val packetBuffer = ByteArray(targetSize)
 
@@ -396,7 +493,7 @@ class AsfExtractor : Extractor {
             C.BUFFER_FLAG_KEY_FRAME,
             bytesRead,
             0,
-            null
+            null,
         )
         val bytesPerSec = sampleRate * channelCount * 2L
         if (bytesPerSec > 0) {
@@ -406,7 +503,10 @@ class AsfExtractor : Extractor {
         return Extractor.RESULT_CONTINUE
     }
 
-    override fun seek(position: Long, timeUs: Long) {
+    override fun seek(
+        position: Long,
+        timeUs: Long,
+    ) {
         currentTimeUs = timeUs
         if (useNative && nativeHandle != 0L) {
             nativeSeek(nativeHandle, position, timeUs)
@@ -428,7 +528,7 @@ class AsfExtractor : Extractor {
         private val durationUs: Long,
         private val dataStartOffset: Long,
         private val packetSize: Int,
-        private val totalDataPackets: Long
+        private val totalDataPackets: Long,
     ) : SeekMap {
         override fun isSeekable(): Boolean = durationUs > 0 && packetSize > 0
 
@@ -440,8 +540,10 @@ class AsfExtractor : Extractor {
                 return SeekMap.SeekPoints(point)
             }
             val clampedTime = timeUs.coerceIn(0L, durationUs)
-            val packetIndex = ((clampedTime.toDouble() / durationUs.toDouble()) * totalDataPackets).toLong()
-                .coerceIn(0L, (totalDataPackets - 1).coerceAtLeast(0L))
+            val packetIndex =
+                ((clampedTime.toDouble() / durationUs.toDouble()) * totalDataPackets)
+                    .toLong()
+                    .coerceIn(0L, (totalDataPackets - 1).coerceAtLeast(0L))
             val targetPosition = dataStartOffset + (packetIndex * packetSize)
             val point = SeekPoint(clampedTime, targetPosition)
             return SeekMap.SeekPoints(point)
@@ -449,20 +551,38 @@ class AsfExtractor : Extractor {
     }
 
     private external fun nativeInit(): Long
-    private external fun nativeOpen(handle: Long, input: ExtractorInput): Int
+
+    private external fun nativeOpen(
+        handle: Long,
+        input: ExtractorInput,
+    ): Int
+
     private external fun nativeGetSampleRate(handle: Long): Int
+
     private external fun nativeGetChannelCount(handle: Long): Int
+
     private external fun nativeGetBitrate(handle: Long): Int
+
     private external fun nativeGetBlockAlign(handle: Long): Int
+
     private external fun nativeGetDurationUs(handle: Long): Long
+
     private external fun nativeGetCodecName(handle: Long): String?
+
     private external fun nativeGetExtraData(handle: Long): ByteArray?
+
     private external fun nativeReadFrame(
         handle: Long,
         input: ExtractorInput,
         outputArray: ByteArray,
-        outMeta: LongArray
+        outMeta: LongArray,
     ): Int
-    private external fun nativeSeek(handle: Long, position: Long, timeUs: Long): Int
+
+    private external fun nativeSeek(
+        handle: Long,
+        position: Long,
+        timeUs: Long,
+    ): Int
+
     private external fun nativeRelease(handle: Long)
 }

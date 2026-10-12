@@ -34,7 +34,7 @@ class ResilientWebDavDataSource(
         const val DEFAULT_INITIAL_BACKOFF_MS: Long = 1000L
         const val DEFAULT_MAX_BACKOFF_MS: Long = 6000L
         const val DEFAULT_BACKOFF_MULTIPLIER: Double = 2.0
-        val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 405, 410)
+        val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 405, 410, 416)
     }
 
     class Factory(
@@ -171,6 +171,9 @@ class ResilientWebDavDataSource(
         while (!isClosed && !Thread.currentThread().isInterrupted) {
             try {
                 if (!isSourceOpen) {
+                    if (expectedContentLength > 0L && totalBytesRead >= expectedContentLength) {
+                        return C.RESULT_END_OF_INPUT
+                    }
                     openRangeSource()
                     isSourceOpen = true
                 }
@@ -200,6 +203,9 @@ class ResilientWebDavDataSource(
                 return readCount
             } catch (e: Exception) {
                 isSourceOpen = false
+                if (isRangeNotSatisfiable(e) && totalBytesRead > 0L) {
+                    return C.RESULT_END_OF_INPUT
+                }
                 if (isClosed || Thread.currentThread().isInterrupted || isNonRetryable(e)) {
                     throw e
                 }
@@ -300,6 +306,11 @@ class ResilientWebDavDataSource(
         }
         return C.LENGTH_UNSET.toLong()
     }
+
+    fun isRangeNotSatisfiable(throwable: Throwable): Boolean =
+        generateSequence(throwable) { it.cause }.any { cause ->
+            cause is HttpDataSource.InvalidResponseCodeException && cause.responseCode == 416
+        }
 
     fun isNonRetryable(throwable: Throwable): Boolean =
         generateSequence(throwable) { it.cause }.any { cause ->

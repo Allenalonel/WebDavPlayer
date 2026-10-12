@@ -1733,6 +1733,29 @@ class MusicPlayerAppSessionTest {
             assertEquals("01.mp3", fakeEngine.lastTracks[0].title)
         }
 
+    @Test
+    fun adaptivePreroll_cancelledBeforeMainThreadExecution_isSafelyDiscarded() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // Simulate progress entering pre-roll window
+            fakeEngine._durationMs.value = 60_000L
+            fakeEngine._currentPositionMs.value = 52_000L
+            fakeEngine._playbackState.value = PlaybackState.Playing
+
+            // User immediately pauses before main dispatcher executes the scheduled pre-roll
+            session.pause()
+            advanceUntilIdle()
+
+            assertFalse("Pre-roll must not be executed if cancelled before main thread execution", fakeEngine.isPrerollActive)
+            assertNull("Prerolled track must remain null", fakeEngine.prerolledTrack)
+        }
+
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),
     ) : com.webdav.player.domain.repository.ServerRepository {

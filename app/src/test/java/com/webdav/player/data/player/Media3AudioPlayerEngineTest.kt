@@ -572,6 +572,10 @@ class Media3AudioPlayerEngineTest {
         assertEquals(3_000, defaultConfig.bufferForPlaybackAfterRebufferMs)
         assertEquals(true, defaultConfig.prioritizeTimeOverSizeThresholds)
 
+        val weakNetworkConfig = StreamingLoadControlConfig.createWeakNetworkResilientConfig()
+        assertEquals(20_000, weakNetworkConfig.minBufferMs)
+        assertEquals(90_000, weakNetworkConfig.maxBufferMs)
+
         val customConfig =
             StreamingLoadControlConfig(
                 backBufferDurationMs = 20_000,
@@ -664,5 +668,59 @@ class Media3AudioPlayerEngineTest {
 
         engine.skipToPrevious()
         assertEquals(2, prevCount)
+    }
+
+    @Test
+    fun backgroundThread_prerollAndOperations_doNotThrowWrongThreadException() {
+        engine.playTracks(
+            server = testServer,
+            tracks = listOf(track1),
+            startIndex = 0,
+        )
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
+        assertEquals(1, engine.player.mediaItemCount)
+
+        var error: Throwable? = null
+        val workerThread =
+            Thread {
+                try {
+                    engine.prerollTrack(testServer, track2, 1)
+                    engine.setVolume(0.8f)
+                    val vol = engine.getVolume()
+                    assertEquals(0.8f, vol, 0.01f)
+                    engine.updateTrack(0, track1.copy(title = "BG Updated"))
+                } catch (t: Throwable) {
+                    error = t
+                }
+            }
+        workerThread.start()
+        workerThread.join()
+
+        assertNull("Operations invoked from background thread must not throw Wrong Thread exceptions", error)
+
+        // Drain the application looper queue
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
+
+        assertEquals(2, engine.player.mediaItemCount)
+        assertEquals(0.8f, engine.getVolume(), 0.01f)
+
+        // Test background clearPrerollTrack
+        val clearThread =
+            Thread {
+                try {
+                    engine.clearPrerollTrack()
+                } catch (t: Throwable) {
+                    error = t
+                }
+            }
+        clearThread.start()
+        clearThread.join()
+
+        assertNull("clearPrerollTrack on worker thread must not throw", error)
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
+        assertEquals(1, engine.player.mediaItemCount)
     }
 }

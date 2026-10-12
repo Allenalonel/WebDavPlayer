@@ -204,7 +204,7 @@ class ResilientWebDavDataSourceTest {
 
     @Test
     fun nonRetryableHttpStatus_failsFastWithoutLooping() {
-        val nonRetryableCodes = listOf(401, 403, 404)
+        val nonRetryableCodes = listOf(401, 403, 404, 416)
         for (code in nonRetryableCodes) {
             mockWebServer.enqueue(
                 MockResponse()
@@ -235,6 +235,48 @@ class ResilientWebDavDataSourceTest {
             }
         }
         assertEquals("Non-retryable errors must not trigger backoff sleep", 0, recordedBackoffs.size)
+    }
+
+    @Test
+    fun rangeNotSatisfiable_duringRead_returnsEndOfInputWhenDataAlreadyRead() {
+        // First chunk returns 5 bytes then cuts connection
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(okio.Buffer().write("12345".toByteArray()))
+                .setHeader("Content-Length", "5")
+                .setSocketPolicy(SocketPolicy.DISCONNECT_AT_END),
+        )
+        // Reconnect range request gets 416
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(416)
+                .setBody("Requested Range Not Satisfiable"),
+        )
+
+        val resilientSource =
+            ResilientWebDavDataSource(
+                underlyingFactory = baseHttpDataSourceFactory,
+                maxRetryAttempts = 3,
+                sleeper = { recordedBackoffs.add(it) },
+            )
+
+        val dataSpec =
+            DataSpec
+                .Builder()
+                .setUri(mockWebServer.url("/stream.mp3").toString())
+                .build()
+
+        resilientSource.open(dataSpec)
+
+        val buffer = ByteArray(10)
+        val read1 = resilientSource.read(buffer, 0, 5)
+        assertEquals(5, read1)
+
+        val read2 = resilientSource.read(buffer, 0, 5)
+        assertEquals(C.RESULT_END_OF_INPUT, read2)
+
+        resilientSource.close()
     }
 
     @Test

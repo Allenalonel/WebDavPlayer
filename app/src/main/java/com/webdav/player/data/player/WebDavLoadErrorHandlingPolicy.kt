@@ -31,15 +31,16 @@ class WebDavLoadErrorHandlingPolicy(
         return exponentialDelay.coerceAtMost(5000L)
     }
 
-    private fun isNonRetryable(exception: IOException): Boolean {
-        return generateSequence<Throwable>(exception) { it.cause }.any { cause ->
+    private fun isNonRetryable(exception: IOException): Boolean =
+        generateSequence<Throwable>(exception) { it.cause }.any { cause ->
             cause is FileNotFoundException ||
-                (cause is HttpDataSource.InvalidResponseCodeException &&
-                    cause.responseCode in NON_RETRYABLE_STATUS_CODES)
+                (
+                    cause is HttpDataSource.InvalidResponseCodeException &&
+                        cause.responseCode in NON_RETRYABLE_STATUS_CODES
+                )
         }
-    }
 
     companion object {
-        private val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 405, 410)
+        private val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 405, 410, 416)
     }
 }

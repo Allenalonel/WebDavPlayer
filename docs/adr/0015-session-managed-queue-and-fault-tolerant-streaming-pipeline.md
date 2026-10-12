@@ -18,19 +18,25 @@
 
 - **单轨/双轨动态窗口**：ExoPlayer 内部不再全量预载整张专辑的媒体源。平时播放器内部严格维持单轨载入，剥夺播放器内核自主跨曲跳过权。
 - **弱网动态抑制预热**：仅当当前曲目顺畅播放至最后 10 秒、且网络处于健康非缓冲状态时，才按需注入下一曲目实施 `Pre-roll Stream Buffering`（ADR-0014）；一旦检测到弱网重试或频发卡顿，立即退化为绝对单轨，集中全部带宽与连接池保障当前曲目。
+- **高频采样与控制副作用的双层线程防线（Dual-Layer Thread Confinement）**：高频进度流计算（`combine`）严格驻留在后台工作线程（`Dispatchers.Default`）以保障 UI 流畅度；一旦会话层计算出需要向底层播放器施加控制副作用（如触发 `prerollTrack`、`updateTrack`），必须通过 `coroutineScope.launch(Dispatchers.Main)` 将调用明确移交主线程，并配合**原子状态二次校验**防范时序颠倒。同时底层 `Media3AudioPlayerEngine` 内置 `runOnApplicationLooper` 兜底屏障，当检测到非主线程直接调用时自动异步投递至应用 Looper，形成双层防御，彻底杜绝 `IllegalStateException: Player is accessed on the wrong thread`。
 
 ### 2. 伪播放结束双重熔断防线（Premature EOF Guard）
 
 - **底层字节计数熔断（Content-Length Guard）**：数据源读取层在流结束时比对已接收字节与响应头声明长度（`Content-Range` / `Content-Length`），未达标立即抛出 `UnexpectedEndOfStreamException` 转入断点重连，禁止向解码器派发 EOF。
-- **会话层时长校验熔断（Duration Guard）**：应用会话层监听到 `Player.STATE_ENDED` 时，严格对比当前进度与音频总时长（`currentPositionMs < durationMs - 3000ms`）。若未真实播完，拒绝推进队列，并在当前断点自动发起重连。
+- **会话层时长校验熔断（Duration Guard）**：应用会话层监听到 `Player.STATE_ENDED` 时，严格对比当前进度与音频总时长（`currentPositionMs < durationMs - 5000ms`）。采用 5000ms 容差既能牢牢阻断中途意外网络截断，又能防止因 ASF/WMA 标准 Preroll（通常为 3100ms）或编码器 Padding 导致正常完播被误拦截。若未真实播完，拒绝推进队列，并在当前断点自动发起重连。
 
 ### 3. 底层数据源透明断点续连（Transparent Range Reconnection）
 
 - **无感重试机制**：在数据源传输层捕获超时及网络断线异常，自动记录当前已读取的字节偏移量，采用指数退避（重试间隔平顶于 5s~8s）持续发起 HTTP Range 续传（`Range: bytes=(offset)-`）。
+- **非 206 与 416 边界防线**：若续传时已读取过数据且遇到 `416 Range Not Satisfiable`，优雅转换为流结束而不是死循环重试；当数据已全部读满（`totalBytesRead >= expectedContentLength`）时主动终止连接。
 - **零破坏渲染管道**：重连过程完全在数据源内部完成，播放器仅保持为 `PlaybackState.Buffering`，不向应用抛出不可逆的 Fatal Error，不销毁解码器，播放进度条不发生回跳。
 - **用户交互最高抢占优先级**：用户主动点击暂停、切歌或取消时，瞬间取消底层重试协程并释放网络连接，确保交互零迟滞。
 
-### 4. 流媒体专用连接锁定 HTTP/1.1
+### 4. 纯内存自适应大缓冲（Expanded Weak-Network Buffer）
+
+- 坚守 ADR-0002 纯在线流式零持久化落盘约束，在 `StreamingLoadControlConfig` 中引入弱网韧性大缓冲配置（`createWeakNetworkResilientConfig`），将最大缓冲从 50 秒弹性提升至 90 秒（`maxBufferMs = 90_000`），在起播阈值（1.5s）与重缓冲阈值（3s）不变的前提下，利用网络波动间歇预存 1.5 分钟音频流，显著拓宽抗断网抗抖动时间窗口。
+
+### 5. 流媒体专用连接锁定 HTTP/1.1
 
 - 专用于音频数据流的 OkHttpClient 明确锁定 `Protocol.HTTP_1_1`，规避 HTTP/2 单流长时间读取引发的多路复用队头阻塞与流控死锁。短报文元数据与目录查询继续保持灵活协商。
 

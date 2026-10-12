@@ -3,36 +3,90 @@ package com.webdav.player.data.metadata
 import java.nio.charset.StandardCharsets
 
 object AsfParser {
+    private val ASF_HEADER_GUID =
+        byteArrayOf(
+            0x30.toByte(),
+            0x26.toByte(),
+            0xB2.toByte(),
+            0x75.toByte(),
+            0x8E.toByte(),
+            0x66.toByte(),
+            0xCF.toByte(),
+            0x11.toByte(),
+            0xA6.toByte(),
+            0xD9.toByte(),
+            0x00.toByte(),
+            0xAA.toByte(),
+            0x00.toByte(),
+            0x62.toByte(),
+            0xCE.toByte(),
+            0x6C.toByte(),
+        )
 
-    private val ASF_HEADER_GUID = byteArrayOf(
-        0x30.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-        0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-        0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-        0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-    )
+    private val FILE_PROPERTIES_GUID =
+        byteArrayOf(
+            0xA1.toByte(),
+            0xDC.toByte(),
+            0xAB.toByte(),
+            0x8C.toByte(),
+            0x47.toByte(),
+            0xA9.toByte(),
+            0xCF.toByte(),
+            0x11.toByte(),
+            0x8E.toByte(),
+            0xE4.toByte(),
+            0x00.toByte(),
+            0xC0.toByte(),
+            0x0C.toByte(),
+            0x20.toByte(),
+            0x53.toByte(),
+            0x65.toByte(),
+        )
 
-    private val FILE_PROPERTIES_GUID = byteArrayOf(
-        0xA1.toByte(), 0xDC.toByte(), 0xAB.toByte(), 0x8C.toByte(),
-        0x47.toByte(), 0xA9.toByte(), 0xCF.toByte(), 0x11.toByte(),
-        0x8E.toByte(), 0xE4.toByte(), 0x00.toByte(), 0xC0.toByte(),
-        0x0C.toByte(), 0x20.toByte(), 0x53.toByte(), 0x65.toByte()
-    )
+    private val CONTENT_DESCRIPTION_GUID =
+        byteArrayOf(
+            0x33.toByte(),
+            0x26.toByte(),
+            0xB2.toByte(),
+            0x75.toByte(),
+            0x8E.toByte(),
+            0x66.toByte(),
+            0xCF.toByte(),
+            0x11.toByte(),
+            0xA6.toByte(),
+            0xD9.toByte(),
+            0x00.toByte(),
+            0xAA.toByte(),
+            0x00.toByte(),
+            0x62.toByte(),
+            0xCE.toByte(),
+            0x6C.toByte(),
+        )
 
-    private val CONTENT_DESCRIPTION_GUID = byteArrayOf(
-        0x33.toByte(), 0x26.toByte(), 0xB2.toByte(), 0x75.toByte(),
-        0x8E.toByte(), 0x66.toByte(), 0xCF.toByte(), 0x11.toByte(),
-        0xA6.toByte(), 0xD9.toByte(), 0x00.toByte(), 0xAA.toByte(),
-        0x00.toByte(), 0x62.toByte(), 0xCE.toByte(), 0x6C.toByte()
-    )
+    private val EXTENDED_CONTENT_DESCRIPTION_GUID =
+        byteArrayOf(
+            0x40.toByte(),
+            0xA4.toByte(),
+            0xD0.toByte(),
+            0xD2.toByte(),
+            0x07.toByte(),
+            0xE3.toByte(),
+            0xD2.toByte(),
+            0x11.toByte(),
+            0x97.toByte(),
+            0xF0.toByte(),
+            0x00.toByte(),
+            0xA0.toByte(),
+            0xC9.toByte(),
+            0x5E.toByte(),
+            0xA8.toByte(),
+            0x50.toByte(),
+        )
 
-    private val EXTENDED_CONTENT_DESCRIPTION_GUID = byteArrayOf(
-        0x40.toByte(), 0xA4.toByte(), 0xD0.toByte(), 0xD2.toByte(),
-        0x07.toByte(), 0xE3.toByte(), 0xD2.toByte(), 0x11.toByte(),
-        0x97.toByte(), 0xF0.toByte(), 0x00.toByte(), 0xA0.toByte(),
-        0xC9.toByte(), 0x5E.toByte(), 0xA8.toByte(), 0x50.toByte()
-    )
-
-    fun parse(bytes: ByteArray, offset: Int = 0): ParsedAudioMetadata? {
+    fun parse(
+        bytes: ByteArray,
+        offset: Int = 0,
+    ): ParsedAudioMetadata? {
         val reader = ByteSliceReader(bytes, offset)
         if (!reader.hasRemaining(30)) return null
 
@@ -65,19 +119,28 @@ object AsfParser {
 
             when {
                 subObjGuid.contentEquals(FILE_PROPERTIES_GUID) -> {
-                    // Offset 40 in File Properties is playDuration (100ns units)
-                    // We've already read 24 bytes header, so 16 bytes more to reach offset 40
-                    if (reader.hasRemaining(48)) {
+                    // Offset 40 in File Properties is playDuration (100ns units), followed by sendDuration and preroll (ms)
+                    // We've already read 24 bytes header, so check within subObjEnd boundary
+                    if (reader.position() + 48 <= subObjEnd) {
                         reader.skip(16) // skip file id (16)
-                        reader.skip(8)  // skip file size (8)
-                        reader.skip(8)  // skip creation time (8)
-                        reader.skip(8)  // skip data packets count (8)
+                        reader.skip(8) // skip file size (8)
+                        reader.skip(8) // skip creation time (8)
+                        reader.skip(8) // skip data packets count (8)
                         val playDuration100ns = reader.readLongLe()
+                        val prerollMs =
+                            if (reader.position() + 16 <= subObjEnd) {
+                                reader.skip(8) // skip send duration (8)
+                                reader.readLongLe()
+                            } else {
+                                0L
+                            }
                         if (playDuration100ns > 0) {
-                            durationMs = playDuration100ns / 10000L
+                            val totalMs = playDuration100ns / 10000L
+                            durationMs = (totalMs - prerollMs).coerceAtLeast(0L)
                         }
                     }
                 }
+
                 subObjGuid.contentEquals(CONTENT_DESCRIPTION_GUID) -> {
                     if (reader.hasRemaining(10)) {
                         val titleLen = reader.readShortLe()
@@ -94,6 +157,7 @@ object AsfParser {
                         }
                     }
                 }
+
                 subObjGuid.contentEquals(EXTENDED_CONTENT_DESCRIPTION_GUID) -> {
                     if (reader.hasRemaining(2)) {
                         val descriptorCount = reader.readShortLe().coerceIn(0, 1000)
@@ -112,6 +176,7 @@ object AsfParser {
                                         reader.skip(valLen)
                                     }
                                 }
+
                                 "WM/TrackNumber" -> {
                                     if (trackNumber == null) {
                                         when (valType) {
@@ -119,20 +184,26 @@ object AsfParser {
                                                 val str = reader.readString(valLen, StandardCharsets.UTF_16LE)
                                                 trackNumber = str.takeWhile { it.isDigit() }.toIntOrNull()
                                             }
+
                                             3 -> { // DWORD
                                                 trackNumber = reader.readIntLe()
                                                 reader.skip((valLen - 4).coerceAtLeast(0))
                                             }
+
                                             5 -> { // WORD
                                                 trackNumber = reader.readShortLe()
                                                 reader.skip((valLen - 2).coerceAtLeast(0))
                                             }
-                                            else -> reader.skip(valLen)
+
+                                            else -> {
+                                                reader.skip(valLen)
+                                            }
                                         }
                                     } else {
                                         reader.skip(valLen)
                                     }
                                 }
+
                                 "WM/Picture" -> {
                                     if (artworkData == null && valType == 1 && valLen > 5) {
                                         val picReader = ByteSliceReader(reader.readBytes(valLen))
@@ -148,6 +219,7 @@ object AsfParser {
                                         reader.skip(valLen)
                                     }
                                 }
+
                                 "WM/Lyrics", "WM/Lyrics_Synchronised" -> {
                                     if (lyrics == null && valType == 0) {
                                         lyrics = reader.readString(valLen, StandardCharsets.UTF_16LE).takeIf { it.isNotBlank() }
@@ -155,6 +227,7 @@ object AsfParser {
                                         reader.skip(valLen)
                                     }
                                 }
+
                                 else -> {
                                     reader.skip(valLen)
                                 }
@@ -177,7 +250,7 @@ object AsfParser {
             durationMs = durationMs,
             artworkData = artworkData,
             artworkMimeType = artworkMimeType,
-            lyrics = lyrics
+            lyrics = lyrics,
         )
     }
 }

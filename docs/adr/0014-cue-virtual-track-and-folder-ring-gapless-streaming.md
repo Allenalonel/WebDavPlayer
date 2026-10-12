@@ -19,6 +19,7 @@
 - **物理流连续性**：针对整轨大音频文件（如 `album.flac`），底层播放引擎仅向 WebDAV 服务器建立一条长连接 HTTP 流式通道（单一 `Authenticated MediaSource`），回放跨越 CUE 分轨时**物理流绝对不断开、零重连握手、零解码器 Flush**。
 - **虚拟时间轴映射（Virtual Timeline Engine）**：在会话层（`MusicPlayerAppSession`）引入轻量状态机，将底层播放器的大文件绝对进度转换为当前虚拟分轨的相对时间（`virtualPositionMs = rawPositionMs - cueTrack.startTimeMs`），向 UI 与播控条呈现独立的单曲进度。
 - **跨轨零打扰广播（Non-Disruptive Virtual Hop）**：当播放进度跨越分轨时间点时，**严禁重载播放器**，仅通过会话层触发 `Non-Disruptive Metadata Enrichment`，将下一分轨的标题、艺术家及分轨号响应式同步至 `MediaSession`（通知栏、锁屏与蓝牙车机），实现声学级物理真无缝（Bit-Perfect Gapless）。
+- **主线程副作用收拢（Main-Thread Effect Dispatch）**：虚拟时间轴映射计算运行于后台进度流（`progressDispatcher`）以避免阻塞主线程；但当跨轨过渡触发 `playerEngine.updateTrack` 及会话持久化时，必须通过 `Dispatchers.Main` 明确收拢至应用主线程执行，杜绝跨线程操作底层播放器。
 - **纯内存即时解析**：CUE 元数据仅在点选或进入目录时于内存中即时解析，不向 SQLite/Room 数据库落盘，严格保持纯流式零磁盘沉淀的设计纯粹性。
 
 ### 2. 播放边界严格限定在当前目录环形循环（Folder Ring Playback）
@@ -28,6 +29,7 @@
 ### 3. 普通独立曲目间实施“流式预卷缓冲”（Pre-roll Stream Buffering）
 - **长连接复用（Keep-Alive Connection Pool）**：OkHttp 客户端维持长连接池保活，确保连续请求同一 WebDAV 节点时 TCP/TLS 握手耗时为 0ms。
 - **交叠预加载（Pre-roll LoadControl）**：配置 `DefaultLoadControl`，在上一曲目播放临近尾声（如剩余 10 秒）时提前发起下一曲目的前导数据流缓冲与 Extractor 探针预热，使得 ExoPlayer `AudioSink` 能够平滑拼接 PCM 数据，消灭流式播放下的跨文件静音间隙。
+- **主线程安全派发与原子状态双重校验**：会话层高频进度采样在后台计算出预加载命中后，通过主线程协程（`Dispatchers.Main`）派发 `prerollTrack`，并在真正执行前二次比对 `isPrerollAppended` 标记与当前播放曲目，消除切歌/暂停时的异步时序竞争；底层播放引擎亦通过应用 Looper 检查筑牢兜底防线。
 
 ## Consequences
 

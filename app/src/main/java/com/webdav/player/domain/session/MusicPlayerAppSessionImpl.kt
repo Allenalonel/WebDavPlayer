@@ -69,7 +69,9 @@ class MusicPlayerAppSessionImpl(
     private var activeCuePath: String? = null
     private var activePhysicalTracks: List<AudioTrack> = emptyList()
 
-    private val bufferingWatchdogJobRef = java.util.concurrent.atomic.AtomicReference<Job?>(null)
+    private val bufferingWatchdogJobRef =
+        java.util.concurrent.atomic
+            .AtomicReference<Job?>(null)
 
     @androidx.annotation.VisibleForTesting
     val lastBufferingTimestampMs =
@@ -780,8 +782,10 @@ class MusicPlayerAppSessionImpl(
             }
         }
         val targetTrack = enrichedTrack ?: return
-        playerEngine.updateTrack(0, targetTrack)
-        coroutineScope.launch { flushSession() }
+        coroutineScope.launch(Dispatchers.Main) {
+            playerEngine.updateTrack(0, targetTrack)
+            flushSession()
+        }
     }
 
     private fun applyVirtualTrackSeek(seekResult: TrackSeekResult) {
@@ -1180,7 +1184,9 @@ class MusicPlayerAppSessionImpl(
             playerEngine.playTracks(
                 server = server,
                 tracks = _sessionState.value.queue.tracks,
-                startIndex = _sessionState.value.queue.currentIndex.coerceAtLeast(0),
+                startIndex =
+                    _sessionState.value.queue.currentIndex
+                        .coerceAtLeast(0),
                 startPositionMs = currentPos,
             )
             playerEngine.updateTrack(0, currentTrack)
@@ -1564,7 +1570,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     companion object {
-        const val DURATION_COMPLETION_TOLERANCE_MS: Long = 3000L
+        const val DURATION_COMPLETION_TOLERANCE_MS: Long = 5000L
         const val PREROLL_TRIGGER_WINDOW_MS: Long = 10_000L
         const val HEALTHY_NETWORK_QUIET_PERIOD_MS: Long = 30_000L
     }
@@ -1602,10 +1608,26 @@ class MusicPlayerAppSessionImpl(
 
             if (isPlaying && isHealthyNetwork) {
                 if (isPrerollAppended.compareAndSet(false, true)) {
-                    val server = _sessionState.value.activeServer ?: return
+                    val server =
+                        _sessionState.value.activeServer ?: run {
+                            isPrerollAppended.set(false)
+                            return
+                        }
                     val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
                     val nextTrack = queue.tracks[nextIndex]
-                    playerEngine.prerollTrack(server, nextTrack, nextIndex)
+                    val currentTrackId = _sessionState.value.currentTrack?.id
+                    coroutineScope.launch(Dispatchers.Main) {
+                        // Atomic double-check on Main thread before invoking playerEngine:
+                        // Ensure pre-roll is still expected, playback is still actively playing, and current track hasn't changed.
+                        if (isPrerollAppended.get() &&
+                            _sessionState.value.playbackState is PlaybackState.Playing &&
+                            _sessionState.value.currentTrack?.id == currentTrackId
+                        ) {
+                            playerEngine.prerollTrack(server, nextTrack, nextIndex)
+                        } else {
+                            isPrerollAppended.set(false)
+                        }
+                    }
                 }
             }
         }
