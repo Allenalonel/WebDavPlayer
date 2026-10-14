@@ -112,6 +112,10 @@ _Avoid_: Metadata Parser, Artwork Helper, Tag Downloader
 由应用会话层集中管控与仲裁的播放队列流转机制。底层媒体播放引擎仅作为当前曲目或双轨预热的流式渲染容器，丧失自主跨曲跳过权。
 _Avoid_: Autonomous Player Transition, Engine Skip, Internal Playlist Advancement
 
+**Streaming Playback Pipeline**:
+专职负责当前物理音频流与预卷流在播放内核中的解码、PCM 数据拼接、自适应弱网缓冲与状态广播的底层渲染管道。彻底剥离任何播放列表管理、洗牌置换与跨曲调度职责，以纯单流/双流模型向上层提供确定性的音频流回放能力。
+_Avoid_: Playback Queue Controller, Multi-Track Engine, Autonomous Player
+
 **Premature EOF Guard**:
 在纯流式无磁盘缓存回放过程中，由底层数据源（传输字节计数比对）与上层会话层（播放进度与音轨实际时长比对）协同构成的双重熔断防线，杜绝因网络闪断或连接静默关闭被误判为曲目正常播放结束而诱发意外跳集。
 _Avoid_: End-of-Stream Hack, Fake Completion, Silent Disconnect
