@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: 收缩播放引擎接口并铲除历史遗留 (Contract AudioPlayerEngine and Remove Legacy Seam)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 仿真播放引擎（`FakeAudioPlayerEngine`）大幅瘦身，仅实现收窄后的流式管道接口，代码量减少 70% 以上
 - [ ] 移除测试桩中所有的列表管理逻辑、洗牌模拟逻辑与反向回调模拟代码
