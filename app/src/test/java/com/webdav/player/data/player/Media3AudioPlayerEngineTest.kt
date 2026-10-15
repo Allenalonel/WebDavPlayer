@@ -436,6 +436,22 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
+    fun setAppSession_updatesCallbackAppSession_andSessionPlayerDelegatesSkip() {
+        val appSession = RecordingAppSession()
+        engine.setAppSession(appSession)
+        assertEquals(appSession, engine.mediaSessionCallback.appSession)
+
+        engine.loadTrack(server = testServer, track = track1)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        engine.sessionPlayer.seekToNext()
+        assertEquals(1, appSession.skipToNextCount)
+
+        engine.sessionPlayer.seekToPrevious()
+        assertEquals(1, appSession.skipToPreviousCount)
+    }
+
+    @Test
     fun virtualTrackSingleItem_enablesNextPreviousCommands_andDelegatesToAppSession() {
         engine.loadTrack(
             server = testServer,

@@ -3,8 +3,11 @@ package com.webdav.player.domain.player
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class FakeAudioPlayerEngine : AudioPlayerEngine {
@@ -19,6 +22,9 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     val _bufferedPositionMs = MutableStateFlow(0L)
     override val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
+
+    val _trackTransitions = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val trackTransitions: SharedFlow<Unit> = _trackTransitions.asSharedFlow()
 
     var lastServer: WebDavServer? = null
     var loadedTrack: AudioTrack? = null
@@ -99,6 +105,10 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
             _currentPositionMs.value = dur
         }
         _playbackState.value = PlaybackState.Ended
+    }
+
+    fun simulateTrackTransition() {
+        _trackTransitions.tryEmit(Unit)
     }
 
     override fun stop() {

@@ -68,6 +68,7 @@ class PlaybackSessionHost(
 
     fun setAppSession(session: MusicPlayerAppSession?) {
         mediaSessionCallback?.appSession = session
+        (playerEngine as? Media3AudioPlayerEngine)?.setAppSession(session)
     }
 
     var attachedService: WebDavMediaService? = null

@@ -22,7 +22,7 @@ data class PlaybackQueue(
 
     fun insertNext(track: AudioTrack): PlaybackQueue {
         if (tracks.isEmpty()) {
-            return PlaybackQueue(listOf(track), 0, listOf(0))
+            return PlaybackQueue(listOf(track), 0)
         }
         val insertIndex = (currentIndex + 1).coerceIn(0, tracks.size)
         val newTracks =
@@ -31,14 +31,7 @@ data class PlaybackQueue(
             }
         val updatedShuffle =
             if (shuffleOrder.isNotEmpty()) {
-                val shifted = shuffleOrder.map { if (it >= insertIndex) it + 1 else it }.toMutableList()
-                val currPos = shifted.indexOf(if (currentIndex >= insertIndex) currentIndex + 1 else currentIndex)
-                if (currPos >= 0) {
-                    shifted.add(currPos + 1, insertIndex)
-                } else {
-                    shifted.add(insertIndex)
-                }
-                shifted
+                shuffleOrder.map { if (it >= insertIndex) it + 1 else it } + insertIndex
             } else {
                 emptyList()
             }

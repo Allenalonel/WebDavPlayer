@@ -33,12 +33,16 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
+import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -185,19 +189,19 @@ class Media3AudioPlayerEngine(
             }
 
             override fun seekToNext() {
-                mediaSessionCallback.appSession?.skipToNext()
+                mediaSessionCallback.onSkipToNext()
             }
 
             override fun seekToNextMediaItem() {
-                mediaSessionCallback.appSession?.skipToNext()
+                mediaSessionCallback.onSkipToNext()
             }
 
             override fun seekToPrevious() {
-                mediaSessionCallback.appSession?.skipToPrevious()
+                mediaSessionCallback.onSkipToPrevious()
             }
 
             override fun seekToPreviousMediaItem() {
-                mediaSessionCallback.appSession?.skipToPrevious()
+                mediaSessionCallback.onSkipToPrevious()
             }
 
             override fun isCommandAvailable(command: Int): Boolean =
@@ -228,6 +232,10 @@ class Media3AudioPlayerEngine(
         }
 
     val mediaSessionCallback: WebDavMediaSessionCallback = WebDavMediaSessionCallback(this)
+
+    fun setAppSession(appSession: MusicPlayerAppSession?) {
+        mediaSessionCallback.appSession = appSession
+    }
 
     val mediaSession: MediaSession =
         customMediaSession ?: run {
@@ -290,6 +298,9 @@ class Media3AudioPlayerEngine(
     private val _bufferedPositionMs = MutableStateFlow(0L)
     override val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
 
+    private val _trackTransitions = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val trackTransitions: SharedFlow<Unit> = _trackTransitions.asSharedFlow()
+
     private var tickerJob: Job? = null
 
     private val listener =
@@ -328,6 +339,7 @@ class Media3AudioPlayerEngine(
                     activeTrackMetadataRef.set(null)
                     player.playlistMetadata = MediaMetadata.EMPTY
                     updatePositionAndDuration()
+                    _trackTransitions.tryEmit(Unit)
                     return
                 }
 

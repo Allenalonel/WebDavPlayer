@@ -208,6 +208,25 @@ class PlaybackQueueTest {
     }
 
     @Test
+    fun insertNext_withExistingShuffleOrder_appendsNewIndexToShuffleOrder() {
+        val t1 = createTrack("1", "Song 1")
+        val t2 = createTrack("2", "Song 2")
+        val tNew = createTrack("99", "New Next Song")
+
+        val queue =
+            PlaybackQueue(
+                tracks = listOf(t1, t2),
+                currentIndex = 0,
+                shuffleOrder = listOf(1, 0),
+            )
+        val updated = queue.insertNext(tNew)
+
+        assertEquals(3, updated.size)
+        assertEquals(listOf(t1, tNew, t2), updated.tracks)
+        assertEquals(listOf(2, 0, 1), updated.shuffleOrder)
+    }
+
+    @Test
     fun folderRingPlayback_strictlyConfinedWithinCurrentFolder() {
         val folderTracks = (1..5).map { createTrack("f_$it", "Folder Track $it") }
         val queue = PlaybackQueue(tracks = folderTracks, currentIndex = 0)

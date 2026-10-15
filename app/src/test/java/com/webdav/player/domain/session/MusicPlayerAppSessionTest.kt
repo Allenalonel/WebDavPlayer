@@ -1752,6 +1752,102 @@ class MusicPlayerAppSessionTest {
             assertNull("Prerolled track must remain null", fakeEngine.prerolledTrack)
         }
 
+    @Test
+    fun seamlessPreroll_trackTransitions_advancesQueueWithoutCallingLoadTrackIntoEngine() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            val initialLoadCount = fakeEngine.loadTrackCount
+            assertEquals(1, initialLoadCount)
+
+            // Trigger preroll window
+            fakeEngine._durationMs.value = 100_000L
+            fakeEngine._currentPositionMs.value = 92_000L
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertTrue("Preroll should be active", fakeEngine.isPrerollActive)
+            assertTrue("isPrerollAppended should be true", session.isPrerollAppended.get())
+
+            // Simulate seamless ExoPlayer track transition
+            fakeEngine.simulateTrackTransition()
+            advanceUntilIdle()
+
+            assertFalse("isPrerollAppended must reset to false after transition", session.isPrerollAppended.get())
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "loadTrack must NOT be called again because engine transitioned seamlessly",
+                initialLoadCount,
+                fakeEngine.loadTrackCount,
+            )
+            assertEquals(0L, session.playbackProgress.value.currentPositionMs)
+        }
+
+    @Test
+    fun playVirtualTracks_withShuffleMode_generatesDeterministicShuffleOrderStartingWithTargetIndex() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            session.setPlaybackMode(PlaybackMode.SHUFFLE)
+            advanceUntilIdle()
+
+            val parentTrack =
+                AudioTrack(
+                    id = "parent-1",
+                    serverId = 1L,
+                    remotePath = "/Album/disc.flac",
+                    title = "disc.flac",
+                    durationMs = 300_000L,
+                    format = com.webdav.player.domain.model.AudioFormat.FLAC,
+                    size = 50_000_000L,
+                )
+            val vTracks =
+                listOf(
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 1,
+                        title = "Track 1",
+                        startTimeMs = 0L,
+                        endTimeMs = 100_000L,
+                        parentAudioPath = "/Album/disc.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 2,
+                        title = "Track 2",
+                        startTimeMs = 100_000L,
+                        endTimeMs = 200_000L,
+                        parentAudioPath = "/Album/disc.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 3,
+                        title = "Track 3",
+                        startTimeMs = 200_000L,
+                        endTimeMs = 300_000L,
+                        parentAudioPath = "/Album/disc.flac",
+                    ),
+                )
+
+            session.playVirtualTracks(
+                parentTrack = parentTrack,
+                virtualTracks = vTracks,
+                startIndex = 1,
+            )
+            advanceUntilIdle()
+
+            val queue = session.sessionState.value.queue
+            assertEquals(3, queue.size)
+            assertEquals(1, queue.currentIndex)
+            assertTrue("Shuffle order must be generated", queue.shuffleOrder.isNotEmpty())
+            assertEquals("Shuffle order must begin with target index", 1, queue.shuffleOrder.first())
+            assertEquals(setOf(0, 1, 2), queue.shuffleOrder.toSet())
+        }
+
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),
     ) : com.webdav.player.domain.repository.ServerRepository {

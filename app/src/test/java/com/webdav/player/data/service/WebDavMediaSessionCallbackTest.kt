@@ -245,4 +245,29 @@ class WebDavMediaSessionCallbackTest {
         val callbackWithSession = WebDavMediaSessionCallback(fakeEngine, appSession)
         assertEquals(appSession, callbackWithSession.appSession)
     }
+
+    @Test
+    fun onSkipToNext_directlyInvokesAppSessionSkipToNext() {
+        val appSession = RecordingAppSession()
+        callback.appSession = appSession
+
+        callback.onSkipToNext()
+        assertEquals(1, appSession.skipToNextCount)
+    }
+
+    @Test
+    fun onSkipToPrevious_directlyInvokesAppSessionSkipToPrevious() {
+        val appSession = RecordingAppSession()
+        callback.appSession = appSession
+
+        callback.onSkipToPrevious()
+        assertEquals(1, appSession.skipToPreviousCount)
+    }
+
+    @Test
+    fun onSkipMethods_withNullAppSession_doNotThrow() {
+        callback.appSession = null
+        callback.onSkipToNext()
+        callback.onSkipToPrevious()
+    }
 }

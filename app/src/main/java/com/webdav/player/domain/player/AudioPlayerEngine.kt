@@ -3,6 +3,8 @@ package com.webdav.player.domain.player
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 interface AudioPlayerEngine {
@@ -10,6 +12,7 @@ interface AudioPlayerEngine {
     val currentPositionMs: StateFlow<Long>
     val durationMs: StateFlow<Long>
     val bufferedPositionMs: StateFlow<Long>
+    val trackTransitions: SharedFlow<Unit> get() = MutableSharedFlow()
 
     fun loadTrack(
         server: WebDavServer,

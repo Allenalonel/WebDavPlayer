@@ -15,6 +15,14 @@ class WebDavMediaSessionCallback(
     var appSession: MusicPlayerAppSession? = null,
 ) : MediaSession.Callback {
 
+    fun onSkipToNext() {
+        appSession?.skipToNext()
+    }
+
+    fun onSkipToPrevious() {
+        appSession?.skipToPrevious()
+    }
+
     override fun onMediaButtonEvent(
         session: MediaSession,
         controllerInfo: MediaSession.ControllerInfo,
@@ -33,16 +41,12 @@ class WebDavMediaSessionCallback(
         return when (playerCommand) {
             Player.COMMAND_SEEK_TO_NEXT,
             Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> {
-                if (appSession != null) {
-                    appSession?.skipToNext()
-                }
+                onSkipToNext()
                 SessionResult.RESULT_SUCCESS
             }
             Player.COMMAND_SEEK_TO_PREVIOUS,
             Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> {
-                if (appSession != null) {
-                    appSession?.skipToPrevious()
-                }
+                onSkipToPrevious()
                 SessionResult.RESULT_SUCCESS
             }
             else -> super.onPlayerCommandRequest(session, controller, playerCommand)
@@ -81,15 +85,11 @@ class WebDavMediaSessionCallback(
                 true
             }
             KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                if (appSession != null) {
-                    appSession?.skipToNext()
-                }
+                onSkipToNext()
                 true
             }
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                if (appSession != null) {
-                    appSession?.skipToPrevious()
-                }
+                onSkipToPrevious()
                 true
             }
             KeyEvent.KEYCODE_MEDIA_STOP -> {

@@ -92,6 +92,35 @@ class MusicPlayerAppSessionImpl(
         java.util.concurrent.atomic
             .AtomicBoolean(false)
 
+    private fun clearPrerollIfActive() {
+        if (isPrerollAppended.compareAndSet(true, false)) {
+            playerEngine.clearPrerollTrack()
+        }
+    }
+
+    private fun transitionToQueueIndex(
+        server: WebDavServer,
+        targetIndex: Int,
+    ) {
+        val queue = _sessionState.value.queue
+        val targetTrack = queue.tracks[targetIndex]
+        val updatedQueue = queue.copy(currentIndex = targetIndex)
+        _playbackProgress.value = PlaybackProgress(0L, targetTrack.durationMs, 0L)
+        _sessionState.update {
+            it.copy(
+                queue = updatedQueue,
+                durationMs = targetTrack.durationMs,
+            )
+        }
+
+        loadTrackIntoEngine(
+            server = server,
+            track = targetTrack,
+            startPositionMs = 0L,
+        )
+        coroutineScope.launch { flushSession() }
+    }
+
     init {
         internalJobs +=
             coroutineScope.launch {
@@ -131,9 +160,7 @@ class MusicPlayerAppSessionImpl(
                     }
                     if (state is PlaybackState.Buffering) {
                         lastBufferingTimestampMs.set(System.currentTimeMillis())
-                        if (isPrerollAppended.compareAndSet(true, false)) {
-                            playerEngine.clearPrerollTrack()
-                        }
+                        clearPrerollIfActive()
                         if (bufferingWatchdogJobRef.get()?.isActive != true) {
                             val job =
                                 coroutineScope.launch {
@@ -176,6 +203,28 @@ class MusicPlayerAppSessionImpl(
                         startPeriodicFlush()
                     } else {
                         stopPeriodicFlush()
+                    }
+                }
+            }
+
+        // Observe seamless preroll track transitions from engine
+        internalJobs +=
+            coroutineScope.launch {
+                playerEngine.trackTransitions.collect {
+                    isPrerollAppended.set(false)
+                    val queue = _sessionState.value.queue
+                    if (!queue.isEmpty) {
+                        val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
+                        val nextTrack = queue.tracks[nextIndex]
+                        val updatedQueue = queue.copy(currentIndex = nextIndex)
+                        _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
+                        _sessionState.update {
+                            it.copy(
+                                queue = updatedQueue,
+                                durationMs = nextTrack.durationMs,
+                            )
+                        }
+                        flushSession()
                     }
                 }
             }
@@ -645,7 +694,13 @@ class MusicPlayerAppSessionImpl(
 
         val startPositionMs = virtualTimelineEngine.loadTracks(virtualTracks, validStartIndex)
         val initialVirtualTrack = mappedTracks[validStartIndex]
-        val queue = PlaybackQueue(tracks = mappedTracks, currentIndex = validStartIndex)
+        val rawQueue = PlaybackQueue(tracks = mappedTracks, currentIndex = validStartIndex)
+        val queue =
+            if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE) {
+                rawQueue.withGeneratedShuffleOrder(validStartIndex)
+            } else {
+                rawQueue
+            }
 
         _playbackProgress.value =
             PlaybackProgress(
@@ -739,9 +794,7 @@ class MusicPlayerAppSessionImpl(
         val current = _sessionState.value
         when {
             current.isPlaying -> {
-                if (isPrerollAppended.compareAndSet(true, false)) {
-                    playerEngine.clearPrerollTrack()
-                }
+                clearPrerollIfActive()
                 playerEngine.pause()
                 coroutineScope.launch {
                     if (_isRestored.value) {
@@ -855,9 +908,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun pause() {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         playerEngine.pause()
         coroutineScope.launch {
             if (_isRestored.value) {
@@ -877,9 +928,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun seekTo(positionMs: Long) {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         val clamped = positionMs.coerceAtLeast(0L)
         if (virtualTimelineEngine.isActive) {
             val globalTargetMs =
@@ -910,9 +959,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun skipToNext() {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         if (virtualTimelineEngine.isActive) {
             val seekResult = virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)
             if (seekResult != null) {
@@ -925,29 +972,11 @@ class MusicPlayerAppSessionImpl(
         if (queue.isEmpty) return
 
         val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-
-        val nextTrack = queue.tracks[nextIndex]
-        val updatedQueue = queue.copy(currentIndex = nextIndex)
-        _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
-        _sessionState.update {
-            it.copy(
-                queue = updatedQueue,
-                durationMs = nextTrack.durationMs,
-            )
-        }
-
-        loadTrackIntoEngine(
-            server = server,
-            track = nextTrack,
-            startPositionMs = 0L,
-        )
-        coroutineScope.launch { flushSession() }
+        transitionToQueueIndex(server, nextIndex)
     }
 
     override fun skipToPrevious() {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         if (virtualTimelineEngine.isActive) {
             val seekResult =
                 virtualTimelineEngine.getPreviousTrackSeekPosition(
@@ -970,29 +999,11 @@ class MusicPlayerAppSessionImpl(
         }
 
         val prevIndex = queue.getPreviousIndex(_sessionState.value.playbackMode) ?: 0
-
-        val prevTrack = queue.tracks[prevIndex]
-        val updatedQueue = queue.copy(currentIndex = prevIndex)
-        _playbackProgress.value = PlaybackProgress(0L, prevTrack.durationMs, 0L)
-        _sessionState.update {
-            it.copy(
-                queue = updatedQueue,
-                durationMs = prevTrack.durationMs,
-            )
-        }
-
-        loadTrackIntoEngine(
-            server = server,
-            track = prevTrack,
-            startPositionMs = 0L,
-        )
-        coroutineScope.launch { flushSession() }
+        transitionToQueueIndex(server, prevIndex)
     }
 
     override fun playQueueIndex(index: Int) {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         if (virtualTimelineEngine.isActive) {
             val seekResult = virtualTimelineEngine.seekToTrackIndex(index)
             if (seekResult != null) {
@@ -1004,22 +1015,7 @@ class MusicPlayerAppSessionImpl(
         val queue = _sessionState.value.queue
         if (index !in queue.tracks.indices) return
 
-        val targetTrack = queue.tracks[index]
-        val updatedQueue = queue.copy(currentIndex = index)
-        _playbackProgress.value = PlaybackProgress(0L, targetTrack.durationMs, 0L)
-        _sessionState.update {
-            it.copy(
-                queue = updatedQueue,
-                durationMs = targetTrack.durationMs,
-            )
-        }
-
-        loadTrackIntoEngine(
-            server = server,
-            track = targetTrack,
-            startPositionMs = 0L,
-        )
-        coroutineScope.launch { flushSession() }
+        transitionToQueueIndex(server, index)
     }
 
     override fun cyclePlaybackMode() {
@@ -1041,9 +1037,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun removeQueueTrack(index: Int) {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         val currentQueue = _sessionState.value.queue
         if (index !in currentQueue.tracks.indices) return
 
@@ -1121,9 +1115,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun stop() {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         stopPeriodicFlush()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
@@ -1136,9 +1128,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun release() {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
-        }
+        clearPrerollIfActive()
         stopPeriodicFlush()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
@@ -1592,23 +1582,7 @@ class MusicPlayerAppSessionImpl(
 
             PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> {
                 val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-
-                val nextTrack = queue.tracks[nextIndex]
-                val updatedQueue = queue.copy(currentIndex = nextIndex)
-                _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
-                _sessionState.update {
-                    it.copy(
-                        queue = updatedQueue,
-                        durationMs = nextTrack.durationMs,
-                    )
-                }
-
-                loadTrackIntoEngine(
-                    server = server,
-                    track = nextTrack,
-                    startPositionMs = 0L,
-                )
-                coroutineScope.launch { flushSession() }
+                transitionToQueueIndex(server, nextIndex)
             }
         }
     }
