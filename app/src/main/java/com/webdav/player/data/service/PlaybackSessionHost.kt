@@ -210,6 +210,30 @@ class PlaybackSessionHost(
         }
     }
 
+    override fun loadTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+        startPositionMs: Long,
+    ) {
+        ensureServiceStarted()
+        playerEngine.loadTrack(server, track, startPositionMs)
+    }
+
+    override fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+    ) {
+        playerEngine.prerollTrack(server, track)
+    }
+
+    override fun clearPrerollTrack() {
+        playerEngine.clearPrerollTrack()
+    }
+
+    override fun updateTrackMetadata(track: AudioTrack) {
+        playerEngine.updateTrackMetadata(track)
+    }
+
     override fun playTracks(
         server: WebDavServer,
         tracks: List<AudioTrack>,

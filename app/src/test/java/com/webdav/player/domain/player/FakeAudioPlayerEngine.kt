@@ -28,9 +28,11 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     var lastServer: WebDavServer? = null
+    var loadedTrack: AudioTrack? = null
     var lastTracks: List<AudioTrack> = emptyList()
     var lastStartIndex: Int = -1
     var lastStartPositionMs: Long = 0L
+    var loadTrackCount = 0
     var playTracksCount = 0
     var playCount = 0
     var pauseCount = 0
@@ -48,6 +50,31 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var prerolledTrack: AudioTrack? = null
     var prerolledIndex: Int = -1
     var clearPrerollCount: Int = 0
+
+    override fun loadTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+        startPositionMs: Long,
+    ) {
+        loadTrackCount++
+        lastServer = server
+        loadedTrack = track
+        lastTracks = listOf(track)
+        lastStartIndex = 0
+        lastStartPositionMs = startPositionMs
+        _currentTrackIndex.value = 0
+        _currentPositionMs.value = startPositionMs
+        _playbackState.value = PlaybackState.Playing
+    }
+
+    override fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+    ) {
+        isPrerollActive = true
+        prerolledTrack = track
+        prerolledIndex = -1
+    }
 
     override fun prerollTrack(
         server: WebDavServer,
@@ -81,6 +108,9 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         lastTracks = tracks
         lastStartIndex = startIndex
         lastStartPositionMs = startPositionMs
+        if (startIndex in tracks.indices) {
+            loadedTrack = tracks[startIndex]
+        }
         _currentTrackIndex.value = startIndex
         _currentPositionMs.value = startPositionMs
         _playbackState.value = PlaybackState.Playing
@@ -212,6 +242,19 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     var updateTrackCalls = 0
     val updatedTrackIndices = mutableListOf<Int>()
+    var updateTrackMetadataCalls = 0
+    var lastUpdatedTrack: AudioTrack? = null
+
+    override fun updateTrackMetadata(track: AudioTrack) {
+        updateTrackMetadataCalls++
+        lastUpdatedTrack = track
+        loadedTrack = track
+        if (lastTracks.isNotEmpty()) {
+            val mutable = lastTracks.toMutableList()
+            mutable[0] = track
+            lastTracks = mutable
+        }
+    }
 
     override fun updateTrack(
         index: Int,
@@ -223,6 +266,9 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
             val mutable = lastTracks.toMutableList()
             mutable[index] = track
             lastTracks = mutable
+        }
+        if (index == _currentTrackIndex.value || _currentTrackIndex.value == -1) {
+            loadedTrack = track
         }
     }
 
