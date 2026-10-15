@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 系统媒体会话回调支持接收并直连会话层切歌指令（`skipToNext` / `skipToPrevious`），不再必须通过底层播放引擎反弹
 - [ ] 蓝牙耳机按键与车载中控发起的切歌事件能够即时驱动会话层队列推进或 CUE 虚拟分轨跳转
