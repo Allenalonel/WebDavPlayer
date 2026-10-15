@@ -1,6 +1,6 @@
 # Spec: 播放引擎接缝深度收窄与会话意图统一 (Deepen Player Engine to Stream Pipeline & Unify Session Intent)
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 
