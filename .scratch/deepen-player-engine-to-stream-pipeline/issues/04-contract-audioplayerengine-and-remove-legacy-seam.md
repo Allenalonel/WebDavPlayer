@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: 迁移播放会话层至纯流管道与独立洗牌 (Migrate MusicPlayerAppSession to Stream Pipeline)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 从播放引擎接口中完全删除多曲目方法：`playTracks`、`seekToTrack`、`removeTrack`、`insertTrack` 及带索引的旧版 `updateTrack`
 - [ ] 从播放引擎接口中完全删除多曲目状态：`currentTrackIndex`、`playbackMode`、`setPlaybackMode` 及幽灵属性 `shufflePermutation`
