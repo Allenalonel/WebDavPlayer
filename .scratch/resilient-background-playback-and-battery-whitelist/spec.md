@@ -1,6 +1,6 @@
 # Spec: 弹性后台播放保活、延迟降级、双硬件锁与厂商电池白名单 (Resilient Background Playback, Deferred Demotion, Dual Hardware Locks & OEM Battery Whitelist)
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 
