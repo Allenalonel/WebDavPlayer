@@ -673,7 +673,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals(50000L, appSession.playbackProgress.value.currentPositionMs)
 
             // Track Transition: Switch to next track -> structural state emits exactly 1 update for track index change
-            fakeEngine.skipToNext()
+            appSession.skipToNext()
             advanceUntilIdle()
 
             val transitionStructuralCount = structuralEmissions.size - initialStructuralCount

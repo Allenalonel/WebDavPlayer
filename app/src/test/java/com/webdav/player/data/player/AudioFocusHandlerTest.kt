@@ -51,7 +51,7 @@ class AudioFocusHandlerTest {
     @Test
     fun incomingCall_lossTransient_pausesPlayback_andResumesOnCallEnd() {
         // Start playing
-        fakeEngine.playTracks(testServer, listOf(testTrack), startIndex = 0)
+        fakeEngine.loadTrack(testServer, testTrack)
         assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
         // Incoming call -> AUDIOFOCUS_LOSS_TRANSIENT
@@ -70,7 +70,7 @@ class AudioFocusHandlerTest {
     @Test
     fun transientLoss_whenAlreadyPaused_doesNotResumeOnFocusGain() {
         // App is paused
-        fakeEngine.playTracks(testServer, listOf(testTrack), startIndex = 0)
+        fakeEngine.loadTrack(testServer, testTrack)
         fakeEngine.pause()
         assertEquals(PlaybackState.Paused, fakeEngine.playbackState.value)
 
@@ -109,7 +109,7 @@ class AudioFocusHandlerTest {
 
     @Test
     fun permanentLoss_pausesPlayback_andDoesNotResumeOnGain() {
-        fakeEngine.playTracks(testServer, listOf(testTrack), startIndex = 0)
+        fakeEngine.loadTrack(testServer, testTrack)
 
         // Permanent loss (another music app starts)
         focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS)

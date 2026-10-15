@@ -685,7 +685,7 @@ class PlaybackSessionResumptionTest {
             assertEquals(healedCoverPath, enrichedTrack?.coverThumbnailPath)
 
             // Player engine received track update non-disruptively
-            assertTrue(fakeEngine.updateTrackCalls >= 1)
+            assertTrue(fakeEngine.updateTrackMetadataCalls >= 1)
             assertEquals(healedCoverPath, fakeEngine.lastTracks[0].coverThumbnailPath)
             assertTrue("Playback must not be interrupted during enrichment", session.sessionState.value.isPlaying)
         }
@@ -947,7 +947,7 @@ class PlaybackSessionResumptionTest {
             assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
             assertEquals(-1, fakeEngine.lastStartIndex)
             // MediaSession was primed with virtual track metadata non-disruptively
-            assertTrue(fakeEngine.updateTrackCalls >= 1)
+            assertTrue(fakeEngine.updateTrackMetadataCalls >= 1)
         }
 
     @Test

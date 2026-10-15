@@ -537,7 +537,7 @@ class MusicPlayerAppSessionTest {
             // Next at last track wraps to 0
             session.skipToNext()
             advanceUntilIdle()
-            assertEquals(0, fakeEngine._currentTrackIndex.value)
+            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
 
             // Simulate track completion wraps to 1 then to 0
@@ -565,13 +565,12 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             assertEquals(45000L, fakeEngine._currentPositionMs.value)
-            assertEquals(0, fakeEngine._currentTrackIndex.value)
+            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
 
             // Track completes -> replays same track from 0L
             fakeEngine.simulateTrackCompletion()
             advanceUntilIdle()
 
-            assertEquals(0, fakeEngine._currentTrackIndex.value)
             assertEquals(0L, fakeEngine._currentPositionMs.value)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
         }
@@ -684,8 +683,7 @@ class MusicPlayerAppSessionTest {
             sessionWithRepo.playDirectoryTrack(dir, file1)
             advanceUntilIdle()
 
-            fakeEngine.updateTrackCalls = 0
-            fakeEngine.updatedTrackIndices.clear()
+            fakeEngine.updateTrackMetadataCalls = 0
 
             // Metadata arrives for ONLY song1
             fakeMetadataRepo.emit(
@@ -1101,7 +1099,7 @@ class MusicPlayerAppSessionTest {
 
             assertEquals(0, session.sessionState.value.queue.currentIndex)
             assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
-            val initialUpdateCalls = fakeEngine.updateTrackCalls
+            val initialUpdateCalls = fakeEngine.updateTrackMetadataCalls
 
             // 1. Playback proceeds inside track 1
             fakeEngine._currentPositionMs.value = 175_000L
@@ -1119,8 +1117,8 @@ class MusicPlayerAppSessionTest {
             assertEquals("Performer 2", updatedState.currentTrack?.artist)
             assertEquals(240_000L, updatedState.durationMs)
 
-            // 4. Non-disruptive metadata enrichment: updateTrack was called on engine to update MediaSession
-            assertTrue("Expected updateTrackCalls to increase", fakeEngine.updateTrackCalls > initialUpdateCalls)
+            // 4. Non-disruptive metadata enrichment: updateTrackMetadata was called on engine to update MediaSession
+            assertTrue("Expected updateTrackMetadataCalls to increase", fakeEngine.updateTrackMetadataCalls > initialUpdateCalls)
             assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
 
             // 5. Playback progress mapped to relative position in Track 2 (185_000 - 180_000 = 5_000)

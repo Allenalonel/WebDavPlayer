@@ -223,8 +223,7 @@ class ProcessRestartSimulationTest {
 
             // Engine streams from the exact 48000ms offset
             assertEquals(testServer, engine2.lastServer)
-            assertEquals(3, engine2.lastTracks.size)
-            assertEquals(1, engine2.lastStartIndex)
+            assertEquals("02-Solo.flac", engine2.loadedTrack?.title)
             assertEquals(48000L, engine2.lastStartPositionMs)
             assertTrue(session2.sessionState.value.isPlaying)
 

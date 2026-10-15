@@ -96,7 +96,7 @@ class WebDavMediaSessionCallbackTest {
 
     @Test
     fun handleMediaButton_playPauseToggle_whenPlaying_callsPause() {
-        fakeEngine.playTracks(testServer, testTracks, startIndex = 0)
+        fakeEngine.loadTrack(testServer, testTracks[0])
         assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
@@ -108,7 +108,7 @@ class WebDavMediaSessionCallbackTest {
 
     @Test
     fun handleMediaButton_playPauseToggle_whenPaused_callsPlay() {
-        fakeEngine.playTracks(testServer, testTracks, startIndex = 0)
+        fakeEngine.loadTrack(testServer, testTracks[0])
         fakeEngine.pause()
         assertEquals(PlaybackState.Paused, fakeEngine.playbackState.value)
 
@@ -130,25 +130,21 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_next_callsSkipToNext() {
-        fakeEngine.playTracks(testServer, testTracks, startIndex = 0)
-
+    fun handleMediaButton_next_withoutAppSession_handledSafely() {
+        callback.appSession = null
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(1, fakeEngine.currentTrackIndex.value)
     }
 
     @Test
-    fun handleMediaButton_previous_callsSkipToPrevious() {
-        fakeEngine.playTracks(testServer, testTracks, startIndex = 1)
-
+    fun handleMediaButton_previous_withoutAppSession_handledSafely() {
+        callback.appSession = null
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(0, fakeEngine.currentTrackIndex.value)
     }
 
     @Test
@@ -186,18 +182,16 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_nextAndPrevious_withNullAppSession_doesNotInvokeEngine() {
+    fun handleMediaButton_nextAndPrevious_withNullAppSession_doesNotCrash() {
         callback.appSession = null
 
         val nextIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
         val handledNext = callback.handleMediaButtonIntent(nextIntent)
         assertTrue(handledNext)
-        assertEquals(0, fakeEngine.nextCount)
 
         val prevIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         val handledPrev = callback.handleMediaButtonIntent(prevIntent)
         assertTrue(handledPrev)
-        assertEquals(0, fakeEngine.previousCount)
     }
 
     @Test
@@ -214,7 +208,6 @@ class WebDavMediaSessionCallbackTest {
         val resultNextItem = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
         assertEquals(SessionResult.RESULT_SUCCESS, resultNextItem)
         assertEquals(2, appSession.skipToNextCount)
-        assertEquals(0, fakeEngine.nextCount)
     }
 
     @Test
@@ -231,7 +224,6 @@ class WebDavMediaSessionCallbackTest {
         val resultPrevItem = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
         assertEquals(SessionResult.RESULT_SUCCESS, resultPrevItem)
         assertEquals(2, appSession.skipToPreviousCount)
-        assertEquals(0, fakeEngine.previousCount)
     }
 
     @Test
@@ -242,11 +234,9 @@ class WebDavMediaSessionCallbackTest {
 
         val resultNext = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT)
         assertEquals(SessionResult.RESULT_SUCCESS, resultNext)
-        assertEquals(0, fakeEngine.nextCount)
 
         val resultPrev = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS)
         assertEquals(SessionResult.RESULT_SUCCESS, resultPrev)
-        assertEquals(0, fakeEngine.previousCount)
     }
 
     @Test

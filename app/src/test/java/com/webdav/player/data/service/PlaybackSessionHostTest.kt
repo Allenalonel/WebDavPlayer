@@ -311,7 +311,8 @@ class PlaybackSessionHostTest {
 
     @Test
     fun hardwareMediaButtons_dispatchDirectlyToHost() {
-        val callback = WebDavMediaSessionCallback(host)
+        val appSession = com.webdav.player.domain.session.FakeMusicPlayerAppSession()
+        val callback = WebDavMediaSessionCallback(host, appSession)
 
         val playIntent =
             Intent(Intent.ACTION_MEDIA_BUTTON).apply {
@@ -332,14 +333,14 @@ class PlaybackSessionHostTest {
                 putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT))
             }
         assertTrue(callback.handleMediaButtonIntent(nextIntent))
-        assertEquals(1, fakeEngine.nextCount)
+        assertEquals(1, appSession.skipNextCount)
 
         val prevIntent =
             Intent(Intent.ACTION_MEDIA_BUTTON).apply {
                 putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
             }
         assertTrue(callback.handleMediaButtonIntent(prevIntent))
-        assertEquals(1, fakeEngine.previousCount)
+        assertEquals(1, appSession.skipPreviousCount)
     }
 
     @Test

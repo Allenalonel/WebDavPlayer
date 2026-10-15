@@ -139,7 +139,7 @@ class EndToEndMusicPlayerPipelineTest {
                 coroutineScope = sessionScope,
             )
 
-        mediaSessionCallback = WebDavMediaSessionCallback(fakeEngine)
+        mediaSessionCallback = WebDavMediaSessionCallback(fakeEngine, session)
     }
 
     @After
@@ -172,8 +172,7 @@ class EndToEndMusicPlayerPipelineTest {
 
             // Verify Engine received correct parameters
             assertEquals(sampleServer, fakeEngine.lastServer)
-            assertEquals(2, fakeEngine.lastTracks.size)
-            assertEquals(0, fakeEngine.lastStartIndex)
+            assertEquals("01-Symphony.flac", fakeEngine.loadedTrack?.title)
 
             // Verify PlayerSessionState in AppSession
             var state = session.sessionState.value
@@ -227,12 +226,13 @@ class EndToEndMusicPlayerPipelineTest {
             assertTrue("Next media button handled", handledNext)
             advanceUntilIdle()
 
-            assertEquals(1, fakeEngine.currentTrackIndex.value)
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
             assertEquals(
                 mp3File.path,
                 session.sessionState.value.currentTrack
                     ?.remotePath,
             )
+            assertEquals(mp3File.name, fakeEngine.loadedTrack?.title)
 
             // 4. SeekTo triggered
             fakeEngine.seekTo(120000L)
