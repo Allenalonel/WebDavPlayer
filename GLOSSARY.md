@@ -124,6 +124,18 @@ _Avoid_: End-of-Stream Hack, Fake Completion, Silent Disconnect
 底层流式数据源在遭遇读取超时或网络抖动时，在数据传输层记录字节偏移量并以退避重试自动发起 HTTP Range 请求接续流数据的自愈机制。对音频解码器及播放器状态机完全透明，不触发解码管道销毁，不发生进度跳变。
 _Avoid_: Player Re-prepare, Seek Reload, Fatal Source Error
 
+**Deferred Foreground Demotion**:
+在音频播放暂停时延迟注销前台服务身份与系统通知的宽容退避机制。在设定的宽容窗口期内维持前台通知栏与高优先级进程状态，超时未恢复才释放前台身份，消除短暂停顿后被系统快速判定为闲置杀死的风险。
+_Avoid_: Instant Demotion, Service Timeout, Kill Protection
+
+**Dual Streaming Hardware Locks**:
+在纯在线流式音频回放过程中由 CPU 唤醒锁（WakeLock）与 Wi-Fi 高性能锁（WifiLock）构成的硬件级休眠防御体系。回放与数据缓冲时共同加锁防止系统息屏后 CPU 停步及 Wi-Fi 芯片降频节能，暂停时立即释放以兼顾设备能耗。
+_Avoid_: Keep Alive Lock, Power Lock, Network Guard
+
+**OEM Kill Detection & Whitelist Banner**:
+在冷启动时比对上次持久化会话异常终止状态以识别系统强制查杀，并在播放界面展示可跳转至系统电池优化及厂商自启动/神隐模式配置的交互横幅。
+_Avoid_: Battery Dialog, Permission Pop-up, Kill Warning
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
