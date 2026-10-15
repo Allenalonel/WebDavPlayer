@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: 直连媒体会话切歌意图至播放会话 (Direct MediaSession Skip Intent to AppSession), 02: 扩展流式播放管道接口与底层实现 (Expand Streaming Pipeline Interface in Engine)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 播放会话层内的切歌与起播逻辑全面改用底层引擎的 `loadTrack`，不再向底层传递多曲目列表或外部索引
 - [ ] 随机播放模式下的置换序列完全由播放队列数据结构及会话层自身管理，彻底消除对底层播放引擎洗牌属性的任何读取
