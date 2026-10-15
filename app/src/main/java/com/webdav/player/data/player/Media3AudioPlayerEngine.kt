@@ -86,6 +86,9 @@ class Media3AudioPlayerEngine(
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
+    val hardwareLockManager: StreamingHardwareLockManager =
+        (mediaSourceAdapter as? DefaultWebDavMediaSourceAdapter)?.hardwareLockManager
+            ?: DefaultStreamingHardwareLockManager(context),
 ) : AudioPlayerEngine {
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
 
@@ -151,6 +154,7 @@ class Media3AudioPlayerEngine(
                 .Builder(context, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
+                .setWakeMode(C.WAKE_MODE_NETWORK)
                 .setAudioAttributes(
                     AudioAttributes
                         .Builder()
@@ -532,6 +536,7 @@ class Media3AudioPlayerEngine(
 
     override fun stop() {
         runOnApplicationLooper {
+            hardwareLockManager.releaseLocks()
             commitPendingEnrichedItem(0)
             activeTrackMetadataRef.set(null)
             audioFocusHandler.abandonAudioFocus()
@@ -546,6 +551,7 @@ class Media3AudioPlayerEngine(
 
     override fun release() {
         runOnApplicationLooper {
+            hardwareLockManager.release()
             pendingEnrichedItems.clear()
             activeTrackMetadataRef.set(null)
             sessionListeners.clear()
@@ -589,6 +595,12 @@ class Media3AudioPlayerEngine(
                     PlaybackState.Idle
                 }
             }
+
+        when (state) {
+            is PlaybackState.Playing,
+            is PlaybackState.Buffering -> hardwareLockManager.acquireLocks()
+            else -> hardwareLockManager.releaseLocks()
+        }
         _playbackState.value = state
     }
 

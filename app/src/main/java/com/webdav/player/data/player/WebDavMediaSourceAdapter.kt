@@ -70,6 +70,7 @@ class DefaultWebDavMediaSourceAdapter(
     val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
     val loadErrorHandlingPolicy: LoadErrorHandlingPolicy = WebDavLoadErrorHandlingPolicy(),
     val resilientSleeper: ((Long) -> Unit)? = null,
+    val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
 ) : WebDavMediaSourceAdapter {
     private data class DataSourceCacheKey(
         val serverId: Long,
