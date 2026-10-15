@@ -144,17 +144,19 @@ class MusicPlayerAppSessionTest {
             val track2 = RemoteFile(name = "02 - Main Song.flac", path = "/Music/Album/02 - Main Song.flac", size = 5000)
             val directory = RemoteDirectory(path = "/Music/Album/", name = "Album", files = listOf(track1, track2))
 
-            val metadataMap = mapOf(
-                track2.path to TrackMetadata(
-                    serverId = testServer.id,
-                    remotePath = track2.path,
-                    title = "Enriched Main Song",
-                    artist = "Enriched Artist",
-                    album = "Enriched Album",
-                    durationMs = 215000L,
-                    coverThumbnailPath = "/covers/enriched_thumb.jpg",
+            val metadataMap =
+                mapOf(
+                    track2.path to
+                        TrackMetadata(
+                            serverId = testServer.id,
+                            remotePath = track2.path,
+                            title = "Enriched Main Song",
+                            artist = "Enriched Artist",
+                            album = "Enriched Album",
+                            durationMs = 215000L,
+                            coverThumbnailPath = "/covers/enriched_thumb.jpg",
+                        ),
                 )
-            )
 
             session.playDirectoryTrack(directory, track2, initialMetadata = metadataMap)
 
@@ -187,14 +189,15 @@ class MusicPlayerAppSessionTest {
             val track = RemoteFile(name = "cached.mp3", path = "/Music/cached.mp3", size = 3000)
             val directory = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(track))
 
-            val cachedMetadata = TrackMetadata(
-                serverId = testServer.id,
-                remotePath = track.path,
-                title = "Cached Song Title",
-                artist = "Cached Artist",
-                durationMs = 180000L,
-                coverThumbnailPath = "/cache/covers/room_art.jpg",
-            )
+            val cachedMetadata =
+                TrackMetadata(
+                    serverId = testServer.id,
+                    remotePath = track.path,
+                    title = "Cached Song Title",
+                    artist = "Cached Artist",
+                    durationMs = 180000L,
+                    coverThumbnailPath = "/cache/covers/room_art.jpg",
+                )
             fakeMetadataRepo.emit(listOf(cachedMetadata))
             advanceUntilIdle()
 
@@ -247,28 +250,31 @@ class MusicPlayerAppSessionTest {
             val trackAlbum = RemoteFile(name = "02 - Beethoven.flac", path = "/Music/Album/02 - Beethoven.flac", size = 50000)
             val track3 = RemoteFile(name = "03 - Outro.wav", path = "/Music/Album/03 - Outro.wav", size = 8000)
 
-            val directory = RemoteDirectory(
-                path = "/Music/Album/",
-                name = "Album",
-                files = listOf(track1, trackAlbum, track3),
-            )
+            val directory =
+                RemoteDirectory(
+                    path = "/Music/Album/",
+                    name = "Album",
+                    files = listOf(track1, trackAlbum, track3),
+                )
 
-            val vt1 = VirtualTrack(
-                trackNumber = 1,
-                title = "Allegro",
-                performer = "Karajan",
-                startTimeMs = 0L,
-                endTimeMs = 180000L,
-                parentAudioPath = trackAlbum.path,
-            )
-            val vt2 = VirtualTrack(
-                trackNumber = 2,
-                title = "Adagio",
-                performer = "Karajan",
-                startTimeMs = 180000L,
-                endTimeMs = 400000L,
-                parentAudioPath = trackAlbum.path,
-            )
+            val vt1 =
+                VirtualTrack(
+                    trackNumber = 1,
+                    title = "Allegro",
+                    performer = "Karajan",
+                    startTimeMs = 0L,
+                    endTimeMs = 180000L,
+                    parentAudioPath = trackAlbum.path,
+                )
+            val vt2 =
+                VirtualTrack(
+                    trackNumber = 2,
+                    title = "Adagio",
+                    performer = "Karajan",
+                    startTimeMs = 180000L,
+                    endTimeMs = 400000L,
+                    parentAudioPath = trackAlbum.path,
+                )
             val virtualTracksMap = mapOf(trackAlbum.path to listOf(vt1, vt2))
 
             // Case A: User clicks the CUE parent audio album file
@@ -725,7 +731,11 @@ class MusicPlayerAppSessionTest {
 
             // song1 did NOT change! song2 changed in queue, but since song2 is not playing, engine is not disrupted.
             assertEquals(1, fakeEngine.updateTrackMetadataCalls)
-            assertEquals("Rich Song Two", sessionWithRepo.sessionState.value.queue.tracks[1].title)
+            assertEquals(
+                "Rich Song Two",
+                sessionWithRepo.sessionState.value.queue.tracks[1]
+                    .title,
+            )
 
             sessionWithRepo.release()
         }
@@ -1098,7 +1108,11 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 1",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             val initialUpdateCalls = fakeEngine.updateTrackMetadataCalls
 
             // 1. Playback proceeds inside track 1
@@ -1251,7 +1265,11 @@ class MusicPlayerAppSessionTest {
             session.skipToNext()
             advanceUntilIdle()
             assertEquals(1, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 2", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 2",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(180_000L, fakeEngine.seekToPosition)
             assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
 
@@ -1269,7 +1287,11 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
             // Steps to Track 1 (starts at 0L)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 1",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(0L, fakeEngine.seekToPosition)
             assertEquals("Virtual Track 1", fakeEngine.lastTracks[0].title)
 
@@ -1277,7 +1299,11 @@ class MusicPlayerAppSessionTest {
             session.playQueueIndex(2)
             advanceUntilIdle()
             assertEquals(2, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(420_000L, fakeEngine.seekToPosition)
             assertEquals("Virtual Track 3", fakeEngine.lastTracks[0].title)
         }
@@ -1340,7 +1366,11 @@ class MusicPlayerAppSessionTest {
             session.skipToNext()
             advanceUntilIdle()
             assertEquals(1, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 2", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 2",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(180_000L, fakeEngine.seekToPosition)
             assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
 
@@ -1356,7 +1386,11 @@ class MusicPlayerAppSessionTest {
             session.skipToPrevious()
             advanceUntilIdle()
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 1",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(0L, fakeEngine.seekToPosition)
             assertEquals("Virtual Track 1", fakeEngine.lastTracks[0].title)
         }
@@ -1418,7 +1452,11 @@ class MusicPlayerAppSessionTest {
 
             assertEquals(1, fakeEngine.playTracksCount)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 1",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
 
             // 2. User selects Track 3 of the same CUE album from directory browser
             session.playVirtualTracks(
@@ -1432,7 +1470,11 @@ class MusicPlayerAppSessionTest {
             assertEquals(1, fakeEngine.playTracksCount)
             assertEquals(420_000L, fakeEngine.seekToPosition)
             assertEquals(2, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(0L, session.playbackProgress.value.currentPositionMs)
             assertEquals(180_000L, session.playbackProgress.value.durationMs)
             assertEquals("Virtual Track 3", fakeEngine.lastTracks[0].title)
@@ -1452,7 +1494,11 @@ class MusicPlayerAppSessionTest {
             assertEquals(1, fakeEngine.playTracksCount) // Still no re-creation!
             assertEquals(180_000L, fakeEngine.seekToPosition)
             assertEquals(1, session.sessionState.value.queue.currentIndex)
-            assertEquals("Virtual Track 2", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Virtual Track 2",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertTrue(session.sessionState.value.isPlaying)
 
             // 4. Different parent track DOES recreate physical stream
@@ -1477,7 +1523,11 @@ class MusicPlayerAppSessionTest {
 
             assertEquals(2, fakeEngine.playTracksCount)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("Other Track 1", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Other Track 1",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
         }
 
     @Test
@@ -1501,7 +1551,11 @@ class MusicPlayerAppSessionTest {
 
             // Duration Guard must prevent advancing to track 2
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "01.mp3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
 
             // Must trigger in-place resumption from 45,000ms
             assertEquals(45_000L, fakeEngine.seekToPosition)
@@ -1528,7 +1582,11 @@ class MusicPlayerAppSessionTest {
 
             // Successfully advanced to track 2
             assertEquals(1, session.sessionState.value.queue.currentIndex)
-            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "02.mp3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
         }
 
     @Test
@@ -1552,7 +1610,11 @@ class MusicPlayerAppSessionTest {
 
             // Folder Ring: loops back to index 0, never leaves directory
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "01.mp3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
         }
 
     @Test
@@ -1763,7 +1825,11 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "01.mp3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             val initialLoadCount = fakeEngine.loadTrackCount
             assertEquals(1, initialLoadCount)
 
@@ -1782,7 +1848,11 @@ class MusicPlayerAppSessionTest {
 
             assertFalse("isPrerollAppended must reset to false after transition", session.isPrerollAppended.get())
             assertEquals(1, session.sessionState.value.queue.currentIndex)
-            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "02.mp3",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(
                 "loadTrack must NOT be called again because engine transitioned seamlessly",
                 initialLoadCount,

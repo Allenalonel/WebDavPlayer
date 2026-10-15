@@ -311,7 +311,9 @@ class PlaybackSessionHostTest {
 
     @Test
     fun hardwareMediaButtons_dispatchDirectlyToHost() {
-        val appSession = com.webdav.player.domain.session.FakeMusicPlayerAppSession()
+        val appSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
         val callback = WebDavMediaSessionCallback(host, appSession)
 
         val playIntent =

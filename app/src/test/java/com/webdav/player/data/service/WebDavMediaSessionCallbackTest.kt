@@ -22,7 +22,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class WebDavMediaSessionCallbackTest {
-
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var callback: WebDavMediaSessionCallback
 
@@ -49,19 +48,21 @@ class WebDavMediaSessionCallbackTest {
         return allocateInstanceMethod.invoke(unsafe, clazz) as T
     }
 
-    private val testServer = WebDavServer(
-        id = 1L,
-        name = "Test",
-        url = "http://localhost:8080/dav",
-        port = 8080,
-        pathPrefix = "/dav"
-    )
+    private val testServer =
+        WebDavServer(
+            id = 1L,
+            name = "Test",
+            url = "http://localhost:8080/dav",
+            port = 8080,
+            pathPrefix = "/dav",
+        )
 
-    private val testTracks = listOf(
-        AudioTrack("1", 1L, "/1.mp3", "Song 1", format = AudioFormat.MP3, size = 100L),
-        AudioTrack("2", 1L, "/2.mp3", "Song 2", format = AudioFormat.MP3, size = 200L),
-        AudioTrack("3", 1L, "/3.mp3", "Song 3", format = AudioFormat.MP3, size = 300L)
-    )
+    private val testTracks =
+        listOf(
+            AudioTrack("1", 1L, "/1.mp3", "Song 1", format = AudioFormat.MP3, size = 100L),
+            AudioTrack("2", 1L, "/2.mp3", "Song 2", format = AudioFormat.MP3, size = 200L),
+            AudioTrack("3", 1L, "/3.mp3", "Song 3", format = AudioFormat.MP3, size = 300L),
+        )
 
     @Before
     fun setUp() {
@@ -69,7 +70,10 @@ class WebDavMediaSessionCallbackTest {
         callback = WebDavMediaSessionCallback(fakeEngine)
     }
 
-    private fun createMediaButtonIntent(keyCode: Int, action: Int = KeyEvent.ACTION_DOWN): Intent {
+    private fun createMediaButtonIntent(
+        keyCode: Int,
+        action: Int = KeyEvent.ACTION_DOWN,
+    ): Intent {
         val intent = Intent(Intent.ACTION_MEDIA_BUTTON)
         val event = KeyEvent(action, keyCode)
         intent.putExtra(Intent.EXTRA_KEY_EVENT, event)

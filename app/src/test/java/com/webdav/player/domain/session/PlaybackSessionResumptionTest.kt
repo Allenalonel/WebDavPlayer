@@ -891,10 +891,12 @@ class PlaybackSessionResumptionTest {
         override suspend fun testConnection(server: WebDavServer): com.webdav.player.data.remote.ConnectionResult =
             com.webdav.player.data.remote.ConnectionResult.Success
 
-        override suspend fun listDirectory(server: WebDavServer, path: String) =
-            com.webdav.player.domain.model.ListDirectoryResult.Success(
-                RemoteDirectory(path = path, name = path.substringAfterLast('/'), files = emptyList()),
-            )
+        override suspend fun listDirectory(
+            server: WebDavServer,
+            path: String,
+        ) = com.webdav.player.domain.model.ListDirectoryResult.Success(
+            RemoteDirectory(path = path, name = path.substringAfterLast('/'), files = emptyList()),
+        )
 
         override suspend fun fetchRange(
             server: WebDavServer,
@@ -903,8 +905,10 @@ class PlaybackSessionResumptionTest {
             endByte: Long,
         ): ByteArray? = null
 
-        override suspend fun fetchText(server: WebDavServer, remotePath: String): String? =
-            textResponses[remotePath]
+        override suspend fun fetchText(
+            server: WebDavServer,
+            remotePath: String,
+        ): String? = textResponses[remotePath]
     }
 
     @Test
@@ -984,7 +988,11 @@ class PlaybackSessionResumptionTest {
             assertEquals(0, fakeEngine.lastStartIndex)
             assertEquals(98000L, fakeEngine.lastStartPositionMs)
             assertTrue(session.sessionState.value.isPlaying)
-            assertEquals("Breathe (In the Air)", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "Breathe (In the Air)",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
 
             session.pause()
             advanceUntilIdle()
@@ -1037,9 +1045,10 @@ class PlaybackSessionResumptionTest {
     @Test
     fun coldStart_withVirtualTrackSession_whenCueMalformed_fallsBackSafelyToOrdinaryBigAudioPlayback() =
         runTest(testDispatcher) {
-            val fakeClient = TestWebDavClient(
-                mutableMapOf("/Music/PinkFloyd/corrupted.cue" to "THIS IS JUST BINARY GARBAGE WITH NO TRACKS")
-            )
+            val fakeClient =
+                TestWebDavClient(
+                    mutableMapOf("/Music/PinkFloyd/corrupted.cue" to "THIS IS JUST BINARY GARBAGE WITH NO TRACKS"),
+                )
             val savedSession =
                 PlaybackSessionData(
                     activeServerId = 1L,
@@ -1110,11 +1119,12 @@ class PlaybackSessionResumptionTest {
             session.setActiveServer(testServer)
             advanceUntilIdle()
 
-            val parsedTracks = CueParser.parse(
-                content = cueContentSample,
-                parentAudioPath = darkSideTrack.remotePath,
-                totalDurationMs = darkSideTrack.durationMs,
-            )
+            val parsedTracks =
+                CueParser.parse(
+                    content = cueContentSample,
+                    parentAudioPath = darkSideTrack.remotePath,
+                    totalDurationMs = darkSideTrack.durationMs,
+                )
 
             // Start playing Track 2 (index 1: starts at 73000L)
             session.playVirtualTracks(
@@ -1171,7 +1181,11 @@ class PlaybackSessionResumptionTest {
             runCurrent()
 
             assertEquals(2, session.sessionState.value.queue.currentIndex)
-            assertEquals("On the Run", session.sessionState.value.currentTrack?.title)
+            assertEquals(
+                "On the Run",
+                session.sessionState.value.currentTrack
+                    ?.title,
+            )
             assertEquals(0L, session.playbackProgress.value.currentPositionMs)
 
             // User taps play
