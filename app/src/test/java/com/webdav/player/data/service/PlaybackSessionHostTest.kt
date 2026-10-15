@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.view.KeyEvent
-import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -16,6 +15,14 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,9 +37,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class PlaybackSessionHostTest {
+    private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
+
     private lateinit var context: Context
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var exoPlayer: Player
@@ -63,6 +73,7 @@ class PlaybackSessionHostTest {
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
         previousHost = PlaybackSessionHost.currentInstanceForTesting()
 
@@ -83,11 +94,14 @@ class PlaybackSessionHostTest {
                 audioFocusHandler =
                     com.webdav.player.data.player
                         .AudioFocusHandler(context, fakeEngine),
+                coroutineScope = testScope,
             )
         PlaybackSessionHost.setInstanceForTesting(host)
 
         serviceController = Robolectric.buildService(WebDavMediaService::class.java)
         service = serviceController.create().get()
+
+        testScope.runCurrent()
     }
 
     @After
@@ -99,6 +113,7 @@ class PlaybackSessionHostTest {
         mediaSession.release()
         exoPlayer.release()
         PlaybackSessionHost.setInstanceForTesting(previousHost)
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -223,7 +238,7 @@ class PlaybackSessionHostTest {
     }
 
     @Test
-    fun playbackPaused_gracefullyDemotesForeground_preventsAppIdleTermination() {
+    fun playbackPaused_maintainsForegroundAndSchedulesDeferredDemotion() {
         val shadowService = shadowOf(service)
 
         // First elevate to playing
@@ -233,14 +248,107 @@ class PlaybackSessionHostTest {
         // Now pause
         host.handlePlaybackStateChanged(PlaybackState.Paused)
 
-        // Foreground should be gracefully demoted (STOP_FOREGROUND_DETACH)
-        assertFalse(host.isForegroundActive)
-        assertTrue(shadowService.isForegroundStopped)
+        // Foreground should NOT be demoted immediately; 15-min demotion scheduled
+        assertTrue(host.isForegroundActive)
+        assertTrue(host.isDemotionPending)
+        assertFalse(shadowService.isForegroundStopped)
 
         // Notification should still be retained in NotificationManager for user resumption
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notifications = notificationManager.activeNotifications
         assertTrue(notifications.any { it.id == host.notificationProvider.notificationId })
+    }
+
+    @Test
+    fun playbackPaused_at14Minutes_maintainsForegroundService() {
+        val shadowService = shadowOf(service)
+
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        fakeEngine._playbackState.value = PlaybackState.Paused
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+
+        assertTrue(host.isForegroundActive)
+        assertTrue(host.isDemotionPending)
+
+        // Advance virtual clock by 14 minutes
+        testScope.advanceTimeBy(14 * 60 * 1000L)
+        testScope.runCurrent()
+
+        // At 14 minutes, still within grace period: foreground remains active
+        assertTrue(host.isForegroundActive)
+        assertTrue(host.isDemotionPending)
+        assertFalse(shadowService.isForegroundStopped)
+    }
+
+    @Test
+    fun playbackPaused_at15Minutes_triggersDeferredDemotion() {
+        val shadowService = shadowOf(service)
+
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        fakeEngine._playbackState.value = PlaybackState.Paused
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+
+        // Advance virtual clock across the 15-minute threshold
+        testScope.advanceTimeBy(15 * 60 * 1000L)
+        testScope.runCurrent()
+
+        // After 15 minutes without resumption: foreground demoted to save battery
+        assertFalse(host.isForegroundActive)
+        assertFalse(host.isDemotionPending)
+        assertTrue(shadowService.isForegroundStopped)
+
+        // Notification is detached (retained) for user resumption
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notifications = notificationManager.activeNotifications
+        assertTrue(notifications.any { it.id == host.notificationProvider.notificationId })
+    }
+
+    @Test
+    fun playbackPaused_resumedBeforeTimeout_cancelsDemotionTimerAndMaintainsForeground() {
+        val shadowService = shadowOf(service)
+
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        fakeEngine._playbackState.value = PlaybackState.Paused
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+        assertTrue(host.isDemotionPending)
+
+        // User pauses for 5 minutes, then resumes playing
+        testScope.advanceTimeBy(5 * 60 * 1000L)
+        testScope.runCurrent()
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+
+        // Demotion cancelled immediately, foreground uninterrupted
+        assertFalse(host.isDemotionPending)
+        assertTrue(host.isForegroundActive)
+        assertFalse(shadowService.isForegroundStopped)
+
+        // Advance another 15 minutes to guarantee timer is not lingering
+        testScope.advanceTimeBy(15 * 60 * 1000L)
+        testScope.runCurrent()
+        assertTrue(host.isForegroundActive)
+        assertFalse(shadowService.isForegroundStopped)
+    }
+
+    @Test
+    fun playbackPaused_idleOrEnded_cancelsDemotionTimerAndClearsNotification() {
+        val shadowService = shadowOf(service)
+
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        fakeEngine._playbackState.value = PlaybackState.Paused
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+        assertTrue(host.isDemotionPending)
+
+        // Explicit idle or ended cancels pending demotion and clears notification
+        fakeEngine._playbackState.value = PlaybackState.Idle
+        host.handlePlaybackStateChanged(PlaybackState.Idle)
+        assertFalse(host.isDemotionPending)
+        assertFalse(host.isForegroundActive)
+        assertTrue(shadowService.isForegroundStopped)
     }
 
     @Test

@@ -24,6 +24,7 @@ import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -36,11 +37,13 @@ class PlaybackSessionHost(
     val notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
     val mediaSessionCallback: WebDavMediaSessionCallback? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
+    val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
 ) : AudioPlayerEngine by playerEngine {
     constructor(
         context: Context,
         mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
         coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
+        demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
     ) : this(
         context = context,
         engine =
@@ -50,12 +53,14 @@ class PlaybackSessionHost(
                 coroutineScope = coroutineScope,
             ),
         coroutineScope = coroutineScope,
+        demotionTimeoutMs = demotionTimeoutMs,
     )
 
     private constructor(
         context: Context,
         engine: Media3AudioPlayerEngine,
         coroutineScope: CoroutineScope,
+        demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
     ) : this(
         context = context,
         playerEngine = engine,
@@ -64,6 +69,7 @@ class PlaybackSessionHost(
         notificationProvider = WebDavNotificationProvider(context),
         mediaSessionCallback = engine.mediaSessionCallback,
         coroutineScope = coroutineScope,
+        demotionTimeoutMs = demotionTimeoutMs,
     )
 
     fun setAppSession(session: MusicPlayerAppSession?) {
@@ -80,6 +86,10 @@ class PlaybackSessionHost(
     private var hasPlaybackStarted: Boolean = false
 
     private var stateObserverJob: Job? = null
+    private var demotionJob: Job? = null
+
+    val isDemotionPending: Boolean
+        get() = demotionJob?.isActive == true
 
     init {
         observePlaybackState()
@@ -101,19 +111,22 @@ class PlaybackSessionHost(
             is PlaybackState.Playing,
             is PlaybackState.Buffering,
             -> {
+                cancelDemotionTimer()
                 hasPlaybackStarted = true
                 elevateForeground(state)
             }
 
             is PlaybackState.Paused -> {
-                demoteForeground(removeNotification = false, playbackState = state)
+                scheduleDeferredDemotion(state)
             }
 
             is PlaybackState.Error -> {
+                cancelDemotionTimer()
                 demoteForeground(removeNotification = false, playbackState = state)
             }
 
             is PlaybackState.Idle -> {
+                cancelDemotionTimer()
                 if (hasPlaybackStarted) {
                     hasPlaybackStarted = false
                     demoteForeground(removeNotification = true, playbackState = state)
@@ -121,10 +134,35 @@ class PlaybackSessionHost(
             }
 
             is PlaybackState.Ended -> {
+                cancelDemotionTimer()
                 hasPlaybackStarted = false
                 demoteForeground(removeNotification = true, playbackState = state)
             }
         }
+    }
+
+    private fun scheduleDeferredDemotion(state: PlaybackState) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        val notification = buildCurrentNotification(state)
+        notificationManager?.notify(notificationProvider.notificationId, notification)
+
+        cancelDemotionTimer()
+        demotionJob =
+            coroutineScope.launch {
+                delay(demotionTimeoutMs)
+                performDeferredDemotion(state)
+            }
+    }
+
+    private fun performDeferredDemotion(state: PlaybackState) {
+        demotionJob = null
+        demoteForeground(removeNotification = false, playbackState = state)
+    }
+
+    fun cancelDemotionTimer() {
+        demotionJob?.cancel()
+        demotionJob = null
     }
 
     fun attachService(service: WebDavMediaService) {
@@ -138,6 +176,7 @@ class PlaybackSessionHost(
 
     fun detachService(service: WebDavMediaService? = null) {
         if (service == null || this.attachedService == service) {
+            cancelDemotionTimer()
             this.attachedService = null
             this.isForegroundActive = false
             this.hasPlaybackStarted = false
@@ -153,6 +192,7 @@ class PlaybackSessionHost(
     }
 
     fun elevateForeground(playbackState: PlaybackState? = null) {
+        cancelDemotionTimer()
         val service =
             attachedService ?: run {
                 startServiceInternal()
@@ -247,12 +287,14 @@ class PlaybackSessionHost(
     }
 
     override fun stop() {
+        cancelDemotionTimer()
         hasPlaybackStarted = false
         playerEngine.stop()
         demoteForeground(removeNotification = true)
     }
 
     override fun release() {
+        cancelDemotionTimer()
         stateObserverJob?.cancel()
         stateObserverJob = null
         hasPlaybackStarted = false
@@ -268,6 +310,8 @@ class PlaybackSessionHost(
     override fun getVolume(): Float = playerEngine.getVolume()
 
     companion object {
+        const val DEFAULT_DEMOTION_TIMEOUT_MS: Long = 15 * 60 * 1000L
+
         @Volatile
         private var instance: PlaybackSessionHost? = null
 
