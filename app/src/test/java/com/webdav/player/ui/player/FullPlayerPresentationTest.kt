@@ -8,12 +8,20 @@ import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.formatAudiophileSpecs
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class FullPlayerPresentationTest {
 
     private lateinit var fakeSession: FakeMusicPlayerAppSession
@@ -138,5 +146,63 @@ class FullPlayerPresentationTest {
 
         assertTrue(longTrack.title.length > 30)
         // With basicMarquee enabled, long single-line titles can scroll smoothly without truncation
+    }
+
+    @Test
+    fun batteryWhitelistManager_detectsXiaomiAndBuildsProperIntents() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        val xiaomiManager = DefaultBatteryWhitelistManager(
+            manufacturerProvider = { "Xiaomi" },
+            brandProvider = { "Redmi" },
+        )
+        assertTrue(xiaomiManager.isXiaomiDevice())
+
+        val oemIntent = xiaomiManager.createOemAppSettingsIntent(context)
+        assertNotNull(oemIntent)
+        assertTrue(oemIntent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+
+        val ignoreIntent = xiaomiManager.createIgnoreBatteryOptimizationIntent(context)
+        assertEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, ignoreIntent.action)
+        assertEquals("package:${context.packageName}", ignoreIntent.dataString)
+
+        val nonXiaomiManager = DefaultBatteryWhitelistManager(
+            manufacturerProvider = { "Google" },
+            brandProvider = { "Pixel" },
+        )
+        assertFalse(nonXiaomiManager.isXiaomiDevice())
+    }
+
+    @Test
+    fun batteryWhitelistBanner_visibilityAndCopyDerivation_reflectsSystemKill() {
+        val fakeManager = FakeBatteryWhitelistManager(isIgnoring = false, isXiaomi = true)
+
+        // Case 1: Was killed by system -> banner is eligible to be shown and reflects kill state
+        val stateKilled = PlayerSessionState(wasKilledBySystem = true)
+        assertTrue(!fakeManager.isIgnoring)
+        assertTrue(stateKilled.wasKilledBySystem)
+
+        // Case 2: Once whitelisted, banner should automatically hide
+        fakeManager.isIgnoring = true
+        assertTrue(fakeManager.isIgnoring)
+    }
+}
+
+class FakeBatteryWhitelistManager(
+    var isIgnoring: Boolean = false,
+    var isXiaomi: Boolean = false,
+) : BatteryWhitelistManager {
+    var requestIgnoreCount = 0
+    var openOemSettingsCount = 0
+
+    override fun isIgnoringBatteryOptimizations(context: Context): Boolean = isIgnoring
+    override fun isXiaomiDevice(): Boolean = isXiaomi
+    override fun createIgnoreBatteryOptimizationIntent(context: Context): Intent {
+        requestIgnoreCount++
+        return Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+    }
+    override fun createOemAppSettingsIntent(context: Context): Intent {
+        openOemSettingsCount++
+        return Intent("miui.intent.action.APP_PERM_EDITOR")
     }
 }

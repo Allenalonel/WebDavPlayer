@@ -87,6 +87,8 @@ fun FullPlayerView(
     onRemoveQueueTrack: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onRetryPlayback: () -> Unit = onTogglePlayPause,
+    batteryWhitelistManager: BatteryWhitelistManager = remember { DefaultBatteryWhitelistManager() },
+    onDismissBatteryBanner: () -> Unit = {},
 ) {
     var showQueueSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -200,6 +202,12 @@ fun FullPlayerView(
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
                 )
             }
+
+            BatteryWhitelistBanner(
+                wasKilledBySystem = sessionState.wasKilledBySystem,
+                whitelistManager = batteryWhitelistManager,
+                onDismiss = onDismissBatteryBanner,
+            )
 
             // Upper Main Area: Horizontal Pager between Artwork and Lyrics
             HorizontalPager(

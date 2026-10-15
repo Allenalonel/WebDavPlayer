@@ -254,6 +254,7 @@ class MainActivity : ComponentActivity() {
                             onCyclePlaybackMode = { musicSession?.cyclePlaybackMode() },
                             onPlayQueueIndex = { musicSession?.playQueueIndex(it) },
                             onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) },
+                            onDismissBatteryBanner = { musicSession?.clearKilledBySystemFlag() },
                         )
                     }
                 }
