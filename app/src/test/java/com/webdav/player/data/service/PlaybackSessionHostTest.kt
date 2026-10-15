@@ -486,7 +486,7 @@ class PlaybackSessionHostTest {
 
     @Test
     fun service_onTaskRemoved_stopsSelfWhenNotPlaying() {
-        fakeEngine.stop()
+        host.stop()
         service.onTaskRemoved(Intent())
         // Service should stop itself when idle on task remove
         assertTrue(shadowOf(service).isStoppedBySelf)

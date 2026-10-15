@@ -1,7 +1,10 @@
 package com.webdav.player.ui.common
 
+import android.content.ComponentCallbacks2
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.test.core.app.ApplicationProvider
+import com.webdav.player.WebDavApplication
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -72,5 +75,22 @@ class ThumbnailMemoryCacheTest {
 
         ThumbnailMemoryCache.put(path, bitmap2.asImageBitmap())
         assertEquals(32, ThumbnailMemoryCache.get(path)!!.width)
+    }
+
+    @Test
+    fun application_onTrimMemory_clearsCacheOnUiHidden() {
+        val app = ApplicationProvider.getApplicationContext<WebDavApplication>()
+        val bitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        val path = "/local/cache/covers/track_trim.jpg"
+        ThumbnailMemoryCache.put(path, bitmap.asImageBitmap())
+        assertNotNull(ThumbnailMemoryCache.get(path))
+
+        // Level below TRIM_MEMORY_UI_HIDDEN should not clear
+        app.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE)
+        assertNotNull(ThumbnailMemoryCache.get(path))
+
+        // Level at or above TRIM_MEMORY_UI_HIDDEN clears memory
+        app.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)
+        assertNull(ThumbnailMemoryCache.get(path))
     }
 }

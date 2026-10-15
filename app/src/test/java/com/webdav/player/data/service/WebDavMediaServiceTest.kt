@@ -1,5 +1,6 @@
 package com.webdav.player.data.service
 
+import android.app.Service
 import android.content.Intent
 import android.os.Build
 import androidx.annotation.OptIn
@@ -8,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.WebDavApplication
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -118,5 +120,35 @@ class WebDavMediaServiceTest {
             }
         service.onStartCommand(intent, 0, 1)
         assertNotNull(service.playerEngine)
+    }
+
+    @Test
+    fun onStartCommand_returnsStartSticky() {
+        val intent = Intent(service, WebDavMediaService::class.java)
+        val result = service.onStartCommand(intent, 0, 1)
+        assertEquals(Service.START_STICKY, result)
+    }
+
+    @Test
+    fun onTaskRemoved_whenPlayingOrDemotionPending_doesNotStopSelf() {
+        val host = PlaybackSessionHost.getInstance(app)
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+
+        service.onTaskRemoved(Intent())
+        assertFalse(shadowOf(service).isStoppedBySelf)
+
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+        assertTrue(host.isForegroundActive)
+        service.onTaskRemoved(Intent())
+        assertFalse(shadowOf(service).isStoppedBySelf)
+    }
+
+    @Test
+    fun onTaskRemoved_whenDemotedAndIdle_stopsSelf() {
+        val host = PlaybackSessionHost.getInstance(app)
+        host.stop()
+
+        service.onTaskRemoved(Intent())
+        assertTrue(shadowOf(service).isStoppedBySelf)
     }
 }

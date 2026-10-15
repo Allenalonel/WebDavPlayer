@@ -52,6 +52,9 @@ import com.webdav.player.ui.server.ServerManagementViewModel
 import com.webdav.player.ui.server.ServerManagementViewModelFactory
 import com.webdav.player.ui.theme.AppIcons
 import com.webdav.player.ui.theme.WebDavPlayerTheme
+import com.webdav.player.data.service.PlaybackSessionHost
+import com.webdav.player.ui.common.ThumbnailMemoryCache
+import android.content.ComponentCallbacks2
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -258,6 +261,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        PlaybackSessionHost.getInstance(applicationContext).prewarmService()
+    }
+
     override fun onPause() {
         super.onPause()
         flushPlaybackSession()
@@ -266,6 +274,13 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         flushPlaybackSession()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            ThumbnailMemoryCache.clear()
+        }
     }
 
     private fun flushPlaybackSession() {

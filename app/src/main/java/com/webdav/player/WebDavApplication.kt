@@ -1,6 +1,7 @@
 package com.webdav.player
 
 import android.app.Application
+import android.content.ComponentCallbacks2
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
@@ -92,5 +93,12 @@ class WebDavApplication : Application() {
                 webDavClient = webDavClient,
             )
         (playerEngine as? PlaybackSessionHost)?.setAppSession(musicPlayerAppSession)
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            com.webdav.player.ui.common.ThumbnailMemoryCache.clear()
+        }
     }
 }

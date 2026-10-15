@@ -256,6 +256,10 @@ class PlaybackSessionHost(
         }
     }
 
+    fun prewarmService() {
+        ensureServiceStarted()
+    }
+
     private fun ensureServiceStarted() {
         if (attachedService == null) {
             startServiceInternal()

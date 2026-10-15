@@ -77,13 +77,17 @@ class WebDavMediaService : MediaSessionService() {
             WebDavNotificationProvider.ACTION_PREVIOUS -> host.mediaSessionCallback?.appSession?.skipToPrevious()
         }
 
-        return super.onStartCommand(intent, flags, startId)
+        super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val host = sessionHost ?: PlaybackSessionHost.getInstance(applicationContext)
         val player = host.mediaSession.player
-        if (!player.playWhenReady || player.playbackState == Player.STATE_ENDED || player.playbackState == Player.STATE_IDLE) {
+        val isActivelyPlaying = player.playWhenReady && player.playbackState != Player.STATE_ENDED && player.playbackState != Player.STATE_IDLE
+        val isWithinDemotionGracePeriod = host.isDemotionPending || host.isForegroundActive
+
+        if (!isActivelyPlaying && !isWithinDemotionGracePeriod) {
             stopSelf()
         }
     }
