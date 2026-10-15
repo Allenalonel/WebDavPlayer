@@ -172,6 +172,41 @@ class PlaybackSessionHostTest {
     }
 
     @Test
+    fun callersControlPlaybackExclusively_viaLoadTrack_startsServiceAutonomouslyAndForwardsPipelineMethods() {
+        host.detachService(service)
+        assertNull(host.attachedService)
+
+        // Caller loads track solely through AudioPlayerEngine interface
+        host.loadTrack(testServer, testTrack, startPositionMs = 2500L)
+        assertEquals(1, fakeEngine.loadTrackCount)
+        assertEquals(testTrack, fakeEngine.loadedTrack)
+        assertEquals(2500L, fakeEngine.currentPositionMs.value)
+        assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
+
+        // Autonomous service startup intent dispatched
+        val nextIntent = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedService
+        assertNotNull(nextIntent)
+        assertEquals(WebDavMediaService::class.java.name, nextIntent.component?.className)
+
+        // Test preroll forwarding
+        val prerollTrack = testTrack.copy(id = "2", title = "Track 2")
+        host.prerollTrack(testServer, prerollTrack)
+        assertTrue(fakeEngine.isPrerollActive)
+        assertEquals(prerollTrack, fakeEngine.prerolledTrack)
+
+        // Test clearPrerollTrack forwarding
+        host.clearPrerollTrack()
+        assertFalse(fakeEngine.isPrerollActive)
+        assertEquals(1, fakeEngine.clearPrerollCount)
+
+        // Test updateTrackMetadata forwarding
+        val updatedTrack = testTrack.copy(title = "Updated Title")
+        host.updateTrackMetadata(updatedTrack)
+        assertEquals(1, fakeEngine.updateTrackMetadataCalls)
+        assertEquals(updatedTrack, fakeEngine.loadedTrack)
+    }
+
+    @Test
     fun playbackPlayingOrBuffering_autonomouslyElevatesForeground() {
         val shadowService = shadowOf(service)
 

@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] 播放引擎接口定义纯流式加载方法（`loadTrack(server, track, startPositionMs)`）、收窄版预卷方法（`prerollTrack(server, track)`）、预卷清除方法（`clearPrerollTrack()`）及单轨元数据无打扰更新方法（`updateTrackMetadata(track)`）
-- [ ] 真实播放引擎实现类完成新流式方法的适配，内部确保仅针对当前单轨建立媒体源，并支持在需要时挂载至多一个预卷媒体源
-- [ ] 前台服务宿主装饰器透明对齐并透传新流式接口方法，维持首帧前台服务启动和通知栏构建的生命周期契约
-- [ ] 既有旧接口方法保留并作为兼容委托，确保在此阶段未迁移的旧调用点不发生编译错误
+- [x] 播放引擎接口定义纯流式加载方法（`loadTrack(server, track, startPositionMs)`）、收窄版预卷方法（`prerollTrack(server, track)`）、预卷清除方法（`clearPrerollTrack()`）及单轨元数据无打扰更新方法（`updateTrackMetadata(track)`）
+- [x] 真实播放引擎实现类完成新流式方法的适配，内部确保仅针对当前单轨建立媒体源，并支持在需要时挂载至多一个预卷媒体源
+- [x] 前台服务宿主装饰器透明对齐并透传新流式接口方法，维持首帧前台服务启动和通知栏构建的生命周期契约
+- [x] 既有旧接口方法保留并作为兼容委托，确保在此阶段未迁移的旧调用点不发生编译错误

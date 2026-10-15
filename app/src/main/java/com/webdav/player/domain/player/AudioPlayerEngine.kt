@@ -24,6 +24,12 @@ interface AudioPlayerEngine {
 
     fun setSkipHandler(handler: SkipHandler?) {}
 
+    fun loadTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+        startPositionMs: Long = 0L,
+    )
+
     fun playTracks(
         server: WebDavServer,
         tracks: List<AudioTrack>,
@@ -64,10 +70,21 @@ interface AudioPlayerEngine {
     fun prerollTrack(
         server: WebDavServer,
         track: AudioTrack,
-        targetTrackIndex: Int = -1,
     ) {}
 
+    fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+        targetTrackIndex: Int,
+    ) {
+        prerollTrack(server, track)
+    }
+
     fun clearPrerollTrack() {}
+
+    fun updateTrackMetadata(
+        track: AudioTrack,
+    ) {}
 
     fun stop()
 

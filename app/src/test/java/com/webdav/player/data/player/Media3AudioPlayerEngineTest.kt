@@ -723,4 +723,120 @@ class Media3AudioPlayerEngineTest {
             .idleMainLooper()
         assertEquals(1, engine.player.mediaItemCount)
     }
+
+    @Test
+    fun loadTrack_startsPlaybackOfSingleTrack_atSpecifiedPosition() {
+        engine.loadTrack(
+            server = testServer,
+            track = track1,
+            startPositionMs = 3500L,
+        )
+
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        assertEquals(0, engine.currentTrackIndex.value)
+        assertEquals(1, engine.player.mediaItemCount)
+        assertEquals(3500L, engine.currentPositionMs.value)
+        assertTrue(
+            engine.playbackState.value is PlaybackState.Playing ||
+                engine.playbackState.value is PlaybackState.Buffering,
+        )
+        assertEquals(
+            "audio/mpeg",
+            engine.player
+                .getMediaItemAt(0)
+                .localConfiguration
+                ?.mimeType,
+        )
+    }
+
+    @Test
+    fun prerollTrack_and_clearPrerollTrack_properlyAddAndRemovePrerollSource() {
+        engine.loadTrack(
+            server = testServer,
+            track = track1,
+        )
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(1, engine.player.mediaItemCount)
+
+        // Preroll next track
+        engine.prerollTrack(testServer, track2)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        assertEquals(2, engine.player.mediaItemCount)
+        assertEquals(
+            "audio/flac",
+            engine.player
+                .getMediaItemAt(1)
+                .localConfiguration
+                ?.mimeType,
+        )
+
+        // Preroll when item count already >= 2 does not add duplicate
+        engine.prerollTrack(testServer, track3)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(2, engine.player.mediaItemCount)
+
+        // Clear preroll track
+        engine.clearPrerollTrack()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(1, engine.player.mediaItemCount)
+
+        // Redundant clearPrerollTrack is safe
+        engine.clearPrerollTrack()
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(1, engine.player.mediaItemCount)
+    }
+
+    @Test
+    fun updateTrackMetadata_updatesMetadataNonDisruptively() {
+        engine.loadTrack(
+            server = testServer,
+            track = track1,
+            startPositionMs = 5000L,
+        )
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        val originalItem = engine.player.getMediaItemAt(0)
+        assertEquals(5000L, engine.currentPositionMs.value)
+
+        val updated = track1.copy(title = "Enriched Stream Title", artist = "Enriched Artist")
+        engine.updateTrackMetadata(updated)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        // Active playing MediaItem is NOT replaced to avoid decoder destruction / rebuffering glitches
+        val currentItem = engine.player.getMediaItemAt(0)
+        assertEquals("01.mp3", currentItem.mediaMetadata.title?.toString())
+        assertEquals(originalItem.mediaMetadata.title, currentItem.mediaMetadata.title)
+
+        // Position is preserved
+        assertEquals(5000L, engine.currentPositionMs.value)
+        assertTrue(
+            engine.playbackState.value is PlaybackState.Playing ||
+                engine.playbackState.value is PlaybackState.Buffering,
+        )
+
+        // MediaSession player mediaMetadata is updated
+        assertEquals(
+            "Enriched Stream Title",
+            engine.mediaSession.player.mediaMetadata.title?.toString(),
+        )
+        assertEquals(
+            "Enriched Artist",
+            engine.mediaSession.player.mediaMetadata.artist?.toString(),
+        )
+
+        // Notification constructed from mediaSession reflects updated metadata
+        val notificationProvider =
+            com.webdav.player.data.service.WebDavNotificationProvider(context)
+        val notification = notificationProvider.buildNotification(engine.mediaSession, engine.playbackState.value)
+        assertEquals(
+            "Enriched Stream Title",
+            notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString(),
+        )
+        assertEquals(
+            "Enriched Artist",
+            notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString(),
+        )
+    }
 }

@@ -401,6 +401,33 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    override fun loadTrack(
+        server: WebDavServer,
+        track: AudioTrack,
+        startPositionMs: Long,
+    ) {
+        runOnApplicationLooper {
+            pendingEnrichedItems.clear()
+            activeTrackMetadataRef.set(null)
+            player.playlistMetadata = MediaMetadata.EMPTY
+            activeServerRef.set(server)
+            loadedTracks = listOf(track)
+            _currentTrackIndex.value = 0
+            _currentPositionMs.value = startPositionMs
+
+            if (player is ExoPlayer) {
+                val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
+                player.setMediaSource(mediaSource, startPositionMs)
+            } else {
+                val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
+                player.setMediaItem(mediaItem, startPositionMs)
+            }
+            player.prepare()
+            audioFocusHandler.requestAudioFocus()
+            player.play()
+        }
+    }
+
     override fun playTracks(
         server: WebDavServer,
         tracks: List<AudioTrack>,
@@ -576,6 +603,23 @@ class Media3AudioPlayerEngine(
     override fun prerollTrack(
         server: WebDavServer,
         track: AudioTrack,
+    ) {
+        runOnApplicationLooper {
+            if (player.mediaItemCount >= 2) return@runOnApplicationLooper
+            prerollTargetTrackIndex.set(-1)
+            if (player is ExoPlayer) {
+                val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
+                player.addMediaSource(mediaSource)
+            } else {
+                val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
+                player.addMediaItem(mediaItem)
+            }
+        }
+    }
+
+    override fun prerollTrack(
+        server: WebDavServer,
+        track: AudioTrack,
         targetTrackIndex: Int,
     ) {
         runOnApplicationLooper {
@@ -621,6 +665,18 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    override fun updateTrackMetadata(track: AudioTrack) {
+        runOnApplicationLooper {
+            if (loadedTracks.isNotEmpty()) {
+                val currentIndex = _currentTrackIndex.value.coerceIn(0, loadedTracks.lastIndex)
+                val mutable = loadedTracks.toMutableList()
+                mutable[currentIndex] = track
+                loadedTracks = mutable
+            }
+            applyActiveTrackMetadataUpdate(track)
+        }
+    }
+
     override fun updateTrack(
         index: Int,
         track: AudioTrack,
@@ -633,68 +689,74 @@ class Media3AudioPlayerEngine(
             }
 
             val isCurrentTrack = index == _currentTrackIndex.value
-            if (isCurrentTrack && player.mediaItemCount > 0) {
-                val currentItem = player.getMediaItemAt(0)
-                val currentMeta = currentItem.mediaMetadata
+            if (isCurrentTrack) {
+                applyActiveTrackMetadataUpdate(track)
+            }
+        }
+    }
 
-                val isActivelyPlayingOrBuffering =
-                    _playbackState.value is PlaybackState.Playing ||
-                        _playbackState.value is PlaybackState.Buffering ||
-                        player.isPlaying ||
-                        player.playbackState == Player.STATE_BUFFERING ||
-                        (player.playbackState == Player.STATE_READY && player.playWhenReady)
+    private fun applyActiveTrackMetadataUpdate(track: AudioTrack) {
+        if (player.mediaItemCount <= 0) return
 
-                val effectiveMeta =
-                    if (player.playlistMetadata != MediaMetadata.EMPTY) {
-                        player.playlistMetadata
-                    } else {
-                        currentMeta
-                    }
+        val currentItem = player.getMediaItemAt(0)
+        val currentMeta = currentItem.mediaMetadata
 
-                val newArtworkUri = track.coverThumbnailPath?.let { Uri.fromFile(File(it)) }
-                val sameTitle = effectiveMeta.title?.toString() == track.title
-                val sameArtist = (effectiveMeta.artist?.toString() ?: "") == (track.artist ?: "")
-                val sameAlbum = (effectiveMeta.albumTitle?.toString() ?: "") == (track.album ?: "")
-                val sameArtwork = effectiveMeta.artworkUri == newArtworkUri
+        val isActivelyPlayingOrBuffering =
+            _playbackState.value is PlaybackState.Playing ||
+                _playbackState.value is PlaybackState.Buffering ||
+                player.isPlaying ||
+                player.playbackState == Player.STATE_BUFFERING ||
+                (player.playbackState == Player.STATE_READY && player.playWhenReady)
 
-                if (sameTitle && sameArtist && sameAlbum && sameArtwork) {
-                    return@runOnApplicationLooper // Metadata identical; bypass to prevent redundant churn
-                }
+        val effectiveMeta =
+            if (player.playlistMetadata != MediaMetadata.EMPTY) {
+                player.playlistMetadata
+            } else {
+                currentMeta
+            }
 
-                val metaBuilder =
-                    currentItem.mediaMetadata
-                        .buildUpon()
-                        .setTitle(track.title)
-                        .setArtist(track.artist)
-                        .setAlbumTitle(track.album)
-                if (newArtworkUri != null) {
-                    metaBuilder.setArtworkUri(newArtworkUri)
-                } else if (currentItem.mediaMetadata.artworkUri != null) {
-                    metaBuilder.setArtworkUri(null)
-                }
-                val updatedMetadata = metaBuilder.build()
-                val updatedItem =
-                    currentItem
-                        .buildUpon()
-                        .setMediaMetadata(updatedMetadata)
-                        .build()
+        val newArtworkUri = track.coverThumbnailPath?.let { Uri.fromFile(File(it)) }
+        val sameTitle = effectiveMeta.title?.toString() == track.title
+        val sameArtist = (effectiveMeta.artist?.toString() ?: "") == (track.artist ?: "")
+        val sameAlbum = (effectiveMeta.albumTitle?.toString() ?: "") == (track.album ?: "")
+        val sameArtwork = effectiveMeta.artworkUri == newArtworkUri
 
-                if (isActivelyPlayingOrBuffering) {
-                    activeTrackMetadataRef.set(updatedMetadata)
-                    player.playlistMetadata = updatedMetadata
-                    pendingEnrichedItems[0] = updatedItem
+        if (sameTitle && sameArtist && sameAlbum && sameArtwork) {
+            return // Metadata identical; bypass to prevent redundant churn
+        }
 
-                    for (l in sessionListeners) {
-                        try {
-                            l.onMediaMetadataChanged(updatedMetadata)
-                        } catch (_: Throwable) {
-                        }
-                    }
-                } else {
-                    pendingEnrichedItems.remove(0)
-                    player.replaceMediaItem(0, updatedItem)
+        val metaBuilder =
+            currentItem.mediaMetadata
+                .buildUpon()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+        if (newArtworkUri != null) {
+            metaBuilder.setArtworkUri(newArtworkUri)
+        } else if (currentItem.mediaMetadata.artworkUri != null) {
+            metaBuilder.setArtworkUri(null)
+        }
+        val updatedMetadata = metaBuilder.build()
+        val updatedItem =
+            currentItem
+                .buildUpon()
+                .setMediaMetadata(updatedMetadata)
+                .build()
+
+        if (isActivelyPlayingOrBuffering) {
+            activeTrackMetadataRef.set(updatedMetadata)
+            player.playlistMetadata = updatedMetadata
+            pendingEnrichedItems[0] = updatedItem
+
+            for (l in sessionListeners) {
+                try {
+                    l.onMediaMetadataChanged(updatedMetadata)
+                } catch (_: Throwable) {
                 }
             }
+        } else {
+            pendingEnrichedItems.remove(0)
+            player.replaceMediaItem(0, updatedItem)
         }
     }
 
