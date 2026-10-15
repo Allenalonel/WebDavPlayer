@@ -246,8 +246,7 @@ class PlaybackSessionResumptionTest {
 
             // Engine starts streaming at the exact saved millisecond offset
             assertEquals(testServer, fakeEngine.lastServer)
-            assertEquals(2, fakeEngine.lastTracks.size)
-            assertEquals(1, fakeEngine.lastStartIndex)
+            assertEquals(track2, fakeEngine.loadedTrack)
             assertEquals(75000L, fakeEngine.lastStartPositionMs)
             assertTrue(session.sessionState.value.isPlaying)
 

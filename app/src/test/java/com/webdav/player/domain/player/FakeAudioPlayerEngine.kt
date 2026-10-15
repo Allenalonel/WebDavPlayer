@@ -57,6 +57,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         startPositionMs: Long,
     ) {
         loadTrackCount++
+        playTracksCount++
         lastServer = server
         loadedTrack = track
         lastTracks = listOf(track)
@@ -247,6 +248,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     override fun updateTrackMetadata(track: AudioTrack) {
         updateTrackMetadataCalls++
+        updateTrackCalls++
         lastUpdatedTrack = track
         loadedTrack = track
         if (lastTracks.isNotEmpty()) {
@@ -273,17 +275,12 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     }
 
     fun simulateTrackCompletion() {
-        if (lastTracks.isEmpty()) return
-        when (_playbackMode.value) {
-            PlaybackMode.SINGLE_LOOP -> {
-                // Replays the same track
-                _currentPositionMs.value = 0L
-            }
-
-            PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> {
-                skipToNext()
-            }
+        val curDur = _durationMs.value
+        val dur = if (curDur > 0L) curDur else (loadedTrack?.durationMs ?: 0L)
+        if (dur > 0L) {
+            _currentPositionMs.value = dur
         }
+        _playbackState.value = PlaybackState.Ended
     }
 
     override fun stop() {

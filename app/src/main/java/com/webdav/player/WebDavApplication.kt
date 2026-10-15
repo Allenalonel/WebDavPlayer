@@ -91,5 +91,6 @@ class WebDavApplication : Application() {
                 sessionStore = sessionStore,
                 webDavClient = webDavClient,
             )
+        (playerEngine as? PlaybackSessionHost)?.setAppSession(musicPlayerAppSession)
     }
 }

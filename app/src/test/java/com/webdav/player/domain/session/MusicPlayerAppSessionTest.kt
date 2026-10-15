@@ -127,10 +127,10 @@ class MusicPlayerAppSessionTest {
             assertEquals("02 - Main Song.flac", state.currentTrack?.title)
             assertEquals(AudioFormat.FLAC, state.currentTrack?.format)
 
-            // Verify fake player received playTracks
+            // Verify fake player received loadTrack for selected track
             assertEquals(testServer, fakeEngine.lastServer)
-            assertEquals(3, fakeEngine.lastTracks.size)
-            assertEquals(1, fakeEngine.lastStartIndex)
+            assertEquals(state.currentTrack, fakeEngine.loadedTrack)
+            assertTrue(fakeEngine.loadTrackCount >= 1)
             assertTrue(state.isPlaying)
         }
 
@@ -167,7 +167,7 @@ class MusicPlayerAppSessionTest {
             assertEquals("/covers/enriched_thumb.jpg", immediateTrack?.coverThumbnailPath)
 
             assertEquals(215000L, session.playbackProgress.value.durationMs)
-            assertEquals("/covers/enriched_thumb.jpg", fakeEngine.lastTracks[1].coverThumbnailPath)
+            assertEquals("/covers/enriched_thumb.jpg", fakeEngine.loadedTrack?.coverThumbnailPath)
         }
 
     @Test
@@ -234,8 +234,7 @@ class MusicPlayerAppSessionTest {
             assertEquals("audio/x-ms-wma", state.currentTrack?.format?.mimeType)
 
             assertEquals(testServer, fakeEngine.lastServer)
-            assertEquals(2, fakeEngine.lastTracks.size)
-            assertEquals(AudioFormat.WMA, fakeEngine.lastTracks[0].format)
+            assertEquals(AudioFormat.WMA, fakeEngine.loadedTrack?.format)
         }
 
     @Test
@@ -321,7 +320,7 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
-    fun engineTrackIndexChange_updatesQueueCurrentIndex() =
+    fun sessionSkipToNext_updatesQueueCurrentIndexAndLoadsTrack() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)
             val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
@@ -332,8 +331,8 @@ class MusicPlayerAppSessionTest {
 
             assertEquals(0, session.sessionState.value.queue.currentIndex)
 
-            // Engine transitions to next track
-            fakeEngine._currentTrackIndex.value = 1
+            // Session skips to next track
+            session.skipToNext()
             advanceUntilIdle()
 
             assertEquals(1, session.sessionState.value.queue.currentIndex)
@@ -342,6 +341,7 @@ class MusicPlayerAppSessionTest {
                 session.sessionState.value.currentTrack
                     ?.title,
             )
+            assertEquals("02.mp3", fakeEngine.loadedTrack?.title)
         }
 
     @Test
@@ -408,15 +408,18 @@ class MusicPlayerAppSessionTest {
 
             session.skipToNext()
             advanceUntilIdle()
-            assertEquals(1, fakeEngine._currentTrackIndex.value)
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", fakeEngine.loadedTrack?.title)
 
             session.skipToPrevious()
             advanceUntilIdle()
-            assertEquals(0, fakeEngine._currentTrackIndex.value)
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
 
             session.playQueueIndex(1)
             advanceUntilIdle()
-            assertEquals(1, fakeEngine._currentTrackIndex.value)
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", fakeEngine.loadedTrack?.title)
 
             session.stop()
             advanceUntilIdle()
@@ -589,26 +592,26 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             session.setPlaybackMode(PlaybackMode.SHUFFLE)
-            fakeEngine.shufflePermutation = listOf(0, 2, 1)
+            session.setShuffleOrder(listOf(0, 2, 1))
             advanceUntilIdle()
 
             // Track completion moves 0 -> 2
             fakeEngine.simulateTrackCompletion()
             advanceUntilIdle()
-            assertEquals(2, fakeEngine._currentTrackIndex.value)
             assertEquals(2, session.sessionState.value.queue.currentIndex)
+            assertEquals("03.mp3", fakeEngine.loadedTrack?.title)
 
             // Next completion moves 2 -> 1
             fakeEngine.simulateTrackCompletion()
             advanceUntilIdle()
-            assertEquals(1, fakeEngine._currentTrackIndex.value)
             assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", fakeEngine.loadedTrack?.title)
 
             // Next completion wraps back to 0
             fakeEngine.simulateTrackCompletion()
             advanceUntilIdle()
-            assertEquals(0, fakeEngine._currentTrackIndex.value)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
         }
 
     @Test
@@ -702,9 +705,8 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            // Should ONLY update song1 (index 0)
-            assertEquals(1, fakeEngine.updateTrackCalls)
-            assertEquals(listOf(0), fakeEngine.updatedTrackIndices)
+            // Should update metadata for currently playing song1 (index 0)
+            assertEquals(1, fakeEngine.updateTrackMetadataCalls)
 
             // Now metadata for song2 arrives: Room emits [song1, song2]
             fakeMetadataRepo.emit(
@@ -727,9 +729,9 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            // song1 did NOT change! Only song2 changed! Total calls should be 2 (song1 once, song2 once).
-            assertEquals(2, fakeEngine.updateTrackCalls)
-            assertEquals(listOf(0, 1), fakeEngine.updatedTrackIndices)
+            // song1 did NOT change! song2 changed in queue, but since song2 is not playing, engine is not disrupted.
+            assertEquals(1, fakeEngine.updateTrackMetadataCalls)
+            assertEquals("Rich Song Two", sessionWithRepo.sessionState.value.queue.tracks[1].title)
 
             sessionWithRepo.release()
         }
@@ -1340,24 +1342,24 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            // 1. External player engine (e.g., Notification or MediaSession) triggers skipToNext
-            fakeEngine.skipToNext()
+            // 1. Session skipToNext directly advances to Track 2
+            session.skipToNext()
             advanceUntilIdle()
             assertEquals(1, session.sessionState.value.queue.currentIndex)
             assertEquals("Virtual Track 2", session.sessionState.value.currentTrack?.title)
             assertEquals(180_000L, fakeEngine.seekToPosition)
             assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
 
-            // 2. External player engine triggers skipToPrevious when played > 3s
+            // 2. Session skipToPrevious when played > 3s
             fakeEngine._currentPositionMs.value = 185_000L
-            fakeEngine.skipToPrevious()
+            session.skipToPrevious()
             advanceUntilIdle()
             assertEquals(1, session.sessionState.value.queue.currentIndex)
             assertEquals(180_000L, fakeEngine.seekToPosition)
 
-            // 3. External player engine triggers skipToPrevious when played <= 3s
+            // 3. Session skipToPrevious when played <= 3s
             fakeEngine._currentPositionMs.value = 181_000L
-            fakeEngine.skipToPrevious()
+            session.skipToPrevious()
             advanceUntilIdle()
             assertEquals(0, session.sessionState.value.queue.currentIndex)
             assertEquals("Virtual Track 1", session.sessionState.value.currentTrack?.title)

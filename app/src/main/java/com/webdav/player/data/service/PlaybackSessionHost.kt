@@ -21,6 +21,7 @@ import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
+import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +35,7 @@ class PlaybackSessionHost(
     val mediaSession: MediaSession,
     val audioFocusHandler: AudioFocusHandler,
     val notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
+    val mediaSessionCallback: WebDavMediaSessionCallback? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
 ) : AudioPlayerEngine by playerEngine {
     constructor(
@@ -61,8 +63,13 @@ class PlaybackSessionHost(
         mediaSession = engine.mediaSession,
         audioFocusHandler = engine.audioFocusHandler,
         notificationProvider = WebDavNotificationProvider(context),
+        mediaSessionCallback = engine.mediaSessionCallback,
         coroutineScope = coroutineScope,
     )
+
+    fun setAppSession(session: MusicPlayerAppSession?) {
+        mediaSessionCallback?.appSession = session
+    }
 
     var attachedService: WebDavMediaService? = null
         private set

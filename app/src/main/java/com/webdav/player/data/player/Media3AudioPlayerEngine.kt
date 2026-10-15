@@ -237,6 +237,8 @@ class Media3AudioPlayerEngine(
             }
         }
 
+    val mediaSessionCallback: WebDavMediaSessionCallback = WebDavMediaSessionCallback(this)
+
     val mediaSession: MediaSession =
         customMediaSession ?: run {
             val sessionActivity =
@@ -253,7 +255,7 @@ class Media3AudioPlayerEngine(
                 .Builder(context, sessionPlayer)
                 .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
                 .setSessionActivity(sessionActivity)
-                .setCallback(WebDavMediaSessionCallback(this))
+                .setCallback(mediaSessionCallback)
                 .build()
         }
 
