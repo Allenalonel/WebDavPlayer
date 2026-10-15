@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 播放引擎接口定义纯流式加载方法（`loadTrack(server, track, startPositionMs)`）、收窄版预卷方法（`prerollTrack(server, track)`）、预卷清除方法（`clearPrerollTrack()`）及单轨元数据无打扰更新方法（`updateTrackMetadata(track)`）
 - [ ] 真实播放引擎实现类完成新流式方法的适配，内部确保仅针对当前单轨建立媒体源，并支持在需要时挂载至多一个预卷媒体源
