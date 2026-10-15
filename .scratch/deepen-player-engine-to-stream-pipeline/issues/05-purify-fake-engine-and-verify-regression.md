@@ -4,10 +4,10 @@
 
 **Blocked by:** 04: 收缩播放引擎接口并铲除历史遗留 (Contract AudioPlayerEngine and Remove Legacy Seam)
 
-**Status:** claimed
+**Status:** completed
 
-- [ ] 仿真播放引擎（`FakeAudioPlayerEngine`）大幅瘦身，仅实现收窄后的流式管道接口，代码量减少 70% 以上
-- [ ] 移除测试桩中所有的列表管理逻辑、洗牌模拟逻辑与反向回调模拟代码
-- [ ] 更新 `Media3AudioPlayerEngineTest`，针对 `loadTrack`、`prerollTrack`、`clearPrerollTrack` 与 `updateTrackMetadata` 编写完备的单测
-- [ ] 更新 `WebDavMediaSessionCallbackTest` 与 `MusicPlayerAppSessionTest`，全面覆盖切歌直连、CUE 分轨推进与双轨预卷
-- [ ] 运行全工程单元测试，所有测试 100% 绿色通过，自证零回归
+- [x] 仿真播放引擎（`FakeAudioPlayerEngine`）大幅瘦身，仅实现收窄后的流式管道接口，代码量减少 70% 以上
+- [x] 移除测试桩中所有的列表管理逻辑、洗牌模拟逻辑与反向回调模拟代码
+- [x] 更新 `Media3AudioPlayerEngineTest`，针对 `loadTrack`、`prerollTrack`、`clearPrerollTrack` 与 `updateTrackMetadata` 编写完备的单测
+- [x] 更新 `WebDavMediaSessionCallbackTest` 与 `MusicPlayerAppSessionTest`，全面覆盖切歌直连、CUE 分轨推进与双轨预卷
+- [x] 运行全工程单元测试，所有测试 100% 绿色通过，自证零回归
