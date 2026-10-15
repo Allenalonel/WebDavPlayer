@@ -344,9 +344,9 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals(45000L, appSession.playbackProgress.value.currentPositionMs)
 
             // Step 7: Skip to next track (MP3)
-            engine.skipToNext()
+            appSession.skipToNext()
             advanceUntilIdle()
-            assertEquals(1, engine.currentTrackIndex.value)
+            assertEquals(1, appSession.sessionState.value.queue.currentIndex)
             assertEquals(
                 "02-Allegro.mp3",
                 appSession.sessionState.value.currentTrack
@@ -1296,7 +1296,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertNotNull(ThumbnailMemoryCache.get(coverPath1))
 
             // Step 3: Track Transition to Track 2
-            engine.skipToNext()
+            appSession.skipToNext()
             advanceUntilIdle()
 
             assertEquals(
@@ -1613,7 +1613,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals("月光下的第二行", lyrics1.lines[activeIndex].translation)
 
             // Step 3: Track Transition to Track 2 (Queue skip)
-            engine.skipToNext()
+            appSession.skipToNext()
             advanceUntilIdle()
 
             assertEquals(

@@ -157,7 +157,7 @@ class PlaybackSessionHostTest {
         assertNull(host.attachedService)
 
         // Caller plays track solely through AudioPlayerEngine interface
-        host.playTracks(testServer, listOf(testTrack), startIndex = 0)
+        host.loadTrack(testServer, testTrack)
         assertEquals(listOf(testTrack), fakeEngine.lastTracks)
         assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
@@ -279,7 +279,7 @@ class PlaybackSessionHostTest {
         val focusHandler = host.audioFocusHandler
 
         // Play track
-        host.playTracks(testServer, listOf(testTrack), startIndex = 0)
+        host.loadTrack(testServer, testTrack)
         assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
         // Transient loss (incoming call) -> pause

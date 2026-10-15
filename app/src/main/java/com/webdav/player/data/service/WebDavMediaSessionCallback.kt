@@ -83,16 +83,12 @@ class WebDavMediaSessionCallback(
             KeyEvent.KEYCODE_MEDIA_NEXT -> {
                 if (appSession != null) {
                     appSession?.skipToNext()
-                } else {
-                    playerEngine.skipToNext()
                 }
                 true
             }
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
                 if (appSession != null) {
                     appSession?.skipToPrevious()
-                } else {
-                    playerEngine.skipToPrevious()
                 }
                 true
             }

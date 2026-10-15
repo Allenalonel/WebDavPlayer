@@ -428,31 +428,27 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
-    fun cyclePlaybackMode_cyclesThroughAllModesAndNotifiesEngine() =
+    fun cyclePlaybackMode_cyclesThroughAllModes() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)
             advanceUntilIdle()
 
             assertEquals(PlaybackMode.LIST_LOOP, session.sessionState.value.playbackMode)
-            assertEquals(PlaybackMode.LIST_LOOP, fakeEngine._playbackMode.value)
 
             // LIST_LOOP -> SINGLE_LOOP
             session.cyclePlaybackMode()
             advanceUntilIdle()
             assertEquals(PlaybackMode.SINGLE_LOOP, session.sessionState.value.playbackMode)
-            assertEquals(PlaybackMode.SINGLE_LOOP, fakeEngine._playbackMode.value)
 
             // SINGLE_LOOP -> SHUFFLE
             session.cyclePlaybackMode()
             advanceUntilIdle()
             assertEquals(PlaybackMode.SHUFFLE, session.sessionState.value.playbackMode)
-            assertEquals(PlaybackMode.SHUFFLE, fakeEngine._playbackMode.value)
 
             // SHUFFLE -> LIST_LOOP
             session.cyclePlaybackMode()
             advanceUntilIdle()
             assertEquals(PlaybackMode.LIST_LOOP, session.sessionState.value.playbackMode)
-            assertEquals(PlaybackMode.LIST_LOOP, fakeEngine._playbackMode.value)
         }
 
     @Test

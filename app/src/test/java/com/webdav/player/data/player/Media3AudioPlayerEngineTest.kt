@@ -9,9 +9,10 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
-import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.session.FakeMusicPlayerAppSession
+import com.webdav.player.domain.session.MusicPlayerAppSession
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -78,6 +79,19 @@ class Media3AudioPlayerEngineTest {
             size = 4000L,
         )
 
+    private class RecordingAppSession : MusicPlayerAppSession by FakeMusicPlayerAppSession() {
+        var skipToNextCount = 0
+        var skipToPreviousCount = 0
+
+        override fun skipToNext() {
+            skipToNextCount++
+        }
+
+        override fun skipToPrevious() {
+            skipToPreviousCount++
+        }
+    }
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
@@ -95,35 +109,29 @@ class Media3AudioPlayerEngineTest {
         assertEquals(PlaybackState.Idle, engine.playbackState.value)
         assertEquals(0L, engine.currentPositionMs.value)
         assertEquals(0L, engine.durationMs.value)
-        assertEquals(-1, engine.currentTrackIndex.value)
-        assertEquals(PlaybackMode.LIST_LOOP, engine.playbackMode.value)
     }
 
     @Test
-    fun playTracks_setsStartIndex_andPreparesPlayer() {
-        engine.playTracks(
+    fun loadTrack_setsStartPosition_andPreparesPlayer() {
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1, track2),
-            startIndex = 1,
+            track = track2,
             startPositionMs = 0L,
         )
 
-        assertEquals(1, engine.currentTrackIndex.value)
         assertEquals(1, engine.player.mediaItemCount)
     }
 
     @Test
-    fun playTracks_withMediaSourceAdapter_preparesExoPlayerMediaSources() {
+    fun loadTrack_withMediaSourceAdapter_preparesExoPlayerMediaSources() {
         val adapter = DefaultWebDavMediaSourceAdapter(context)
         val customEngine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
         try {
-            customEngine.playTracks(
+            customEngine.loadTrack(
                 server = testServer,
-                tracks = listOf(track1, trackWma),
-                startIndex = 0,
+                track = track1,
                 startPositionMs = 0L,
             )
-            assertEquals(0, customEngine.currentTrackIndex.value)
             assertEquals(1, customEngine.player.mediaItemCount)
             assertEquals(
                 "audio/mpeg",
@@ -138,18 +146,17 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun insertTrack_withMediaSourceAdapter_addsMediaSource() {
+    fun prerollTrack_withMediaSourceAdapter_addsMediaSource() {
         val adapter = DefaultWebDavMediaSourceAdapter(context)
         val customEngine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
         try {
-            customEngine.playTracks(
+            customEngine.loadTrack(
                 server = testServer,
-                tracks = listOf(track1),
-                startIndex = 0,
+                track = track1,
             )
             assertEquals(1, customEngine.player.mediaItemCount)
 
-            customEngine.insertTrack(1, testServer, trackWma)
+            customEngine.prerollTrack(testServer, trackWma)
             assertEquals(2, customEngine.player.mediaItemCount)
             assertEquals(
                 "audio/x-ms-wma",
@@ -164,14 +171,12 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun playTracks_withWmaTrack_setsWmaMimeTypeAndPrepares() {
-        engine.playTracks(
+    fun loadTrack_withWmaTrack_setsWmaMimeTypeAndPrepares() {
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(trackWma),
-            startIndex = 0,
+            track = trackWma,
         )
 
-        assertEquals(0, engine.currentTrackIndex.value)
         assertEquals(1, engine.player.mediaItemCount)
         val mediaItem = engine.player.getMediaItemAt(0)
         assertEquals("audio/x-ms-wma", mediaItem.localConfiguration?.mimeType)
@@ -179,10 +184,9 @@ class Media3AudioPlayerEngineTest {
 
     @Test
     fun seekTo_andStop_updatesStateCorrectly() {
-        engine.playTracks(
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1, track2),
-            startIndex = 0,
+            track = track1,
         )
 
         engine.seekTo(3000L)
@@ -191,40 +195,6 @@ class Media3AudioPlayerEngineTest {
         engine.stop()
         assertEquals(PlaybackState.Idle, engine.playbackState.value)
         assertEquals(0L, engine.currentPositionMs.value)
-    }
-
-    @Test
-    fun setPlaybackMode_updatesState() {
-        engine.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
-        assertEquals(PlaybackMode.SINGLE_LOOP, engine.playbackMode.value)
-
-        engine.setPlaybackMode(PlaybackMode.SHUFFLE)
-        assertEquals(PlaybackMode.SHUFFLE, engine.playbackMode.value)
-
-        engine.setPlaybackMode(PlaybackMode.LIST_LOOP)
-        assertEquals(PlaybackMode.LIST_LOOP, engine.playbackMode.value)
-    }
-
-    @Test
-    fun removeTrack_updatesPlayerAndIndex() {
-        engine.playTracks(
-            server = testServer,
-            tracks = listOf(track1, track2, track3),
-            startIndex = 1,
-        )
-        assertEquals(1, engine.currentTrackIndex.value)
-
-        // Remove track 0 (track before current)
-        engine.removeTrack(0)
-        assertEquals(0, engine.currentTrackIndex.value)
-
-        // Remove remaining track 1
-        engine.removeTrack(1)
-        assertEquals(0, engine.currentTrackIndex.value)
-
-        // Remove last remaining track
-        engine.removeTrack(0)
-        assertEquals(PlaybackState.Idle, engine.playbackState.value)
     }
 
     @Test
@@ -241,10 +211,9 @@ class Media3AudioPlayerEngineTest {
 
     @Test
     fun updateTrack_onActivelyPlayingTrack_doesNotCallReplaceMediaItem_andPreservesPositionAndTimeline() {
-        engine.playTracks(
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1, track2),
-            startIndex = 0,
+            track = track1,
             startPositionMs = 5000L,
         )
 
@@ -252,7 +221,7 @@ class Media3AudioPlayerEngineTest {
         assertEquals(5000L, engine.currentPositionMs.value)
 
         val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist")
-        engine.updateTrack(0, updated)
+        engine.updateTrackMetadata(updated)
 
         // Verify mediaSession is active and intact
         assertNotNull(engine.mediaSession)
@@ -288,139 +257,22 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun updateTrack_onActiveTrack_persistsEnrichedMetadata_whenTransitioningToNextTrack() {
-        engine.playTracks(
-            server = testServer,
-            tracks = listOf(track1, track2),
-            startIndex = 0,
-        )
-
-        val updated = track1.copy(title = "Enriched Song 1", artist = "Enriched Artist 1")
-        engine.updateTrack(0, updated)
-
-        // While active, playlist item at index 0 remains untouched to prevent timeline disruption
-        assertEquals(
-            "01.mp3",
-            engine.player
-                .getMediaItemAt(0)
-                .mediaMetadata.title
-                ?.toString(),
-        )
-        assertEquals(
-            "Enriched Song 1",
-            engine.mediaSession.player.mediaMetadata.title
-                ?.toString(),
-        )
-
-        // Transition to next track: track 1 is loaded into player container
-        engine.skipToNext()
-        assertEquals(1, engine.currentTrackIndex.value)
-        assertEquals(
-            "02.flac",
-            engine.player
-                .getMediaItemAt(0)
-                .mediaMetadata.title
-                ?.toString(),
-        )
-
-        // Return to track 0: metadata remains intact in playlist item and mediaSession
-        engine.skipToPrevious()
-        assertEquals(0, engine.currentTrackIndex.value)
-        assertEquals(
-            "Enriched Song 1",
-            engine.player
-                .getMediaItemAt(0)
-                .mediaMetadata.title
-                ?.toString(),
-        )
-        assertEquals(
-            "Enriched Song 1",
-            engine.mediaSession.player.mediaMetadata.title
-                ?.toString(),
-        )
-    }
-
-    @Test
-    fun updateTrack_onActiveTrack_retainsMetadata_duringSingleLoopTransition() {
-        engine.playTracks(
-            server = testServer,
-            tracks = listOf(track1),
-            startIndex = 0,
-        )
-        engine.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
-
-        val updated = track1.copy(title = "Loop Enriched Song", artist = "Loop Artist")
-        engine.updateTrack(0, updated)
-
-        assertEquals(
-            "Loop Enriched Song",
-            engine.mediaSession.player.mediaMetadata.title
-                ?.toString(),
-        )
-
-        // Simulate single loop media transition (same index transitions to itself)
-        engine.seekTo(0L)
-        assertEquals(0, engine.currentTrackIndex.value)
-        assertEquals(
-            "Loop Enriched Song",
-            engine.mediaSession.player.mediaMetadata.title
-                ?.toString(),
-        )
-    }
-
-    @Test
-    fun updateTrack_onNonPlayingTrack_updatesPlaylistItemViaReplaceMediaItem() {
-        engine.playTracks(
-            server = testServer,
-            tracks = listOf(track1, track2),
-            startIndex = 0,
-        )
-
-        val updatedQueued = track2.copy(title = "Updated Track 2", artist = "Updated Artist 2")
-        engine.updateTrack(1, updatedQueued)
-
-        // Active track item remains intact
-        val activeItem = engine.player.getMediaItemAt(0)
-        assertEquals("01.mp3", activeItem.mediaMetadata.title?.toString())
-
-        // Upon transition, the updated metadata is applied to the player item
-        engine.skipToNext()
-        val nextItem = engine.player.getMediaItemAt(0)
-        assertEquals("Updated Track 2", nextItem.mediaMetadata.title?.toString())
-        assertEquals("Updated Artist 2", nextItem.mediaMetadata.artist?.toString())
-    }
-
-    @Test
-    fun updateTrack_whenPlayerIdle_updatesPlaylistItemViaReplaceMediaItem() {
-        engine.insertTrack(0, testServer, track1)
-        assertEquals(PlaybackState.Idle, engine.playbackState.value)
-
-        val updated = track1.copy(title = "Idle Updated Title", artist = "Idle Artist")
-        engine.updateTrack(0, updated)
-
-        val item = engine.player.getMediaItemAt(0)
-        assertEquals("Idle Updated Title", item.mediaMetadata.title?.toString())
-        assertEquals("Idle Artist", item.mediaMetadata.artist?.toString())
-    }
-
-    @Test
     fun updateTrack_withIdenticalMetadata_doesNotTriggerUnnecessaryUpdates() {
-        engine.playTracks(
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1),
-            startIndex = 0,
+            track = track1,
         )
 
         val updated = track1.copy(title = "Updated Title")
-        engine.updateTrack(0, updated)
+        engine.updateTrackMetadata(updated)
         assertEquals(
             "Updated Title",
             engine.player.playlistMetadata.title
                 ?.toString(),
         )
 
-        // Calling updateTrack with the exact same track should be a no-op
-        engine.updateTrack(0, updated)
+        // Calling updateTrackMetadata with the exact same track should be a no-op
+        engine.updateTrackMetadata(updated)
         assertEquals(
             "Updated Title",
             engine.player.playlistMetadata.title
@@ -455,7 +307,7 @@ class Media3AudioPlayerEngineTest {
 
         // Enrich playing track
         val enrichedTrack1 = track1.copy(title = "Enriched Title 1", artist = "Artist 1")
-        engine.updateTrack(0, enrichedTrack1)
+        engine.updateTrackMetadata(enrichedTrack1)
 
         // Active item timeline is continuous and not replaced
         val activeItem = engine.player.getMediaItemAt(0)
@@ -466,9 +318,6 @@ class Media3AudioPlayerEngineTest {
                 ?.toString(),
         )
 
-        // Queued track enrichment safely updates engine's pending state without loading into player container
-        val enrichedTrack2 = track2.copy(title = "Enriched Title 2")
-        engine.updateTrack(1, enrichedTrack2)
         assertEquals(1, engine.player.mediaItemCount)
 
         appSession.release()
@@ -476,7 +325,7 @@ class Media3AudioPlayerEngineTest {
 
     @Test
     fun audioFocusTransientDuck_lowersVolume_andRestoresOnGain() {
-        engine.playTracks(server = testServer, tracks = listOf(track1), startIndex = 0)
+        engine.loadTrack(server = testServer, track = track1)
         engine.setVolume(1.0f)
 
         engine.audioFocusHandler.handleFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
@@ -494,20 +343,18 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun playTracks_tracksActiveServer() {
-        engine.playTracks(
+    fun loadTrack_tracksActiveServer() {
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1),
-            startIndex = 0,
-            startPositionMs = 0L,
+            track = track1,
         )
         assertEquals(testServer, engine.activeServer)
     }
 
     @Test
-    fun insertTrack_whenActiveServerNull_tracksServer() {
+    fun loadTrack_whenActiveServerNull_tracksServer() {
         assertNull(engine.activeServer)
-        engine.insertTrack(0, testServer, track1)
+        engine.loadTrack(testServer, track1)
         assertEquals(testServer, engine.activeServer)
     }
 
@@ -524,11 +371,9 @@ class Media3AudioPlayerEngineTest {
 
     @Test
     fun delegatingDataSourceFactory_whenActiveServerSet_delegatesToMediaSourceAdapter() {
-        engine.playTracks(
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1),
-            startIndex = 0,
-            startPositionMs = 0L,
+            track = track1,
         )
         val dataSource = engine.delegatingDataSourceFactory.createDataSource()
         assertNotNull(dataSource)
@@ -540,21 +385,18 @@ class Media3AudioPlayerEngineTest {
 
     @Test
     fun updateTrack_replacesMediaItem_andRetainsActiveServerContext() {
-        engine.playTracks(
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1, track2),
-            startIndex = 0,
+            track = track1,
         )
         assertEquals(testServer, engine.activeServer)
 
-        val updated = track2.copy(title = "Rebuilt Title")
-        engine.updateTrack(1, updated)
+        val updated = track1.copy(title = "Rebuilt Title")
+        engine.updateTrackMetadata(updated)
 
         // Verifies activeServer remains preserved
         assertEquals(testServer, engine.activeServer)
-        engine.skipToNext()
-        val item = engine.player.getMediaItemAt(0)
-        assertEquals("Rebuilt Title", item.mediaMetadata.title?.toString())
+        assertEquals("Rebuilt Title", engine.sessionPlayer.mediaMetadata.title?.toString())
 
         // Delegating factory provides active server's ResilientWebDavDataSource
         val dataSource = engine.delegatingDataSourceFactory.createDataSource()
@@ -594,42 +436,10 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun folderRingPlayback_listLoopWrapsAroundSeamlessly() {
-        val tracks = listOf(track1, track2, track3)
-        engine.setPlaybackMode(PlaybackMode.LIST_LOOP)
-        assertEquals(Player.REPEAT_MODE_OFF, engine.player.repeatMode)
-        assertFalse(engine.player.shuffleModeEnabled)
-
-        engine.playTracks(
+    fun virtualTrackSingleItem_enablesNextPreviousCommands_andDelegatesToAppSession() {
+        engine.loadTrack(
             server = testServer,
-            tracks = tracks,
-            startIndex = 0,
-        )
-        assertEquals(0, engine.currentTrackIndex.value)
-
-        // Step to track 1
-        engine.skipToNext()
-        assertEquals(1, engine.currentTrackIndex.value)
-
-        // Step to track 2 (last track in directory)
-        engine.skipToNext()
-        assertEquals(2, engine.currentTrackIndex.value)
-
-        // Reaching the end in LIST_LOOP wraps back to track 0 (Folder Ring closure)
-        engine.skipToNext()
-        assertEquals(0, engine.currentTrackIndex.value)
-
-        // From track 0, skipToPrevious wraps back to the last track (track 2)
-        engine.skipToPrevious()
-        assertEquals(2, engine.currentTrackIndex.value)
-    }
-
-    @Test
-    fun virtualTrackSingleItem_enablesNextPreviousCommands_andDelegatesToSkipHandler() {
-        engine.playTracks(
-            server = testServer,
-            tracks = listOf(track1),
-            startIndex = 0,
+            track = track1,
         )
 
         // With 1 item, standard ExoPlayer disables SEEK_TO_NEXT_MEDIA_ITEM / SEEK_TO_PREVIOUS_MEDIA_ITEM
@@ -639,43 +449,22 @@ class Media3AudioPlayerEngineTest {
         assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
         assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
 
-        var nextCount = 0
-        var prevCount = 0
-        engine.setSkipHandler(
-            object : com.webdav.player.domain.player.AudioPlayerEngine.SkipHandler {
-                override fun onSkipToNext(): Boolean {
-                    nextCount++
-                    return true
-                }
-
-                override fun onSkipToPrevious(): Boolean {
-                    prevCount++
-                    return true
-                }
-            },
-        )
+        val appSession = RecordingAppSession()
+        engine.mediaSessionCallback.appSession = appSession
 
         // Invoking seekToNextMediaItem / seekToPreviousMediaItem on sessionPlayer (as MediaSession does)
         engine.sessionPlayer.seekToNextMediaItem()
-        assertEquals(1, nextCount)
+        assertEquals(1, appSession.skipToNextCount)
 
         engine.sessionPlayer.seekToPreviousMediaItem()
-        assertEquals(1, prevCount)
-
-        // Invoking skipToNext / skipToPrevious on engine directly
-        engine.skipToNext()
-        assertEquals(2, nextCount)
-
-        engine.skipToPrevious()
-        assertEquals(2, prevCount)
+        assertEquals(1, appSession.skipToPreviousCount)
     }
 
     @Test
     fun backgroundThread_prerollAndOperations_doNotThrowWrongThreadException() {
-        engine.playTracks(
+        engine.loadTrack(
             server = testServer,
-            tracks = listOf(track1),
-            startIndex = 0,
+            track = track1,
         )
         org.robolectric.shadows.ShadowLooper
             .idleMainLooper()
@@ -685,11 +474,11 @@ class Media3AudioPlayerEngineTest {
         val workerThread =
             Thread {
                 try {
-                    engine.prerollTrack(testServer, track2, 1)
+                    engine.prerollTrack(testServer, track2)
                     engine.setVolume(0.8f)
                     val vol = engine.getVolume()
                     assertEquals(0.8f, vol, 0.01f)
-                    engine.updateTrack(0, track1.copy(title = "BG Updated"))
+                    engine.updateTrackMetadata(track1.copy(title = "BG Updated"))
                 } catch (t: Throwable) {
                     error = t
                 }
@@ -732,9 +521,9 @@ class Media3AudioPlayerEngineTest {
             startPositionMs = 3500L,
         )
 
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
-        assertEquals(0, engine.currentTrackIndex.value)
         assertEquals(1, engine.player.mediaItemCount)
         assertEquals(3500L, engine.currentPositionMs.value)
         assertTrue(
@@ -756,12 +545,14 @@ class Media3AudioPlayerEngineTest {
             server = testServer,
             track = track1,
         )
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
         assertEquals(1, engine.player.mediaItemCount)
 
         // Preroll next track
         engine.prerollTrack(testServer, track2)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         assertEquals(2, engine.player.mediaItemCount)
         assertEquals(
@@ -774,17 +565,20 @@ class Media3AudioPlayerEngineTest {
 
         // Preroll when item count already >= 2 does not add duplicate
         engine.prerollTrack(testServer, track3)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
         assertEquals(2, engine.player.mediaItemCount)
 
         // Clear preroll track
         engine.clearPrerollTrack()
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
         assertEquals(1, engine.player.mediaItemCount)
 
         // Redundant clearPrerollTrack is safe
         engine.clearPrerollTrack()
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
         assertEquals(1, engine.player.mediaItemCount)
     }
 
@@ -795,14 +589,16 @@ class Media3AudioPlayerEngineTest {
             track = track1,
             startPositionMs = 5000L,
         )
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         val originalItem = engine.player.getMediaItemAt(0)
         assertEquals(5000L, engine.currentPositionMs.value)
 
         val updated = track1.copy(title = "Enriched Stream Title", artist = "Enriched Artist")
         engine.updateTrackMetadata(updated)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         // Active playing MediaItem is NOT replaced to avoid decoder destruction / rebuffering glitches
         val currentItem = engine.player.getMediaItemAt(0)
@@ -819,16 +615,19 @@ class Media3AudioPlayerEngineTest {
         // MediaSession player mediaMetadata is updated
         assertEquals(
             "Enriched Stream Title",
-            engine.mediaSession.player.mediaMetadata.title?.toString(),
+            engine.mediaSession.player.mediaMetadata.title
+                ?.toString(),
         )
         assertEquals(
             "Enriched Artist",
-            engine.mediaSession.player.mediaMetadata.artist?.toString(),
+            engine.mediaSession.player.mediaMetadata.artist
+                ?.toString(),
         )
 
         // Notification constructed from mediaSession reflects updated metadata
         val notificationProvider =
-            com.webdav.player.data.service.WebDavNotificationProvider(context)
+            com.webdav.player.data.service
+                .WebDavNotificationProvider(context)
         val notification = notificationProvider.buildNotification(engine.mediaSession, engine.playbackState.value)
         assertEquals(
             "Enriched Stream Title",

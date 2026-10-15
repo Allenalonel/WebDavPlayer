@@ -22,10 +22,10 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     override val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
 
     val _currentTrackIndex = MutableStateFlow(-1)
-    override val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
+    val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
 
     val _playbackMode = MutableStateFlow(PlaybackMode.LIST_LOOP)
-    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
+    val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     var lastServer: WebDavServer? = null
     var loadedTrack: AudioTrack? = null
@@ -43,8 +43,14 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var released = false
     private var currentVolume: Float = 1.0f
 
-    override var shufflePermutation: List<Int>? = null
-    var registeredSkipHandler: AudioPlayerEngine.SkipHandler? = null
+    var shufflePermutation: List<Int>? = null
+
+    interface SkipHandler {
+        fun onSkipToNext(): Boolean
+        fun onSkipToPrevious(): Boolean
+    }
+
+    var registeredSkipHandler: SkipHandler? = null
 
     var isPrerollActive: Boolean = false
     var prerolledTrack: AudioTrack? = null
@@ -77,7 +83,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         prerolledIndex = -1
     }
 
-    override fun prerollTrack(
+    fun prerollTrack(
         server: WebDavServer,
         track: AudioTrack,
         targetTrackIndex: Int,
@@ -94,15 +100,15 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         clearPrerollCount++
     }
 
-    override fun setSkipHandler(handler: AudioPlayerEngine.SkipHandler?) {
+    fun setSkipHandler(handler: SkipHandler?) {
         this.registeredSkipHandler = handler
     }
 
-    override fun playTracks(
+    fun playTracks(
         server: WebDavServer,
         tracks: List<AudioTrack>,
-        startIndex: Int,
-        startPositionMs: Long,
+        startIndex: Int = 0,
+        startPositionMs: Long = 0L,
     ) {
         playTracksCount++
         lastServer = server
@@ -132,7 +138,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         _currentPositionMs.value = positionMs
     }
 
-    override fun skipToNext() {
+    fun skipToNext() {
         nextCount++
         if (registeredSkipHandler?.onSkipToNext() == true) {
             return
@@ -166,7 +172,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         _currentPositionMs.value = 0L
     }
 
-    override fun skipToPrevious() {
+    fun skipToPrevious() {
         previousCount++
         if (registeredSkipHandler?.onSkipToPrevious() == true) {
             return
@@ -200,7 +206,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         _currentPositionMs.value = 0L
     }
 
-    override fun seekToTrack(
+    fun seekToTrack(
         index: Int,
         positionMs: Long,
     ) {
@@ -210,11 +216,11 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         }
     }
 
-    override fun setPlaybackMode(mode: PlaybackMode) {
+    fun setPlaybackMode(mode: PlaybackMode) {
         _playbackMode.value = mode
     }
 
-    override fun removeTrack(index: Int) {
+    fun removeTrack(index: Int) {
         if (index in lastTracks.indices) {
             val mutable = lastTracks.toMutableList().apply { removeAt(index) }
             lastTracks = mutable
@@ -258,7 +264,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         }
     }
 
-    override fun updateTrack(
+    fun updateTrack(
         index: Int,
         track: AudioTrack,
     ) {

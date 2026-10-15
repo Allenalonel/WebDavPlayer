@@ -17,7 +17,6 @@ import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.WebDavMediaSourceAdapter
 import com.webdav.player.domain.model.AudioTrack
-import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
@@ -239,16 +238,6 @@ class PlaybackSessionHost(
 
     override fun updateTrackMetadata(track: AudioTrack) {
         playerEngine.updateTrackMetadata(track)
-    }
-
-    override fun playTracks(
-        server: WebDavServer,
-        tracks: List<AudioTrack>,
-        startIndex: Int,
-        startPositionMs: Long,
-    ) {
-        ensureServiceStarted()
-        playerEngine.playTracks(server, tracks, startIndex, startPositionMs)
     }
 
     override fun play() {

@@ -272,7 +272,7 @@ class WebDavStreamingPlaybackTest {
                     format = AudioFormat.MP3,
                     size = 1024L,
                 )
-            engine.playTracks(authServer, listOf(track), startIndex = 0)
+            engine.loadTrack(authServer, track)
             assertEquals(authServer, engine.activeServer)
 
             // 3. Delegating factory now dynamically provisions OkHttpDataSource with active server credentials
@@ -290,7 +290,7 @@ class WebDavStreamingPlaybackTest {
 
             // 4. Update track metadata (triggers player.replaceMediaItem and ExoPlayer media source rebuild)
             val updatedTrack = track.copy(title = "Updated Track Title", artist = "Updated Artist")
-            engine.updateTrack(0, updatedTrack)
+            engine.updateTrackMetadata(updatedTrack)
             assertEquals(authServer, engine.activeServer)
 
             // Delegating data source factory continues to retain active credentials for rebuilt media sources
@@ -357,20 +357,21 @@ class WebDavStreamingPlaybackTest {
                     size = 1024L,
                 )
 
-            // Play track1 on engine with track2 queued
-            engine.playTracks(authServer, listOf(track1, track2), startIndex = 0)
+            // Play track1 on engine
+            engine.loadTrack(authServer, track1)
 
             // Initial chunk request for track1 arrives with Basic auth
             val request1 = server.takeRequest(5, TimeUnit.SECONDS)
             assertNotNull("Initial chunk request should reach server", request1)
             assertEquals("Basic auth must be present on initial request", expectedAuth, request1!!.getHeader("Authorization"))
 
-            // Trigger track metadata update on queued non-active track2
-            val updatedTrack2 = track2.copy(title = "Updated Metadata Title 2")
-            engine.updateTrack(1, updatedTrack2)
+            // Trigger track metadata update on track1
+            val updatedTrack1 = track1.copy(title = "Updated Metadata Title 1")
+            engine.updateTrackMetadata(updatedTrack1)
 
-            // Skip to track2: engine loads the updated track
-            engine.skipToNext()
+            // Load track2: engine loads the updated track
+            val updatedTrack2 = track2.copy(title = "Updated Metadata Title 2")
+            engine.loadTrack(authServer, updatedTrack2)
             ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
 
             // Verify item in ExoPlayer was loaded with updated metadata
@@ -388,7 +389,6 @@ class WebDavStreamingPlaybackTest {
                 engine.playbackState.value !is PlaybackState.Error,
             )
             assertEquals(authServer, engine.activeServer)
-            assertEquals(1, engine.currentTrackIndex.value)
         } finally {
             engine.release()
         }

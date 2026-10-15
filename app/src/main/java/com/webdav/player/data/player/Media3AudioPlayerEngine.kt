@@ -30,7 +30,6 @@ import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
 import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioTrack
-import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
@@ -85,10 +84,6 @@ class Media3AudioPlayerEngine(
     val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
 ) : AudioPlayerEngine {
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
-    private var loadedTracks: List<AudioTrack> = emptyList()
-    private val prerollTargetTrackIndex =
-        java.util.concurrent.atomic
-            .AtomicInteger(-1)
 
     val activeServer: WebDavServer?
         get() = activeServerRef.get()
@@ -167,11 +162,6 @@ class Media3AudioPlayerEngine(
 
     private val activeTrackMetadataRef = AtomicReference<MediaMetadata?>(null)
     private val sessionListeners = CopyOnWriteArrayList<Player.Listener>()
-    private val skipHandlerRef = AtomicReference<AudioPlayerEngine.SkipHandler?>(null)
-
-    override fun setSkipHandler(handler: AudioPlayerEngine.SkipHandler?) {
-        skipHandlerRef.set(handler)
-    }
 
     val sessionPlayer: Player =
         object : ForwardingPlayer(player) {
@@ -195,19 +185,19 @@ class Media3AudioPlayerEngine(
             }
 
             override fun seekToNext() {
-                this@Media3AudioPlayerEngine.skipToNext()
+                mediaSessionCallback.appSession?.skipToNext()
             }
 
             override fun seekToNextMediaItem() {
-                this@Media3AudioPlayerEngine.skipToNext()
+                mediaSessionCallback.appSession?.skipToNext()
             }
 
             override fun seekToPrevious() {
-                this@Media3AudioPlayerEngine.skipToPrevious()
+                mediaSessionCallback.appSession?.skipToPrevious()
             }
 
             override fun seekToPreviousMediaItem() {
-                this@Media3AudioPlayerEngine.skipToPrevious()
+                mediaSessionCallback.appSession?.skipToPrevious()
             }
 
             override fun isCommandAvailable(command: Int): Boolean =
@@ -300,12 +290,6 @@ class Media3AudioPlayerEngine(
     private val _bufferedPositionMs = MutableStateFlow(0L)
     override val bufferedPositionMs: StateFlow<Long> = _bufferedPositionMs.asStateFlow()
 
-    private val _currentTrackIndex = MutableStateFlow(-1)
-    override val currentTrackIndex: StateFlow<Int> = _currentTrackIndex.asStateFlow()
-
-    private val _playbackMode = MutableStateFlow(PlaybackMode.LIST_LOOP)
-    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
-
     private var tickerJob: Job? = null
 
     private val listener =
@@ -336,40 +320,20 @@ class Media3AudioPlayerEngine(
                 mediaItem: MediaItem?,
                 reason: Int,
             ) {
-                val oldIndex = _currentTrackIndex.value
                 val playerIndex = player.currentMediaItemIndex
 
                 if (playerIndex == 1 && player.mediaItemCount >= 2) {
-                    val targetIndex = prerollTargetTrackIndex.getAndSet(-1)
-                    val nextTrackIndex =
-                        if (targetIndex >= 0) {
-                            targetIndex
-                        } else if (_playbackMode.value == PlaybackMode.SHUFFLE && loadedTracks.size > 1) {
-                            (loadedTracks.indices.filter { it != oldIndex }.randomOrNull()) ?: 0
-                        } else {
-                            if (oldIndex < loadedTracks.lastIndex) oldIndex + 1 else 0
-                        }
-                    _currentTrackIndex.value = nextTrackIndex
                     player.removeMediaItem(0)
-                    commitPendingEnrichedItem(oldIndex)
+                    commitPendingEnrichedItem(0)
                     activeTrackMetadataRef.set(null)
                     player.playlistMetadata = MediaMetadata.EMPTY
                     updatePositionAndDuration()
                     return
                 }
 
-                val newIndex =
-                    if (loadedTracks.isNotEmpty()) {
-                        _currentTrackIndex.value
-                    } else {
-                        player.currentMediaItemIndex
-                    }
-                if (oldIndex != newIndex) {
-                    commitPendingEnrichedItem(oldIndex)
-                    activeTrackMetadataRef.set(null)
-                    player.playlistMetadata = MediaMetadata.EMPTY
-                }
-                _currentTrackIndex.value = newIndex
+                commitPendingEnrichedItem(0)
+                activeTrackMetadataRef.set(null)
+                player.playlistMetadata = MediaMetadata.EMPTY
                 updatePositionAndDuration()
             }
 
@@ -398,7 +362,6 @@ class Media3AudioPlayerEngine(
                 1.0f
             }
         runOnApplicationLooper {
-            applyPlaybackMode(_playbackMode.value)
             updatePlaybackState()
         }
     }
@@ -413,8 +376,6 @@ class Media3AudioPlayerEngine(
             activeTrackMetadataRef.set(null)
             player.playlistMetadata = MediaMetadata.EMPTY
             activeServerRef.set(server)
-            loadedTracks = listOf(track)
-            _currentTrackIndex.value = 0
             _currentPositionMs.value = startPositionMs
 
             if (player is ExoPlayer) {
@@ -422,40 +383,6 @@ class Media3AudioPlayerEngine(
                 player.setMediaSource(mediaSource, startPositionMs)
             } else {
                 val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
-                player.setMediaItem(mediaItem, startPositionMs)
-            }
-            player.prepare()
-            audioFocusHandler.requestAudioFocus()
-            player.play()
-        }
-    }
-
-    override fun playTracks(
-        server: WebDavServer,
-        tracks: List<AudioTrack>,
-        startIndex: Int,
-        startPositionMs: Long,
-    ) {
-        if (tracks.isEmpty()) return
-
-        runOnApplicationLooper {
-            pendingEnrichedItems.clear()
-            activeTrackMetadataRef.set(null)
-            player.playlistMetadata = MediaMetadata.EMPTY
-            activeServerRef.set(server)
-            loadedTracks = tracks
-
-            val validStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
-            _currentTrackIndex.value = validStartIndex
-            _currentPositionMs.value = startPositionMs
-            applyPlaybackMode(_playbackMode.value)
-
-            val activeTrack = tracks[validStartIndex]
-            if (player is ExoPlayer) {
-                val mediaSource = mediaSourceAdapter.createMediaSource(server, activeTrack)
-                player.setMediaSource(mediaSource, startPositionMs)
-            } else {
-                val mediaItem = mediaSourceAdapter.createMediaItem(server, activeTrack)
                 player.setMediaItem(mediaItem, startPositionMs)
             }
             player.prepare()
@@ -486,147 +413,12 @@ class Media3AudioPlayerEngine(
         }
     }
 
-    override fun skipToNext() {
-        if (skipHandlerRef.get()?.onSkipToNext() == true) {
-            return
-        }
-        if (loadedTracks.isEmpty()) return
-        val current = _currentTrackIndex.value
-        val next =
-            when (_playbackMode.value) {
-                PlaybackMode.SINGLE_LOOP -> current
-                PlaybackMode.LIST_LOOP -> if (current < loadedTracks.lastIndex) current + 1 else 0
-                PlaybackMode.SHUFFLE -> (loadedTracks.indices.filter { it != current }.randomOrNull()) ?: 0
-            }
-        val server = activeServerRef.get() ?: return
-        val nextTrack = loadedTracks[next]
-        _currentTrackIndex.value = next
-        _currentPositionMs.value = 0L
-        runOnApplicationLooper {
-            if (player is ExoPlayer) {
-                val mediaSource = mediaSourceAdapter.createMediaSource(server, nextTrack)
-                player.setMediaSource(mediaSource, 0L)
-            } else {
-                val mediaItem = mediaSourceAdapter.createMediaItem(server, nextTrack)
-                player.setMediaItem(mediaItem, 0L)
-            }
-            player.prepare()
-            player.play()
-        }
-    }
-
-    override fun skipToPrevious() {
-        if (skipHandlerRef.get()?.onSkipToPrevious() == true) {
-            return
-        }
-        if (loadedTracks.isEmpty()) return
-        val current = _currentTrackIndex.value
-        val prev =
-            when (_playbackMode.value) {
-                PlaybackMode.SINGLE_LOOP -> current
-                PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> if (current > 0) current - 1 else loadedTracks.lastIndex
-            }
-        val server = activeServerRef.get() ?: return
-        val prevTrack = loadedTracks[prev]
-        _currentTrackIndex.value = prev
-        _currentPositionMs.value = 0L
-        runOnApplicationLooper {
-            if (player is ExoPlayer) {
-                val mediaSource = mediaSourceAdapter.createMediaSource(server, prevTrack)
-                player.setMediaSource(mediaSource, 0L)
-            } else {
-                val mediaItem = mediaSourceAdapter.createMediaItem(server, prevTrack)
-                player.setMediaItem(mediaItem, 0L)
-            }
-            player.prepare()
-            player.play()
-        }
-    }
-
-    override fun seekToTrack(
-        index: Int,
-        positionMs: Long,
-    ) {
-        if (index in loadedTracks.indices) {
-            val server = activeServerRef.get() ?: return
-            val track = loadedTracks[index]
-            _currentTrackIndex.value = index
-            val clamped = positionMs.coerceAtLeast(0L)
-            _currentPositionMs.value = clamped
-            runOnApplicationLooper {
-                if (player is ExoPlayer) {
-                    val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
-                    player.setMediaSource(mediaSource, clamped)
-                } else {
-                    val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
-                    player.setMediaItem(mediaItem, clamped)
-                }
-                player.prepare()
-                player.play()
-            }
-        } else {
-            runOnApplicationLooper {
-                if (player.mediaItemCount == 1) {
-                    player.seekTo(0, positionMs.coerceAtLeast(0L))
-                }
-            }
-        }
-    }
-
-    override fun setPlaybackMode(mode: PlaybackMode) {
-        _playbackMode.value = mode
-        runOnApplicationLooper {
-            applyPlaybackMode(mode)
-        }
-    }
-
-    override fun removeTrack(index: Int) {
-        if (index in loadedTracks.indices) {
-            val updated = loadedTracks.toMutableList().apply { removeAt(index) }
-            loadedTracks = updated
-            if (updated.isEmpty()) {
-                stop()
-            } else {
-                val currentIndex = _currentTrackIndex.value
-                val newIndex =
-                    when {
-                        index < currentIndex -> currentIndex - 1
-                        index == currentIndex -> if (index < updated.size) index else updated.lastIndex
-                        else -> currentIndex
-                    }
-                _currentTrackIndex.value = newIndex
-                if (index == currentIndex) {
-                    seekToTrack(newIndex, 0L)
-                }
-            }
-        }
-    }
-
     override fun prerollTrack(
         server: WebDavServer,
         track: AudioTrack,
     ) {
         runOnApplicationLooper {
             if (player.mediaItemCount >= 2) return@runOnApplicationLooper
-            prerollTargetTrackIndex.set(-1)
-            if (player is ExoPlayer) {
-                val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
-                player.addMediaSource(mediaSource)
-            } else {
-                val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
-                player.addMediaItem(mediaItem)
-            }
-        }
-    }
-
-    override fun prerollTrack(
-        server: WebDavServer,
-        track: AudioTrack,
-        targetTrackIndex: Int,
-    ) {
-        runOnApplicationLooper {
-            if (player.mediaItemCount >= 2) return@runOnApplicationLooper
-            prerollTargetTrackIndex.set(targetTrackIndex)
             if (player is ExoPlayer) {
                 val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
                 player.addMediaSource(mediaSource)
@@ -639,61 +431,15 @@ class Media3AudioPlayerEngine(
 
     override fun clearPrerollTrack() {
         runOnApplicationLooper {
-            prerollTargetTrackIndex.set(-1)
             if (player.mediaItemCount > 1) {
                 player.removeMediaItem(1)
             }
         }
     }
 
-    override fun insertTrack(
-        index: Int,
-        server: WebDavServer,
-        track: AudioTrack,
-    ) {
-        runOnApplicationLooper {
-            if (activeServerRef.get() == null || player.mediaItemCount == 0) {
-                activeServerRef.set(server)
-            }
-            if (index in 0..player.mediaItemCount) {
-                if (player is ExoPlayer) {
-                    val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
-                    player.addMediaSource(index, mediaSource)
-                } else {
-                    val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
-                    player.addMediaItem(index, mediaItem)
-                }
-            }
-        }
-    }
-
     override fun updateTrackMetadata(track: AudioTrack) {
         runOnApplicationLooper {
-            if (loadedTracks.isNotEmpty()) {
-                val currentIndex = _currentTrackIndex.value.coerceIn(0, loadedTracks.lastIndex)
-                val mutable = loadedTracks.toMutableList()
-                mutable[currentIndex] = track
-                loadedTracks = mutable
-            }
             applyActiveTrackMetadataUpdate(track)
-        }
-    }
-
-    override fun updateTrack(
-        index: Int,
-        track: AudioTrack,
-    ) {
-        runOnApplicationLooper {
-            if (index in loadedTracks.indices) {
-                val mutable = loadedTracks.toMutableList()
-                mutable[index] = track
-                loadedTracks = mutable
-            }
-
-            val isCurrentTrack = index == _currentTrackIndex.value
-            if (isCurrentTrack) {
-                applyActiveTrackMetadataUpdate(track)
-            }
         }
     }
 
@@ -774,8 +520,7 @@ class Media3AudioPlayerEngine(
 
     override fun stop() {
         runOnApplicationLooper {
-            val currentIndex = _currentTrackIndex.value
-            commitPendingEnrichedItem(currentIndex)
+            commitPendingEnrichedItem(0)
             activeTrackMetadataRef.set(null)
             audioFocusHandler.abandonAudioFocus()
             stopPositionTicker()
@@ -798,12 +543,6 @@ class Media3AudioPlayerEngine(
             mediaSession.release()
             player.release()
         }
-    }
-
-    @Suppress("UNUSED_PARAMETER")
-    private fun applyPlaybackMode(mode: PlaybackMode) {
-        player.repeatMode = Player.REPEAT_MODE_OFF
-        player.shuffleModeEnabled = false
     }
 
     private fun updatePlaybackState() {

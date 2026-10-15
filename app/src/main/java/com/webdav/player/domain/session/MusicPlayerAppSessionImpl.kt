@@ -1037,7 +1037,6 @@ class MusicPlayerAppSessionImpl(
                 }
             current.copy(playbackMode = mode, queue = updatedQueue)
         }
-        playerEngine.setPlaybackMode(mode)
         coroutineScope.launch { flushSession() }
     }
 
@@ -1233,14 +1232,12 @@ class MusicPlayerAppSessionImpl(
             if (savedSession.cuePath != null && savedSession.queueTracks.isNotEmpty()) {
                 val restoredVirtual = restoreVirtualTrackSession(server, savedSession)
                 if (restoredVirtual) {
-                    playerEngine.setPlaybackMode(savedSession.playbackMode)
                     return
                 }
                 // Fall back cleanly to ordinary playback
             }
 
             restoreOrdinarySession(server, savedSession)
-            playerEngine.setPlaybackMode(savedSession.playbackMode)
         } finally {
             _isRestored.value = true
         }

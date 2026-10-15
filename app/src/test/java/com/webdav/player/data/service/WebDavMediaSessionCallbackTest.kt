@@ -186,75 +186,18 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_next_and_previous_delegatesToSkipHandler_whenActive() {
-        fakeEngine.playTracks(testServer, testTracks, startIndex = 0)
-
-        var nextCount = 0
-        var prevCount = 0
-        fakeEngine.setSkipHandler(
-            object : com.webdav.player.domain.player.AudioPlayerEngine.SkipHandler {
-                override fun onSkipToNext(): Boolean {
-                    nextCount++
-                    return true
-                }
-
-                override fun onSkipToPrevious(): Boolean {
-                    prevCount++
-                    return true
-                }
-            },
-        )
-
-        val nextIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
-        val handledNext = callback.handleMediaButtonIntent(nextIntent)
-        assertTrue(handledNext)
-        assertEquals(1, nextCount)
-
-        val prevIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-        val handledPrev = callback.handleMediaButtonIntent(prevIntent)
-        assertTrue(handledPrev)
-        assertEquals(1, prevCount)
-    }
-
-    @Test
-    fun handleMediaButton_next_withAppSession_directlyCallsAppSessionSkipToNextWithoutEngine() {
-        val appSession = RecordingAppSession()
-        callback.appSession = appSession
-
-        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
-        val handled = callback.handleMediaButtonIntent(intent)
-
-        assertTrue(handled)
-        assertEquals(1, appSession.skipToNextCount)
-        assertEquals(0, fakeEngine.nextCount)
-    }
-
-    @Test
-    fun handleMediaButton_previous_withAppSession_directlyCallsAppSessionSkipToPreviousWithoutEngine() {
-        val appSession = RecordingAppSession()
-        callback.appSession = appSession
-
-        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-        val handled = callback.handleMediaButtonIntent(intent)
-
-        assertTrue(handled)
-        assertEquals(1, appSession.skipToPreviousCount)
-        assertEquals(0, fakeEngine.previousCount)
-    }
-
-    @Test
-    fun handleMediaButton_nextAndPrevious_withNullAppSession_fallsBackToPlayerEngine() {
+    fun handleMediaButton_nextAndPrevious_withNullAppSession_doesNotInvokeEngine() {
         callback.appSession = null
 
         val nextIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
         val handledNext = callback.handleMediaButtonIntent(nextIntent)
         assertTrue(handledNext)
-        assertEquals(1, fakeEngine.nextCount)
+        assertEquals(0, fakeEngine.nextCount)
 
         val prevIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         val handledPrev = callback.handleMediaButtonIntent(prevIntent)
         assertTrue(handledPrev)
-        assertEquals(1, fakeEngine.previousCount)
+        assertEquals(0, fakeEngine.previousCount)
     }
 
     @Test

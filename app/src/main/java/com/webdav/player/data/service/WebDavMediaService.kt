@@ -73,8 +73,8 @@ class WebDavMediaService : MediaSessionService() {
         when (intent?.action) {
             WebDavNotificationProvider.ACTION_PLAY -> host.play()
             WebDavNotificationProvider.ACTION_PAUSE -> host.pause()
-            WebDavNotificationProvider.ACTION_NEXT -> host.skipToNext()
-            WebDavNotificationProvider.ACTION_PREVIOUS -> host.skipToPrevious()
+            WebDavNotificationProvider.ACTION_NEXT -> host.mediaSessionCallback?.appSession?.skipToNext()
+            WebDavNotificationProvider.ACTION_PREVIOUS -> host.mediaSessionCallback?.appSession?.skipToPrevious()
         }
 
         return super.onStartCommand(intent, flags, startId)
