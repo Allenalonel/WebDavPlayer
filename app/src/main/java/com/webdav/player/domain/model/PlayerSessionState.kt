@@ -13,6 +13,7 @@ data class PlayerSessionState(
     val isWeakNetwork: Boolean = false,
     val canManualRetry: Boolean = false,
     val isReconnecting: Boolean = false,
+    val wasKilledBySystem: Boolean = false,
 ) {
     val currentTrack: AudioTrack? get() = queue.currentTrack
     val isPlaying: Boolean get() = playbackState is PlaybackState.Playing

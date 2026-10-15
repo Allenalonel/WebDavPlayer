@@ -72,6 +72,8 @@ interface MusicPlayerAppSession {
 
     fun retryPlayback() {}
 
+    fun clearKilledBySystemFlag() {}
+
     fun stop()
 
     fun release()

@@ -547,12 +547,12 @@ class EndToEndPlaybackPipelineIntegrationTest {
             host.handlePlaybackStateChanged(PlaybackState.Buffering)
             assertTrue("Host remains in foreground during buffering", host.isForegroundActive)
 
-            // 3. Transition to Paused -> graceful demote to STOP_FOREGROUND_DETACH
-            // Crucial: Keeps notification visible for the user, but releases active foreground status
-            // so Android ActivityManager does not flag the app with App Idle violation warnings!
+            // 3. Transition to Paused -> maintains foreground status during 15-minute deferred demotion grace period
+            // Keeps notification active and prevents aggressive background force-stopping
             host.handlePlaybackStateChanged(PlaybackState.Paused)
-            assertFalse("Host foreground demoted on pause", host.isForegroundActive)
-            assertTrue("Service stopped foreground execution gracefully", shadowService.isForegroundStopped)
+            assertTrue("Host maintains foreground during 15-minute grace window on pause", host.isForegroundActive)
+            assertTrue("Deferred demotion timer scheduled", host.isDemotionPending)
+            assertFalse("Service foreground is not prematurely stopped", shadowService.isForegroundStopped)
 
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val activeNotifications = notificationManager.activeNotifications

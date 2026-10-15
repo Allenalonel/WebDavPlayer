@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -43,6 +44,7 @@ class DataStorePlaybackSessionStore(
         private val KEY_CUE_PATH = stringPreferencesKey("cue_path")
         private val KEY_VIRTUAL_TRACK_NUMBER = intPreferencesKey("virtual_track_number")
         private val KEY_VIRTUAL_POSITION_MS = longPreferencesKey("virtual_position_ms")
+        private val KEY_CLEAN_EXIT = booleanPreferencesKey("clean_exit")
     }
 
     override suspend fun saveSession(sessionData: PlaybackSessionData) {
@@ -76,6 +78,7 @@ class DataStorePlaybackSessionStore(
             } else {
                 prefs.remove(KEY_VIRTUAL_POSITION_MS)
             }
+            prefs[KEY_CLEAN_EXIT] = sessionData.cleanExit
         }
     }
 
@@ -84,6 +87,10 @@ class DataStorePlaybackSessionStore(
     }
 
     override suspend fun savePosition(positionMs: Long, virtualPositionMs: Long?) {
+        savePosition(positionMs, virtualPositionMs, isCleanExit = false)
+    }
+
+    override suspend fun savePosition(positionMs: Long, virtualPositionMs: Long?, isCleanExit: Boolean) {
         val clamped = positionMs.coerceAtLeast(0L)
         dataStore.edit { prefs ->
             testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
@@ -91,6 +98,7 @@ class DataStorePlaybackSessionStore(
             if (virtualPositionMs != null) {
                 prefs[KEY_VIRTUAL_POSITION_MS] = virtualPositionMs.coerceAtLeast(0L)
             }
+            prefs[KEY_CLEAN_EXIT] = isCleanExit
         }
     }
 
@@ -129,6 +137,7 @@ class DataStorePlaybackSessionStore(
         val cuePath = prefs[KEY_CUE_PATH]
         val virtualTrackNumber = prefs[KEY_VIRTUAL_TRACK_NUMBER]
         val virtualPositionMs = prefs[KEY_VIRTUAL_POSITION_MS]
+        val cleanExit = prefs[KEY_CLEAN_EXIT] ?: true
 
         return PlaybackSessionData(
             activeServerId = serverId,
@@ -141,6 +150,7 @@ class DataStorePlaybackSessionStore(
             cuePath = cuePath,
             virtualTrackNumber = virtualTrackNumber,
             virtualPositionMs = virtualPositionMs,
+            cleanExit = cleanExit,
         )
     }
 

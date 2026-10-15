@@ -11,6 +11,7 @@ data class PlaybackSessionData(
     val cuePath: String? = null,
     val virtualTrackNumber: Int? = null,
     val virtualPositionMs: Long? = null,
+    val cleanExit: Boolean = true,
 ) {
     companion object {
         val EMPTY = PlaybackSessionData(
@@ -24,6 +25,7 @@ data class PlaybackSessionData(
             cuePath = null,
             virtualTrackNumber = null,
             virtualPositionMs = null,
+            cleanExit = true,
         )
     }
 }

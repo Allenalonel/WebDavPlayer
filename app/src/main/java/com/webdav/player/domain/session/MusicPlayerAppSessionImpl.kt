@@ -74,8 +74,10 @@ class MusicPlayerAppSessionImpl(
         track: AudioTrack,
         startPositionMs: Long = 0L,
     ) {
+        clearKilledBySystemFlag()
         hasStreamLoaded = true
         playerEngine.loadTrack(server, track, startPositionMs)
+        coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = false) }
     }
 
     private val bufferingWatchdogJobRef =
@@ -791,6 +793,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun togglePlayPause() {
+        clearKilledBySystemFlag()
         val current = _sessionState.value
         when {
             current.isPlaying -> {
@@ -803,13 +806,13 @@ class MusicPlayerAppSessionImpl(
                             if (virtualTimelineEngine.isActive) {
                                 val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
                                 val relPos = (pos - startMs).coerceAtLeast(0L)
-                                sessionStore?.savePosition(pos, relPos)
+                                sessionStore?.savePosition(pos, relPos, isCleanExit = true)
                             } else {
-                                sessionStore?.savePosition(pos)
+                                sessionStore?.savePosition(pos, null, isCleanExit = true)
                             }
                         }
                     }
-                    flushSession()
+                    flushSessionWithCleanExit(isCleanExit = true)
                 }
             }
 
@@ -863,6 +866,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun play() {
+        clearKilledBySystemFlag()
         val current = _sessionState.value
         if (current.isPaused) {
             if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null && current.activeServer != null) {
@@ -917,13 +921,13 @@ class MusicPlayerAppSessionImpl(
                     if (virtualTimelineEngine.isActive) {
                         val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
                         val relPos = (pos - startMs).coerceAtLeast(0L)
-                        sessionStore?.savePosition(pos, relPos)
+                        sessionStore?.savePosition(pos, relPos, isCleanExit = true)
                     } else {
-                        sessionStore?.savePosition(pos)
+                        sessionStore?.savePosition(pos, null, isCleanExit = true)
                     }
                 }
             }
-            flushSession()
+            flushSessionWithCleanExit(isCleanExit = true)
         }
     }
 
@@ -1124,7 +1128,13 @@ class MusicPlayerAppSessionImpl(
         playerEngine.stop()
         _playbackProgress.value = PlaybackProgress.ZERO
         _sessionState.update { it.copy(playbackState = PlaybackState.Idle) }
-        coroutineScope.launch { flushSession() }
+        coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = true) }
+    }
+
+    override fun clearKilledBySystemFlag() {
+        if (_sessionState.value.wasKilledBySystem) {
+            _sessionState.update { it.copy(wasKilledBySystem = false) }
+        }
     }
 
     override fun release() {
@@ -1158,9 +1168,9 @@ class MusicPlayerAppSessionImpl(
                             if (virtualTimelineEngine.isActive) {
                                 val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
                                 val relPos = (pos - startMs).coerceAtLeast(0L)
-                                sessionStore.savePosition(pos, relPos)
+                                sessionStore.savePosition(pos, relPos, isCleanExit = false)
                             } else {
-                                sessionStore.savePosition(pos)
+                                sessionStore.savePosition(pos, null, isCleanExit = false)
                             }
                         }
                     }
@@ -1321,6 +1331,7 @@ class MusicPlayerAppSessionImpl(
 
         val queue = PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex)
 
+        val wasKilled = !savedSession.cleanExit && savedSession.currentTrackIndex >= 0 && savedSession.queueTracks.isNotEmpty()
         _sessionState.update {
             it.copy(
                 activeServer = server ?: it.activeServer,
@@ -1330,6 +1341,7 @@ class MusicPlayerAppSessionImpl(
                 durationMs = targetVirtualTrack.durationMs,
                 currentDirectoryPath = savedSession.currentDirectoryPath,
                 errorMessage = null,
+                wasKilledBySystem = wasKilled,
             )
         }
 
@@ -1376,6 +1388,7 @@ class MusicPlayerAppSessionImpl(
             }
         val durationMs = finalQueue.currentTrack?.durationMs ?: restoredTrack?.durationMs ?: 0L
 
+        val wasKilled = !savedSession.cleanExit && savedSession.currentTrackIndex >= 0 && savedSession.queueTracks.isNotEmpty()
         _sessionState.update {
             it.copy(
                 activeServer = server ?: it.activeServer,
@@ -1385,6 +1398,7 @@ class MusicPlayerAppSessionImpl(
                 durationMs = durationMs,
                 currentDirectoryPath = savedSession.currentDirectoryPath,
                 errorMessage = null,
+                wasKilledBySystem = wasKilled,
             )
         }
         _playbackProgress.value =
@@ -1396,6 +1410,13 @@ class MusicPlayerAppSessionImpl(
     }
 
     override suspend fun flushSession() {
+        val isActivelyPlaying =
+            playerEngine.playbackState.value is PlaybackState.Playing ||
+                playerEngine.playbackState.value is PlaybackState.Buffering
+        flushSessionWithCleanExit(isCleanExit = !isActivelyPlaying)
+    }
+
+    suspend fun flushSessionWithCleanExit(isCleanExit: Boolean) {
         if (!_isRestored.value) return
         val store = sessionStore ?: return
         val current = _sessionState.value
@@ -1472,6 +1493,7 @@ class MusicPlayerAppSessionImpl(
                 cuePath = cuePath,
                 virtualTrackNumber = virtualTrackNumber,
                 virtualPositionMs = virtualPosMs,
+                cleanExit = isCleanExit,
             )
         store.saveSession(sessionData)
     }

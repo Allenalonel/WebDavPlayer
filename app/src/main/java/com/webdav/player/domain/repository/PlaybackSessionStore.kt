@@ -8,6 +8,9 @@ interface PlaybackSessionStore {
     suspend fun savePosition(positionMs: Long, virtualPositionMs: Long?) {
         savePosition(positionMs)
     }
+    suspend fun savePosition(positionMs: Long, virtualPositionMs: Long?, isCleanExit: Boolean) {
+        savePosition(positionMs, virtualPositionMs)
+    }
     suspend fun getSavedSession(): PlaybackSessionData?
     suspend fun clearSession()
 }

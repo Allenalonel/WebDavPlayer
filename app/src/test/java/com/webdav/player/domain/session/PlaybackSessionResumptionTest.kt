@@ -194,6 +194,58 @@ class PlaybackSessionResumptionTest {
             // Engine should still be idle - no network streaming has started yet
             assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
             assertEquals(-1, fakeEngine.lastStartIndex)
+            assertFalse(state.wasKilledBySystem)
+        }
+
+    @Test
+    fun coldStart_whenCleanExitFalse_detectsSystemKillAndSetsWasKilledBySystemTrue() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1, track2),
+                    currentTrackIndex = 0,
+                    positionMs = 30000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                    cleanExit = false,
+                )
+            fakeStore.savedSession = savedSession
+
+            session = createSession()
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertTrue("Should detect killed by system when cleanExit=false and was playing track", state.wasKilledBySystem)
+
+            // Clearing flag explicitly resets it
+            session.clearKilledBySystemFlag()
+            assertFalse(session.sessionState.value.wasKilledBySystem)
+        }
+
+    @Test
+    fun userInteraction_smoothlyClearsWasKilledBySystemFlag() =
+        runTest(testDispatcher) {
+            val savedSession =
+                PlaybackSessionData(
+                    activeServerId = 1L,
+                    currentDirectoryPath = "/Music/Jazz/",
+                    queueTracks = listOf(track1, track2),
+                    currentTrackIndex = 0,
+                    positionMs = 30000L,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                    cleanExit = false,
+                )
+            fakeStore.savedSession = savedSession
+
+            session = createSession()
+            advanceUntilIdle()
+            assertTrue(session.sessionState.value.wasKilledBySystem)
+
+            // User clicks play
+            session.play()
+            advanceUntilIdle()
+            assertFalse(session.sessionState.value.wasKilledBySystem)
         }
 
     @Test

@@ -123,6 +123,30 @@ class DataStorePlaybackSessionStoreTest {
         assertEquals(1, restored?.currentTrackIndex)
         assertEquals(65432L, restored?.positionMs)
         assertEquals(PlaybackMode.SHUFFLE, restored?.playbackMode)
+        assertTrue(restored?.cleanExit == true)
+    }
+
+    @Test
+    fun saveSession_withCleanExitFalse_persistsAccurately() = runTest(testDispatcher) {
+        val original = PlaybackSessionData(
+            activeServerId = 1L,
+            currentDirectoryPath = "/Music/",
+            queueTracks = emptyList(),
+            currentTrackIndex = 0,
+            positionMs = 12000L,
+            playbackMode = PlaybackMode.LIST_LOOP,
+            cleanExit = false,
+        )
+
+        repository.saveSession(original)
+        val restored = repository.getSavedSession()
+        assertNotNull(restored)
+        assertEquals(false, restored?.cleanExit)
+
+        repository.savePosition(15000L, null, isCleanExit = true)
+        val afterCleanExitUpdate = repository.getSavedSession()
+        assertEquals(true, afterCleanExitUpdate?.cleanExit)
+        assertEquals(15000L, afterCleanExitUpdate?.positionMs)
     }
 
     @Test
