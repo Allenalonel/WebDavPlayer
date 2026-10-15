@@ -2,11 +2,16 @@ package com.webdav.player.data.service
 
 import android.content.Intent
 import android.view.KeyEvent
+import androidx.media3.common.Player
+import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionResult
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
+import com.webdav.player.domain.session.FakeMusicPlayerAppSession
+import com.webdav.player.domain.session.MusicPlayerAppSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,6 +25,29 @@ class WebDavMediaSessionCallbackTest {
 
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var callback: WebDavMediaSessionCallback
+
+    private class RecordingAppSession : MusicPlayerAppSession by FakeMusicPlayerAppSession() {
+        var skipToNextCount = 0
+        var skipToPreviousCount = 0
+
+        override fun skipToNext() {
+            skipToNextCount++
+        }
+
+        override fun skipToPrevious() {
+            skipToPreviousCount++
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> allocateInstance(clazz: Class<T>): T {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val theUnsafeField = unsafeClass.getDeclaredField("theUnsafe")
+        theUnsafeField.isAccessible = true
+        val unsafe = theUnsafeField.get(null)
+        val allocateInstanceMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        return allocateInstanceMethod.invoke(unsafe, clazz) as T
+    }
 
     private val testServer = WebDavServer(
         id = 1L,
@@ -186,5 +214,102 @@ class WebDavMediaSessionCallbackTest {
         val handledPrev = callback.handleMediaButtonIntent(prevIntent)
         assertTrue(handledPrev)
         assertEquals(1, prevCount)
+    }
+
+    @Test
+    fun handleMediaButton_next_withAppSession_directlyCallsAppSessionSkipToNextWithoutEngine() {
+        val appSession = RecordingAppSession()
+        callback.appSession = appSession
+
+        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
+        val handled = callback.handleMediaButtonIntent(intent)
+
+        assertTrue(handled)
+        assertEquals(1, appSession.skipToNextCount)
+        assertEquals(0, fakeEngine.nextCount)
+    }
+
+    @Test
+    fun handleMediaButton_previous_withAppSession_directlyCallsAppSessionSkipToPreviousWithoutEngine() {
+        val appSession = RecordingAppSession()
+        callback.appSession = appSession
+
+        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        val handled = callback.handleMediaButtonIntent(intent)
+
+        assertTrue(handled)
+        assertEquals(1, appSession.skipToPreviousCount)
+        assertEquals(0, fakeEngine.previousCount)
+    }
+
+    @Test
+    fun handleMediaButton_nextAndPrevious_withNullAppSession_fallsBackToPlayerEngine() {
+        callback.appSession = null
+
+        val nextIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
+        val handledNext = callback.handleMediaButtonIntent(nextIntent)
+        assertTrue(handledNext)
+        assertEquals(1, fakeEngine.nextCount)
+
+        val prevIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        val handledPrev = callback.handleMediaButtonIntent(prevIntent)
+        assertTrue(handledPrev)
+        assertEquals(1, fakeEngine.previousCount)
+    }
+
+    @Test
+    fun onPlayerCommandRequest_seekToNext_triggersAppSessionSkipToNext() {
+        val appSession = RecordingAppSession()
+        callback.appSession = appSession
+        val session = allocateInstance(MediaSession::class.java)
+        val controller = allocateInstance(MediaSession.ControllerInfo::class.java)
+
+        val resultNext = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT)
+        assertEquals(SessionResult.RESULT_SUCCESS, resultNext)
+        assertEquals(1, appSession.skipToNextCount)
+
+        val resultNextItem = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+        assertEquals(SessionResult.RESULT_SUCCESS, resultNextItem)
+        assertEquals(2, appSession.skipToNextCount)
+        assertEquals(0, fakeEngine.nextCount)
+    }
+
+    @Test
+    fun onPlayerCommandRequest_seekToPrevious_triggersAppSessionSkipToPrevious() {
+        val appSession = RecordingAppSession()
+        callback.appSession = appSession
+        val session = allocateInstance(MediaSession::class.java)
+        val controller = allocateInstance(MediaSession.ControllerInfo::class.java)
+
+        val resultPrev = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS)
+        assertEquals(SessionResult.RESULT_SUCCESS, resultPrev)
+        assertEquals(1, appSession.skipToPreviousCount)
+
+        val resultPrevItem = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        assertEquals(SessionResult.RESULT_SUCCESS, resultPrevItem)
+        assertEquals(2, appSession.skipToPreviousCount)
+        assertEquals(0, fakeEngine.previousCount)
+    }
+
+    @Test
+    fun onPlayerCommandRequest_withNullAppSession_returnsSuccessWithoutCallingSkip() {
+        callback.appSession = null
+        val session = allocateInstance(MediaSession::class.java)
+        val controller = allocateInstance(MediaSession.ControllerInfo::class.java)
+
+        val resultNext = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT)
+        assertEquals(SessionResult.RESULT_SUCCESS, resultNext)
+        assertEquals(0, fakeEngine.nextCount)
+
+        val resultPrev = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS)
+        assertEquals(SessionResult.RESULT_SUCCESS, resultPrev)
+        assertEquals(0, fakeEngine.previousCount)
+    }
+
+    @Test
+    fun constructor_acceptsAppSession() {
+        val appSession = RecordingAppSession()
+        val callbackWithSession = WebDavMediaSessionCallback(fakeEngine, appSession)
+        assertEquals(appSession, callbackWithSession.appSession)
     }
 }

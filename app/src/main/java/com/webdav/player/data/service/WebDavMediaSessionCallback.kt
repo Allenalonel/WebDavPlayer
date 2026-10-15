@@ -8,9 +8,11 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionResult
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.player.AudioPlayerEngine
+import com.webdav.player.domain.session.MusicPlayerAppSession
 
 class WebDavMediaSessionCallback(
-    private val playerEngine: AudioPlayerEngine
+    private val playerEngine: AudioPlayerEngine,
+    var appSession: MusicPlayerAppSession? = null,
 ) : MediaSession.Callback {
 
     override fun onMediaButtonEvent(
@@ -30,10 +32,19 @@ class WebDavMediaSessionCallback(
     ): Int {
         return when (playerCommand) {
             Player.COMMAND_SEEK_TO_NEXT,
-            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> {
+                if (appSession != null) {
+                    appSession?.skipToNext()
+                }
+                SessionResult.RESULT_SUCCESS
+            }
             Player.COMMAND_SEEK_TO_PREVIOUS,
-            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-            -> SessionResult.RESULT_SUCCESS
+            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> {
+                if (appSession != null) {
+                    appSession?.skipToPrevious()
+                }
+                SessionResult.RESULT_SUCCESS
+            }
             else -> super.onPlayerCommandRequest(session, controller, playerCommand)
         }
     }
@@ -70,11 +81,19 @@ class WebDavMediaSessionCallback(
                 true
             }
             KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                playerEngine.skipToNext()
+                if (appSession != null) {
+                    appSession?.skipToNext()
+                } else {
+                    playerEngine.skipToNext()
+                }
                 true
             }
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                playerEngine.skipToPrevious()
+                if (appSession != null) {
+                    appSession?.skipToPrevious()
+                } else {
+                    playerEngine.skipToPrevious()
+                }
                 true
             }
             KeyEvent.KEYCODE_MEDIA_STOP -> {
