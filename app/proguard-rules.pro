@@ -14,7 +14,7 @@
 -keep class androidx.media3.decoder.ffmpeg.** { *; }
 
 # Player engine, extractors (AsfExtractor), and native audio sources
--keep class com.webdav.player.data.player.** { *; }
+-keep class com.webdav.player.data.player.AsfExtractor { *; }
 
 # ExtractorInput interface methods invoked by native C++ (ffmpeg_demuxer.cc)
 -keep interface androidx.media3.extractor.ExtractorInput {
