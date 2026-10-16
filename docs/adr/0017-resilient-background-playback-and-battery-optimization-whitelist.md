@@ -70,8 +70,10 @@
   在 `PlaybackSessionStore` 持久化会话中维护正常退出标记 `cleanExit: Boolean`。正常暂停、切换或退出时置为 `true`；播放中保持为 `false`。冷启动恢复时若检测到上次在播放中未正常退出，判定为遭遇系统强杀（如 MIUI `LockScreenClean`），在会话状态中置位 `wasKilledBySystem = true`。
 - **全屏播放器常驻横幅（可跳转）**：
   在 `FullPlayerView` 顶部实时检查 `PowerManager.isIgnoringBatteryOptimizations(packageName)`。若未开启，常驻展示一条美观的卡片横幅：“检测到锁屏后可能被系统断流，点击优化后台播放保护”。
-- **一键跳转适配**：
-  用户点击横幅后，直接调用标准系统 Intent `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 请求豁免电池优化；同时针对小米（MIUI / HyperOS）等机型，弹出清晰指引并一键跳转至应用设置页，指导开启「自启动」与设置省电策略为「无限制」。
+- **一键跳转与双轨电池防护适配（Dual-Track Flow）**：
+  对标椒盐音乐（Salt Player）等成熟播放器，横幅提供双轨直通按钮：
+  1. **快速授权**：调用原生系统 Intent `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 触发原生白名单授权弹窗，实现零摩擦快速加入 AOSP Doze 豁免；
+  2. **电池设置（设为无限制）**：面向所有机型开放直达当前应用的应用详情设置页 `Settings.ACTION_APPLICATION_DETAILS_SETTINGS`，并向用户提供明确操作指引（点击「电池」设为「无限制」），彻底解除 Android 12+ 系统的隐式后台节流；若为小米（MIUI / HyperOS）设备，则同时支持自启动权限页跳转。
 
 ## Consequences
 

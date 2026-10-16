@@ -171,6 +171,10 @@ class FullPlayerPresentationTest {
             brandProvider = { "Pixel" },
         )
         assertFalse(nonXiaomiManager.isXiaomiDevice())
+
+        val appDetailsIntent = nonXiaomiManager.createAppDetailsSettingsIntent(context)
+        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, appDetailsIntent.action)
+        assertEquals("package:${context.packageName}", appDetailsIntent.dataString)
     }
 
     @Test
@@ -194,12 +198,17 @@ class FakeBatteryWhitelistManager(
 ) : BatteryWhitelistManager {
     var requestIgnoreCount = 0
     var openOemSettingsCount = 0
+    var openAppDetailsCount = 0
 
     override fun isIgnoringBatteryOptimizations(context: Context): Boolean = isIgnoring
     override fun isXiaomiDevice(): Boolean = isXiaomi
     override fun createIgnoreBatteryOptimizationIntent(context: Context): Intent {
         requestIgnoreCount++
         return Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+    }
+    override fun createAppDetailsSettingsIntent(context: Context): Intent {
+        openAppDetailsCount++
+        return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
     }
     override fun createOemAppSettingsIntent(context: Context): Intent {
         openOemSettingsCount++

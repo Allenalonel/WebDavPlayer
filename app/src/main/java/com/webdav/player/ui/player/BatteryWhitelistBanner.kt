@@ -1,6 +1,7 @@
 package com.webdav.player.ui.player
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -143,9 +144,9 @@ fun BatteryWhitelistBanner(
 
                         val description =
                             if (whitelistManager.isXiaomiDevice()) {
-                                "为防息屏断流，请加入电池优化白名单，并在系统设置开启「自启动」并将省电策略设为「无限制」"
+                                "为防息屏断流，请点击「快速授权」允许弹窗，并在「电池设置」开启自启动且省电策略设为无限制"
                             } else {
-                                "WebDAV 在线流式播放需要持续网络与 CPU 唤醒，请允许忽略电池优化以防锁屏断流"
+                                "为防息屏断流，请点击「快速授权」允许弹窗，或在「电池设置」中将电池使用设为「无限制」"
                             }
 
                         Text(
@@ -179,38 +180,47 @@ fun BatteryWhitelistBanner(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (whitelistManager.isXiaomiDevice()) {
-                        FilledTonalButton(
-                            onClick = {
-                                try {
-                                    context.startActivity(whitelistManager.createOemAppSettingsIntent(context))
-                                } catch (_: Throwable) {
-                                }
-                            },
-                            modifier = Modifier.padding(end = 8.dp).testTag("BatteryWhitelistBannerOemButton"),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = ButtonDefaults.TextButtonContentPadding,
-                        ) {
-                            Text(text = "系统设置", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-
                     FilledTonalButton(
                         onClick = {
                             try {
                                 context.startActivity(whitelistManager.createIgnoreBatteryOptimizationIntent(context))
                             } catch (_: Throwable) {
                                 try {
-                                    context.startActivity(whitelistManager.createOemAppSettingsIntent(context))
+                                    context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
                                 } catch (_: Throwable) {
                                 }
                             }
                         },
-                        modifier = Modifier.testTag("BatteryWhitelistBannerActionButton"),
+                        modifier = Modifier.padding(end = 8.dp).testTag("BatteryWhitelistBannerActionButton"),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = ButtonDefaults.TextButtonContentPadding,
                     ) {
-                        Text(text = "忽略电池优化", style = MaterialTheme.typography.labelMedium)
+                        Text(text = "快速授权", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    FilledTonalButton(
+                        onClick = {
+                            try {
+                                Toast.makeText(context, "请点击「电池」并勾选「无限制」", Toast.LENGTH_LONG).show()
+                                val intent =
+                                    if (whitelistManager.isXiaomiDevice()) {
+                                        whitelistManager.createOemAppSettingsIntent(context)
+                                    } else {
+                                        whitelistManager.createAppDetailsSettingsIntent(context)
+                                    }
+                                context.startActivity(intent)
+                            } catch (_: Throwable) {
+                                try {
+                                    context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
+                                } catch (_: Throwable) {
+                                }
+                            }
+                        },
+                        modifier = Modifier.testTag("BatteryWhitelistBannerOemButton"),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = ButtonDefaults.TextButtonContentPadding,
+                    ) {
+                        Text(text = "电池设置", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

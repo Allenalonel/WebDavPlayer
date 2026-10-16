@@ -14,6 +14,8 @@ interface BatteryWhitelistManager {
 
     fun createIgnoreBatteryOptimizationIntent(context: Context): Intent
 
+    fun createAppDetailsSettingsIntent(context: Context): Intent
+
     fun createOemAppSettingsIntent(context: Context): Intent
 }
 
@@ -66,7 +68,7 @@ class DefaultBatteryWhitelistManager(
         }
     }
 
-    private fun createAppDetailsSettingsIntent(context: Context): Intent =
+    override fun createAppDetailsSettingsIntent(context: Context): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.parse("package:${context.packageName}")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK

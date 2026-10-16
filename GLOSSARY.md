@@ -136,6 +136,10 @@ _Avoid_: Keep Alive Lock, Power Lock, Network Guard
 在冷启动时比对上次持久化会话异常终止状态以识别系统强制查杀，并在播放界面展示可跳转至系统电池优化及厂商自启动/神隐模式配置的交互横幅。
 _Avoid_: Battery Dialog, Permission Pop-up, Kill Warning
 
+**Dual-Track Battery Whitelist Flow**:
+在全屏播放器常驻横幅中集成的“原生弹窗快速授权 + 直达应用信息电池策略设置”双轨保活交互机制。既允许用户一键调起 AOSP 原生忽略电池优化弹窗完成 Doze 白名单加入，又面向所有设备提供直达本应用详情页入口与操作指引，引导用户将系统电池策略彻底切换为「无限制（Unrestricted）」，对标主流播放器实践，彻底免疫锁屏降频与进程强杀。
+_Avoid_: Single Popup Flow, Xiaomi-Only Settings
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
