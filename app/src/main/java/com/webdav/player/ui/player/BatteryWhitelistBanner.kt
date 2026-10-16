@@ -55,9 +55,10 @@ fun BatteryWhitelistBanner(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val isIgnoringBatteryOptimizationsState = remember {
-        mutableStateOf(whitelistManager.isIgnoringBatteryOptimizations(context))
-    }
+    val isIgnoringBatteryOptimizationsState =
+        remember {
+            mutableStateOf(whitelistManager.isIgnoringBatteryOptimizations(context))
+        }
 
     DisposableEffect(lifecycleOwner) {
         val observer =

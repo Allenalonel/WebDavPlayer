@@ -1,5 +1,9 @@
 package com.webdav.player.ui.player
 
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
+import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
@@ -8,10 +12,6 @@ import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.formatAudiophileSpecs
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
-import android.content.Context
-import android.content.Intent
-import android.provider.Settings
-import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -23,7 +23,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class FullPlayerPresentationTest {
-
     private lateinit var fakeSession: FakeMusicPlayerAppSession
     private lateinit var coordinator: MainNavigationCoordinator
 
@@ -152,10 +151,11 @@ class FullPlayerPresentationTest {
     fun batteryWhitelistManager_detectsXiaomiAndBuildsProperIntents() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
-        val xiaomiManager = DefaultBatteryWhitelistManager(
-            manufacturerProvider = { "Xiaomi" },
-            brandProvider = { "Redmi" },
-        )
+        val xiaomiManager =
+            DefaultBatteryWhitelistManager(
+                manufacturerProvider = { "Xiaomi" },
+                brandProvider = { "Redmi" },
+            )
         assertTrue(xiaomiManager.isXiaomiDevice())
 
         val oemIntent = xiaomiManager.createOemAppSettingsIntent(context)
@@ -166,10 +166,11 @@ class FullPlayerPresentationTest {
         assertEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, ignoreIntent.action)
         assertEquals("package:${context.packageName}", ignoreIntent.dataString)
 
-        val nonXiaomiManager = DefaultBatteryWhitelistManager(
-            manufacturerProvider = { "Google" },
-            brandProvider = { "Pixel" },
-        )
+        val nonXiaomiManager =
+            DefaultBatteryWhitelistManager(
+                manufacturerProvider = { "Google" },
+                brandProvider = { "Pixel" },
+            )
         assertFalse(nonXiaomiManager.isXiaomiDevice())
 
         val appDetailsIntent = nonXiaomiManager.createAppDetailsSettingsIntent(context)
@@ -201,15 +202,19 @@ class FakeBatteryWhitelistManager(
     var openAppDetailsCount = 0
 
     override fun isIgnoringBatteryOptimizations(context: Context): Boolean = isIgnoring
+
     override fun isXiaomiDevice(): Boolean = isXiaomi
+
     override fun createIgnoreBatteryOptimizationIntent(context: Context): Intent {
         requestIgnoreCount++
         return Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
     }
+
     override fun createAppDetailsSettingsIntent(context: Context): Intent {
         openAppDetailsCount++
         return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
     }
+
     override fun createOemAppSettingsIntent(context: Context): Intent {
         openOemSettingsCount++
         return Intent("miui.intent.action.APP_PERM_EDITOR")
