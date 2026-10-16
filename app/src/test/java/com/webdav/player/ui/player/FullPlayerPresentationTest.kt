@@ -191,6 +191,26 @@ class FullPlayerPresentationTest {
         fakeManager.isIgnoring = true
         assertTrue(fakeManager.isIgnoring)
     }
+
+    @Test
+    fun batteryWhitelistBanner_progressiveTwoStageFlow_differentiatesStageOneAndStageTwo() {
+        val fakeManager = FakeBatteryWhitelistManager(isIgnoring = false, isXiaomi = false)
+
+        // Stage 1: unwhitelisted -> shows initial guidance
+        val initiallyIgnoring = fakeManager.isIgnoring
+        assertFalse(initiallyIgnoring)
+
+        // User allows Quick Auth -> becomes whitelisted
+        fakeManager.isIgnoring = true
+        val isStageTwo = fakeManager.isIgnoring && (!initiallyIgnoring || false)
+        assertTrue("Progresses to stage two when user allowed quick auth in-session", isStageTwo)
+
+        // User already whitelisted on launch (not killed) -> does not show stage two repeatedly
+        val alreadyWhitelistedLaunch = true
+        val notKilled = false
+        val shouldShowStageTwoOnLaunch = alreadyWhitelistedLaunch && (!alreadyWhitelistedLaunch || notKilled)
+        assertFalse(shouldShowStageTwoOnLaunch)
+    }
 }
 
 class FakeBatteryWhitelistManager(

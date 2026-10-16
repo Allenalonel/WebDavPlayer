@@ -55,10 +55,14 @@ fun BatteryWhitelistBanner(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val initiallyIgnoring = remember { whitelistManager.isIgnoringBatteryOptimizations(context) }
     val isIgnoringBatteryOptimizationsState =
         remember {
-            mutableStateOf(whitelistManager.isIgnoringBatteryOptimizations(context))
+            mutableStateOf(initiallyIgnoring)
         }
+
+    val hasNavigatedToSettingsState = rememberSaveable { mutableStateOf(false) }
+    val isDismissedState = rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer =
@@ -73,9 +77,12 @@ fun BatteryWhitelistBanner(
         }
     }
 
-    val isDismissedState = rememberSaveable { mutableStateOf(false) }
+    val isStageTwo = isIgnoringBatteryOptimizationsState.value && (!initiallyIgnoring || wasKilledBySystem)
 
-    val isVisible = !isIgnoringBatteryOptimizationsState.value && !isDismissedState.value
+    val isVisible =
+        !isDismissedState.value &&
+            !hasNavigatedToSettingsState.value &&
+            (!isIgnoringBatteryOptimizationsState.value || isStageTwo)
 
     AnimatedVisibility(
         visible = isVisible,
@@ -106,15 +113,23 @@ fun BatteryWhitelistBanner(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
                 ) {
+                    val icon =
+                        when {
+                            isStageTwo -> AppIcons.CheckCircle
+                            wasKilledBySystem -> AppIcons.Warning
+                            else -> AppIcons.Info
+                        }
+                    val iconTint =
+                        when {
+                            isStageTwo -> MaterialTheme.colorScheme.primary
+                            wasKilledBySystem -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+
                     Icon(
-                        imageVector = if (wasKilledBySystem) AppIcons.Warning else AppIcons.Info,
+                        imageVector = icon,
                         contentDescription = "电池优化提示",
-                        tint =
-                            if (wasKilledBySystem) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
+                        tint = iconTint,
                         modifier =
                             Modifier
                                 .size(24.dp)
@@ -124,30 +139,43 @@ fun BatteryWhitelistBanner(
                     Spacer(modifier = Modifier.width(10.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
+                        val titleText =
+                            when {
+                                isStageTwo -> "已允许忽略电池优化"
+                                wasKilledBySystem -> "检测到上次锁屏被系统强制终止"
+                                else -> "建议开启后台播放保护"
+                            }
+                        val titleColor =
+                            when {
+                                isStageTwo -> MaterialTheme.colorScheme.onSurface
+                                wasKilledBySystem -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+
                         Text(
-                            text =
-                                if (wasKilledBySystem) {
-                                    "检测到上次锁屏被系统强制终止"
-                                } else {
-                                    "建议开启后台播放保护"
-                                },
+                            text = titleText,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color =
-                                if (wasKilledBySystem) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
+                            color = titleColor,
                         )
 
                         Spacer(modifier = Modifier.height(2.dp))
 
                         val description =
-                            if (whitelistManager.isXiaomiDevice()) {
-                                "为防息屏断流，请点击「快速授权」允许弹窗，并在「电池设置」开启自启动且省电策略设为无限制"
-                            } else {
-                                "为防息屏断流，请点击「快速授权」允许弹窗，或在「电池设置」中将电池使用设为「无限制」"
+                            when {
+                                isStageTwo -> {
+                                    if (whitelistManager.isXiaomiDevice()) {
+                                        "基础白名单已生效！如需锁屏彻底防杀，建议进一步点击「电池设置」开启自启动且省电策略设为无限制"
+                                    } else {
+                                        "基础白名单已生效！如需锁屏彻底防杀，建议进一步点击「电池设置」勾选「无限制」"
+                                    }
+                                }
+                                whitelistManager.isXiaomiDevice() -> {
+                                    "为防息屏断流，请点击「快速授权」允许弹窗，并在「电池设置」开启自启动且省电策略设为无限制"
+                                }
+                                else -> {
+                                    "为防息屏断流，请点击「快速授权」允许弹窗，或在「电池设置」中将电池使用设为「无限制」"
+                                }
                             }
 
                         Text(
@@ -181,47 +209,90 @@ fun BatteryWhitelistBanner(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FilledTonalButton(
-                        onClick = {
-                            try {
-                                context.startActivity(whitelistManager.createIgnoreBatteryOptimizationIntent(context))
-                            } catch (_: Throwable) {
+                    if (isStageTwo) {
+                        FilledTonalButton(
+                            onClick = {
                                 try {
-                                    context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
+                                    Toast.makeText(context, "请点击「电池」并勾选「无限制」", Toast.LENGTH_LONG).show()
+                                    val intent =
+                                        if (whitelistManager.isXiaomiDevice()) {
+                                            whitelistManager.createOemAppSettingsIntent(context)
+                                        } else {
+                                            whitelistManager.createAppDetailsSettingsIntent(context)
+                                        }
+                                    context.startActivity(intent)
+                                    hasNavigatedToSettingsState.value = true
                                 } catch (_: Throwable) {
-                                }
-                            }
-                        },
-                        modifier = Modifier.padding(end = 8.dp).testTag("BatteryWhitelistBannerActionButton"),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = ButtonDefaults.TextButtonContentPadding,
-                    ) {
-                        Text(text = "快速授权", style = MaterialTheme.typography.labelMedium)
-                    }
-
-                    FilledTonalButton(
-                        onClick = {
-                            try {
-                                Toast.makeText(context, "请点击「电池」并勾选「无限制」", Toast.LENGTH_LONG).show()
-                                val intent =
-                                    if (whitelistManager.isXiaomiDevice()) {
-                                        whitelistManager.createOemAppSettingsIntent(context)
-                                    } else {
-                                        whitelistManager.createAppDetailsSettingsIntent(context)
+                                    try {
+                                        context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
+                                        hasNavigatedToSettingsState.value = true
+                                    } catch (_: Throwable) {
                                     }
-                                context.startActivity(intent)
-                            } catch (_: Throwable) {
-                                try {
-                                    context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
-                                } catch (_: Throwable) {
                                 }
-                            }
-                        },
-                        modifier = Modifier.testTag("BatteryWhitelistBannerOemButton"),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = ButtonDefaults.TextButtonContentPadding,
-                    ) {
-                        Text(text = "电池设置", style = MaterialTheme.typography.labelMedium)
+                            },
+                            modifier = Modifier.padding(end = 8.dp).testTag("BatteryWhitelistBannerOemButton"),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = ButtonDefaults.TextButtonContentPadding,
+                        ) {
+                            Text(text = "电池设置", style = MaterialTheme.typography.labelMedium)
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                isDismissedState.value = true
+                                onDismiss()
+                            },
+                            modifier = Modifier.testTag("BatteryWhitelistBannerActionButton"),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = ButtonDefaults.TextButtonContentPadding,
+                        ) {
+                            Text(text = "我知道了", style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = {
+                                try {
+                                    context.startActivity(whitelistManager.createIgnoreBatteryOptimizationIntent(context))
+                                } catch (_: Throwable) {
+                                    try {
+                                        context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
+                                    } catch (_: Throwable) {
+                                    }
+                                }
+                            },
+                            modifier = Modifier.padding(end = 8.dp).testTag("BatteryWhitelistBannerActionButton"),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = ButtonDefaults.TextButtonContentPadding,
+                        ) {
+                            Text(text = "快速授权", style = MaterialTheme.typography.labelMedium)
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                try {
+                                    Toast.makeText(context, "请点击「电池」并勾选「无限制」", Toast.LENGTH_LONG).show()
+                                    val intent =
+                                        if (whitelistManager.isXiaomiDevice()) {
+                                            whitelistManager.createOemAppSettingsIntent(context)
+                                        } else {
+                                            whitelistManager.createAppDetailsSettingsIntent(context)
+                                        }
+                                    context.startActivity(intent)
+                                    hasNavigatedToSettingsState.value = true
+                                } catch (_: Throwable) {
+                                    try {
+                                        context.startActivity(whitelistManager.createAppDetailsSettingsIntent(context))
+                                        hasNavigatedToSettingsState.value = true
+                                    } catch (_: Throwable) {
+                                    }
+                                }
+                            },
+                            modifier = Modifier.testTag("BatteryWhitelistBannerOemButton"),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = ButtonDefaults.TextButtonContentPadding,
+                        ) {
+                            Text(text = "电池设置", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }
