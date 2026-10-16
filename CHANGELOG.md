@@ -4,37 +4,28 @@
 
 ---
 
-## [2.5] - 2026-10-16
+## [2.4] - 2026-10-16
 
 ### 🚀 新增 (Added)
 - **15 分钟延迟前台服务降级状态机 (Deferred Foreground Demotion)**：用户暂停播放时，应用不再立即注销前台服务与通知栏，而是保持高优先级前台身份并启动 15 分钟延迟降级协程计时器。15 分钟内通过通知栏、耳机线控或界面恢复播放时实现零延迟无缝秒播；超时未操作则优雅调用 `service.stopForeground(STOP_FOREGROUND_DETACH)` 释放前台身份以节约系统电量；彻底消除了 Android 10+ 与定制 ROM 在暂停数分钟内因系统闲置判定（`app idle`）强行停止服务的问题。
 - **流式双硬件锁联动守护 (Dual Streaming Hardware Locks)**：抽象出专职的 `StreamingHardwareLockManager`，ExoPlayer 内核显式配置网络唤醒模式（`setWakeMode(C.WAKE_MODE_NETWORK)`），底层流式数据源装配 Wi-Fi 高性能锁（`WIFI_MODE_FULL_HIGH_PERF`，标签 `"WebDavPlayer:StreamingWifiLock"`）。回放与网络缓冲阶段自动申请并持有双锁，彻底杜绝息屏后 CPU 停步与 Wi-Fi 芯片降频节能导致的流式断流挂死；暂停与停止时瞬间释放双锁，允许手机锁屏正常进入深层节能休眠。
-- **全机型双轨电池防护体系 (Dual-Track Battery Whitelist Flow)**：对标椒盐音乐等业界标杆，在全屏大播放器顶栏下方提供“双轨直通”保活机制——【快速授权】直接调起 AOSP 原生弹窗加入 Doze 忽略电池优化白名单；【电池设置】面向全机型直达系统应用信息页并引导用户勾选「无限制（Unrestricted）」，针对小米设备自动直达自启动与神隐模式权限页，彻底免疫锁屏降频与进程强制清理（如 MIUI `LockScreenClean`）。
+- **全机型双轨电池防护与厂商跳转 (Dual-Track Battery Whitelist Flow)**：对标椒盐音乐等业界标杆，在全屏大播放器顶栏下方提供“双轨直通”保活机制——【快速授权】直接调起 AOSP 原生弹窗加入 Doze 忽略电池优化白名单；【电池设置】面向全机型直达系统应用信息页并引导用户勾选「无限制（Unrestricted）」，针对小米设备自动直达自启动与神隐模式权限页，彻底免疫锁屏降频与进程强制清理（如 MIUI `LockScreenClean`）。
 - **渐进式两阶段横幅交互 (Progressive Two-Stage Banner Flow)**：优化白名单引导交互体验。用户在阶段一点击【快速授权】并允许后，横幅不突兀消失，而是平滑变更为绿色的阶段二成功状态，继续引导用户从容点击【电池设置】完成终极设置或点击【我知道了】优雅收起。
 - **会话健康退出追踪与系统强杀研判 (Session Health Tracking & Kill Detection)**：持久化存储记录 `cleanExit` 健康状态，流式播放中置为 `false`，正常暂停/退出写回 `true`。冷启动若检测到异常中断，准确识别上次被系统强杀并在状态流中置位 `wasKilledBySystem = true`，自动在横幅中动态强化风险警示文案。
 - **服务前台窗口主动预热 (First-Frame Service Pre-warming)**：在 `MainActivity.onStart()` 前台窗口期主动预热并绑定媒体播放服务，彻底杜绝从后台唤起服务引发的 `Background start not allowed` 崩溃。
 - **退后台内存自洁机制 (TrimMemory Guard)**：在 `MainActivity` 与 `WebDavApplication` 中监听 `TRIM_MEMORY_UI_HIDDEN` 信号，应用切后台或息屏时立即清空 `ThumbnailMemoryCache` 大图缓存，将后台常驻内存压降 60%（至约 50MB），消除触发 Low Memory Killer (LMK) 的风险。
-- **架构决策记录 (ADR)**：归档落地 [ADR 0017: 弹性后台播放保活、延迟降级、双硬件锁与厂商电池白名单](docs/adr/0017-resilient-background-playback-and-battery-optimization-whitelist.md)。
-
-### ⚡ 优化与工程变更 (Changed)
-- **服务粘性与任务划卡守护**：`WebDavMediaService.onStartCommand()` 明确声明 `START_STICKY` 粘性，且在 `onTaskRemoved()` 中守护正在播放或处于 15 分钟延迟降级宽容期内的回放服务，用户在最近任务列表划掉主界面卡片时音乐持续稳定播放。
-- **发布包体积预算自动化验证**：微调 ProGuard 精确保护规则，在增加硬件锁、电池白名单及两阶段横幅组件后，Release APK 体积依然稳定保持在 **6.59 MB**（预算 <= 7.5 MB）、`classes.dex` 保持在 **3.96 MB**（预算 <= 4.0 MB），持续通过自动化门禁检验。
-
----
-
-## [2.4] - 2026-10-15
-
-### 🚀 新增 (Added)
 - **会话接管切歌权与队列调度集中化 (Session-Managed Queue Progression)**：剥夺底层播放器内核自主跨曲跳过权，将切歌决策、循环模式流转与 CUE 虚拟分轨调度 100% 收拢至应用会话层（`MusicPlayerAppSessionImpl`），ExoPlayer 物理时间线仅维持单轨或受控的双轨预热窗口。
 - **伪播放结束双重熔断防线 (Premature EOF Guard)**：在底层数据源引入传输字节计数校验（比对 `Content-Range` 与已收字节，未达标抛出 `UnexpectedEndOfStreamException` 转入断点重连），并在会话层建立时长比对熔断（`currentPositionMs < durationMs - 5000ms` 时判定为网络异常截断并就地自愈），彻底消除弱网、NAS 硬盘休眠或闪断时意外跳过章节的顽疾。
 - **底层透明断点续连机制 (Transparent Range Reconnection)**：数据源在遭遇读取超时或网络抖动时，在传输层透明记录字节偏移量并以退避重试发起 HTTP Range 请求续传，解码管道不销毁、进度不跳变，对上层播放器与 UI 完全透明。
 - **弱网纯内存自适应大缓冲 (Expanded Weak-Network Buffer)**：坚守纯在线流式零持久化落盘约束，弱网配置将最大缓冲弹性提升至 90 秒（`maxBufferMs = 90_000`），利用网络空闲窗口大幅拓宽抗抖动冗余。
-- **架构决策记录 (ADR)**：归档落地 [ADR 0015: 会话接管队列流转与容错流式管道](docs/adr/0015-session-managed-queue-and-fault-tolerant-streaming-pipeline.md) 与 [ADR 0016: 播放器引擎收窄为流式渲染管道](docs/adr/0016-deepen-player-engine-to-stream-rendering-pipeline.md)。
+- **架构决策记录 (ADR)**：归档落地 [ADR 0015](docs/adr/0015-session-managed-queue-and-fault-tolerant-streaming-pipeline.md)、[ADR 0016](docs/adr/0016-deepen-player-engine-to-stream-rendering-pipeline.md) 与 [ADR 0017](docs/adr/0017-resilient-background-playback-and-battery-optimization-whitelist.md)。
 
-### 🔄 变更与架构深化 (Changed)
+### ⚡ 优化与工程变更 (Changed)
 - **底层播放引擎收窄为纯流式渲染管道 (Streaming Playback Pipeline)**：重构 `AudioPlayerEngine`，彻底剔除 `playTracks(List)`、`seekToTrack`、`removeTrack` 等 10 余个多曲目列表遗留方法与无用的 `shufflePermutation` 幽灵属性，收窄为 `loadTrack`、`prerollTrack`、`clearPrerollTrack` 与 `updateTrackMetadata` 4 个核心流管道方法，接口内聚度提升 60% 以上。
 - **根除切歌反向回调回旋镖 (Direct Skip Intent)**：系统媒体会话（`WebDavMediaSessionCallback`）与蓝牙线控按键直接将切歌意图派发给应用会话层，消除跨接缝反向回调与双向耦合。
 - **净化测试表面 (Purify Test Surface)**：依照“接口即测试表面”原则，大幅瘦身 `FakeAudioPlayerEngine`，删除全部模拟列表管理逻辑，测试表面与底层真实流式渲染完全一致。
+- **服务粘性与任务划卡守护**：`WebDavMediaService.onStartCommand()` 明确声明 `START_STICKY` 粘性，且在 `onTaskRemoved()` 中守护正在播放或处于 15 分钟延迟降级宽容期内的回放服务，用户在最近任务列表划掉主界面卡片时音乐持续稳定播放。
+- **发布包体积预算自动化验证**：微调 ProGuard 精确保护规则，在增加硬件锁、电池白名单及两阶段横幅组件后，Release APK 体积依然稳定保持在 **6.59 MB**（预算 <= 7.5 MB）、`classes.dex` 保持在 **3.96 MB**（预算 <= 4.0 MB），持续通过自动化门禁检验。
 
 ---
 
