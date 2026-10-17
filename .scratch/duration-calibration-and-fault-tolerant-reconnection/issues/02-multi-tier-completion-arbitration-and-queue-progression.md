@@ -5,7 +5,7 @@ Refactor the session layer's `handlePlaybackEnded()` to accurately differentiate
 
 **Blocked by:** 01 Engine Clock Synchronization Precedence and Physical Duration Probe
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Legitimate track completion advances the queue to the next track across List Loop and Shuffle modes when playback progress >= 95% of duration, even if static ID3 metadata is slightly inflated.
 - [ ] Genuine premature EOF (< 95% of duration) prevents advancing the queue, preserves the current track index, seeks to the cut-off position, and triggers in-place buffering/resumption.

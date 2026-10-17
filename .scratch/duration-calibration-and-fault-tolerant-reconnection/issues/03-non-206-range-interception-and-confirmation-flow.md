@@ -5,7 +5,7 @@ Detect and intercept unexpected `HTTP 200 OK` responses during ranged reconnecti
 
 **Blocked by:** 01 Engine Clock Synchronization Precedence and Physical Duration Probe
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] `ResilientWebDavDataSource` inspects HTTP response codes during `openRangeSource()` and throws `UnsupportedRangeReconnectionException` if status is `200 OK` on a ranged offset request.
 - [ ] Session layer catches the unsupported Range condition, retains playback position without advancing queue, and surfaces `isUnsupportedRange = true` in session state.
