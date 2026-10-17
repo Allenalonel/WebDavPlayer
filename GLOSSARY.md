@@ -108,6 +108,14 @@ _Avoid_: Local Download, Offline Cache, CacheDataSource
 `TrackMetadataRepositoryImpl` 内部私有的深层网络与音频提取适配器，专职负责通过受限网络 HTTP Range 分片提取、自适应两阶段拼接、双源封面探测（内嵌封面优先，同目录外置封面回退并持锁）及图片缩略图本地落盘。对外不设立冗余公共接缝，调用方统一通过 `TrackMetadataRepository` 交互。
 _Avoid_: Metadata Parser, Artwork Helper, Tag Downloader
 
+**Playback Intent**:
+会话层定义的一组原子播控意图，涵盖 play、pause、togglePlayPause、stop、seekTo、skipToNext、skipToPrevious，是所有外部播控来源（系统通知栏 Action、蓝牙/耳机物理按键、应用内 UI）向 `MusicPlayerAppSession` 派发操作的标准信道。任何绕过该接缝直接操作底层 `AudioPlayerEngine` 的调用均为架构违规。
+_Avoid_: Engine Command, Player Action, Direct Player Call
+
+**Cold Restore**:
+应用进程被系统终止后重新冷启动时，`MusicPlayerAppSession` 从持久化 `Playback Session State` 还原播放队列、曲目索引与毫秒级进度，并在底层引擎处于 `Idle` 状态时重新调用 `loadTrackIntoEngine` 完成物理流装载的完整恢复流程。外部 Playback Intent（如通知栏播放键）到达时若绕过会话层直接调用底层引擎，该流程将被静默跳过，导致用户点击播放后无声。
+_Avoid_: App Resume, Session Restore, Player Reload
+
 **Session-Managed Queue Progression**:
 由应用会话层集中管控与仲裁的播放队列流转机制。底层媒体播放引擎仅作为当前曲目或双轨预热的流式渲染容器，丧失自主跨曲跳过权。
 _Avoid_: Autonomous Player Transition, Engine Skip, Internal Playlist Advancement
