@@ -1500,6 +1500,7 @@ class MusicPlayerAppSessionImpl(
 
     companion object {
         const val DURATION_COMPLETION_TOLERANCE_MS: Long = 5000L
+        const val COMPLETION_PROGRESS_THRESHOLD: Double = 0.95
         const val PREROLL_TRIGGER_WINDOW_MS: Long = 10_000L
         const val HEALTHY_NETWORK_QUIET_PERIOD_MS: Long = 30_000L
     }
@@ -1565,10 +1566,17 @@ class MusicPlayerAppSessionImpl(
                 ?: currentTrack?.durationMs
                 ?: _sessionState.value.durationMs
 
-        // Duration Guard check!
-        if (duration > 0L && currentPos < duration - DURATION_COMPLETION_TOLERANCE_MS) {
-            // Premature EOF detected due to unexpected network truncation!
-            // Reject queue advancement, keep current index, and resume in-place!
+        // Multi-tier completion arbitration:
+        // Tier 1 (Physical Match): currentPos >= duration - DURATION_COMPLETION_TOLERANCE_MS
+        val isPhysicalMatch = duration <= 0L || currentPos >= (duration - DURATION_COMPLETION_TOLERANCE_MS)
+        // Tier 2 (Completion Progress Threshold): 95%+ of duration reached (e.g. metadata tag inflation)
+        val isProgressMatch =
+            duration > 0L && (currentPos.toDouble() / duration.toDouble()) >= COMPLETION_PROGRESS_THRESHOLD
+
+        if (!isPhysicalMatch && !isProgressMatch) {
+            // Tier 3 (Premature EOF): premature network cut-off detected.
+            // Do NOT advance queue, preserve current track index, seek to cut-off position,
+            // and transition to PlaybackState.Buffering to attempt in-place resumption.
             _sessionState.update { it.copy(playbackState = PlaybackState.Buffering) }
             playerEngine.seekTo(currentPos)
             playerEngine.play()

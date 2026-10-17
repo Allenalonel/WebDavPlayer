@@ -1563,6 +1563,148 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun completionArbitration_prematureCutOffUnder95Percent_haltsQueueProgressionAndEntersBuffering() =
+        runTest(testDispatcher) {
+            val localEngine = FakeAudioPlayerEngine()
+            val bufferingEngine =
+                object : com.webdav.player.domain.player.AudioPlayerEngine by localEngine {
+                    override fun play() {
+                        localEngine.playCount++
+                        // Simulates streaming decoder staying in Buffering during in-place network recovery
+                    }
+                }
+            val testSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = bufferingEngine,
+                    serverRepository = null,
+                    coroutineScope = sessionScope,
+                )
+            testSession.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            testSession.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            assertEquals(0, testSession.sessionState.value.queue.currentIndex)
+            localEngine._durationMs.value = 100_000L
+            localEngine._currentPositionMs.value = 90_000L // 90% (<95% and >5s remaining physical tolerance)
+            val initialPlayCount = localEngine.playCount
+
+            localEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Premature cutoff: queue index preserved, track preserved
+            assertEquals(0, testSession.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", testSession.sessionState.value.currentTrack?.title)
+
+            // Seeks to cutoff position, resumes in place, and enters Buffering
+            assertEquals(90_000L, localEngine.seekToPosition)
+            assertTrue(localEngine.playCount > initialPlayCount)
+            assertEquals(PlaybackState.Buffering, testSession.sessionState.value.playbackState)
+        }
+
+    @Test
+    fun completionArbitration_tailReleaseAt95PercentOrAbove_advancesQueueDespiteInflatedDuration() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            // Inflated metadata duration: 200s (e.g. ID3 TLEN or VBR estimation)
+            fakeEngine._durationMs.value = 200_000L
+            // Stream naturally ends at 191s (95.5% progress, but delta of 9s > 5s tolerance)
+            fakeEngine._currentPositionMs.value = 191_000L
+
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Tier 2 confirms natural completion and advances queue to track 2
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+        }
+
+    @Test
+    fun completionArbitration_physicalMatch_advancesQueueEvenWhenProgressUnder95Percent() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            // 50s duration track
+            fakeEngine._durationMs.value = 50_000L
+            // Ends at 46s (4s remaining <= 5s tolerance; progress is 46/50 = 92% < 95%)
+            fakeEngine._currentPositionMs.value = 46_000L
+
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Tier 1 physical match confirms natural completion even when progress is 92%
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
+        }
+
+    @Test
+    fun completionArbitration_singleLoop_replaysTrackFromZeroOn95PercentTailReleaseWithInflatedDuration() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            session.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
+            // Inflated metadata duration: 200s
+            fakeEngine._durationMs.value = 200_000L
+            // Natural EOF at 191s (95.5% progress)
+            fakeEngine._currentPositionMs.value = 191_000L
+            val initialPlayCount = fakeEngine.playCount
+
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Single loop: stays on track 0, seeks to 0L, and replays from beginning
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(0L, fakeEngine.seekToPosition)
+            assertTrue(fakeEngine.playCount > initialPlayCount)
+        }
+
+    @Test
+    fun completionArbitration_shuffleMode_advancesToNextShuffledTrackOnNaturalCompletion() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val track3 = RemoteFile(name = "03.mp3", path = "/03.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2, track3))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            session.setPlaybackMode(PlaybackMode.SHUFFLE)
+            session.setShuffleOrder(listOf(0, 2, 1))
+
+            fakeEngine._durationMs.value = 200_000L
+            fakeEngine._currentPositionMs.value = 192_000L // 96% progress
+
+            fakeEngine._playbackState.value = PlaybackState.Ended
+            advanceUntilIdle()
+
+            // Next in shuffle order [0, 2, 1] is index 2 ("03.mp3")
+            assertEquals(2, session.sessionState.value.queue.currentIndex)
+            assertEquals("03.mp3", session.sessionState.value.currentTrack?.title)
+        }
+
+    @Test
     fun durationGuard_allowsLegitimateCompletion_andAdvancesQueue() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)
