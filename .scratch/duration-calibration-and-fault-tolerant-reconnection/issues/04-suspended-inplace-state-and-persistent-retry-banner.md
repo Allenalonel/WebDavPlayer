@@ -5,7 +5,7 @@ When network connectivity is disrupted and automatic backoff reconnection attemp
 
 **Blocked by:** 02 Multi-Tier Completion Arbitration and Uninterrupted Queue Progression
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Watchdog flags `canManualRetry = true` and `isWeakNetwork = true` after quiet window exhaustion without altering queue state.
 - [ ] MiniPlayer and FullPlayerView render a persistent, accessible banner with a "点击重试" action.
