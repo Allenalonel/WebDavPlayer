@@ -37,13 +37,18 @@ class PlaybackSessionHost(
     val mediaSession: MediaSession,
     val audioFocusHandler: AudioFocusHandler,
     val notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
-    val mediaSessionCallback: WebDavMediaSessionCallback? = null,
+    mediaSessionCallback: WebDavMediaSessionCallback? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
     val hardwareLockManager: StreamingHardwareLockManager =
         (playerEngine as? Media3AudioPlayerEngine)?.hardwareLockManager
             ?: DefaultStreamingHardwareLockManager(context),
 ) : AudioPlayerEngine by playerEngine {
+    var mediaSessionCallback: WebDavMediaSessionCallback? = mediaSessionCallback
+        private set
+
+    val appSession: MusicPlayerAppSession?
+        get() = mediaSessionCallback?.appSession
     constructor(
         context: Context,
         mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
@@ -78,15 +83,20 @@ class PlaybackSessionHost(
         mediaSession = engine.mediaSession,
         audioFocusHandler = engine.audioFocusHandler,
         notificationProvider = WebDavNotificationProvider(context),
-        mediaSessionCallback = engine.mediaSessionCallback,
+        mediaSessionCallback = null,
         coroutineScope = coroutineScope,
         demotionTimeoutMs = demotionTimeoutMs,
         hardwareLockManager = hardwareLockManager,
     )
 
-    fun setAppSession(session: MusicPlayerAppSession?) {
-        mediaSessionCallback?.appSession = session
-        (playerEngine as? Media3AudioPlayerEngine)?.setAppSession(session)
+    fun bindAppSession(session: MusicPlayerAppSession) {
+        val callback = WebDavMediaSessionCallback(appSession = session)
+        this.mediaSessionCallback = callback
+        (playerEngine as? Media3AudioPlayerEngine)?.let { engine ->
+            engine.sessionCallback = callback
+            engine.onSkipToNext = { session.skipToNext() }
+            engine.onSkipToPrevious = { session.skipToPrevious() }
+        }
     }
 
     var attachedService: WebDavMediaService? = null
@@ -105,6 +115,13 @@ class PlaybackSessionHost(
 
     init {
         observePlaybackState()
+        mediaSessionCallback?.let { callback ->
+            (playerEngine as? Media3AudioPlayerEngine)?.let { engine ->
+                engine.sessionCallback = callback
+                engine.onSkipToNext = { callback.appSession.skipToNext() }
+                engine.onSkipToPrevious = { callback.appSession.skipToPrevious() }
+            }
+        }
     }
 
     private fun observePlaybackState() {

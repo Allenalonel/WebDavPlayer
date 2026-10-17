@@ -5,11 +5,6 @@ import android.view.KeyEvent
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionResult
-import com.webdav.player.domain.model.AudioFormat
-import com.webdav.player.domain.model.AudioTrack
-import com.webdav.player.domain.model.PlaybackState
-import com.webdav.player.domain.model.WebDavServer
-import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.domain.session.MusicPlayerAppSession
 import org.junit.Assert.assertEquals
@@ -22,7 +17,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class WebDavMediaSessionCallbackTest {
-    private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var fakeSession: FakeMusicPlayerAppSession
     private lateinit var callback: WebDavMediaSessionCallback
 
@@ -49,27 +43,10 @@ class WebDavMediaSessionCallbackTest {
         return allocateInstanceMethod.invoke(unsafe, clazz) as T
     }
 
-    private val testServer =
-        WebDavServer(
-            id = 1L,
-            name = "Test",
-            url = "http://localhost:8080/dav",
-            port = 8080,
-            pathPrefix = "/dav",
-        )
-
-    private val testTracks =
-        listOf(
-            AudioTrack("1", 1L, "/1.mp3", "Song 1", format = AudioFormat.MP3, size = 100L),
-            AudioTrack("2", 1L, "/2.mp3", "Song 2", format = AudioFormat.MP3, size = 200L),
-            AudioTrack("3", 1L, "/3.mp3", "Song 3", format = AudioFormat.MP3, size = 300L),
-        )
-
     @Before
     fun setUp() {
-        fakeEngine = FakeAudioPlayerEngine()
         fakeSession = FakeMusicPlayerAppSession()
-        callback = WebDavMediaSessionCallback(fakeEngine, fakeSession)
+        callback = WebDavMediaSessionCallback(fakeSession)
     }
 
     private fun createMediaButtonIntent(
@@ -89,7 +66,6 @@ class WebDavMediaSessionCallbackTest {
 
         assertTrue(handled)
         assertEquals(1, fakeSession.playCount)
-        assertEquals(0, fakeEngine.playCount)
     }
 
     @Test
@@ -99,7 +75,6 @@ class WebDavMediaSessionCallbackTest {
 
         assertTrue(handled)
         assertEquals(1, fakeSession.pauseCount)
-        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test
@@ -109,8 +84,6 @@ class WebDavMediaSessionCallbackTest {
 
         assertTrue(handled)
         assertEquals(1, fakeSession.togglePlayPauseCount)
-        assertEquals(0, fakeEngine.playCount)
-        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test
@@ -120,8 +93,6 @@ class WebDavMediaSessionCallbackTest {
 
         assertTrue(handled)
         assertEquals(1, fakeSession.togglePlayPauseCount)
-        assertEquals(0, fakeEngine.playCount)
-        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test
@@ -143,31 +114,12 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_next_withoutAppSession_handledSafely() {
-        callback.appSession = null
-        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
-        val handled = callback.handleMediaButtonIntent(intent)
-
-        assertTrue(handled)
-    }
-
-    @Test
-    fun handleMediaButton_previous_withoutAppSession_handledSafely() {
-        callback.appSession = null
-        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-        val handled = callback.handleMediaButtonIntent(intent)
-
-        assertTrue(handled)
-    }
-
-    @Test
     fun handleMediaButton_stop_callsAppSessionStop() {
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_STOP)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
         assertEquals(1, fakeSession.stopCount)
-        assertEquals(0, fakeEngine.stopCount)
     }
 
     @Test
@@ -177,7 +129,6 @@ class WebDavMediaSessionCallbackTest {
 
         assertFalse(handled)
         assertEquals(0, fakeSession.playCount)
-        assertEquals(0, fakeEngine.playCount)
     }
 
     @Test
@@ -197,30 +148,17 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_nextAndPrevious_withNullAppSession_doesNotCrash() {
-        callback.appSession = null
-
-        val nextIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
-        val handledNext = callback.handleMediaButtonIntent(nextIntent)
-        assertTrue(handledNext)
-
-        val prevIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-        val handledPrev = callback.handleMediaButtonIntent(prevIntent)
-        assertTrue(handledPrev)
-    }
-
-    @Test
     fun onPlayerCommandRequest_seekToNext_triggersAppSessionSkipToNext() {
         val appSession = RecordingAppSession()
-        callback.appSession = appSession
+        val callbackWithSession = WebDavMediaSessionCallback(appSession)
         val session = allocateInstance(MediaSession::class.java)
         val controller = allocateInstance(MediaSession.ControllerInfo::class.java)
 
-        val resultNext = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT)
+        val resultNext = callbackWithSession.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT)
         assertEquals(SessionResult.RESULT_SUCCESS, resultNext)
         assertEquals(1, appSession.skipToNextCount)
 
-        val resultNextItem = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+        val resultNextItem = callbackWithSession.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
         assertEquals(SessionResult.RESULT_SUCCESS, resultNextItem)
         assertEquals(2, appSession.skipToNextCount)
     }
@@ -228,61 +166,41 @@ class WebDavMediaSessionCallbackTest {
     @Test
     fun onPlayerCommandRequest_seekToPrevious_triggersAppSessionSkipToPrevious() {
         val appSession = RecordingAppSession()
-        callback.appSession = appSession
+        val callbackWithSession = WebDavMediaSessionCallback(appSession)
         val session = allocateInstance(MediaSession::class.java)
         val controller = allocateInstance(MediaSession.ControllerInfo::class.java)
 
-        val resultPrev = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS)
+        val resultPrev = callbackWithSession.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS)
         assertEquals(SessionResult.RESULT_SUCCESS, resultPrev)
         assertEquals(1, appSession.skipToPreviousCount)
 
-        val resultPrevItem = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        val resultPrevItem = callbackWithSession.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
         assertEquals(SessionResult.RESULT_SUCCESS, resultPrevItem)
         assertEquals(2, appSession.skipToPreviousCount)
     }
 
     @Test
-    fun onPlayerCommandRequest_withNullAppSession_returnsSuccessWithoutCallingSkip() {
-        callback.appSession = null
-        val session = allocateInstance(MediaSession::class.java)
-        val controller = allocateInstance(MediaSession.ControllerInfo::class.java)
-
-        val resultNext = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_NEXT)
-        assertEquals(SessionResult.RESULT_SUCCESS, resultNext)
-
-        val resultPrev = callback.onPlayerCommandRequest(session, controller, Player.COMMAND_SEEK_TO_PREVIOUS)
-        assertEquals(SessionResult.RESULT_SUCCESS, resultPrev)
-    }
-
-    @Test
     fun constructor_acceptsAppSession() {
         val appSession = RecordingAppSession()
-        val callbackWithSession = WebDavMediaSessionCallback(fakeEngine, appSession)
+        val callbackWithSession = WebDavMediaSessionCallback(appSession)
         assertEquals(appSession, callbackWithSession.appSession)
     }
 
     @Test
     fun onSkipToNext_directlyInvokesAppSessionSkipToNext() {
         val appSession = RecordingAppSession()
-        callback.appSession = appSession
+        val callbackWithSession = WebDavMediaSessionCallback(appSession)
 
-        callback.onSkipToNext()
+        callbackWithSession.onSkipToNext()
         assertEquals(1, appSession.skipToNextCount)
     }
 
     @Test
     fun onSkipToPrevious_directlyInvokesAppSessionSkipToPrevious() {
         val appSession = RecordingAppSession()
-        callback.appSession = appSession
+        val callbackWithSession = WebDavMediaSessionCallback(appSession)
 
-        callback.onSkipToPrevious()
+        callbackWithSession.onSkipToPrevious()
         assertEquals(1, appSession.skipToPreviousCount)
-    }
-
-    @Test
-    fun onSkipMethods_withNullAppSession_doNotThrow() {
-        callback.appSession = null
-        callback.onSkipToNext()
-        callback.onSkipToPrevious()
     }
 }

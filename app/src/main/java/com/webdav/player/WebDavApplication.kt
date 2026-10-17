@@ -92,7 +92,7 @@ class WebDavApplication : Application() {
                 sessionStore = sessionStore,
                 webDavClient = webDavClient,
             )
-        (playerEngine as? PlaybackSessionHost)?.setAppSession(musicPlayerAppSession)
+        (playerEngine as? PlaybackSessionHost)?.bindAppSession(musicPlayerAppSession)
     }
 
     override fun onTrimMemory(level: Int) {

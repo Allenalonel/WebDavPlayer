@@ -17,4 +17,6 @@ app/build
 .tmp
 .playwright-mcp
 .pi/
+.pi-lens.json
+app/.pi-lens.json
 

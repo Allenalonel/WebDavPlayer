@@ -10,6 +10,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
+import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
@@ -443,10 +444,11 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun setAppSession_updatesCallbackAppSession_andSessionPlayerDelegatesSkip() {
+    fun sessionCallback_andSessionPlayerDelegatesSkip() {
         val appSession = RecordingAppSession()
-        engine.setAppSession(appSession)
-        assertEquals(appSession, engine.mediaSessionCallback.appSession)
+        engine.sessionCallback = WebDavMediaSessionCallback(appSession)
+        engine.onSkipToNext = { appSession.skipToNext() }
+        engine.onSkipToPrevious = { appSession.skipToPrevious() }
 
         engine.loadTrack(server = testServer, track = track1)
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
@@ -473,7 +475,9 @@ class Media3AudioPlayerEngineTest {
         assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
 
         val appSession = RecordingAppSession()
-        engine.mediaSessionCallback.appSession = appSession
+        engine.sessionCallback = WebDavMediaSessionCallback(appSession)
+        engine.onSkipToNext = { appSession.skipToNext() }
+        engine.onSkipToPrevious = { appSession.skipToPrevious() }
 
         // Invoking seekToNextMediaItem / seekToPreviousMediaItem on sessionPlayer (as MediaSession does)
         engine.sessionPlayer.seekToNextMediaItem()

@@ -510,6 +510,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
     @Test
     fun e2e_backgroundServiceAndNotification_preventsAppIdleTermination() {
         val fakeEngine = FakeAudioPlayerEngine()
+        val fakeSession = com.webdav.player.domain.session.FakeMusicPlayerAppSession()
         val exoPlayer =
             androidx.media3.exoplayer.ExoPlayer
                 .Builder(context)
@@ -518,7 +519,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             androidx.media3.session.MediaSession
                 .Builder(context, exoPlayer)
                 .setId("e2e_session_${System.currentTimeMillis()}")
-                .setCallback(WebDavMediaSessionCallback(fakeEngine))
+                .setCallback(WebDavMediaSessionCallback(fakeSession))
                 .build()
 
         val host =
@@ -572,15 +573,15 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals("Playback resumed on audio focus gain", 1, fakeEngine.playCount)
             assertFalse("Resume on focus gain is reset", host.audioFocusHandler.resumeOnFocusGain)
 
-            // 5. Hardware Media Button controls dispatch directly to the host
-            val callback = WebDavMediaSessionCallback(host)
+            // 5. Hardware Media Button controls dispatch directly to appSession
+            val callback = WebDavMediaSessionCallback(fakeSession)
             val pauseButtonIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PAUSE)
             assertTrue(callback.handleMediaButtonIntent(pauseButtonIntent))
-            assertEquals(2, fakeEngine.pauseCount)
+            assertEquals(1, fakeSession.pauseCount)
 
             val playButtonIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY)
             assertTrue(callback.handleMediaButtonIntent(playButtonIntent))
-            assertEquals(2, fakeEngine.playCount)
+            assertEquals(1, fakeSession.playCount)
 
             // 6. Error state -> graceful foreground demote to prevent App Idle
             host.handlePlaybackStateChanged(PlaybackState.Error("Connection reset"))

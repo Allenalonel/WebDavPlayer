@@ -28,12 +28,10 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
-import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
-import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -196,19 +194,19 @@ class Media3AudioPlayerEngine(
             }
 
             override fun seekToNext() {
-                mediaSessionCallback.onSkipToNext()
+                onSkipToNext()
             }
 
             override fun seekToNextMediaItem() {
-                mediaSessionCallback.onSkipToNext()
+                onSkipToNext()
             }
 
             override fun seekToPrevious() {
-                mediaSessionCallback.onSkipToPrevious()
+                onSkipToPrevious()
             }
 
             override fun seekToPreviousMediaItem() {
-                mediaSessionCallback.onSkipToPrevious()
+                onSkipToPrevious()
             }
 
             override fun isCommandAvailable(command: Int): Boolean =
@@ -238,11 +236,32 @@ class Media3AudioPlayerEngine(
             }
         }
 
-    val mediaSessionCallback: WebDavMediaSessionCallback = WebDavMediaSessionCallback(this)
+    var sessionCallback: MediaSession.Callback? = null
+    var onSkipToNext: () -> Unit = {}
+    var onSkipToPrevious: () -> Unit = {}
 
-    fun setAppSession(appSession: MusicPlayerAppSession?) {
-        mediaSessionCallback.appSession = appSession
-    }
+    private val internalSessionCallback =
+        object : MediaSession.Callback {
+            override fun onMediaButtonEvent(
+                session: MediaSession,
+                controllerInfo: MediaSession.ControllerInfo,
+                intent: Intent,
+            ): Boolean {
+                return sessionCallback?.onMediaButtonEvent(session, controllerInfo, intent)
+                    ?: super.onMediaButtonEvent(session, controllerInfo, intent)
+            }
+
+            @Suppress("DEPRECATION")
+            @Deprecated("Deprecated in Java")
+            override fun onPlayerCommandRequest(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                playerCommand: Int,
+            ): Int {
+                return sessionCallback?.onPlayerCommandRequest(session, controller, playerCommand)
+                    ?: super.onPlayerCommandRequest(session, controller, playerCommand)
+            }
+        }
 
     val mediaSession: MediaSession =
         customMediaSession ?: run {
@@ -260,7 +279,7 @@ class Media3AudioPlayerEngine(
                 .Builder(context, sessionPlayer)
                 .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
                 .setSessionActivity(sessionActivity)
-                .setCallback(mediaSessionCallback)
+                .setCallback(internalSessionCallback)
                 .build()
         }
 

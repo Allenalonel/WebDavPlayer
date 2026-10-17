@@ -6,22 +6,18 @@ import androidx.core.content.IntentCompat
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionResult
-import com.webdav.player.domain.model.PlaybackState
-import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.session.MusicPlayerAppSession
 
 class WebDavMediaSessionCallback(
-    private val playerEngine: AudioPlayerEngine? = null,
-    var appSession: MusicPlayerAppSession? = null,
+    val appSession: MusicPlayerAppSession,
 ) : MediaSession.Callback {
-    constructor(appSession: MusicPlayerAppSession) : this(playerEngine = null, appSession = appSession)
 
     fun onSkipToNext() {
-        appSession?.skipToNext()
+        appSession.skipToNext()
     }
 
     fun onSkipToPrevious() {
-        appSession?.skipToPrevious()
+        appSession.skipToPrevious()
     }
 
     override fun onMediaButtonEvent(
@@ -69,35 +65,16 @@ class WebDavMediaSessionCallback(
 
         return when (keyEvent.keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                val session = appSession
-                if (session != null) {
-                    session.play()
-                } else {
-                    playerEngine?.play()
-                }
+                appSession.play()
                 true
             }
             KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                val session = appSession
-                if (session != null) {
-                    session.pause()
-                } else {
-                    playerEngine?.pause()
-                }
+                appSession.pause()
                 true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
             KeyEvent.KEYCODE_HEADSETHOOK -> {
-                val session = appSession
-                if (session != null) {
-                    session.togglePlayPause()
-                } else {
-                    if (playerEngine?.playbackState?.value is PlaybackState.Playing) {
-                        playerEngine.pause()
-                    } else {
-                        playerEngine?.play()
-                    }
-                }
+                appSession.togglePlayPause()
                 true
             }
             KeyEvent.KEYCODE_MEDIA_NEXT -> {
@@ -109,12 +86,7 @@ class WebDavMediaSessionCallback(
                 true
             }
             KeyEvent.KEYCODE_MEDIA_STOP -> {
-                val session = appSession
-                if (session != null) {
-                    session.stop()
-                } else {
-                    playerEngine?.stop()
-                }
+                appSession.stop()
                 true
             }
             else -> false

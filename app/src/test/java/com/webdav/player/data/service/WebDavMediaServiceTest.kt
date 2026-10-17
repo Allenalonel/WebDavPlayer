@@ -87,7 +87,7 @@ class WebDavMediaServiceTest {
     fun onStartCommand_actionPlay_callsAppSessionPlay() {
         val fakeSession = FakeMusicPlayerAppSession()
         val host = PlaybackSessionHost.getInstance(app)
-        host.setAppSession(fakeSession)
+        host.bindAppSession(fakeSession)
 
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
@@ -101,7 +101,7 @@ class WebDavMediaServiceTest {
     fun onStartCommand_actionPause_callsAppSessionPause() {
         val fakeSession = FakeMusicPlayerAppSession()
         val host = PlaybackSessionHost.getInstance(app)
-        host.setAppSession(fakeSession)
+        host.bindAppSession(fakeSession)
 
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
@@ -115,7 +115,7 @@ class WebDavMediaServiceTest {
     fun onStartCommand_actionNext_callsAppSessionSkipToNext() {
         val fakeSession = FakeMusicPlayerAppSession()
         val host = PlaybackSessionHost.getInstance(app)
-        host.setAppSession(fakeSession)
+        host.bindAppSession(fakeSession)
 
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
@@ -129,7 +129,7 @@ class WebDavMediaServiceTest {
     fun onStartCommand_actionPrevious_callsAppSessionSkipToPrevious() {
         val fakeSession = FakeMusicPlayerAppSession()
         val host = PlaybackSessionHost.getInstance(app)
-        host.setAppSession(fakeSession)
+        host.bindAppSession(fakeSession)
 
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {

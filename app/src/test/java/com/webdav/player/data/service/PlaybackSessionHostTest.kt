@@ -79,11 +79,12 @@ class PlaybackSessionHostTest {
 
         fakeEngine = FakeAudioPlayerEngine()
         exoPlayer = ExoPlayer.Builder(context).build()
+        val fakeSession = com.webdav.player.domain.session.FakeMusicPlayerAppSession()
         mediaSession =
             MediaSession
                 .Builder(context, exoPlayer)
                 .setId("test_session_${System.currentTimeMillis()}")
-                .setCallback(WebDavMediaSessionCallback(fakeEngine))
+                .setCallback(WebDavMediaSessionCallback(fakeSession))
                 .build()
 
         host =
@@ -453,7 +454,7 @@ class PlaybackSessionHostTest {
         val appSession =
             com.webdav.player.domain.session
                 .FakeMusicPlayerAppSession()
-        val callback = WebDavMediaSessionCallback(host, appSession)
+        val callback = WebDavMediaSessionCallback(appSession)
 
         val playIntent =
             Intent(Intent.ACTION_MEDIA_BUTTON).apply {

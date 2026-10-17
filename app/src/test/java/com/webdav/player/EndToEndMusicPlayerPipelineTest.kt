@@ -139,7 +139,7 @@ class EndToEndMusicPlayerPipelineTest {
                 coroutineScope = sessionScope,
             )
 
-        mediaSessionCallback = WebDavMediaSessionCallback(fakeEngine, session)
+        mediaSessionCallback = WebDavMediaSessionCallback(session)
     }
 
     @After
