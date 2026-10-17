@@ -98,7 +98,8 @@ class WebDavApplication : Application() {
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
-            com.webdav.player.ui.common.ThumbnailMemoryCache.clear()
+            com.webdav.player.ui.common.ThumbnailMemoryCache
+                .clear()
         }
     }
 }

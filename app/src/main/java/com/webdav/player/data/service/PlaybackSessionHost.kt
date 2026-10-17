@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
 class PlaybackSessionHost(
-    private val context: Context,
+    val context: Context,
     val playerEngine: AudioPlayerEngine,
     val mediaSession: MediaSession,
     val audioFocusHandler: AudioFocusHandler,
@@ -90,6 +90,7 @@ class PlaybackSessionHost(
     )
 
     fun bindAppSession(session: MusicPlayerAppSession) {
+        check(mediaSessionCallback == null) { "appSession has already been bound" }
         val callback = WebDavMediaSessionCallback(appSession = session)
         this.mediaSessionCallback = callback
         (playerEngine as? Media3AudioPlayerEngine)?.let { engine ->
@@ -359,14 +360,15 @@ class PlaybackSessionHost(
         fun getInstance(
             context: Context,
             mediaSourceAdapter: WebDavMediaSourceAdapter? = null,
-        ): PlaybackSessionHost =
-            instance ?: synchronized(this) {
-                instance ?: run {
-                    val appContext = context.applicationContext
-                    val adapter = mediaSourceAdapter ?: DefaultWebDavMediaSourceAdapter(appContext)
-                    PlaybackSessionHost(appContext, adapter).also { instance = it }
+        ): PlaybackSessionHost {
+            val targetContext = context.applicationContext ?: context
+            return instance?.takeIf { it.context === targetContext } ?: synchronized(this) {
+                instance?.takeIf { it.context === targetContext } ?: run {
+                    val adapter = mediaSourceAdapter ?: DefaultWebDavMediaSourceAdapter(targetContext)
+                    PlaybackSessionHost(targetContext, adapter).also { instance = it }
                 }
             }
+        }
 
         @VisibleForTesting
         fun currentInstanceForTesting(): PlaybackSessionHost? = instance

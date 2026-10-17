@@ -49,6 +49,7 @@ class WebDavMediaServiceTest {
 
     @Before
     fun setUp() {
+        PlaybackSessionHost.resetForTesting()
         app = ApplicationProvider.getApplicationContext()
         serviceController = Robolectric.buildService(WebDavMediaService::class.java)
         service = serviceController.create().get()

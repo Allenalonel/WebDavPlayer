@@ -510,7 +510,9 @@ class EndToEndPlaybackPipelineIntegrationTest {
     @Test
     fun e2e_backgroundServiceAndNotification_preventsAppIdleTermination() {
         val fakeEngine = FakeAudioPlayerEngine()
-        val fakeSession = com.webdav.player.domain.session.FakeMusicPlayerAppSession()
+        val fakeSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
         val exoPlayer =
             androidx.media3.exoplayer.ExoPlayer
                 .Builder(context)

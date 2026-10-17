@@ -246,10 +246,9 @@ class Media3AudioPlayerEngine(
                 session: MediaSession,
                 controllerInfo: MediaSession.ControllerInfo,
                 intent: Intent,
-            ): Boolean {
-                return sessionCallback?.onMediaButtonEvent(session, controllerInfo, intent)
+            ): Boolean =
+                sessionCallback?.onMediaButtonEvent(session, controllerInfo, intent)
                     ?: super.onMediaButtonEvent(session, controllerInfo, intent)
-            }
 
             @Suppress("DEPRECATION")
             @Deprecated("Deprecated in Java")
@@ -257,10 +256,9 @@ class Media3AudioPlayerEngine(
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo,
                 playerCommand: Int,
-            ): Int {
-                return sessionCallback?.onPlayerCommandRequest(session, controller, playerCommand)
+            ): Int =
+                sessionCallback?.onPlayerCommandRequest(session, controller, playerCommand)
                     ?: super.onPlayerCommandRequest(session, controller, playerCommand)
-            }
         }
 
     val mediaSession: MediaSession =
@@ -646,7 +644,9 @@ class Media3AudioPlayerEngine(
 
         when (state) {
             is PlaybackState.Playing,
-            is PlaybackState.Buffering -> hardwareLockManager.acquireLocks()
+            is PlaybackState.Buffering,
+            -> hardwareLockManager.acquireLocks()
+
             else -> hardwareLockManager.releaseLocks()
         }
         _playbackState.value = state

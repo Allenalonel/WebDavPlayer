@@ -71,10 +71,10 @@ class WebDavMediaService : MediaSessionService() {
         val host = sessionHost ?: PlaybackSessionHost.getInstance(applicationContext)
 
         when (intent?.action) {
-            WebDavNotificationProvider.ACTION_PLAY -> host.mediaSessionCallback?.appSession?.play()
-            WebDavNotificationProvider.ACTION_PAUSE -> host.mediaSessionCallback?.appSession?.pause()
-            WebDavNotificationProvider.ACTION_NEXT -> host.mediaSessionCallback?.appSession?.skipToNext()
-            WebDavNotificationProvider.ACTION_PREVIOUS -> host.mediaSessionCallback?.appSession?.skipToPrevious()
+            WebDavNotificationProvider.ACTION_PLAY -> host.appSession?.play()
+            WebDavNotificationProvider.ACTION_PAUSE -> host.appSession?.pause()
+            WebDavNotificationProvider.ACTION_NEXT -> host.appSession?.skipToNext()
+            WebDavNotificationProvider.ACTION_PREVIOUS -> host.appSession?.skipToPrevious()
         }
 
         super.onStartCommand(intent, flags, startId)
@@ -84,7 +84,8 @@ class WebDavMediaService : MediaSessionService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val host = sessionHost ?: PlaybackSessionHost.getInstance(applicationContext)
         val player = host.mediaSession.player
-        val isActivelyPlaying = player.playWhenReady && player.playbackState != Player.STATE_ENDED && player.playbackState != Player.STATE_IDLE
+        val isActivelyPlaying =
+            player.playWhenReady && player.playbackState != Player.STATE_ENDED && player.playbackState != Player.STATE_IDLE
         val isWithinDemotionGracePeriod = host.isDemotionPending || host.isForegroundActive
 
         if (!isActivelyPlaying && !isWithinDemotionGracePeriod) {

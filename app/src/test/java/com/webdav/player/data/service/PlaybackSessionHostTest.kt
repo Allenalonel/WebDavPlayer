@@ -79,7 +79,9 @@ class PlaybackSessionHostTest {
 
         fakeEngine = FakeAudioPlayerEngine()
         exoPlayer = ExoPlayer.Builder(context).build()
-        val fakeSession = com.webdav.player.domain.session.FakeMusicPlayerAppSession()
+        val fakeSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
         mediaSession =
             MediaSession
                 .Builder(context, exoPlayer)
@@ -491,5 +493,24 @@ class PlaybackSessionHostTest {
         service.onTaskRemoved(Intent())
         // Service should stop itself when idle on task remove
         assertTrue(shadowOf(service).isStoppedBySelf)
+    }
+
+    @Test
+    fun bindAppSession_enforcesOneTimeImmutableContract() {
+        val session1 =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+        val session2 =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+
+        host.bindAppSession(session1)
+        assertEquals(session1, host.appSession)
+
+        val exception =
+            org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+                host.bindAppSession(session2)
+            }
+        assertEquals("appSession has already been bound", exception.message)
     }
 }

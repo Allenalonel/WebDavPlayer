@@ -404,7 +404,11 @@ class Media3AudioPlayerEngineTest {
 
         // Verifies activeServer remains preserved
         assertEquals(testServer, engine.activeServer)
-        assertEquals("Rebuilt Title", engine.sessionPlayer.mediaMetadata.title?.toString())
+        assertEquals(
+            "Rebuilt Title",
+            engine.sessionPlayer.mediaMetadata.title
+                ?.toString(),
+        )
 
         // Delegating factory provides active server's ResilientWebDavDataSource
         val dataSource = engine.delegatingDataSourceFactory.createDataSource()
@@ -451,7 +455,8 @@ class Media3AudioPlayerEngineTest {
         engine.onSkipToPrevious = { appSession.skipToPrevious() }
 
         engine.loadTrack(server = testServer, track = track1)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         engine.sessionPlayer.seekToNext()
         assertEquals(1, appSession.skipToNextCount)
@@ -666,7 +671,9 @@ class Media3AudioPlayerEngineTest {
         )
     }
 
-    private class TestControllablePlayer(wrapped: Player) : ForwardingPlayer(wrapped) {
+    private class TestControllablePlayer(
+        wrapped: Player,
+    ) : ForwardingPlayer(wrapped) {
         var customPlaybackState: Int = Player.STATE_IDLE
         var customCurrentPosition: Long = 0L
         var customDuration: Long = C.TIME_UNSET
@@ -686,10 +693,15 @@ class Media3AudioPlayerEngineTest {
         }
 
         override fun getPlaybackState(): Int = customPlaybackState
+
         override fun getCurrentPosition(): Long = customCurrentPosition
+
         override fun getDuration(): Long = customDuration
+
         override fun getBufferedPosition(): Long = customBufferedPosition
+
         override fun isPlaying(): Boolean = customIsPlaying
+
         override fun getPlayWhenReady(): Boolean = customPlayWhenReady
 
         fun notifyPlaybackState(state: Int) {
@@ -941,11 +953,12 @@ class Media3AudioPlayerEngineTest {
         val testEngine = Media3AudioPlayerEngine(context, customPlayer = basePlayer)
         try {
             val unsupportedEx = UnsupportedRangeReconnectionException("HTTP 200 on Range")
-            val wrappedEx = androidx.media3.common.PlaybackException(
-                "Wrapper error",
-                java.io.IOException("Nested IO", unsupportedEx),
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
-            )
+            val wrappedEx =
+                androidx.media3.common.PlaybackException(
+                    "Wrapper error",
+                    java.io.IOException("Nested IO", unsupportedEx),
+                    androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                )
 
             val errorState = testEngine.toPlaybackError(wrappedEx)
             assertEquals("HTTP 200 on Range", errorState.message)
