@@ -5,7 +5,7 @@ Ensure that when audio playback state transitions occur (specifically reaching `
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] In `Player.Listener` (`onPlaybackStateChanged`, `onPositionDiscontinuity`, `onIsPlayingChanged`), `updatePositionAndDuration()` is strictly called before `updatePlaybackState()`.
 - [ ] When player transitions to `STATE_ENDED`, subscribers receive `PlaybackState.Ended` with up-to-date position and duration values reflecting the actual physical stream boundary.
