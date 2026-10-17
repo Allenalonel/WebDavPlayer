@@ -57,6 +57,9 @@ import com.webdav.player.ui.common.ThumbnailMemoryCache
 import android.content.ComponentCallbacks2
 import kotlinx.coroutines.launch
 
+/**
+ * Main application activity hosting edge-to-edge navigation and playback sheets.
+ */
 class MainActivity : ComponentActivity() {
     private val serverViewModel: ServerManagementViewModel by viewModels {
         ServerManagementViewModelFactory(applicationContext)
@@ -101,6 +104,12 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(playerSessionState.hasTrack) {
                     if (!playerSessionState.hasTrack) {
                         isFullPlayerExpanded = false
+                    }
+                }
+
+                LaunchedEffect(playerSessionState.isUnsupportedRange) {
+                    if (playerSessionState.isUnsupportedRange) {
+                        isFullPlayerExpanded = true
                     }
                 }
 
@@ -255,6 +264,8 @@ class MainActivity : ComponentActivity() {
                             onPlayQueueIndex = { musicSession?.playQueueIndex(it) },
                             onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) },
                             onDismissBatteryBanner = { musicSession?.clearKilledBySystemFlag() },
+                            onConfirmUnsupportedRangeReplay = { musicSession?.confirmUnsupportedRangeReplay() },
+                            onDismissUnsupportedRange = { musicSession?.dismissUnsupportedRange() },
                         )
                     }
                 }

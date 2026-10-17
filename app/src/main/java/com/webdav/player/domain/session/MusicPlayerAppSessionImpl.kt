@@ -2,6 +2,7 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.data.cue.CueParser
 import com.webdav.player.data.cue.CueTextCache
+import com.webdav.player.data.player.UnsupportedRangeReconnectionException
 import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
@@ -36,6 +37,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+/**
+ * Domain playback session orchestrator managing queues, streaming resilience, and error state.
+ */
 class MusicPlayerAppSessionImpl(
     private val playerEngine: AudioPlayerEngine,
     private val serverRepository: ServerRepository? = null,
@@ -187,6 +191,19 @@ class MusicPlayerAppSessionImpl(
                             _sessionState.update {
                                 it.copy(isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
                             }
+                        }
+                    }
+                    if (state is PlaybackState.Error) {
+                        if (isUnsupportedRangeError(state)) {
+                            playerEngine.pause()
+                            _sessionState.update { current ->
+                                current.copy(
+                                    playbackState = PlaybackState.Paused,
+                                    isUnsupportedRange = true,
+                                )
+                            }
+                            stopPeriodicFlush()
+                            return@collect
                         }
                     }
                     _sessionState.update { current ->
@@ -1135,6 +1152,29 @@ class MusicPlayerAppSessionImpl(
         if (_sessionState.value.wasKilledBySystem) {
             _sessionState.update { it.copy(wasKilledBySystem = false) }
         }
+    }
+
+    override fun confirmUnsupportedRangeReplay() {
+        _sessionState.update { it.copy(isUnsupportedRange = false, errorMessage = null) }
+        playerEngine.seekTo(0L)
+        playerEngine.play()
+    }
+
+    override fun dismissUnsupportedRange() {
+        _sessionState.update { it.copy(isUnsupportedRange = false) }
+    }
+
+    private fun isUnsupportedRangeError(state: PlaybackState.Error): Boolean {
+        val causeHasUnsupportedRange =
+            generateSequence<Throwable>(state.cause) { it.cause }.any {
+                it is UnsupportedRangeReconnectionException
+            }
+        val messageHasUnsupportedRange =
+            state.message.contains("UnsupportedRangeReconnectionException", ignoreCase = true) ||
+                state.message.contains("Remote server does not support partial content", ignoreCase = true) ||
+                state.message.contains("HTTP 200 returned on Range request", ignoreCase = true) ||
+                state.message.contains("unsupported range", ignoreCase = true)
+        return causeHasUnsupportedRange || messageHasUnsupportedRange
     }
 
     override fun release() {

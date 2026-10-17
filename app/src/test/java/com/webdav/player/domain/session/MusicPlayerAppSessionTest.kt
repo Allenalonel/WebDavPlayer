@@ -1,5 +1,6 @@
 package com.webdav.player.domain.session
 
+import com.webdav.player.data.player.UnsupportedRangeReconnectionException
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
@@ -37,6 +38,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * State and lifecycle test suite for MusicPlayerAppSessionImpl.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MusicPlayerAppSessionTest {
     private val testDispatcher = StandardTestDispatcher()
@@ -365,6 +369,97 @@ class MusicPlayerAppSessionTest {
             val state = session.sessionState.value
             assertTrue(state.playbackState is PlaybackState.Error)
             assertEquals("Network timeout", state.errorMessage)
+        }
+
+    @Test
+    fun unsupportedRangeError_setsUnsupportedRangeFlagAndPausesPlayback_preservingQueueIndexAndPosition() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // Simulate playback progressing to 45 seconds (45,000 ms)
+            fakeEngine._currentPositionMs.value = 45_000L
+            advanceUntilIdle()
+
+            // Trigger UnsupportedRangeReconnectionException via playerEngine playback error
+            val unsupportedException = UnsupportedRangeReconnectionException(
+                "Remote server does not support partial content (HTTP 200 returned on Range request)",
+            )
+            fakeEngine._playbackState.value = PlaybackState.Error(
+                message = "Remote server does not support partial content (HTTP 200 returned on Range request)",
+                cause = unsupportedException,
+            )
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertTrue("isUnsupportedRange must be true", state.isUnsupportedRange)
+            assertEquals("Playback state must be Paused", PlaybackState.Paused, state.playbackState)
+            assertTrue("Player engine pause must be called", fakeEngine.pauseCount >= 1)
+            assertEquals("Queue current index must be preserved", 0, state.queue.currentIndex)
+            assertEquals("Playback position must be preserved", 45_000L, session.playbackProgress.value.currentPositionMs)
+        }
+
+    @Test
+    fun confirmUnsupportedRangeReplay_clearsUnsupportedRangeFlag_seeksToZeroAndPlays() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            fakeEngine._currentPositionMs.value = 60_000L
+            advanceUntilIdle()
+
+            fakeEngine._playbackState.value = PlaybackState.Error(
+                message = "Remote server does not support partial content (HTTP 200 returned on Range request)",
+            )
+            advanceUntilIdle()
+
+            assertTrue(session.sessionState.value.isUnsupportedRange)
+            val initialPlayCount = fakeEngine.playCount
+
+            // User confirms replay from beginning
+            session.confirmUnsupportedRangeReplay()
+            advanceUntilIdle()
+
+            assertFalse("isUnsupportedRange must be cleared", session.sessionState.value.isUnsupportedRange)
+            assertEquals("PlayerEngine seekTo must be called with 0L", 0L, fakeEngine.seekToPosition)
+            assertTrue("PlayerEngine play must be called", fakeEngine.playCount > initialPlayCount)
+        }
+
+    @Test
+    fun dismissUnsupportedRange_clearsUnsupportedRangeFlag_retainsCutOffPositionAndRemainsPaused() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            fakeEngine._currentPositionMs.value = 75_000L
+            advanceUntilIdle()
+
+            fakeEngine._playbackState.value = PlaybackState.Error(
+                message = "Remote server does not support partial content (HTTP 200 returned on Range request)",
+            )
+            advanceUntilIdle()
+
+            assertTrue(session.sessionState.value.isUnsupportedRange)
+            val playCountBeforeDismiss = fakeEngine.playCount
+
+            // User dismisses dialog
+            session.dismissUnsupportedRange()
+            advanceUntilIdle()
+
+            assertFalse("isUnsupportedRange must be cleared", session.sessionState.value.isUnsupportedRange)
+            assertEquals("Playback state must remain Paused", PlaybackState.Paused, session.sessionState.value.playbackState)
+            assertEquals("play must not be called upon dismiss", playCountBeforeDismiss, fakeEngine.playCount)
+            assertEquals("Position must be retained at cut-off point", 75_000L, session.playbackProgress.value.currentPositionMs)
         }
 
     @Test

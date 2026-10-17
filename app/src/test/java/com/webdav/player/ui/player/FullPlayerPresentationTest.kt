@@ -211,6 +211,36 @@ class FullPlayerPresentationTest {
         val shouldShowStageTwoOnLaunch = alreadyWhitelistedLaunch && (!alreadyWhitelistedLaunch || notKilled)
         assertFalse(shouldShowStageTwoOnLaunch)
     }
+
+    @Test
+    fun unsupportedRangeState_triggersConfirmationAndDismissalFlows() {
+        val state =
+            PlayerSessionState(
+                queue = PlaybackQueue(listOf(hiResFlacTrack), 0),
+                isUnsupportedRange = true,
+            )
+        assertTrue(state.isUnsupportedRange)
+
+        var replayInvoked = false
+        var dismissInvoked = false
+
+        val onConfirmReplay = {
+            replayInvoked = true
+            fakeSession.confirmUnsupportedRangeReplay()
+        }
+        val onDismiss = {
+            dismissInvoked = true
+            fakeSession.dismissUnsupportedRange()
+        }
+
+        onConfirmReplay()
+        assertTrue(replayInvoked)
+        assertEquals(1, fakeSession.confirmUnsupportedRangeReplayCount)
+
+        onDismiss()
+        assertTrue(dismissInvoked)
+        assertEquals(1, fakeSession.dismissUnsupportedRangeCount)
+    }
 }
 
 class FakeBatteryWhitelistManager(

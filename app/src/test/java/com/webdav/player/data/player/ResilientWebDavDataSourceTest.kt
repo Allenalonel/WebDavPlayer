@@ -29,6 +29,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Unit tests for ResilientWebDavDataSource.
+ */
 @OptIn(UnstableApi::class)
 @RunWith(RobolectricTestRunner::class)
 class ResilientWebDavDataSourceTest {
@@ -296,5 +299,72 @@ class ResilientWebDavDataSourceTest {
         } catch (e: InterruptedIOException) {
             assertTrue(e.message?.contains("closed", ignoreCase = true) == true)
         }
+    }
+
+    @Test
+    fun rangedReconnection_receivingHttp200_throwsUnsupportedRangeReconnectionException() {
+        val totalExpected = 20
+        val prematureBytes = "ABCDE12345".toByteArray() // 10 bytes
+
+        // First response delivers 10 bytes and then disconnects mid-stream
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(okio.Buffer().write(prematureBytes))
+                .setHeader("Content-Length", totalExpected.toString())
+                .setSocketPolicy(SocketPolicy.DISCONNECT_AT_END),
+        )
+
+        // Second response for Range: bytes=10- returns HTTP 200 OK (server does not support Range)
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(okio.Buffer().write("FULLCONTENTFROMBYTE0".toByteArray()))
+                .setHeader("Content-Length", totalExpected.toString()),
+        )
+
+        val resilientSource =
+            ResilientWebDavDataSource(
+                underlyingFactory = baseHttpDataSourceFactory,
+                maxRetryAttempts = 3,
+                sleeper = { recordedBackoffs.add(it) },
+            )
+
+        val dataSpec =
+            DataSpec
+                .Builder()
+                .setUri(mockWebServer.url("/stream.mp3").toString())
+                .build()
+
+        resilientSource.open(dataSpec)
+
+        val buffer = ByteArray(10)
+        val read1 = resilientSource.read(buffer, 0, 10)
+        assertEquals(10, read1)
+
+        try {
+            resilientSource.read(buffer, 0, 10)
+            fail("Expected UnsupportedRangeReconnectionException when remote server responds with HTTP 200 on Range request")
+        } catch (e: UnsupportedRangeReconnectionException) {
+            assertTrue(
+                e.message?.contains("Remote server does not support partial content") == true ||
+                    e.message?.contains("HTTP 200 returned on Range request") == true,
+            )
+        } finally {
+            resilientSource.close()
+        }
+    }
+
+    @Test
+    fun isNonRetryable_identifiesUnsupportedRangeReconnectionExceptionInCausalChain() {
+        val resilientSource =
+            ResilientWebDavDataSource(
+                underlyingFactory = baseHttpDataSourceFactory,
+            )
+        val ex = UnsupportedRangeReconnectionException("Remote server does not support partial content (HTTP 200 returned on Range request)")
+        assertTrue("Direct UnsupportedRangeReconnectionException must be non-retryable", resilientSource.isNonRetryable(ex))
+
+        val wrappedEx = IOException("Wrapper exception", ex)
+        assertTrue("Wrapped UnsupportedRangeReconnectionException must be non-retryable", resilientSource.isNonRetryable(wrappedEx))
     }
 }

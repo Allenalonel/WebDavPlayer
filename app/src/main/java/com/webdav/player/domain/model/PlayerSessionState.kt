@@ -14,6 +14,7 @@ data class PlayerSessionState(
     val canManualRetry: Boolean = false,
     val isReconnecting: Boolean = false,
     val wasKilledBySystem: Boolean = false,
+    val isUnsupportedRange: Boolean = false,
 ) {
     val currentTrack: AudioTrack? get() = queue.currentTrack
     val isPlaying: Boolean get() = playbackState is PlaybackState.Playing

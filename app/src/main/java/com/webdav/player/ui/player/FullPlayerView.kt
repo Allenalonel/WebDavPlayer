@@ -33,6 +33,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -44,6 +45,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -72,6 +74,9 @@ import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 import kotlinx.coroutines.launch
 
+/**
+ * Expanded full player view displaying artwork, playback controls, and lyrics.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FullPlayerView(
@@ -89,6 +94,8 @@ fun FullPlayerView(
     onRetryPlayback: () -> Unit = onTogglePlayPause,
     batteryWhitelistManager: BatteryWhitelistManager = remember { DefaultBatteryWhitelistManager() },
     onDismissBatteryBanner: () -> Unit = {},
+    onConfirmUnsupportedRangeReplay: () -> Unit = {},
+    onDismissUnsupportedRange: () -> Unit = {},
 ) {
     var showQueueSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -527,6 +534,25 @@ fun FullPlayerView(
             },
             onCyclePlaybackMode = onCyclePlaybackMode,
             onDismissRequest = { showQueueSheet = false },
+        )
+    }
+
+    if (sessionState.isUnsupportedRange) {
+        AlertDialog(
+            onDismissRequest = onDismissUnsupportedRange,
+            text = {
+                Text(text = "当前服务器不支持断点续传，是否从头重新播放此曲？")
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmUnsupportedRangeReplay) {
+                    Text("重新播放")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissUnsupportedRange) {
+                    Text("取消")
+                }
+            },
         )
     }
 }
