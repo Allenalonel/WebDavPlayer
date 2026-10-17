@@ -139,6 +139,7 @@ class MainActivity : ComponentActivity() {
                                         onTogglePlayPause = { musicSession?.togglePlayPause() },
                                         onSkipToNext = { musicSession?.skipToNext() },
                                         onMiniPlayerClick = { isFullPlayerExpanded = true },
+                                        onRetryPlayback = { musicSession?.retryPlayback() },
                                         modifier =
                                             Modifier
                                                 .fillMaxWidth()
@@ -263,6 +264,7 @@ class MainActivity : ComponentActivity() {
                             onCyclePlaybackMode = { musicSession?.cyclePlaybackMode() },
                             onPlayQueueIndex = { musicSession?.playQueueIndex(it) },
                             onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) },
+                            onRetryPlayback = { musicSession?.retryPlayback() },
                             onDismissBatteryBanner = { musicSession?.clearKilledBySystemFlag() },
                             onConfirmUnsupportedRangeReplay = { musicSession?.confirmUnsupportedRangeReplay() },
                             onDismissUnsupportedRange = { musicSession?.dismissUnsupportedRange() },

@@ -25,7 +25,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -2026,6 +2028,79 @@ class MusicPlayerAppSessionTest {
             assertTrue(fakeEngine.playTracksCount > initialPlayTracksCount)
             assertEquals(42_000L, fakeEngine.lastStartPositionMs)
             assertEquals("01.mp3", fakeEngine.lastTracks[0].title)
+        }
+
+    @Test
+    fun bufferingWatchdog_exhaustsQuietWindow_flagsWeakNetworkAndManualRetry_preservingQueueState() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3", size = 1000)
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3", size = 2000)
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // Seek playback to 35,000 ms
+            session.seekTo(35_000L)
+            advanceUntilIdle()
+
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(35_000L, session.playbackProgress.value.currentPositionMs)
+
+            // Transition engine to Buffering state
+            fakeEngine._playbackState.value = PlaybackState.Buffering
+            runCurrent()
+
+            assertFalse("Initial buffering should not immediately flag weak network", session.sessionState.value.isWeakNetwork)
+            assertFalse("Initial buffering should not immediately flag manual retry", session.sessionState.value.canManualRetry)
+
+            // Advance virtual time by 15 seconds (first quiet threshold)
+            advanceTimeBy(15_001L)
+            runCurrent()
+            assertTrue("Buffering for 15s must flag weak network", session.sessionState.value.isWeakNetwork)
+            assertFalse("Buffering for 15s must not flag manual retry yet", session.sessionState.value.canManualRetry)
+            assertTrue("Buffering for 15s must flag reconnecting", session.sessionState.value.isReconnecting)
+
+            // Queue and position must remain completely intact
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(35_000L, session.playbackProgress.value.currentPositionMs)
+
+            // Advance virtual time by another 15 seconds (total 30s quiet window exhaustion)
+            advanceTimeBy(15_000L)
+            runCurrent()
+            assertTrue("Buffering for 30s must flag weak network", session.sessionState.value.isWeakNetwork)
+            assertTrue("Quiet window exhaustion must flag canManualRetry = true", session.sessionState.value.canManualRetry)
+            assertTrue("Suspended state helper isSuspendedRetry must be true", session.sessionState.value.isSuspendedRetry)
+            assertTrue("Reconnecting flag must remain true", session.sessionState.value.isReconnecting)
+
+            // Queue state MUST be preserved without skipping tracks or altering position
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals("01.mp3", session.sessionState.value.currentTrack?.title)
+            assertEquals(2, session.sessionState.value.queue.tracks.size)
+            assertEquals(35_000L, session.playbackProgress.value.currentPositionMs)
+
+            // User triggers manual retry
+            val initialPlayTracksCount = fakeEngine.playTracksCount
+            session.retryPlayback()
+            advanceUntilIdle()
+
+            // Verify in-place resumption from preserved timestamp
+            assertTrue(fakeEngine.playTracksCount > initialPlayTracksCount)
+            assertEquals(35_000L, fakeEngine.lastStartPositionMs)
+            assertEquals("01.mp3", fakeEngine.lastTracks[0].title)
+            assertEquals(0, session.sessionState.value.queue.currentIndex)
+            assertEquals(2, session.sessionState.value.queue.tracks.size)
+
+            // When playback recovers to Playing, flags clear
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            assertFalse(session.sessionState.value.isWeakNetwork)
+            assertFalse(session.sessionState.value.canManualRetry)
+            assertFalse(session.sessionState.value.isSuspendedRetry)
+            assertFalse(session.sessionState.value.isReconnecting)
         }
 
     @Test

@@ -191,6 +191,11 @@ class FakeMusicPlayerAppSession(
 
     var confirmUnsupportedRangeReplayCount = 0
     var dismissUnsupportedRangeCount = 0
+    var retryPlaybackCount = 0
+
+    override fun retryPlayback() {
+        retryPlaybackCount++
+    }
 
     override fun confirmUnsupportedRangeReplay() {
         confirmUnsupportedRangeReplayCount++

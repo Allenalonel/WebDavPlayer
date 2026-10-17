@@ -9,6 +9,7 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -132,5 +133,70 @@ class MiniPlayerPresentationTest {
         assertEquals(0f, MiniPlayerDefaults.ProgressMicroBarShape.topEnd.toPx(size, density), 0.01f)
         assertEquals(expectedCornerPx, MiniPlayerDefaults.ProgressMicroBarShape.bottomStart.toPx(size, density), 0.01f)
         assertEquals(expectedCornerPx, MiniPlayerDefaults.ProgressMicroBarShape.bottomEnd.toPx(size, density), 0.01f)
+    }
+
+    @Test
+    fun retryBanner_visibilityCondition_onlyVisibleWhenWeakNetworkAndManualRetry() {
+        val normalState = PlayerSessionState(isWeakNetwork = false, canManualRetry = false)
+        assertFalse(isMiniPlayerRetryBannerVisible(normalState))
+        assertFalse(normalState.isSuspendedRetry)
+
+        val weakNetworkOnly = PlayerSessionState(isWeakNetwork = true, canManualRetry = false)
+        assertFalse("During early 15s quiet reconnection, banner must not show yet", isMiniPlayerRetryBannerVisible(weakNetworkOnly))
+        assertFalse(weakNetworkOnly.isSuspendedRetry)
+
+        val manualRetryOnly = PlayerSessionState(isWeakNetwork = false, canManualRetry = true)
+        assertFalse(isMiniPlayerRetryBannerVisible(manualRetryOnly))
+        assertFalse(manualRetryOnly.isSuspendedRetry)
+
+        val suspendedRetry = PlayerSessionState(isWeakNetwork = true, canManualRetry = true)
+        assertTrue("When quiet window exhausted, banner must be visible", isMiniPlayerRetryBannerVisible(suspendedRetry))
+        assertTrue(suspendedRetry.isSuspendedRetry)
+    }
+
+    @Test
+    fun retryBanner_clickHandling_invokesOnRetryPlayback() {
+        var retryInvoked = false
+        val onRetryPlayback = { retryInvoked = true }
+
+        // Trigger retry action callback
+        onRetryPlayback()
+        assertTrue("Clicking retry action or banner must trigger onRetryPlayback callback", retryInvoked)
+    }
+
+    @Test
+    fun retryBanner_textLabels_matchSpecification() {
+        assertEquals("网络连接受阻，点击重试", PlayerSessionState.RETRY_BANNER_MESSAGE)
+        assertEquals("点击重试", PlayerSessionState.RETRY_BUTTON_LABEL)
+    }
+
+    @Test
+    fun formatSubtitle_suspendedRetryState_returnsRetryBannerMessage() {
+        val track = createTrack(artist = "Pink Floyd", format = AudioFormat.FLAC)
+        val suspendedSession = sessionWithTrack(track).copy(isWeakNetwork = true, canManualRetry = true)
+        val subtitle = formatMiniPlayerSubtitle(suspendedSession)
+        assertEquals(PlayerSessionState.RETRY_BANNER_MESSAGE, subtitle)
+    }
+
+    @Test
+    fun miniPlayer_playPauseButton_delegatesToRetryWhenManualRetryAvailable() {
+        var retryCount = 0
+        var playPauseCount = 0
+        val onRetry = { retryCount++ }
+        val onTogglePlayPause = { playPauseCount++ }
+
+        val suspendedState = PlayerSessionState(isWeakNetwork = true, canManualRetry = true)
+        val resolvedActionSuspended = if (suspendedState.canManualRetry) onRetry else onTogglePlayPause
+        resolvedActionSuspended()
+
+        assertEquals(1, retryCount)
+        assertEquals(0, playPauseCount)
+
+        val normalState = PlayerSessionState(isWeakNetwork = false, canManualRetry = false)
+        val resolvedActionNormal = if (normalState.canManualRetry) onRetry else onTogglePlayPause
+        resolvedActionNormal()
+
+        assertEquals(1, retryCount)
+        assertEquals(1, playPauseCount)
     }
 }

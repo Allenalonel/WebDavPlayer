@@ -22,8 +22,11 @@ data class PlayerSessionState(
     val isPaused: Boolean get() = playbackState is PlaybackState.Paused
     val isIdle: Boolean get() = playbackState is PlaybackState.Idle
     val hasTrack: Boolean get() = currentTrack != null
+    val isSuspendedRetry: Boolean get() = isWeakNetwork && canManualRetry
 
     companion object {
         const val WEAK_NETWORK_MESSAGE = "网络受阻，正在重连..."
+        const val RETRY_BANNER_MESSAGE = "网络连接受阻，点击重试"
+        const val RETRY_BUTTON_LABEL = "点击重试"
     }
 }

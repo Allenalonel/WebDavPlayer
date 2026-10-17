@@ -185,13 +185,15 @@ class MusicPlayerAppSessionImpl(
                                 }
                             bufferingWatchdogJobRef.set(job)
                         }
-                    } else {
+                    } else if (state is PlaybackState.Playing) {
                         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
                         if (_sessionState.value.isWeakNetwork || _sessionState.value.canManualRetry || _sessionState.value.isReconnecting) {
                             _sessionState.update {
                                 it.copy(isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
                             }
                         }
+                    } else {
+                        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
                     }
                     if (state is PlaybackState.Error) {
                         if (isUnsupportedRangeError(state)) {
@@ -204,6 +206,14 @@ class MusicPlayerAppSessionImpl(
                             }
                             stopPeriodicFlush()
                             return@collect
+                        } else {
+                            _sessionState.update {
+                                it.copy(
+                                    isWeakNetwork = true,
+                                    canManualRetry = true,
+                                    isReconnecting = false,
+                                )
+                            }
                         }
                     }
                     _sessionState.update { current ->
@@ -1106,6 +1116,15 @@ class MusicPlayerAppSessionImpl(
         val currentTrack = _sessionState.value.currentTrack ?: return
         val currentPos = _playbackProgress.value.currentPositionMs
 
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        _sessionState.update {
+            it.copy(
+                isWeakNetwork = false,
+                canManualRetry = false,
+                isReconnecting = true,
+            )
+        }
+
         if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
             val resumePos =
                 (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) + currentPos
@@ -1142,9 +1161,17 @@ class MusicPlayerAppSessionImpl(
         activeParentAudioTrack = null
         activeCuePath = null
         hasStreamLoaded = false
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         playerEngine.stop()
         _playbackProgress.value = PlaybackProgress.ZERO
-        _sessionState.update { it.copy(playbackState = PlaybackState.Idle) }
+        _sessionState.update {
+            it.copy(
+                playbackState = PlaybackState.Idle,
+                isWeakNetwork = false,
+                canManualRetry = false,
+                isReconnecting = false,
+            )
+        }
         coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = true) }
     }
 

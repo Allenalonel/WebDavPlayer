@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -34,9 +35,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -60,6 +65,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -215,6 +221,13 @@ fun FullPlayerView(
                 whitelistManager = batteryWhitelistManager,
                 onDismiss = onDismissBatteryBanner,
             )
+
+            if (isFullPlayerRetryBannerVisible(sessionState)) {
+                FullPlayerRetryBanner(
+                    onRetryPlayback = onRetryPlayback,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
 
             // Upper Main Area: Horizontal Pager between Artwork and Lyrics
             HorizontalPager(
@@ -620,10 +633,10 @@ private fun ArtworkPage(
 
         // Artist Name or Weak Network Alert Subtitle
         val subtitleText =
-            if (sessionState.isWeakNetwork) {
-                PlayerSessionState.WEAK_NETWORK_MESSAGE
-            } else {
-                currentTrack?.artist?.trim()?.takeIf { it.isNotBlank() } ?: "未知艺术家"
+            when {
+                sessionState.isWeakNetwork && sessionState.canManualRetry -> PlayerSessionState.RETRY_BANNER_MESSAGE
+                sessionState.isWeakNetwork -> PlayerSessionState.WEAK_NETWORK_MESSAGE
+                else -> currentTrack?.artist?.trim()?.takeIf { it.isNotBlank() } ?: "未知艺术家"
             }
         Text(
             text = subtitleText,
@@ -771,3 +784,82 @@ fun formatTrackArtistAndFormat(track: AudioTrack?): String {
     val format = track.format.extension.uppercase()
     return if (format.isNotBlank()) "$artist · $format" else artist
 }
+
+fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean {
+    return sessionState.isWeakNetwork && sessionState.canManualRetry
+}
+
+@Composable
+fun FullPlayerRetryBanner(
+    onRetryPlayback: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable { onRetryPlayback() }
+                .testTag("FullPlayerRetryBanner"),
+        shape = RoundedCornerShape(12.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.95f),
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = AppIcons.Warning,
+                    contentDescription = "网络连接受阻",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = PlayerSessionState.RETRY_BANNER_MESSAGE,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FilledTonalButton(
+                onClick = onRetryPlayback,
+                shape = RoundedCornerShape(8.dp),
+                colors =
+                    ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.testTag("FullPlayerRetryButton"),
+            ) {
+                Icon(
+                    imageVector = AppIcons.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = PlayerSessionState.RETRY_BUTTON_LABEL,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+

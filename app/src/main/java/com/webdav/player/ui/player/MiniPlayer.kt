@@ -9,8 +9,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,11 +31,13 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -94,6 +98,11 @@ fun MiniPlayer(
         shadowElevation = 8.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            if (isMiniPlayerRetryBannerVisible(sessionState)) {
+                MiniPlayerRetryBanner(
+                    onRetryPlayback = onRetryPlayback,
+                )
+            }
             Row(
                 modifier =
                     Modifier
@@ -225,10 +234,10 @@ private fun PlaybackStateIndicator(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 val bufferText =
-                    if (sessionState.isWeakNetwork) {
-                        PlayerSessionState.WEAK_NETWORK_MESSAGE
-                    } else {
-                        "正在缓冲..."
+                    when {
+                        sessionState.isWeakNetwork && sessionState.canManualRetry -> PlayerSessionState.RETRY_BANNER_MESSAGE
+                        sessionState.isWeakNetwork -> PlayerSessionState.WEAK_NETWORK_MESSAGE
+                        else -> "正在缓冲..."
                     }
                 Text(
                     text = bufferText,
@@ -349,7 +358,72 @@ private fun PlayPauseToggleButton(
     }
 }
 
+fun isMiniPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean {
+    return sessionState.isWeakNetwork && sessionState.canManualRetry
+}
+
+@Composable
+fun MiniPlayerRetryBanner(
+    onRetryPlayback: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onRetryPlayback,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .testTag("MiniPlayerRetryBanner"),
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = AppIcons.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = PlayerSessionState.RETRY_BANNER_MESSAGE,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            TextButton(
+                onClick = onRetryPlayback,
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                modifier = Modifier.testTag("MiniPlayerRetryButton"),
+            ) {
+                Text(
+                    text = PlayerSessionState.RETRY_BUTTON_LABEL,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
 fun formatMiniPlayerSubtitle(sessionState: PlayerSessionState): String {
+    if (sessionState.isWeakNetwork && sessionState.canManualRetry) {
+        return PlayerSessionState.RETRY_BANNER_MESSAGE
+    }
     val track = sessionState.currentTrack ?: return ""
     val format = currentTrackFormatLabel(sessionState)
     val artist = track.artist?.trim()?.takeIf { it.isNotBlank() }
