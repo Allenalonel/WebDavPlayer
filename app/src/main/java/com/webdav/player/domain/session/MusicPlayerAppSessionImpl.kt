@@ -104,10 +104,31 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
+    private fun enrichTrackWithMetadataPreservingPhysicalDuration(
+        track: AudioTrack,
+        meta: TrackMetadata,
+        isCurrentActiveTrack: Boolean,
+    ): AudioTrack {
+        val enriched = track.withMetadata(meta)
+        val physicalDuration =
+            if (isCurrentActiveTrack) {
+                playerEngine.durationMs.value.takeIf { it > 0L }
+                    ?: _sessionState.value.durationMs.takeIf { it > 0L }
+            } else {
+                null
+            }
+        return if (physicalDuration != null && physicalDuration > 0L) {
+            enriched.copy(durationMs = physicalDuration)
+        } else {
+            enriched
+        }
+    }
+
     private fun transitionToQueueIndex(
         server: WebDavServer,
         targetIndex: Int,
     ) {
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         val queue = _sessionState.value.queue
         val targetTrack = queue.tracks[targetIndex]
         val updatedQueue = queue.copy(currentIndex = targetIndex)
@@ -116,6 +137,10 @@ class MusicPlayerAppSessionImpl(
             it.copy(
                 queue = updatedQueue,
                 durationMs = targetTrack.durationMs,
+                isUnsupportedRange = false,
+                isWeakNetwork = false,
+                canManualRetry = false,
+                isReconnecting = false,
             )
         }
 
@@ -177,8 +202,14 @@ class MusicPlayerAppSessionImpl(
                                         }
                                         delay(15_000L)
                                         if (isActive) {
+                                            playerEngine.pause()
                                             _sessionState.update {
-                                                it.copy(isWeakNetwork = true, canManualRetry = true, isReconnecting = true)
+                                                it.copy(
+                                                    playbackState = PlaybackState.Paused,
+                                                    isWeakNetwork = true,
+                                                    canManualRetry = true,
+                                                    isReconnecting = true,
+                                                )
                                             }
                                         }
                                     }
@@ -297,9 +328,27 @@ class MusicPlayerAppSessionImpl(
         internalJobs +=
             coroutineScope.launch {
                 playerEngine.durationMs.collect { dur ->
-                    if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                    if (playerEngine.playbackState.value !is PlaybackState.Idle && dur > 0L) {
                         if (!virtualTimelineEngine.isActive) {
-                            _sessionState.update { it.copy(durationMs = dur) }
+                            _sessionState.update { current ->
+                                val curIdx = current.queue.currentIndex
+                                val updatedTracks =
+                                    if (curIdx in current.queue.tracks.indices) {
+                                        current.queue.tracks.mapIndexed { idx, trk ->
+                                            if (idx == curIdx && trk.durationMs != dur) {
+                                                trk.copy(durationMs = dur)
+                                            } else {
+                                                trk
+                                            }
+                                        }
+                                    } else {
+                                        current.queue.tracks
+                                    }
+                                current.copy(
+                                    durationMs = dur,
+                                    queue = current.queue.copy(tracks = updatedTracks),
+                                )
+                            }
                         }
                     }
                 }
@@ -328,7 +377,12 @@ class MusicPlayerAppSessionImpl(
                                                     current.queue.tracks.mapIndexed { index, track ->
                                                         val meta = metaMap[track.remotePath]
                                                         if (meta != null) {
-                                                            val enriched = track.withMetadata(meta)
+                                                            val enriched =
+                                                                enrichTrackWithMetadataPreservingPhysicalDuration(
+                                                                    track = track,
+                                                                    meta = meta,
+                                                                    isCurrentActiveTrack = (index == current.queue.currentIndex),
+                                                                )
                                                             if (enriched != track) {
                                                                 anyChanged = true
                                                                 tracksToUpdate.add(index to enriched)
@@ -585,7 +639,12 @@ class MusicPlayerAppSessionImpl(
                                 if (track.coverThumbnailPath == null) {
                                     val meta = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
                                     if (meta != null) {
-                                        val enriched = track.withMetadata(meta)
+                                        val enriched =
+                                            enrichTrackWithMetadataPreservingPhysicalDuration(
+                                                track = track,
+                                                meta = meta,
+                                                isCurrentActiveTrack = (index == state.queue.currentIndex),
+                                            )
                                         if (enriched != track) {
                                             anyChanged = true
                                             tracksToUpdate.add(index to enriched)
@@ -650,7 +709,12 @@ class MusicPlayerAppSessionImpl(
                     val updated =
                         current.queue.tracks.map { t ->
                             if (t.id == track.id) {
-                                val enriched = t.withMetadata(meta)
+                                val enriched =
+                                    enrichTrackWithMetadataPreservingPhysicalDuration(
+                                        track = t,
+                                        meta = meta,
+                                        isCurrentActiveTrack = true,
+                                    )
                                 if (enriched != t) {
                                     changed = true
                                     enrichedTrack = enriched
@@ -780,6 +844,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     private fun applyVirtualTrackSeek(seekResult: TrackSeekResult) {
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         var enrichedTrack: AudioTrack? = null
         _sessionState.update { current ->
             if (seekResult.trackIndex in current.queue.tracks.indices) {
@@ -788,6 +853,10 @@ class MusicPlayerAppSessionImpl(
                 current.copy(
                     queue = updatedQueue,
                     durationMs = seekResult.track.durationMs,
+                    isUnsupportedRange = false,
+                    isWeakNetwork = false,
+                    canManualRetry = false,
+                    isReconnecting = false,
                 )
             } else {
                 current
@@ -1183,8 +1252,24 @@ class MusicPlayerAppSessionImpl(
 
     override fun confirmUnsupportedRangeReplay() {
         _sessionState.update { it.copy(isUnsupportedRange = false, errorMessage = null) }
-        playerEngine.seekTo(0L)
-        playerEngine.play()
+        val server = _sessionState.value.activeServer ?: return
+        val currentTrack = _sessionState.value.currentTrack ?: return
+        _playbackProgress.value = PlaybackProgress(0L, currentTrack.durationMs, 0L)
+        if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
+            val startPos = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
+            loadTrackIntoEngine(
+                server = server,
+                track = activeParentAudioTrack!!,
+                startPositionMs = startPos,
+            )
+            playerEngine.updateTrackMetadata(currentTrack)
+        } else {
+            loadTrackIntoEngine(
+                server = server,
+                track = currentTrack,
+                startPositionMs = 0L,
+            )
+        }
     }
 
     override fun dismissUnsupportedRange() {
@@ -1192,16 +1277,12 @@ class MusicPlayerAppSessionImpl(
     }
 
     private fun isUnsupportedRangeError(state: PlaybackState.Error): Boolean {
-        val causeHasUnsupportedRange =
+        val hasTypedCause =
             generateSequence<Throwable>(state.cause) { it.cause }.any {
                 it is UnsupportedRangeReconnectionException
             }
-        val messageHasUnsupportedRange =
-            state.message.contains("UnsupportedRangeReconnectionException", ignoreCase = true) ||
-                state.message.contains("Remote server does not support partial content", ignoreCase = true) ||
-                state.message.contains("HTTP 200 returned on Range request", ignoreCase = true) ||
-                state.message.contains("unsupported range", ignoreCase = true)
-        return causeHasUnsupportedRange || messageHasUnsupportedRange
+        if (hasTypedCause) return true
+        return state.message.contains("UnsupportedRangeReconnectionException", ignoreCase = true)
     }
 
     override fun release() {

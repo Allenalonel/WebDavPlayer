@@ -158,7 +158,7 @@ fun MiniPlayer(
                 // Play / Pause / Buffering Toggle Button
                 PlayPauseToggleButton(
                     sessionState = sessionState,
-                    onTogglePlayPause = if (sessionState.canManualRetry) onRetryPlayback else onTogglePlayPause,
+                    onTogglePlayPause = if (sessionState.isSuspendedRetry) onRetryPlayback else onTogglePlayPause,
                 )
 
                 Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
@@ -235,7 +235,7 @@ private fun PlaybackStateIndicator(
                 Spacer(modifier = Modifier.width(6.dp))
                 val bufferText =
                     when {
-                        sessionState.isWeakNetwork && sessionState.canManualRetry -> PlayerSessionState.RETRY_BANNER_MESSAGE
+                        sessionState.isSuspendedRetry -> PlayerSessionState.RETRY_BANNER_MESSAGE
                         sessionState.isWeakNetwork -> PlayerSessionState.WEAK_NETWORK_MESSAGE
                         else -> "正在缓冲..."
                     }
@@ -323,7 +323,7 @@ private fun PlayPauseToggleButton(
         ) { state ->
             when (state) {
                 is PlaybackState.Buffering -> {
-                    if (sessionState.canManualRetry) {
+                    if (sessionState.isSuspendedRetry) {
                         Icon(
                             imageVector = AppIcons.Refresh,
                             contentDescription = "重试",
@@ -359,7 +359,7 @@ private fun PlayPauseToggleButton(
 }
 
 fun isMiniPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean {
-    return sessionState.isWeakNetwork && sessionState.canManualRetry
+    return sessionState.isSuspendedRetry
 }
 
 @Composable
@@ -421,7 +421,7 @@ fun MiniPlayerRetryBanner(
 }
 
 fun formatMiniPlayerSubtitle(sessionState: PlayerSessionState): String {
-    if (sessionState.isWeakNetwork && sessionState.canManualRetry) {
+    if (sessionState.isSuspendedRetry) {
         return PlayerSessionState.RETRY_BANNER_MESSAGE
     }
     val track = sessionState.currentTrack ?: return ""

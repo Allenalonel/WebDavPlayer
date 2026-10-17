@@ -446,7 +446,7 @@ fun FullPlayerView(
                 // Expressive Prominent Play / Pause / Buffering Toggle Button
                 FilledIconButton(
                     onClick = {
-                        if (sessionState.canManualRetry) onRetryPlayback() else onTogglePlayPause()
+                        if (sessionState.isSuspendedRetry) onRetryPlayback() else onTogglePlayPause()
                     },
                     modifier = Modifier.size(72.dp),
                     shape = CircleShape,
@@ -463,7 +463,7 @@ fun FullPlayerView(
                     ) { state ->
                         when (state) {
                             is PlaybackState.Buffering -> {
-                                if (sessionState.canManualRetry) {
+                                if (sessionState.isSuspendedRetry) {
                                     Icon(
                                         imageVector = AppIcons.Refresh,
                                         contentDescription = "重试",
@@ -634,7 +634,7 @@ private fun ArtworkPage(
         // Artist Name or Weak Network Alert Subtitle
         val subtitleText =
             when {
-                sessionState.isWeakNetwork && sessionState.canManualRetry -> PlayerSessionState.RETRY_BANNER_MESSAGE
+                sessionState.isSuspendedRetry -> PlayerSessionState.RETRY_BANNER_MESSAGE
                 sessionState.isWeakNetwork -> PlayerSessionState.WEAK_NETWORK_MESSAGE
                 else -> currentTrack?.artist?.trim()?.takeIf { it.isNotBlank() } ?: "未知艺术家"
             }
@@ -786,7 +786,7 @@ fun formatTrackArtistAndFormat(track: AudioTrack?): String {
 }
 
 fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean {
-    return sessionState.isWeakNetwork && sessionState.canManualRetry
+    return sessionState.isSuspendedRetry
 }
 
 @Composable

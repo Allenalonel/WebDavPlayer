@@ -107,12 +107,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(playerSessionState.isUnsupportedRange) {
-                    if (playerSessionState.isUnsupportedRange) {
-                        isFullPlayerExpanded = true
-                    }
-                }
-
                 Box(modifier = Modifier.fillMaxSize()) {
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),

@@ -360,18 +360,7 @@ class Media3AudioPlayerEngine(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                val unsupportedRangeCause =
-                    generateSequence<Throwable>(error) { it.cause }
-                        .firstOrNull { it is UnsupportedRangeReconnectionException }
-                val message =
-                    unsupportedRangeCause?.message
-                        ?: error.localizedMessage
-                        ?: "Playback error (${error.errorCodeName})"
-                _playbackState.value =
-                    PlaybackState.Error(
-                        message = message,
-                        cause = error,
-                    )
+                _playbackState.value = toPlaybackError(error)
             }
 
             override fun onPositionDiscontinuity(
@@ -588,23 +577,28 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    @VisibleForTesting
+    internal fun toPlaybackError(error: PlaybackException): PlaybackState.Error {
+        val unsupportedRangeCause =
+            generateSequence<Throwable>(error) { it.cause }
+                .firstOrNull { it is UnsupportedRangeReconnectionException }
+        val message =
+            unsupportedRangeCause?.message
+                ?: error.localizedMessage
+                ?: "Playback error (${error.errorCodeName})"
+        return PlaybackState.Error(
+            message = message,
+            cause = error,
+        )
+    }
+
     private fun updatePlaybackState() {
         val state =
             when (player.playbackState) {
                 Player.STATE_IDLE -> {
                     val error = player.playerError
                     if (error != null) {
-                        val unsupportedRangeCause =
-                            generateSequence<Throwable>(error) { it.cause }
-                                .firstOrNull { it is UnsupportedRangeReconnectionException }
-                        val message =
-                            unsupportedRangeCause?.message
-                                ?: error.localizedMessage
-                                ?: "Playback error"
-                        PlaybackState.Error(
-                            message = message,
-                            cause = error,
-                        )
+                        toPlaybackError(error)
                     } else {
                         PlaybackState.Idle
                     }
@@ -644,15 +638,7 @@ class Media3AudioPlayerEngine(
         if (dur != C.TIME_UNSET && dur > 0) {
             _durationMs.value = dur
         }
-        val effectiveDuration: Long = if (dur != C.TIME_UNSET && dur > 0) dur else _durationMs.value
-        val pos: Long = player.currentPosition.coerceAtLeast(0L)
-        val targetPos: Long =
-            if (player.playbackState == Player.STATE_ENDED && effectiveDuration > 0 && pos < effectiveDuration) {
-                effectiveDuration
-            } else {
-                pos
-            }
-        _currentPositionMs.value = targetPos
+        _currentPositionMs.value = player.currentPosition.coerceAtLeast(0L)
         _bufferedPositionMs.value = player.bufferedPosition.coerceAtLeast(0L)
     }
 

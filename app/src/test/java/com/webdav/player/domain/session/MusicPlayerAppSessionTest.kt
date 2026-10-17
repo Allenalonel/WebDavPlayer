@@ -406,7 +406,7 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
-    fun confirmUnsupportedRangeReplay_clearsUnsupportedRangeFlag_seeksToZeroAndPlays() =
+    fun confirmUnsupportedRangeReplay_clearsUnsupportedRangeFlag_reloadsTrackFromBeginningAndPlays() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)
             val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
@@ -417,21 +417,25 @@ class MusicPlayerAppSessionTest {
             fakeEngine._currentPositionMs.value = 60_000L
             advanceUntilIdle()
 
+            val unsupportedException = UnsupportedRangeReconnectionException(
+                "Remote server does not support partial content (HTTP 200 returned on Range request)",
+            )
             fakeEngine._playbackState.value = PlaybackState.Error(
                 message = "Remote server does not support partial content (HTTP 200 returned on Range request)",
+                cause = unsupportedException,
             )
             advanceUntilIdle()
 
             assertTrue(session.sessionState.value.isUnsupportedRange)
-            val initialPlayCount = fakeEngine.playCount
+            val initialLoadCount = fakeEngine.loadTrackCount
 
             // User confirms replay from beginning
             session.confirmUnsupportedRangeReplay()
             advanceUntilIdle()
 
             assertFalse("isUnsupportedRange must be cleared", session.sessionState.value.isUnsupportedRange)
-            assertEquals("PlayerEngine seekTo must be called with 0L", 0L, fakeEngine.seekToPosition)
-            assertTrue("PlayerEngine play must be called", fakeEngine.playCount > initialPlayCount)
+            assertTrue("PlayerEngine loadTrack must be called to reload from 0L", fakeEngine.loadTrackCount > initialLoadCount)
+            assertEquals("LoadTrack startPositionMs must be 0L", 0L, fakeEngine.lastStartPositionMs)
         }
 
     @Test
@@ -446,8 +450,12 @@ class MusicPlayerAppSessionTest {
             fakeEngine._currentPositionMs.value = 75_000L
             advanceUntilIdle()
 
+            val unsupportedException = UnsupportedRangeReconnectionException(
+                "Remote server does not support partial content (HTTP 200 returned on Range request)",
+            )
             fakeEngine._playbackState.value = PlaybackState.Error(
                 message = "Remote server does not support partial content (HTTP 200 returned on Range request)",
+                cause = unsupportedException,
             )
             advanceUntilIdle()
 
@@ -462,6 +470,57 @@ class MusicPlayerAppSessionTest {
             assertEquals("Playback state must remain Paused", PlaybackState.Paused, session.sessionState.value.playbackState)
             assertEquals("play must not be called upon dismiss", playCountBeforeDismiss, fakeEngine.playCount)
             assertEquals("Position must be retained at cut-off point", 75_000L, session.playbackProgress.value.currentPositionMs)
+        }
+
+    @Test
+    fun unsupportedRangeError_recognizesNestedTypedCause() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // Nested causal chain: Exception -> IOException -> UnsupportedRangeReconnectionException
+            val rootException = UnsupportedRangeReconnectionException("HTTP 200 on Range")
+            val wrappedException = java.lang.RuntimeException("Playback failed", java.io.IOException("Stream error", rootException))
+
+            fakeEngine._playbackState.value = PlaybackState.Error(
+                message = "Unspecified playback error",
+                cause = wrappedException,
+            )
+            advanceUntilIdle()
+
+            assertTrue("Typed causal chain traversal must identify UnsupportedRangeReconnectionException", session.sessionState.value.isUnsupportedRange)
+            assertEquals(PlaybackState.Paused, session.sessionState.value.playbackState)
+        }
+
+    @Test
+    fun skipToNext_whenUnsupportedRangeActive_resetsFlagAndCancelsLingeringWatchdog() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val track2 = RemoteFile(name = "02.mp3", path = "/02.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1, track2))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            val unsupportedException = UnsupportedRangeReconnectionException("HTTP 200 on Range")
+            fakeEngine._playbackState.value = PlaybackState.Error(
+                message = "HTTP 200 on Range",
+                cause = unsupportedException,
+            )
+            advanceUntilIdle()
+
+            assertTrue(session.sessionState.value.isUnsupportedRange)
+
+            // User skips to next track via external control / notification
+            session.skipToNext()
+            advanceUntilIdle()
+
+            assertFalse("isUnsupportedRange must be reset to false upon queue transition", session.sessionState.value.isUnsupportedRange)
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
+            assertEquals("02.mp3", session.sessionState.value.currentTrack?.title)
         }
 
     @Test
@@ -833,6 +892,57 @@ class MusicPlayerAppSessionTest {
                 sessionWithRepo.sessionState.value.queue.tracks[1]
                     .title,
             )
+
+            sessionWithRepo.release()
+        }
+
+    @Test
+    fun metadataResolution_preservesPhysicalDuration_whenPhysicalDurationAlreadyProbed() =
+        runTest(testDispatcher) {
+            val fakeMetadataRepo = FakeTrackMetadataRepo()
+            val sessionWithRepo =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = null,
+                    trackMetadataRepository = fakeMetadataRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            sessionWithRepo.setActiveServer(testServer)
+            val file1 = RemoteFile(name = "song1.mp3", path = "/music/song1.mp3")
+            val dir = RemoteDirectory(path = "/music/", name = "music", files = listOf(file1))
+
+            sessionWithRepo.playDirectoryTrack(dir, file1)
+            advanceUntilIdle()
+
+            // Decoder establishes true physical duration of 200_000L
+            fakeEngine._durationMs.value = 200_000L
+            advanceUntilIdle()
+
+            assertEquals(200_000L, sessionWithRepo.sessionState.value.durationMs)
+            assertEquals(200_000L, sessionWithRepo.sessionState.value.currentTrack?.durationMs)
+
+            // Room / static tag metadata arrives with inflated duration of 215_000L
+            fakeMetadataRepo.emit(
+                listOf(
+                    TrackMetadata(
+                        serverId = testServer.id,
+                        remotePath = "/music/song1.mp3",
+                        title = "Song One Enriched",
+                        artist = "True Artist",
+                        album = "Real Album",
+                        durationMs = 215_000L,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Spec Story 9: Physical duration takes precedence over tag metadata
+            assertEquals("Song One Enriched", sessionWithRepo.sessionState.value.currentTrack?.title)
+            assertEquals("True Artist", sessionWithRepo.sessionState.value.currentTrack?.artist)
+            assertEquals(200_000L, sessionWithRepo.sessionState.value.durationMs)
+            assertEquals(200_000L, sessionWithRepo.sessionState.value.currentTrack?.durationMs)
+            assertEquals(200_000L, sessionWithRepo.playbackProgress.value.durationMs)
 
             sessionWithRepo.release()
         }
@@ -2074,6 +2184,8 @@ class MusicPlayerAppSessionTest {
             assertTrue("Quiet window exhaustion must flag canManualRetry = true", session.sessionState.value.canManualRetry)
             assertTrue("Suspended state helper isSuspendedRetry must be true", session.sessionState.value.isSuspendedRetry)
             assertTrue("Reconnecting flag must remain true", session.sessionState.value.isReconnecting)
+            assertEquals("Playback must stay paused upon quiet window exhaustion", PlaybackState.Paused, session.sessionState.value.playbackState)
+            assertTrue("Player engine pause must be called", fakeEngine.pauseCount >= 1)
 
             // Queue state MUST be preserved without skipping tracks or altering position
             assertEquals(0, session.sessionState.value.queue.currentIndex)

@@ -859,14 +859,13 @@ class Media3AudioPlayerEngineTest {
         }
 
     @Test
-    fun stateEnded_clampsPositionToPhysicalStreamBoundary_whenPositionSlightlyUnderDuration() =
+    fun stateEnded_probesActualClockPosition_withoutSyntheticClamping() =
         runTest {
             val basePlayer = ExoPlayer.Builder(context).build()
             val controllablePlayer = TestControllablePlayer(basePlayer)
             val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
             try {
                 controllablePlayer.customDuration = 180_000L
-                // Jitter or fractional frame leaves position at 179_950L
                 controllablePlayer.customCurrentPosition = 179_950L
 
                 var capturedPosition: Long? = null
@@ -886,15 +885,71 @@ class Media3AudioPlayerEngineTest {
                 ShadowLooper.idleMainLooper()
                 testScheduler.runCurrent()
 
-                assertEquals(180_000L, capturedPosition)
+                // Spec: Synchronously probe actual clock position, no synthetic clamping
+                assertEquals(179_950L, capturedPosition)
                 assertEquals(180_000L, capturedDuration)
-                assertEquals(180_000L, testEngine.currentPositionMs.value)
+                assertEquals(179_950L, testEngine.currentPositionMs.value)
                 assertEquals(180_000L, testEngine.durationMs.value)
                 collectJob.cancel()
             } finally {
                 testEngine.release()
             }
         }
+
+    @Test
+    fun stateEnded_preservesActualClockPosition_forPrematureEofDetection() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customDuration = 180_000L
+                // Premature EOF at 50,000 ms (< 95% of duration)
+                controllablePlayer.customCurrentPosition = 50_000L
+
+                var capturedPosition: Long? = null
+                val collectJob =
+                    launch {
+                        testEngine.playbackState.collect { state ->
+                            if (state is PlaybackState.Ended) {
+                                capturedPosition = testEngine.currentPositionMs.value
+                            }
+                        }
+                    }
+                testScheduler.runCurrent()
+
+                controllablePlayer.notifyPlaybackState(Player.STATE_ENDED)
+                ShadowLooper.idleMainLooper()
+                testScheduler.runCurrent()
+
+                // Must preserve 50_000L so Tier 3 premature EOF arbitration can trigger
+                assertEquals(50_000L, capturedPosition)
+                assertEquals(50_000L, testEngine.currentPositionMs.value)
+                collectJob.cancel()
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun toPlaybackError_mapsPlaybackExceptionToPlaybackStateError() {
+        val basePlayer = ExoPlayer.Builder(context).build()
+        val testEngine = Media3AudioPlayerEngine(context, customPlayer = basePlayer)
+        try {
+            val unsupportedEx = UnsupportedRangeReconnectionException("HTTP 200 on Range")
+            val wrappedEx = androidx.media3.common.PlaybackException(
+                "Wrapper error",
+                java.io.IOException("Nested IO", unsupportedEx),
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            )
+
+            val errorState = testEngine.toPlaybackError(wrappedEx)
+            assertEquals("HTTP 200 on Range", errorState.message)
+            assertEquals(wrappedEx, errorState.cause)
+        } finally {
+            testEngine.release()
+        }
+    }
 
     @Test
     fun stop_resetsPositionAndDurationToZero() =
