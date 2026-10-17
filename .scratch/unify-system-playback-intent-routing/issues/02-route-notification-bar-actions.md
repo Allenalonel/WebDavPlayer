@@ -5,7 +5,7 @@
 
 **Blocked by:** 01: 统一媒体按键与命令意图至应用会话层 (Route Media Button and Command Intents to App Session)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 系统媒体服务在处理通知栏自定义播放动作时，将其转发至应用会话层的播放意图，确保空闲状态下的未播放完曲目能够触发完整的冷恢复逻辑
 - [ ] 系统媒体服务在处理通知栏自定义暂停动作时，将其转发至应用会话层的暂停意图，确保触发及时的会话进度刷盘并安全进入前台服务降级倒计时
