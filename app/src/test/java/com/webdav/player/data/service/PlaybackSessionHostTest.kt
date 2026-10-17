@@ -460,14 +460,14 @@ class PlaybackSessionHostTest {
                 putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
             }
         assertTrue(callback.handleMediaButtonIntent(playIntent))
-        assertEquals(1, fakeEngine.playCount)
+        assertEquals(1, appSession.playCount)
 
         val pauseIntent =
             Intent(Intent.ACTION_MEDIA_BUTTON).apply {
                 putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
             }
         assertTrue(callback.handleMediaButtonIntent(pauseIntent))
-        assertEquals(1, fakeEngine.pauseCount)
+        assertEquals(1, appSession.pauseCount)
 
         val nextIntent =
             Intent(Intent.ACTION_MEDIA_BUTTON).apply {

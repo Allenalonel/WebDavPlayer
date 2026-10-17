@@ -23,6 +23,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class WebDavMediaSessionCallbackTest {
     private lateinit var fakeEngine: FakeAudioPlayerEngine
+    private lateinit var fakeSession: FakeMusicPlayerAppSession
     private lateinit var callback: WebDavMediaSessionCallback
 
     private class RecordingAppSession : MusicPlayerAppSession by FakeMusicPlayerAppSession() {
@@ -67,7 +68,8 @@ class WebDavMediaSessionCallbackTest {
     @Before
     fun setUp() {
         fakeEngine = FakeAudioPlayerEngine()
-        callback = WebDavMediaSessionCallback(fakeEngine)
+        fakeSession = FakeMusicPlayerAppSession()
+        callback = WebDavMediaSessionCallback(fakeEngine, fakeSession)
     }
 
     private fun createMediaButtonIntent(
@@ -81,56 +83,63 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_play_callsPlay() {
+    fun handleMediaButton_play_callsAppSessionPlay() {
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(1, fakeEngine.playCount)
+        assertEquals(1, fakeSession.playCount)
+        assertEquals(0, fakeEngine.playCount)
     }
 
     @Test
-    fun handleMediaButton_pause_callsPause() {
+    fun handleMediaButton_pause_callsAppSessionPause() {
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PAUSE)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(1, fakeEngine.pauseCount)
+        assertEquals(1, fakeSession.pauseCount)
+        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test
-    fun handleMediaButton_playPauseToggle_whenPlaying_callsPause() {
-        fakeEngine.loadTrack(testServer, testTracks[0])
-        assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
-
+    fun handleMediaButton_playPauseToggle_callsAppSessionTogglePlayPause() {
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(1, fakeEngine.pauseCount)
+        assertEquals(1, fakeSession.togglePlayPauseCount)
+        assertEquals(0, fakeEngine.playCount)
+        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test
-    fun handleMediaButton_playPauseToggle_whenPaused_callsPlay() {
-        fakeEngine.loadTrack(testServer, testTracks[0])
-        fakeEngine.pause()
-        assertEquals(PlaybackState.Paused, fakeEngine.playbackState.value)
-
-        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-        val handled = callback.handleMediaButtonIntent(intent)
-
-        assertTrue(handled)
-        // playTracks set it once, and now toggled play once more
-        assertEquals(1, fakeEngine.playCount)
-    }
-
-    @Test
-    fun handleMediaButton_headsetHook_togglesPlayPause() {
+    fun handleMediaButton_headsetHook_callsAppSessionTogglePlayPause() {
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_HEADSETHOOK)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(1, fakeEngine.playCount)
+        assertEquals(1, fakeSession.togglePlayPauseCount)
+        assertEquals(0, fakeEngine.playCount)
+        assertEquals(0, fakeEngine.pauseCount)
+    }
+
+    @Test
+    fun handleMediaButton_next_callsAppSessionSkipToNext() {
+        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
+        val handled = callback.handleMediaButtonIntent(intent)
+
+        assertTrue(handled)
+        assertEquals(1, fakeSession.skipNextCount)
+    }
+
+    @Test
+    fun handleMediaButton_previous_callsAppSessionSkipToPrevious() {
+        val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        val handled = callback.handleMediaButtonIntent(intent)
+
+        assertTrue(handled)
+        assertEquals(1, fakeSession.skipPreviousCount)
     }
 
     @Test
@@ -152,12 +161,13 @@ class WebDavMediaSessionCallbackTest {
     }
 
     @Test
-    fun handleMediaButton_stop_callsStop() {
+    fun handleMediaButton_stop_callsAppSessionStop() {
         val intent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_STOP)
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertTrue(handled)
-        assertEquals(1, fakeEngine.stopCount)
+        assertEquals(1, fakeSession.stopCount)
+        assertEquals(0, fakeEngine.stopCount)
     }
 
     @Test
@@ -166,6 +176,7 @@ class WebDavMediaSessionCallbackTest {
         val handled = callback.handleMediaButtonIntent(intent)
 
         assertFalse(handled)
+        assertEquals(0, fakeSession.playCount)
         assertEquals(0, fakeEngine.playCount)
     }
 
