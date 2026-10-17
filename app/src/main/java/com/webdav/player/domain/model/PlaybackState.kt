@@ -6,5 +6,8 @@ sealed interface PlaybackState {
     data object Playing : PlaybackState
     data object Paused : PlaybackState
     data object Ended : PlaybackState
-    data class Error(val message: String) : PlaybackState
+    data class Error(
+        val message: String,
+        val cause: Throwable? = null,
+    ) : PlaybackState
 }

@@ -19,6 +19,13 @@ class UnexpectedEndOfStreamException(
     val expectedBytes: Long = 0L,
 ) : IOException(message)
 
+class UnsupportedRangeReconnectionException(
+    message: String,
+) : IOException(message)
+
+/**
+ * Intercepts ranged reconnections and recovers from mid-stream network truncation.
+ */
 @OptIn(UnstableApi::class)
 class ResilientWebDavDataSource(
     private val underlyingFactory: HttpDataSource.Factory,
@@ -255,6 +262,10 @@ class ResilientWebDavDataSource(
         requestProperties.forEach { (k, v) -> nextSource.setRequestProperty(k, v) }
         currentDataSource = nextSource
         nextSource.open(rangeSpec)
+
+        if (currentOffset > 0L && nextSource.responseCode == 200) {
+            throw UnsupportedRangeReconnectionException("Remote server does not support partial content (HTTP 200 returned on Range request)")
+        }
     }
 
     private fun performBackoff(cause: Exception) {
@@ -314,7 +325,8 @@ class ResilientWebDavDataSource(
 
     fun isNonRetryable(throwable: Throwable): Boolean =
         generateSequence(throwable) { it.cause }.any { cause ->
-            cause is FileNotFoundException ||
+            cause is UnsupportedRangeReconnectionException ||
+                cause is FileNotFoundException ||
                 (
                     cause is HttpDataSource.InvalidResponseCodeException &&
                         cause.responseCode in NON_RETRYABLE_STATUS_CODES

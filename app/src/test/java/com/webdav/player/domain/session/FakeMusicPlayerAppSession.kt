@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+/**
+ * Test fake implementation of MusicPlayerAppSession.
+ */
 class FakeMusicPlayerAppSession(
     initialState: PlayerSessionState = PlayerSessionState(),
     initialProgress: PlaybackProgress = PlaybackProgress.ZERO,
@@ -184,6 +187,21 @@ class FakeMusicPlayerAppSession(
         removedQueueIndices.add(index)
         val updated = _sessionState.value.queue.removeTrackAt(index)
         _sessionState.update { it.copy(queue = updated) }
+    }
+
+    var confirmUnsupportedRangeReplayCount = 0
+    var dismissUnsupportedRangeCount = 0
+
+    override fun confirmUnsupportedRangeReplay() {
+        confirmUnsupportedRangeReplayCount++
+        _sessionState.update { it.copy(isUnsupportedRange = false) }
+        seekTo(0L)
+        play()
+    }
+
+    override fun dismissUnsupportedRange() {
+        dismissUnsupportedRangeCount++
+        _sessionState.update { it.copy(isUnsupportedRange = false) }
     }
 
     override fun stop() {

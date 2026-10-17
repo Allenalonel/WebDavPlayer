@@ -78,6 +78,9 @@ data class StreamingLoadControlConfig(
     }
 }
 
+/**
+ * Media3/ExoPlayer implementation of AudioPlayerEngine with transparent streaming resilience.
+ */
 @OptIn(UnstableApi::class)
 class Media3AudioPlayerEngine(
     private val context: Context,
@@ -357,9 +360,17 @@ class Media3AudioPlayerEngine(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                val unsupportedRangeCause =
+                    generateSequence<Throwable>(error) { it.cause }
+                        .firstOrNull { it is UnsupportedRangeReconnectionException }
+                val message =
+                    unsupportedRangeCause?.message
+                        ?: error.localizedMessage
+                        ?: "Playback error (${error.errorCodeName})"
                 _playbackState.value =
                     PlaybackState.Error(
-                        error.localizedMessage ?: "Playback error (${error.errorCodeName})",
+                        message = message,
+                        cause = error,
                     )
             }
 
@@ -583,7 +594,17 @@ class Media3AudioPlayerEngine(
                 Player.STATE_IDLE -> {
                     val error = player.playerError
                     if (error != null) {
-                        PlaybackState.Error(error.localizedMessage ?: "Playback error")
+                        val unsupportedRangeCause =
+                            generateSequence<Throwable>(error) { it.cause }
+                                .firstOrNull { it is UnsupportedRangeReconnectionException }
+                        val message =
+                            unsupportedRangeCause?.message
+                                ?: error.localizedMessage
+                                ?: "Playback error"
+                        PlaybackState.Error(
+                            message = message,
+                            cause = error,
+                        )
                     } else {
                         PlaybackState.Idle
                     }

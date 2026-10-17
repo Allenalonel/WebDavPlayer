@@ -11,6 +11,9 @@ import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * Application session facade orchestrating music playback, queue state, and UI intents.
+ */
 interface MusicPlayerAppSession {
     val sessionState: StateFlow<PlayerSessionState>
 
@@ -73,6 +76,10 @@ interface MusicPlayerAppSession {
     fun retryPlayback() {}
 
     fun clearKilledBySystemFlag() {}
+
+    fun confirmUnsupportedRangeReplay() {}
+
+    fun dismissUnsupportedRange() {}
 
     fun stop()
 
