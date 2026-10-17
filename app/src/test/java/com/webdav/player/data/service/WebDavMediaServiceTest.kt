@@ -11,6 +11,7 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -83,43 +84,59 @@ class WebDavMediaServiceTest {
     }
 
     @Test
-    fun onStartCommand_actionPlay_callsPlay() {
+    fun onStartCommand_actionPlay_callsAppSessionPlay() {
+        val fakeSession = FakeMusicPlayerAppSession()
+        val host = PlaybackSessionHost.getInstance(app)
+        host.setAppSession(fakeSession)
+
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
                 action = WebDavNotificationProvider.ACTION_PLAY
             }
         service.onStartCommand(intent, 0, 1)
-        assertNotNull(service.playerEngine)
+        assertEquals(1, fakeSession.playCount)
     }
 
     @Test
-    fun onStartCommand_actionPause_callsPause() {
+    fun onStartCommand_actionPause_callsAppSessionPause() {
+        val fakeSession = FakeMusicPlayerAppSession()
+        val host = PlaybackSessionHost.getInstance(app)
+        host.setAppSession(fakeSession)
+
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
                 action = WebDavNotificationProvider.ACTION_PAUSE
             }
         service.onStartCommand(intent, 0, 1)
-        assertNotNull(service.playerEngine)
+        assertEquals(1, fakeSession.pauseCount)
     }
 
     @Test
-    fun onStartCommand_actionNext_callsSkipToNext() {
+    fun onStartCommand_actionNext_callsAppSessionSkipToNext() {
+        val fakeSession = FakeMusicPlayerAppSession()
+        val host = PlaybackSessionHost.getInstance(app)
+        host.setAppSession(fakeSession)
+
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
                 action = WebDavNotificationProvider.ACTION_NEXT
             }
         service.onStartCommand(intent, 0, 1)
-        assertNotNull(service.playerEngine)
+        assertEquals(1, fakeSession.skipNextCount)
     }
 
     @Test
-    fun onStartCommand_actionPrevious_callsSkipToPrevious() {
+    fun onStartCommand_actionPrevious_callsAppSessionSkipToPrevious() {
+        val fakeSession = FakeMusicPlayerAppSession()
+        val host = PlaybackSessionHost.getInstance(app)
+        host.setAppSession(fakeSession)
+
         val intent =
             Intent(service, WebDavMediaService::class.java).apply {
                 action = WebDavNotificationProvider.ACTION_PREVIOUS
             }
         service.onStartCommand(intent, 0, 1)
-        assertNotNull(service.playerEngine)
+        assertEquals(1, fakeSession.skipPreviousCount)
     }
 
     @Test
