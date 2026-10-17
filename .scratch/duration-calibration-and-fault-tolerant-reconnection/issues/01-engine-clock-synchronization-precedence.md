@@ -5,8 +5,8 @@ Ensure that when audio playback state transitions occur (specifically reaching `
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** completed
 
-- [ ] In `Player.Listener` (`onPlaybackStateChanged`, `onPositionDiscontinuity`, `onIsPlayingChanged`), `updatePositionAndDuration()` is strictly called before `updatePlaybackState()`.
-- [ ] When player transitions to `STATE_ENDED`, subscribers receive `PlaybackState.Ended` with up-to-date position and duration values reflecting the actual physical stream boundary.
-- [ ] Unit and integration tests in `Media3AudioPlayerEngineTest` verify that `currentPositionMs` and `durationMs` are refreshed prior to `playbackState` emissions.
+- [x] In `Player.Listener` (`onPlaybackStateChanged`, `onPositionDiscontinuity`, `onIsPlayingChanged`), `updatePositionAndDuration()` is strictly called before `updatePlaybackState()`.
+- [x] When player transitions to `STATE_ENDED`, subscribers receive `PlaybackState.Ended` with up-to-date position and duration values reflecting the actual physical stream boundary.
+- [x] Unit and integration tests in `Media3AudioPlayerEngineTest` verify that `currentPositionMs` and `durationMs` are refreshed prior to `playbackState` emissions.

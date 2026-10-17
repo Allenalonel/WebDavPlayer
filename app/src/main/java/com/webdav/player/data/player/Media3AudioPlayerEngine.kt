@@ -310,24 +310,25 @@ class Media3AudioPlayerEngine(
     private val listener =
         object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                updatePlaybackState()
                 updatePositionAndDuration()
+                updatePlaybackState()
             }
 
             override fun onPlayWhenReadyChanged(
                 playWhenReady: Boolean,
                 reason: Int,
             ) {
+                updatePositionAndDuration()
                 updatePlaybackState()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                updatePositionAndDuration()
                 updatePlaybackState()
                 if (isPlaying) {
                     startPositionTicker()
                 } else {
                     stopPositionTicker()
-                    updatePositionAndDuration()
                 }
             }
 
@@ -343,6 +344,7 @@ class Media3AudioPlayerEngine(
                     activeTrackMetadataRef.set(null)
                     player.playlistMetadata = MediaMetadata.EMPTY
                     updatePositionAndDuration()
+                    updatePlaybackState()
                     _trackTransitions.tryEmit(Unit)
                     return
                 }
@@ -351,6 +353,7 @@ class Media3AudioPlayerEngine(
                 activeTrackMetadataRef.set(null)
                 player.playlistMetadata = MediaMetadata.EMPTY
                 updatePositionAndDuration()
+                updatePlaybackState()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -366,6 +369,14 @@ class Media3AudioPlayerEngine(
                 reason: Int,
             ) {
                 updatePositionAndDuration()
+                updatePlaybackState()
+            }
+
+            override fun onTimelineChanged(
+                timeline: androidx.media3.common.Timeline,
+                reason: Int,
+            ) {
+                updatePositionAndDuration()
             }
         }
 
@@ -378,6 +389,7 @@ class Media3AudioPlayerEngine(
                 1.0f
             }
         runOnApplicationLooper {
+            updatePositionAndDuration()
             updatePlaybackState()
         }
     }
@@ -393,6 +405,7 @@ class Media3AudioPlayerEngine(
             player.playlistMetadata = MediaMetadata.EMPTY
             activeServerRef.set(server)
             _currentPositionMs.value = startPositionMs
+            _durationMs.value = if (track.durationMs > 0L) track.durationMs else 0L
 
             if (player is ExoPlayer) {
                 val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
@@ -545,6 +558,7 @@ class Media3AudioPlayerEngine(
             player.playlistMetadata = MediaMetadata.EMPTY
             _playbackState.value = PlaybackState.Idle
             _currentPositionMs.value = 0L
+            _durationMs.value = 0L
             _bufferedPositionMs.value = 0L
         }
     }
@@ -605,11 +619,19 @@ class Media3AudioPlayerEngine(
     }
 
     private fun updatePositionAndDuration() {
-        _currentPositionMs.value = player.currentPosition.coerceAtLeast(0L)
-        val dur = player.duration
+        val dur: Long = player.duration
         if (dur != C.TIME_UNSET && dur > 0) {
             _durationMs.value = dur
         }
+        val effectiveDuration: Long = if (dur != C.TIME_UNSET && dur > 0) dur else _durationMs.value
+        val pos: Long = player.currentPosition.coerceAtLeast(0L)
+        val targetPos: Long =
+            if (player.playbackState == Player.STATE_ENDED && effectiveDuration > 0 && pos < effectiveDuration) {
+                effectiveDuration
+            } else {
+                pos
+            }
+        _currentPositionMs.value = targetPos
         _bufferedPositionMs.value = player.bufferedPosition.coerceAtLeast(0L)
     }
 

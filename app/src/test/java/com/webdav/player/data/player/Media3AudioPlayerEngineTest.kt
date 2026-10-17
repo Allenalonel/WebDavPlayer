@@ -2,10 +2,13 @@ package com.webdav.player.data.player
 
 import android.content.Context
 import androidx.annotation.OptIn
+import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
@@ -13,6 +16,8 @@ import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.domain.session.MusicPlayerAppSession
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,6 +28,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.CopyOnWriteArrayList
 
 @OptIn(UnstableApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -654,4 +661,264 @@ class Media3AudioPlayerEngineTest {
             notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString(),
         )
     }
+
+    private class TestControllablePlayer(wrapped: Player) : ForwardingPlayer(wrapped) {
+        var customPlaybackState: Int = Player.STATE_IDLE
+        var customCurrentPosition: Long = 0L
+        var customDuration: Long = C.TIME_UNSET
+        var customBufferedPosition: Long = 0L
+        var customIsPlaying: Boolean = false
+        var customPlayWhenReady: Boolean = false
+        val customListeners = CopyOnWriteArrayList<Player.Listener>()
+
+        override fun addListener(listener: Player.Listener) {
+            customListeners.add(listener)
+            super.addListener(listener)
+        }
+
+        override fun removeListener(listener: Player.Listener) {
+            customListeners.remove(listener)
+            super.removeListener(listener)
+        }
+
+        override fun getPlaybackState(): Int = customPlaybackState
+        override fun getCurrentPosition(): Long = customCurrentPosition
+        override fun getDuration(): Long = customDuration
+        override fun getBufferedPosition(): Long = customBufferedPosition
+        override fun isPlaying(): Boolean = customIsPlaying
+        override fun getPlayWhenReady(): Boolean = customPlayWhenReady
+
+        fun notifyPlaybackState(state: Int) {
+            customPlaybackState = state
+            for (listener in customListeners) {
+                listener.onPlaybackStateChanged(state)
+            }
+        }
+
+        fun notifyIsPlaying(isPlaying: Boolean) {
+            customIsPlaying = isPlaying
+            for (listener in customListeners) {
+                listener.onIsPlayingChanged(isPlaying)
+            }
+        }
+
+        fun notifyPositionDiscontinuity(
+            oldPos: Long,
+            newPos: Long,
+            reason: Int = Player.DISCONTINUITY_REASON_SEEK,
+        ) {
+            customCurrentPosition = newPos
+            val oldInfo = Player.PositionInfo(null, 0, null, null, 0, oldPos, oldPos, -1, -1)
+            val newInfo = Player.PositionInfo(null, 0, null, null, 0, newPos, newPos, -1, -1)
+            for (listener in customListeners) {
+                listener.onPositionDiscontinuity(oldInfo, newInfo, reason)
+            }
+        }
+
+        fun notifyTimelineChanged(reason: Int = Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
+            for (listener in customListeners) {
+                listener.onTimelineChanged(currentTimeline, reason)
+            }
+        }
+    }
+
+    @Test
+    fun onPlaybackStateChanged_stateEnded_refreshesPositionAndDurationBeforeEmittingEndedState() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customPlaybackState = Player.STATE_READY
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.customDuration = 180_000L
+                controllablePlayer.customCurrentPosition = 175_000L
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+
+                var observedPositionAtEnded: Long? = null
+                var observedDurationAtEnded: Long? = null
+                val collectJob =
+                    launch {
+                        testEngine.playbackState.collect { state ->
+                            if (state is PlaybackState.Ended) {
+                                observedPositionAtEnded = testEngine.currentPositionMs.value
+                                observedDurationAtEnded = testEngine.durationMs.value
+                            }
+                        }
+                    }
+                testScheduler.runCurrent()
+
+                // Simulate stream natural completion
+                controllablePlayer.customCurrentPosition = 180_000L
+                controllablePlayer.notifyPlaybackState(Player.STATE_ENDED)
+                ShadowLooper.idleMainLooper()
+                testScheduler.runCurrent()
+
+                assertEquals(180_000L, observedPositionAtEnded)
+                assertEquals(180_000L, observedDurationAtEnded)
+                assertEquals(PlaybackState.Ended, testEngine.playbackState.value)
+                collectJob.cancel()
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun onIsPlayingChanged_refreshesPositionAndDurationBeforeEmittingState() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customPlaybackState = Player.STATE_READY
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.customDuration = 180_000L
+                controllablePlayer.customCurrentPosition = 50_000L
+                controllablePlayer.notifyIsPlaying(true)
+                ShadowLooper.idleMainLooper()
+
+                // Pause occurs at 52_000L
+                controllablePlayer.customPlayWhenReady = false
+                controllablePlayer.customCurrentPosition = 52_000L
+
+                var observedPositionAtPaused: Long? = null
+                val collectJob =
+                    launch {
+                        testEngine.playbackState.collect { state ->
+                            if (state is PlaybackState.Paused) {
+                                observedPositionAtPaused = testEngine.currentPositionMs.value
+                            }
+                        }
+                    }
+                testScheduler.runCurrent()
+
+                controllablePlayer.notifyIsPlaying(false)
+                ShadowLooper.idleMainLooper()
+                testScheduler.runCurrent()
+
+                assertEquals(52_000L, observedPositionAtPaused)
+                assertEquals(52_000L, testEngine.currentPositionMs.value)
+                collectJob.cancel()
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun onPositionDiscontinuity_refreshesPositionAndDuration() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customDuration = 240_000L
+                controllablePlayer.customCurrentPosition = 30_000L
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+
+                // Seek occurs to 90_000L
+                controllablePlayer.notifyPositionDiscontinuity(oldPos = 30_000L, newPos = 90_000L)
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(90_000L, testEngine.currentPositionMs.value)
+                assertEquals(240_000L, testEngine.durationMs.value)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun physicalDuration_takesPrecedenceOverStaticMetadataDuration_onceProbed() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                // Initial track has inflated metadata duration of 210_000L
+                val trackWithMeta = track1.copy(durationMs = 210_000L)
+                testEngine.loadTrack(testServer, trackWithMeta, startPositionMs = 0L)
+                ShadowLooper.idleMainLooper()
+
+                // Metadata duration is initially established
+                assertEquals(210_000L, testEngine.durationMs.value)
+
+                // Decoder probes physical stream and establishes true duration of 200_000L
+                controllablePlayer.customDuration = 200_000L
+                controllablePlayer.notifyTimelineChanged()
+                ShadowLooper.idleMainLooper()
+
+                // Physical duration overrides metadata duration
+                assertEquals(200_000L, testEngine.durationMs.value)
+
+                // Also verify on playback state change
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+                ShadowLooper.idleMainLooper()
+                assertEquals(200_000L, testEngine.durationMs.value)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun stateEnded_clampsPositionToPhysicalStreamBoundary_whenPositionSlightlyUnderDuration() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customDuration = 180_000L
+                // Jitter or fractional frame leaves position at 179_950L
+                controllablePlayer.customCurrentPosition = 179_950L
+
+                var capturedPosition: Long? = null
+                var capturedDuration: Long? = null
+                val collectJob =
+                    launch {
+                        testEngine.playbackState.collect { state ->
+                            if (state is PlaybackState.Ended) {
+                                capturedPosition = testEngine.currentPositionMs.value
+                                capturedDuration = testEngine.durationMs.value
+                            }
+                        }
+                    }
+                testScheduler.runCurrent()
+
+                controllablePlayer.notifyPlaybackState(Player.STATE_ENDED)
+                ShadowLooper.idleMainLooper()
+                testScheduler.runCurrent()
+
+                assertEquals(180_000L, capturedPosition)
+                assertEquals(180_000L, capturedDuration)
+                assertEquals(180_000L, testEngine.currentPositionMs.value)
+                assertEquals(180_000L, testEngine.durationMs.value)
+                collectJob.cancel()
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun stop_resetsPositionAndDurationToZero() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customDuration = 180_000L
+                controllablePlayer.customCurrentPosition = 120_000L
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(120_000L, testEngine.currentPositionMs.value)
+                assertEquals(180_000L, testEngine.durationMs.value)
+
+                testEngine.stop()
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(0L, testEngine.currentPositionMs.value)
+                assertEquals(0L, testEngine.durationMs.value)
+                assertEquals(PlaybackState.Idle, testEngine.playbackState.value)
+            } finally {
+                testEngine.release()
+            }
+        }
 }
