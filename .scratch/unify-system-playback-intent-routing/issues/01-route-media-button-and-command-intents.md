@@ -5,7 +5,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 媒体按键事件中的播放指令直接派发给应用会话层的播放意图，不再绕过会话层操作底层播放引擎
 - [ ] 媒体按键事件中的暂停指令直接派发给应用会话层的暂停意图
