@@ -5,7 +5,7 @@
 
 **Blocked by:** 01: 统一媒体按键与命令意图至应用会话层 (Route Media Button and Command Intents to App Session), 02: 统一系统通知栏自定义动作路由至应用会话层 (Route Notification Bar Actions to App Session)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 媒体会话回调组件彻底移除底层播放引擎构造参数与属性引用，仅持有非空的应用会话层接缝引用
 - [ ] 底层媒体播放引擎与播放宿主服务中彻底删除延迟注入方法及其背后的可空会话属性
