@@ -1,6 +1,6 @@
 # Spec: 统一系统级播控意图接缝至应用会话层 (Unify System Playback Intent Routing Through App Session)
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
