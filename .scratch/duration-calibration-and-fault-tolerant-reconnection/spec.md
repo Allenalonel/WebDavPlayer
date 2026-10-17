@@ -1,6 +1,6 @@
 # Spec: Physical Duration Calibration, Fault-Tolerant Reconnection, and Uninterrupted Queue Progression
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
