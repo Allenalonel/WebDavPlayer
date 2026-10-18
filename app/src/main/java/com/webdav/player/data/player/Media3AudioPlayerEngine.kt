@@ -90,7 +90,13 @@ class Media3AudioPlayerEngine(
     val hardwareLockManager: StreamingHardwareLockManager =
         (mediaSourceAdapter as? DefaultWebDavMediaSourceAdapter)?.hardwareLockManager
             ?: DefaultStreamingHardwareLockManager(context),
+    val canonicalAudioProcessor: CanonicalResamplingAudioProcessor = CanonicalResamplingAudioProcessor(),
+    customAudioSink: AudioSink? = null,
 ) : AudioPlayerEngine {
+    private val activeAudioSinkRef = AtomicReference<AudioSink?>(customAudioSink)
+
+    val activeAudioSink: AudioSink?
+        get() = activeAudioSinkRef.get()
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
 
     val activeServer: WebDavServer?
@@ -131,12 +137,17 @@ class Media3AudioPlayerEngine(
                         context: Context,
                         enableFloatOutput: Boolean,
                         enableAudioTrackPlaybackParams: Boolean,
-                    ): AudioSink? =
-                        DefaultAudioSink
-                            .Builder(context)
-                            .setEnableFloatOutput(enableFloatOutput)
-                            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                            .build()
+                    ): AudioSink? {
+                        val sink =
+                            customAudioSink ?: DefaultAudioSink
+                                .Builder(context)
+                                .setEnableFloatOutput(enableFloatOutput)
+                                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                                .setAudioProcessors(arrayOf(canonicalAudioProcessor))
+                                .build()
+                        activeAudioSinkRef.set(sink)
+                        return sink
+                    }
                 }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
 
             val extractorsFactory =
