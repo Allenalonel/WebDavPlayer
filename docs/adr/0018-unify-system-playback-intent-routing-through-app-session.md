@@ -175,3 +175,39 @@ WebDavApplication.onCreate()
 - **测试接缝对齐**：`WebDavMediaSessionCallbackTest` 全部旧断言（`fakeEngine.playCount` 等）删除，改为在 `fakeSession` 接缝断言，测试跨越的接缝与生产路径一致。
 - **接口面积收窄**：`WebDavMediaSessionCallback` 从双参数（engine + nullable session）变为单参数（non-null session），接口复杂度降低。
 - **ADR-0016 完全落实**：`AudioPlayerEngine` 成为彻底无会话依赖的纯物理流渲染管道。
+
+## Addendum: Audio Becoming Noisy, Device Route Observer & Canonical Resampling (2026-10-18)
+
+### Context & Gap Analysis
+在 ADR-0018 确立了"所有系统级播控意图统一收拢至 `MusicPlayerAppSession`"之后，真实设备环境（尤其在多蓝牙设备存在、音箱意外掉电或非标准采样率回放时）暴露了以下两个严重的系统意图遗漏与物理管道缺陷：
+
+1. **缺失路径四：音频外放阻断意图（`ACTION_AUDIO_BECOMING_NOISY`）**：
+   - 当正在播放的蓝牙音箱异常断开、超出有效通信范围、电量耗尽突发关机，或有线耳机被拔出时，Android 系统广播 `AudioManager.ACTION_AUDIO_BECOMING_NOISY`。
+   - `Media3AudioPlayerEngine` 中因接管了自定义音频焦点（`handleAudioFocus = false`），默认关闭了 ExoPlayer 自带的 `AudioBecomingNoisyManager`，且未配置 `.setHandleAudioBecomingNoisy(true)`，亦未在服务层注册广播接收器。
+   - 这导致底层播放器对此系统打断毫无感知，盲目跟随系统输出重定向到手机内置扬声器继续播放，造成意外大声外放。
+2. **多蓝牙设备抢占引发的底层 AudioSink 假死（Silent Playback / Phantom Progress）**：
+   - 当后台其他已配对蓝牙设备连接并夺取 A2DP 媒体音频路由时，系统拆除并重建底层音频通道（AFE backend switch）。
+   - 对于非标准采样率音频（如评书、老旧有声书常见的 22050Hz/16000Hz PCM 流），Android 系统软重采样器（AudioResampler）在路由迁移瞬间极易发生时钟对齐错位与 underrun 挂起。
+   - `AudioPlayerEngine` 未监听音频路由变化（`AudioDeviceCallback` / `AudioRouting`），AudioTrack 的硬件消耗指针仍在递增，导致出现"进度条正常前进，但耳机与音箱均无声"的静音空转假象。
+
+### Decision
+
+#### 1. 补全系统播控路径四：`Becoming Noisy` 统一路由至 `appSession.pause()`
+- 在 `PlaybackSessionHost` / 前台服务中注册 `AudioManager.ACTION_AUDIO_BECOMING_NOISY` 广播监听器（并在 `Media3AudioPlayerEngine` 中开启 `.setHandleAudioBecomingNoisy(true)` 作为底层引擎保底）。
+- 监听到意外断开事件时，严格遵循 ADR-0018 核心原则，向会话层派发 `appSession.pause()`。
+- **重连策略**：设备重新连接后**保持暂停状态**，由用户主动点击恢复播放，杜绝任何意外或惊吓性发声。
+
+#### 2. 多设备路由切换跟随与 AudioSink 缓冲区自愈
+- 遵循用户决策，在多蓝牙设备争抢或系统切换音频输出路由时，**允许跟随系统切换至新设备**。
+- 通过 `AudioDeviceCallback` / `AudioRouting.OnRoutingChangedListener` 感知活动输出设备变更；一旦检测到路由迁移，主动触发底层 `AudioSink` 的刷新与缓冲区重握手（Flush & Resynchronize），确保数据流不卡死在挂起状态。
+
+#### 3. 应用层规范化重采样（Canonical Sample Rate Protection）
+- 对齐网易云音乐等主流流媒体播放器的防御性标准：在 `Media3AudioPlayerEngine` 中构建音频前置处理链（`AudioProcessor`）。
+- 凡采样率低于 44,100Hz 的音频流（如 22050Hz 评书），在送入系统 `AudioTrack` 前由应用层统一升采样至标准 `44,100Hz` 双声道 PCM。
+- 彻底绕过各机型定制 ROM 底层重采样器的时钟错位缺陷，确保输入给蓝牙 A2DP 编解码器（SBC/AAC）的数据永远是标准规格。
+
+### Consequences
+- **消除意外外放**：蓝牙断开时毫秒级暂停，彻底杜绝片尾播完切歌外放或公共场合尴尬。
+- **根治静音空跑**：低采样率在应用层标准化，配合路由变更刷新，杜绝“进度条走动但硬件无声”的假死 Bug。
+- **架构完全收拢**：所有系统播控事件（按键、通知栏、设备脱离）100% 收敛于 `appSession`，维持 ADR-0018 单向数据流与清晰接缝。
+

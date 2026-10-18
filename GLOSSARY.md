@@ -148,6 +148,18 @@ _Avoid_: Battery Dialog, Permission Pop-up, Kill Warning
 在全屏播放器常驻横幅中集成的“原生弹窗快速授权 + 直达应用信息电池策略设置”双轨保活交互机制。既允许用户一键调起 AOSP 原生忽略电池优化弹窗完成 Doze 白名单加入，又面向所有设备提供直达本应用详情页入口与操作指引，引导用户将系统电池策略彻底切换为「无限制（Unrestricted）」，对标主流播放器实践，彻底免疫锁屏降频与进程强杀。
 _Avoid_: Single Popup Flow, Xiaomi-Only Settings
 
+**Becoming Noisy Protection**:
+当音频输出设备（蓝牙音箱/耳机、有线耳机）由于断连、拔出或掉电导致输出流即将不可预期地切换至手机内置扬声器时，应用层主动拦截 `ACTION_AUDIO_BECOMING_NOISY` 广播并触发安全暂停（`appSession.pause()`）的系统级防护机制。
+_Avoid_: Unplug Pause, Disconnect Guard, Mute Event
+
+**Audio Routing Observer**:
+通过 Android `AudioDeviceCallback` 与 `AudioRouting` 建立的应用层音频输出端口感知器，实时追踪物理发声节点并在路由发生漂移时协同底层 AudioSink 刷新缓冲区，防止非标准采样率重混音通道挂起。
+_Avoid_: Bluetooth Monitor, Device Tracker, Headset Listener
+
+**Canonical Sample Rate Resampling**:
+对齐主流流媒体播放器的音频管道防御规范：在进入系统 `AudioTrack` 之前，由播放引擎对低于 `44,100 Hz` 的音频流（如 22050Hz 评书）统一升采样至标准 `44,100 Hz` 双声道 PCM，彻底规避各厂商 Android HAL/DSP 软重采样器在路由切换时的时钟错位与硬件假死缺陷。
+_Avoid_: Audio Upsampling, System Resample, Driver Convert
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
