@@ -4,9 +4,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] 在 `Media3AudioPlayerEngine` 中构建规范化音频处理器（基于 `AudioProcessor` / `SonicAudioProcessor` 或插入 `DefaultAudioSink` 处理链）。
-- [ ] 当输入 PCM 音频采样率 `< 44100 Hz`（如 22050Hz）时，自动将其规范化重采样为标准 `44100 Hz` 双声道输出。
-- [ ] 当输入 PCM 音频采样率 `>= 44100 Hz`（如 44.1kHz、48kHz、88.2kHz、96kHz 等无损母带）时，重采样器处于非激活直通状态，不引入任何计算开销与精度损耗。
-- [ ] 编写并执行单元测试，输入 22050Hz、16000Hz 音频帧断言输出格式成功转换为 44100Hz；输入 44100Hz、96000Hz 音频帧断言直通保持原采样率。
+- [x] 在 `Media3AudioPlayerEngine` 中构建规范化音频处理器（基于 `AudioProcessor` / `SonicAudioProcessor` 或插入 `DefaultAudioSink` 处理链）。
+- [x] 当输入 PCM 音频采样率 `< 44100 Hz`（如 22050Hz）时，自动将其规范化重采样为标准 `44100 Hz` 双声道输出。
+- [x] 当输入 PCM 音频采样率 `>= 44100 Hz`（如 44.1kHz、48kHz、88.2kHz、96kHz 等无损母带）时，重采样器处于非激活直通状态，不引入任何计算开销与精度损耗。
+- [x] 编写并执行单元测试，输入 22050Hz、16000Hz 音频帧断言输出格式成功转换为 44100Hz；输入 44100Hz、96000Hz 音频帧断言直通保持原采样率。
+
+## Answer
+
+已构建并在 `Media3AudioPlayerEngine` 中接入 `CanonicalResamplingAudioProcessor`：
+1. 实现对齐 ADR-0018 规范的应用层规范化重采样器 `CanonicalResamplingAudioProcessor`，设定标准采样率下限阈值 `CANONICAL_SAMPLE_RATE_HZ = 44,100`。
+2. 当输入采样率 `< 44100 Hz`（如 22050Hz、16000Hz、11025Hz、8000Hz）时，处理器激活，通过内部无损 `SonicAudioProcessor` 超采样至 44100Hz，并将单声道帧无损复制为立体声（2 通道），杜绝底层 HAL 蓝牙重混音死锁。
+3. 当输入采样率 `>= 44100 Hz`（如 44.1kHz、48kHz、96kHz 等）时，`isActive()` 返回 `false`，直通直出，零额外计算开销与精度损耗。
+4. 在 `Media3AudioPlayerEngine` 的 `buildAudioSink` 中将规范化重采样器注入 `DefaultAudioSink` 音频处理链。
+5. 编写针对各种采样率（22050Hz 立体声、16000Hz 单声道、44100Hz 标准、96000Hz 高解析）与真实 PCM 数据处理的单元测试 `CanonicalResamplingAudioProcessorTest`，全部通过。Commit `f25d08d`。
