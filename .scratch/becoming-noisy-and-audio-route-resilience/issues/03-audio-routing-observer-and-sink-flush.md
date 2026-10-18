@@ -4,9 +4,18 @@
 
 **Blocked by:** 01 (Becoming Noisy 防意外外放保护与会话暂停), 02 (规范化音频重采样管道)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] 在 `PlaybackSessionHost` / `Media3AudioPlayerEngine` 中接入 `AudioDeviceCallback` 或 `AudioRouting.OnRoutingChangedListener`，监听当前发声设备路由变更。
-- [ ] 当活动音频输出设备发生切换（如从蓝牙设备 A 迁移到蓝牙设备 B 或有线设备）时，顺应系统路由切换，同时主动通知底层 `AudioSink` 触发缓冲区清空（Flush）与时钟同步重置。
-- [ ] 确保在路由迁移与缓冲区刷新过程中，应用会话层播放状态（`PlaybackState`）与当前进度（`currentPositionMs`）保持平滑稳定，不触发多余的跳曲或假缓冲。
-- [ ] 编写并执行单元测试，模拟多设备路由迁移事件，验证 `AudioSink` 刷新流程被正确调用，且播放进度与时钟不发生非预期跳变或崩溃。
+- [x] 在 `PlaybackSessionHost` / `Media3AudioPlayerEngine` 中接入 `AudioDeviceCallback` 或 `AudioRouting.OnRoutingChangedListener`，监听当前发声设备路由变更。
+- [x] 当活动音频输出设备发生切换（如从蓝牙设备 A 迁移到蓝牙设备 B 或有线设备）时，顺应系统路由切换，同时主动通知底层 `AudioSink` 触发缓冲区清空（Flush）与时钟同步重置。
+- [x] 确保在路由迁移与缓冲区刷新过程中，应用会话层播放状态（`PlaybackState`）与当前进度（`currentPositionMs`）保持平滑稳定，不触发多余的跳曲或假缓冲。
+- [x] 编写并执行单元测试，模拟多设备路由迁移事件，验证 `AudioSink` 刷新流程被正确调用，且播放进度与时钟不发生非预期跳变或崩溃。
+
+## Answer
+
+已实现音频路由观察者 `AudioRoutingObserver` 与底层 `AudioSink` 自愈刷新机制：
+1. 实现专职音频路由观察者 `AudioRoutingObserver`，基于 Android `AudioDeviceCallback` 过滤感知活动发声设备（`isSink == true`）的动态接入与移除（如蓝牙 A2DP 音箱/耳机抢占或有线耳机插拔）。
+2. 在 `Media3AudioPlayerEngine` 中绑定 `audioRoutingObserver` 生命周期（`start()` on init / `stop()` on release），并在路由变更触发时自动调用 `activeAudioSink?.flush()`，清空输出缓冲管道并强制驱动层重新握手时钟对齐，彻底消除不同设备间缓冲区时延造成的假死与静音空跑。
+3. 在 `PlaybackSessionHost` 中提供统一的路由变更感知与委派接缝 `onAudioRoutingChanged()`。
+4. 保证路由变更与缓冲区刷新过程中，`PlaybackState` 与 `currentPositionMs` 保持平滑稳定，不发生意外跳曲、重置或空闲崩溃。
+5. 编写并执行单元测试 `AudioRoutingObserverTest`、`Media3AudioPlayerEngineTest`、`PlaybackSessionHostTest`，全面覆盖观察者启停、多设备事件派发、播放中路由切换刷新以及会话稳定性断言。Commit `7a83799`。
