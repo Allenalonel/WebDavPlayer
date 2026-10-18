@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Becoming Noisy 防意外外放保护与会话暂停), 02 (规范化音频重采样管道)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 在 `PlaybackSessionHost` / `Media3AudioPlayerEngine` 中接入 `AudioDeviceCallback` 或 `AudioRouting.OnRoutingChangedListener`，监听当前发声设备路由变更。
 - [ ] 当活动音频输出设备发生切换（如从蓝牙设备 A 迁移到蓝牙设备 B 或有线设备）时，顺应系统路由切换，同时主动通知底层 `AudioSink` 触发缓冲区清空（Flush）与时钟同步重置。
