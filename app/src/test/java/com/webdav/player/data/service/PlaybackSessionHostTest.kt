@@ -513,4 +513,75 @@ class PlaybackSessionHostTest {
             }
         assertEquals("appSession has already been bound", exception.message)
     }
+
+    @Test
+    fun becomingNoisy_whenPlaying_registersReceiver_andBroadcastTriggersAppSessionPause() {
+        val appSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+        host.bindAppSession(appSession)
+
+        assertFalse(host.isBecomingNoisyRegistered)
+
+        // Enter Playing state -> receiver is registered
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        // Send ACTION_AUDIO_BECOMING_NOISY broadcast
+        val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        context.sendBroadcast(noisyIntent)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        // Assert appSession.pause() was invoked
+        assertEquals(1, appSession.pauseCount)
+    }
+
+    @Test
+    fun becomingNoisy_whenPausedOrIdle_unregistersReceiver_andBroadcastSafelyIgnored() {
+        val appSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+        host.bindAppSession(appSession)
+
+        // Playing -> registered
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        // Transition to Paused -> unregistered
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+        assertFalse(host.isBecomingNoisyRegistered)
+
+        val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        context.sendBroadcast(noisyIntent)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(0, appSession.pauseCount)
+
+        // Transition back to Playing -> re-registered
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        // Transition to Idle -> unregistered
+        host.handlePlaybackStateChanged(PlaybackState.Idle)
+        assertFalse(host.isBecomingNoisyRegistered)
+
+        // Transition to Ended -> unregistered
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        assertTrue(host.isBecomingNoisyRegistered)
+        host.handlePlaybackStateChanged(PlaybackState.Ended)
+        assertFalse(host.isBecomingNoisyRegistered)
+    }
+
+    @Test
+    fun becomingNoisy_whenAppSessionNotBound_fallsBackToPlayerEnginePause() {
+        assertEquals(0, fakeEngine.pauseCount)
+
+        host.handlePlaybackStateChanged(PlaybackState.Playing)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        context.sendBroadcast(noisyIntent)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        assertEquals(1, fakeEngine.pauseCount)
+    }
 }

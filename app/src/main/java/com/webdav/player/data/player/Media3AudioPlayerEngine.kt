@@ -156,6 +156,7 @@ class Media3AudioPlayerEngine(
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
                 .setWakeMode(C.WAKE_MODE_NETWORK)
+                .setHandleAudioBecomingNoisy(true)
                 .setAudioAttributes(
                     AudioAttributes
                         .Builder()

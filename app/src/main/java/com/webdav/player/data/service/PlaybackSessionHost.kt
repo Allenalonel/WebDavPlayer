@@ -3,9 +3,12 @@ package com.webdav.player.data.service
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
@@ -114,6 +117,48 @@ class PlaybackSessionHost(
     val isDemotionPending: Boolean
         get() = demotionJob?.isActive == true
 
+    private var isBecomingNoisyRegisteredInternal: Boolean = false
+
+    @get:VisibleForTesting
+    val isBecomingNoisyRegistered: Boolean
+        get() = isBecomingNoisyRegisteredInternal
+
+    private val becomingNoisyReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                    val targetSession = appSession
+                    if (targetSession != null) {
+                        targetSession.pause()
+                    } else {
+                        playerEngine.pause()
+                    }
+                }
+            }
+        }
+
+    private fun registerBecomingNoisyReceiver() {
+        if (!isBecomingNoisyRegisteredInternal) {
+            try {
+                val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+                context.registerReceiver(becomingNoisyReceiver, filter)
+                isBecomingNoisyRegisteredInternal = true
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun unregisterBecomingNoisyReceiver() {
+        if (isBecomingNoisyRegisteredInternal) {
+            try {
+                context.unregisterReceiver(becomingNoisyReceiver)
+            } catch (_: Throwable) {
+            } finally {
+                isBecomingNoisyRegisteredInternal = false
+            }
+        }
+    }
+
     init {
         observePlaybackState()
         mediaSessionCallback?.let { callback ->
@@ -138,9 +183,15 @@ class PlaybackSessionHost(
     @VisibleForTesting
     fun handlePlaybackStateChanged(state: PlaybackState) {
         when (state) {
-            is PlaybackState.Playing,
-            is PlaybackState.Buffering,
-            -> {
+            is PlaybackState.Playing -> {
+                hardwareLockManager.acquireLocks()
+                cancelDemotionTimer()
+                hasPlaybackStarted = true
+                registerBecomingNoisyReceiver()
+                elevateForeground(state)
+            }
+
+            is PlaybackState.Buffering -> {
                 hardwareLockManager.acquireLocks()
                 cancelDemotionTimer()
                 hasPlaybackStarted = true
@@ -149,17 +200,20 @@ class PlaybackSessionHost(
 
             is PlaybackState.Paused -> {
                 hardwareLockManager.releaseLocks()
+                unregisterBecomingNoisyReceiver()
                 scheduleDeferredDemotion(state)
             }
 
             is PlaybackState.Error -> {
                 hardwareLockManager.releaseLocks()
+                unregisterBecomingNoisyReceiver()
                 cancelDemotionTimer()
                 demoteForeground(removeNotification = false, playbackState = state)
             }
 
             is PlaybackState.Idle -> {
                 hardwareLockManager.releaseLocks()
+                unregisterBecomingNoisyReceiver()
                 cancelDemotionTimer()
                 if (hasPlaybackStarted) {
                     hasPlaybackStarted = false
@@ -169,6 +223,7 @@ class PlaybackSessionHost(
 
             is PlaybackState.Ended -> {
                 hardwareLockManager.releaseLocks()
+                unregisterBecomingNoisyReceiver()
                 cancelDemotionTimer()
                 hasPlaybackStarted = false
                 demoteForeground(removeNotification = true, playbackState = state)
@@ -213,6 +268,7 @@ class PlaybackSessionHost(
         if (service == null || this.attachedService == service) {
             hardwareLockManager.releaseLocks()
             cancelDemotionTimer()
+            unregisterBecomingNoisyReceiver()
             this.attachedService = null
             this.isForegroundActive = false
             this.hasPlaybackStarted = false
@@ -229,6 +285,10 @@ class PlaybackSessionHost(
 
     fun elevateForeground(playbackState: PlaybackState? = null) {
         cancelDemotionTimer()
+        val targetState = playbackState ?: playerEngine.playbackState.value
+        if (targetState is PlaybackState.Playing) {
+            registerBecomingNoisyReceiver()
+        }
         val service =
             attachedService ?: run {
                 startServiceInternal()
@@ -245,6 +305,9 @@ class PlaybackSessionHost(
         removeNotification: Boolean,
         playbackState: PlaybackState? = null,
     ) {
+        if (removeNotification) {
+            unregisterBecomingNoisyReceiver()
+        }
         val service = attachedService
         val targetState = playbackState ?: playerEngine.playbackState.value
         if (service != null && isForegroundActive) {
@@ -329,6 +392,7 @@ class PlaybackSessionHost(
     override fun stop() {
         hardwareLockManager.releaseLocks()
         cancelDemotionTimer()
+        unregisterBecomingNoisyReceiver()
         hasPlaybackStarted = false
         playerEngine.stop()
         demoteForeground(removeNotification = true)
@@ -337,6 +401,7 @@ class PlaybackSessionHost(
     override fun release() {
         hardwareLockManager.release()
         cancelDemotionTimer()
+        unregisterBecomingNoisyReceiver()
         stateObserverJob?.cancel()
         stateObserverJob = null
         hasPlaybackStarted = false
