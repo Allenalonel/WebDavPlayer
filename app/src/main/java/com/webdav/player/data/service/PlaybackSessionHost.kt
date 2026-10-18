@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import com.webdav.player.data.player.AudioFocusHandler
+import com.webdav.player.data.player.AudioRoutingObserver
 import com.webdav.player.data.player.DefaultStreamingHardwareLockManager
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
@@ -52,6 +53,13 @@ class PlaybackSessionHost(
 
     val appSession: MusicPlayerAppSession?
         get() = mediaSessionCallback?.appSession
+
+    val audioRoutingObserver: AudioRoutingObserver?
+        get() = (playerEngine as? Media3AudioPlayerEngine)?.audioRoutingObserver
+
+    fun onAudioRoutingChanged() {
+        (playerEngine as? Media3AudioPlayerEngine)?.onAudioRoutingChanged()
+    }
     constructor(
         context: Context,
         mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),

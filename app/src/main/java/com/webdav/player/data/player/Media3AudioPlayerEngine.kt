@@ -92,11 +92,15 @@ class Media3AudioPlayerEngine(
             ?: DefaultStreamingHardwareLockManager(context),
     val canonicalAudioProcessor: CanonicalResamplingAudioProcessor = CanonicalResamplingAudioProcessor(),
     customAudioSink: AudioSink? = null,
+    customAudioRoutingObserver: AudioRoutingObserver? = null,
 ) : AudioPlayerEngine {
     private val activeAudioSinkRef = AtomicReference<AudioSink?>(customAudioSink)
 
     val activeAudioSink: AudioSink?
         get() = activeAudioSinkRef.get()
+
+    val audioRoutingObserver: AudioRoutingObserver =
+        customAudioRoutingObserver ?: AudioRoutingObserver(context) { onAudioRoutingChanged() }
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
 
     val activeServer: WebDavServer?
@@ -410,6 +414,7 @@ class Media3AudioPlayerEngine(
         }
 
     init {
+        audioRoutingObserver.start()
         player.addListener(listener)
         currentVolume =
             try {
@@ -576,6 +581,16 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    fun onAudioRoutingChanged() {
+        runOnApplicationLooper {
+            try {
+                activeAudioSink?.flush()
+            } catch (_: Throwable) {
+            }
+            updatePositionAndDuration()
+        }
+    }
+
     override fun stop() {
         runOnApplicationLooper {
             hardwareLockManager.releaseLocks()
@@ -595,6 +610,7 @@ class Media3AudioPlayerEngine(
     override fun release() {
         runOnApplicationLooper {
             hardwareLockManager.release()
+            audioRoutingObserver.stop()
             pendingEnrichedItems.clear()
             activeTrackMetadataRef.set(null)
             sessionListeners.clear()

@@ -9,6 +9,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioFormat
@@ -989,6 +991,89 @@ class Media3AudioPlayerEngineTest {
                 assertEquals(0L, testEngine.currentPositionMs.value)
                 assertEquals(0L, testEngine.durationMs.value)
                 assertEquals(PlaybackState.Idle, testEngine.playbackState.value)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun audioRoutingObserver_startsOnEngineCreation_andStopsOnEngineRelease() {
+        val testEngine = Media3AudioPlayerEngine(context)
+        try {
+            assertTrue(testEngine.audioRoutingObserver.isObserving)
+        } finally {
+            testEngine.release()
+        }
+        assertFalse(testEngine.audioRoutingObserver.isObserving)
+    }
+
+    @Test
+    fun onAudioRoutingChanged_flushesActiveAudioSink_andMaintainsPlaybackStability() =
+        runTest {
+            var flushCount = 0
+            val underlyingSink = DefaultAudioSink.Builder(context).build()
+            val trackingSink =
+                object : ForwardingAudioSink(underlyingSink) {
+                    override fun flush() {
+                        flushCount++
+                        super.flush()
+                    }
+                }
+
+            val testEngine = Media3AudioPlayerEngine(context, customAudioSink = trackingSink)
+            try {
+                assertEquals(trackingSink, testEngine.activeAudioSink)
+                assertEquals(0, flushCount)
+
+                // Dispatch routing changed event
+                testEngine.audioRoutingObserver.dispatchRoutingChanged()
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(1, flushCount)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun onAudioRoutingChanged_duringActivePlayback_preservesPlaybackPositionAndState() =
+        runTest {
+            var flushCount = 0
+            val underlyingSink = DefaultAudioSink.Builder(context).build()
+            val trackingSink =
+                object : ForwardingAudioSink(underlyingSink) {
+                    override fun flush() {
+                        flushCount++
+                        super.flush()
+                    }
+                }
+
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine =
+                Media3AudioPlayerEngine(
+                    context,
+                    customPlayer = controllablePlayer,
+                    customAudioSink = trackingSink,
+                )
+            try {
+                controllablePlayer.customDuration = 300_000L
+                controllablePlayer.customCurrentPosition = 45_000L
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.customIsPlaying = true
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(PlaybackState.Playing, testEngine.playbackState.value)
+                assertEquals(45_000L, testEngine.currentPositionMs.value)
+
+                // Route switch happens (e.g. bluetooth headset box opened)
+                testEngine.onAudioRoutingChanged()
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(1, flushCount)
+                assertEquals(PlaybackState.Playing, testEngine.playbackState.value)
+                assertEquals(45_000L, testEngine.currentPositionMs.value)
             } finally {
                 testEngine.release()
             }

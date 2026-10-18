@@ -584,4 +584,11 @@ class PlaybackSessionHostTest {
 
         assertEquals(1, fakeEngine.pauseCount)
     }
+
+    @Test
+    fun onAudioRoutingChanged_delegatesToUnderlyingEngineSafely() {
+        assertNotNull(host)
+        // Calling onAudioRoutingChanged executes safely without error
+        host.onAudioRoutingChanged()
+    }
 }
