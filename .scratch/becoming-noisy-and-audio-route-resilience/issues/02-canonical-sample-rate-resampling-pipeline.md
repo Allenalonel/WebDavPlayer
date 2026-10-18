@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 在 `Media3AudioPlayerEngine` 中构建规范化音频处理器（基于 `AudioProcessor` / `SonicAudioProcessor` 或插入 `DefaultAudioSink` 处理链）。
 - [ ] 当输入 PCM 音频采样率 `< 44100 Hz`（如 22050Hz）时，自动将其规范化重采样为标准 `44100 Hz` 双声道输出。
