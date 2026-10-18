@@ -1,6 +1,6 @@
 # Spec: 音频防意外外放保护、路由自愈与规范化重采样 (Becoming Noisy Protection, Audio Route Resilience & Canonical Resampling)
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
