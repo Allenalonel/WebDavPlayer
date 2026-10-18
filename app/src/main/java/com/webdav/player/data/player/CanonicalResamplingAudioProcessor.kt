@@ -37,27 +37,9 @@ class CanonicalResamplingAudioProcessor(
     private var inputEnded: Boolean = false
 
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
-        }
         pendingInputAudioFormat = inputAudioFormat
 
-        if (inputAudioFormat.sampleRate < canonicalSampleRateHz) {
-            active = true
-            duplicateMonoToStereo = (inputAudioFormat.channelCount == 1)
-            val outputChannelCount = if (duplicateMonoToStereo) 2 else inputAudioFormat.channelCount
-            pendingOutputAudioFormat =
-                AudioFormat(
-                    canonicalSampleRateHz,
-                    outputChannelCount,
-                    C.ENCODING_PCM_16BIT,
-                )
-
-            val sonic = sonicProcessor ?: SonicAudioProcessor().also { sonicProcessor = it }
-            sonic.setOutputSampleRateHz(canonicalSampleRateHz)
-            sonic.configure(inputAudioFormat)
-            return pendingOutputAudioFormat
-        } else {
+        if (inputAudioFormat.sampleRate >= canonicalSampleRateHz) {
             active = false
             duplicateMonoToStereo = false
             pendingOutputAudioFormat = AudioFormat.NOT_SET
@@ -70,6 +52,25 @@ class CanonicalResamplingAudioProcessor(
             }
             return AudioFormat.NOT_SET
         }
+
+        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
+            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
+        }
+
+        active = true
+        duplicateMonoToStereo = (inputAudioFormat.channelCount == 1)
+        val outputChannelCount = if (duplicateMonoToStereo) 2 else inputAudioFormat.channelCount
+        pendingOutputAudioFormat =
+            AudioFormat(
+                canonicalSampleRateHz,
+                outputChannelCount,
+                C.ENCODING_PCM_16BIT,
+            )
+
+        val sonic = sonicProcessor ?: SonicAudioProcessor().also { sonicProcessor = it }
+        sonic.setOutputSampleRateHz(canonicalSampleRateHz)
+        sonic.configure(inputAudioFormat)
+        return pendingOutputAudioFormat
     }
 
     override fun isActive(): Boolean = active

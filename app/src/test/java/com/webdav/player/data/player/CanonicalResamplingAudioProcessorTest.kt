@@ -63,6 +63,15 @@ class CanonicalResamplingAudioProcessorTest {
     }
 
     @Test
+    fun configure_withHighResFloatPCM_remainsInactivePassthroughWithoutThrowing() {
+        val inputFormat = AudioFormat(96000, 2, C.ENCODING_PCM_FLOAT)
+        val outputFormat = processor.configure(inputFormat)
+
+        assertFalse(processor.isActive)
+        assertEquals(AudioFormat.NOT_SET, outputFormat)
+    }
+
+    @Test
     fun audioDataProcessing_with22050HzPCM_producesResampledPCMAt44100Hz() {
         val inputFormat = AudioFormat(22050, 2, C.ENCODING_PCM_16BIT)
         processor.configure(inputFormat)
