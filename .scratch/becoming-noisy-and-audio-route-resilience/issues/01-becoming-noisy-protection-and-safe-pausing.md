@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 在 `PlaybackSessionHost` 中实现动态 `BecomingNoisyReceiver`，仅在播放状态变为 `Playing` 时注册，在进入 `Paused`、`Idle`、`Ended` 时安全注销。
 - [ ] 监听到 `AudioManager.ACTION_AUDIO_BECOMING_NOISY` 广播时，通过单向意图接缝调用 `appSession?.pause()`，触发完整的会话级暂停、持久化和硬件锁释放逻辑。
