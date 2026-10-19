@@ -4,6 +4,18 @@
 
 ---
 
+## [2.5] - 2026-10-18
+
+### 🚀 新增 (Added)
+- **Becoming Noisy 防意外外放系统级拦截**：在 `PlaybackSessionHost` 中接入 `becomingNoisyReceiver` 动态监听 `AudioManager.ACTION_AUDIO_BECOMING_NOISY` 广播。当正在播放的蓝牙音箱断连、超出范围、电量耗尽关机或有线耳机拔出时，毫秒级主动拦截并触发 `appSession.pause()`，停止播放时钟推进、取消弱网看门狗、持久化保存毫秒级断点进度并释放 CPU/Wi-Fi 硬件锁；同时配置底层 ExoPlayer `.setHandleAudioBecomingNoisy(true)` 双重保底；设备重连后严格遵循保守安全策略保持暂停，彻底消除公共场合或安静环境下的意外大声外放尴尬。
+- **与播放状态绑定的动态接收器生命周期**：Becoming Noisy 广播接收器仅在播放状态跃迁为 `Playing` 或服务前台提升时动态注册，在 `Paused`、`Idle`、`Ended`、`Error`、服务脱离或释放时自动注销，杜绝后台广播泄漏与非播放状态下的意外误触。
+- **规范化音频重采样管道 (Canonical Sample Rate Resampling Pipeline)**：对齐主流商业流媒体播放器工业标准，构建 `CanonicalResamplingAudioProcessor`，设定标准采样率下限阈值 44,100 Hz。凡采样率低于 44.1kHz（如 22050Hz 评书、16000Hz 有声书等老旧音频）的输入流，由应用层在内存中无损超采样至标准 44,100 Hz 双声道立体声 PCM；彻底绕开各大 Android 厂商底层 HAL/A2DP 驱动重采样器的时钟错位缺陷，从源头消灭高通平台蓝牙重混音卡死的前提条件；标准采样率与高解析母带（>= 44.1kHz，含 16-bit/Float）100% 直通零损耗。
+- **音频路由观察者与底层 AudioSink 刷新自愈 (Audio Routing Observer & Sink Flush)**：构建 `AudioRoutingObserver` 监听系统 `AudioDeviceCallback`，实时过滤感知物理发声端点（`isSink == true`）的动态增减。当多蓝牙设备抢占或输出路由迁移时，顺应系统仲裁策略并主动触发底层 `activeAudioSink?.flush()`，清空输出缓冲管道并强制驱动层重新握手时钟对齐，彻底消除“进度条空跑、硬件无声”的静音假死现象，确保新设备切换后立刻正常出声。
+- **统一系统级播控意图路由 (Unified System Playback Intent Routing)**：全量系统播控意图（蓝牙线控按键、耳机按键、系统媒体会话命令、通知栏快捷操作）100% 统一路由至应用会话层 `MusicPlayerAppSession` 仲裁与执行，消除了底层播放引擎的反向耦合与幽灵通道，确保所有播放控制操作严格遵循统一的响应式单向数据流。
+- **架构决策记录 (ADR)**：归档落地 [ADR 0018: 统一系统级播控意图接缝至应用会话层及音频路由防外放与自愈补遗](docs/adr/0018-unify-system-playback-intent-routing-through-app-session.md)。
+
+---
+
 ## [2.4] - 2026-10-16
 
 ### 🚀 新增 (Added)

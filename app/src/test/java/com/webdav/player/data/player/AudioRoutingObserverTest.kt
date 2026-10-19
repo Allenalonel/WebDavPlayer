@@ -29,10 +29,16 @@ class AudioRoutingObserverTest {
             }
     }
 
-    private fun createDeviceInfo(type: Int, isSink: Boolean): AudioDeviceInfo {
+    private fun createDeviceInfo(
+        type: Int,
+        isSink: Boolean,
+    ): AudioDeviceInfo {
         val device = AudioDeviceInfoBuilder.newBuilder().setType(type).build()
-        val port = org.robolectric.util.ReflectionHelpers.getField<Any>(device, "mPort")
-        org.robolectric.util.ReflectionHelpers.setField(port, "mRole", if (isSink) 2 else 1)
+        val port =
+            org.robolectric.util.ReflectionHelpers
+                .getField<Any>(device, "mPort")
+        org.robolectric.util.ReflectionHelpers
+            .setField(port, "mRole", if (isSink) 2 else 1)
         return device
     }
 

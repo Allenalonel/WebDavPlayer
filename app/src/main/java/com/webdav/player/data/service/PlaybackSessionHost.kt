@@ -133,7 +133,10 @@ class PlaybackSessionHost(
 
     private val becomingNoisyReceiver =
         object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
+            override fun onReceive(
+                context: Context?,
+                intent: Intent?,
+            ) {
                 if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
                     val targetSession = appSession
                     if (targetSession != null) {

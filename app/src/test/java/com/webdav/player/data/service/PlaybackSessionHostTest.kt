@@ -530,7 +530,8 @@ class PlaybackSessionHostTest {
         // Send ACTION_AUDIO_BECOMING_NOISY broadcast
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         context.sendBroadcast(noisyIntent)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         // Assert appSession.pause() was invoked
         assertEquals(1, appSession.pauseCount)
@@ -553,7 +554,8 @@ class PlaybackSessionHostTest {
 
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         context.sendBroadcast(noisyIntent)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
         assertEquals(0, appSession.pauseCount)
 
         // Transition back to Playing -> re-registered
@@ -580,7 +582,8 @@ class PlaybackSessionHostTest {
 
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         context.sendBroadcast(noisyIntent)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         assertEquals(1, fakeEngine.pauseCount)
     }
