@@ -733,6 +733,16 @@ class Media3AudioPlayerEngineTest {
             }
         }
 
+        fun notifyPlayWhenReady(
+            playWhenReady: Boolean,
+            reason: Int = Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
+        ) {
+            customPlayWhenReady = playWhenReady
+            for (listener in customListeners) {
+                listener.onPlayWhenReadyChanged(playWhenReady, reason)
+            }
+        }
+
         fun notifyTimelineChanged(reason: Int = Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
             for (listener in customListeners) {
                 listener.onTimelineChanged(currentTimeline, reason)
@@ -1074,6 +1084,64 @@ class Media3AudioPlayerEngineTest {
                 assertEquals(1, flushCount)
                 assertEquals(PlaybackState.Playing, testEngine.playbackState.value)
                 assertEquals(45_000L, testEngine.currentPositionMs.value)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun bufferingState_withPlayWhenReadyTrue_acquiresLocksAndEmitsBuffering() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                controllablePlayer.customPlaybackState = Player.STATE_BUFFERING
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.notifyPlaybackState(Player.STATE_BUFFERING)
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(PlaybackState.Buffering, testEngine.playbackState.value)
+                assertTrue(testEngine.hardwareLockManager.isWakeLockHeld)
+                assertTrue(testEngine.hardwareLockManager.isWifiLockHeld)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun bufferingState_whenPaused_releasesLocksAndEmitsPaused_andBufferReadyRespectsPausedState() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+            try {
+                // Initial buffering with playWhenReady = true
+                controllablePlayer.customPlaybackState = Player.STATE_BUFFERING
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.notifyPlaybackState(Player.STATE_BUFFERING)
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(PlaybackState.Buffering, testEngine.playbackState.value)
+                assertTrue(testEngine.hardwareLockManager.isWakeLockHeld)
+                assertTrue(testEngine.hardwareLockManager.isWifiLockHeld)
+
+                // User or BecomingNoisy pauses during buffering
+                controllablePlayer.notifyPlayWhenReady(false)
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(PlaybackState.Paused, testEngine.playbackState.value)
+                assertFalse(testEngine.hardwareLockManager.isWakeLockHeld)
+                assertFalse(testEngine.hardwareLockManager.isWifiLockHeld)
+
+                // Stream finished buffering -> transitions to STATE_READY
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+                ShadowLooper.idleMainLooper()
+
+                // Must stay Paused and not auto-play
+                assertEquals(PlaybackState.Paused, testEngine.playbackState.value)
+                assertFalse(testEngine.hardwareLockManager.isWakeLockHeld)
+                assertFalse(testEngine.hardwareLockManager.isWifiLockHeld)
             } finally {
                 testEngine.release()
             }

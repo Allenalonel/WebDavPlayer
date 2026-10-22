@@ -589,6 +589,99 @@ class PlaybackSessionHostTest {
     }
 
     @Test
+    fun becomingNoisy_whenBufferingAndPlayWhenReady_registersReceiver_andBroadcastTriggersAppSessionPause() {
+        val appSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+        host.bindAppSession(appSession)
+
+        assertFalse(host.isBecomingNoisyRegistered)
+
+        // Enter Buffering state with playWhenReady = true -> receiver should be registered
+        fakeEngine.customPlayWhenReady = true
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        // Send ACTION_AUDIO_BECOMING_NOISY broadcast
+        val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        context.sendBroadcast(noisyIntent)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        // Assert appSession.pause() was invoked
+        assertEquals(1, appSession.pauseCount)
+    }
+
+    @Test
+    fun becomingNoisy_whenBufferingAndPlayWhenReadyFalse_unregistersReceiver() {
+        val appSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+        host.bindAppSession(appSession)
+
+        // Enter Buffering with playWhenReady = true -> registered
+        fakeEngine.customPlayWhenReady = true
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        // State change when playWhenReady = false in Buffering -> unregisters
+        fakeEngine.customPlayWhenReady = false
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertFalse(host.isBecomingNoisyRegistered)
+    }
+
+    @Test
+    fun becomingNoisy_duringBuffering_interceptsBroadcast_andSafelyDegradesToPaused() {
+        val appSession =
+            com.webdav.player.domain.session
+                .FakeMusicPlayerAppSession()
+        host.bindAppSession(appSession)
+
+        // Enter Buffering state with playWhenReady = true
+        fakeEngine.customPlayWhenReady = true
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertTrue(host.isBecomingNoisyRegistered)
+        assertTrue(host.hardwareLockManager.isWakeLockHeld)
+        assertTrue(host.hardwareLockManager.isWifiLockHeld)
+
+        // System dispatches ACTION_AUDIO_BECOMING_NOISY
+        val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        context.sendBroadcast(noisyIntent)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        // AppSession receives pause
+        assertEquals(1, appSession.pauseCount)
+
+        // Session and engine converge to Paused
+        fakeEngine.pause()
+        host.handlePlaybackStateChanged(fakeEngine.playbackState.value)
+
+        // Safe degradation asserted
+        assertFalse(host.isBecomingNoisyRegistered)
+        assertFalse(host.hardwareLockManager.isWakeLockHeld)
+        assertFalse(host.hardwareLockManager.isWifiLockHeld)
+        assertTrue(host.isDemotionPending)
+    }
+
+    @Test
+    fun becomingNoisy_whenBufferingAndAppSessionNotBound_fallsBackToPlayerEnginePause() {
+        assertEquals(0, fakeEngine.pauseCount)
+
+        fakeEngine.customPlayWhenReady = true
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertTrue(host.isBecomingNoisyRegistered)
+
+        val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        context.sendBroadcast(noisyIntent)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        assertEquals(1, fakeEngine.pauseCount)
+        assertFalse(fakeEngine.playWhenReady)
+        host.handlePlaybackStateChanged(fakeEngine.playbackState.value)
+        assertFalse(host.isBecomingNoisyRegistered)
+        assertFalse(host.hardwareLockManager.isWakeLockHeld)
+    }
+
+    @Test
     fun onAudioRoutingChanged_delegatesToUnderlyingEngineSafely() {
         assertNotNull(host)
         // Calling onAudioRoutingChanged executes safely without error

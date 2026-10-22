@@ -13,6 +13,7 @@ interface AudioPlayerEngine {
     val durationMs: StateFlow<Long>
     val bufferedPositionMs: StateFlow<Long>
     val trackTransitions: SharedFlow<Unit> get() = MutableSharedFlow()
+    val playWhenReady: Boolean get() = false
 
     fun loadTrack(
         server: WebDavServer,

@@ -34,6 +34,10 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     val lastTracks: List<AudioTrack> get() = loadedTrack?.let { listOf(it) } ?: emptyList()
     var lastStartIndex: Int = -1
 
+    var customPlayWhenReady: Boolean = true
+    override val playWhenReady: Boolean
+        get() = customPlayWhenReady
+
     var playCount = 0
     var pauseCount = 0
     var stopCount = 0
@@ -85,11 +89,13 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     override fun play() {
         playCount++
+        customPlayWhenReady = true
         _playbackState.value = PlaybackState.Playing
     }
 
     override fun pause() {
         pauseCount++
+        customPlayWhenReady = false
         _playbackState.value = PlaybackState.Paused
     }
 
@@ -113,6 +119,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     override fun stop() {
         stopCount++
+        customPlayWhenReady = false
         _playbackState.value = PlaybackState.Idle
         _currentPositionMs.value = 0L
         _bufferedPositionMs.value = 0L

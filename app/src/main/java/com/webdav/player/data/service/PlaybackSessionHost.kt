@@ -203,10 +203,17 @@ class PlaybackSessionHost(
             }
 
             is PlaybackState.Buffering -> {
-                hardwareLockManager.acquireLocks()
-                cancelDemotionTimer()
-                hasPlaybackStarted = true
-                elevateForeground(state)
+                if (playerEngine.playWhenReady) {
+                    hardwareLockManager.acquireLocks()
+                    cancelDemotionTimer()
+                    hasPlaybackStarted = true
+                    registerBecomingNoisyReceiver()
+                    elevateForeground(state)
+                } else {
+                    hardwareLockManager.releaseLocks()
+                    unregisterBecomingNoisyReceiver()
+                    scheduleDeferredDemotion(state)
+                }
             }
 
             is PlaybackState.Paused -> {
@@ -297,7 +304,9 @@ class PlaybackSessionHost(
     fun elevateForeground(playbackState: PlaybackState? = null) {
         cancelDemotionTimer()
         val targetState = playbackState ?: playerEngine.playbackState.value
-        if (targetState is PlaybackState.Playing) {
+        if (targetState is PlaybackState.Playing ||
+            (targetState is PlaybackState.Buffering && playerEngine.playWhenReady)
+        ) {
             registerBecomingNoisyReceiver()
         }
         val service =

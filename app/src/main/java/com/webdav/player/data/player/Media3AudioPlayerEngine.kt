@@ -341,6 +341,14 @@ class Media3AudioPlayerEngine(
     private val _trackTransitions = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val trackTransitions: SharedFlow<Unit> = _trackTransitions.asSharedFlow()
 
+    override val playWhenReady: Boolean
+        get() =
+            try {
+                player.playWhenReady
+            } catch (_: Throwable) {
+                false
+            }
+
     private var tickerJob: Job? = null
 
     private val listener =
@@ -650,7 +658,11 @@ class Media3AudioPlayerEngine(
                 }
 
                 Player.STATE_BUFFERING -> {
-                    PlaybackState.Buffering
+                    if (player.playWhenReady) {
+                        PlaybackState.Buffering
+                    } else {
+                        PlaybackState.Paused
+                    }
                 }
 
                 Player.STATE_READY -> {

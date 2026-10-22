@@ -2216,6 +2216,38 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun pause_duringBuffering_cancelsWatchdog_andTransitionsToPausedWithoutGhostResumption() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 = RemoteFile(name = "01.mp3", path = "/01.mp3", size = 1000)
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track1))
+            session.playDirectoryTrack(directory, track1)
+            advanceUntilIdle()
+
+            // Transition engine to Buffering state
+            fakeEngine._playbackState.value = PlaybackState.Buffering
+            runCurrent()
+
+            // User pauses while buffering (e.g. via BecomingNoisy or UI pause)
+            session.pause()
+            runCurrent()
+
+            // Verify pause dispatch
+            assertEquals(1, fakeEngine.pauseCount)
+            assertEquals(PlaybackState.Paused, session.sessionState.value.playbackState)
+
+            // Advance time past the 15s/30s watchdog windows
+            advanceTimeBy(35_000L)
+            runCurrent()
+
+            // Watchdog must NOT fire because it was cancelled on pause
+            assertFalse("Watchdog must be cancelled; isWeakNetwork should be false", session.sessionState.value.isWeakNetwork)
+            assertFalse("canManualRetry should be false", session.sessionState.value.canManualRetry)
+            assertFalse("isReconnecting should be false", session.sessionState.value.isReconnecting)
+            assertEquals("Playback state must remain Paused", PlaybackState.Paused, session.sessionState.value.playbackState)
+        }
+
+    @Test
     fun adaptivePreroll_cancelledBeforeMainThreadExecution_isSafelyDiscarded() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)

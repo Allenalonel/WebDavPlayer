@@ -892,24 +892,8 @@ class MusicPlayerAppSessionImpl(
         clearKilledBySystemFlag()
         val current = _sessionState.value
         when {
-            current.isPlaying -> {
-                clearPrerollIfActive()
-                playerEngine.pause()
-                coroutineScope.launch {
-                    if (_isRestored.value) {
-                        val pos = playerEngine.currentPositionMs.value
-                        if (pos > 0L) {
-                            if (virtualTimelineEngine.isActive) {
-                                val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
-                                val relPos = (pos - startMs).coerceAtLeast(0L)
-                                sessionStore?.savePosition(pos, relPos, isCleanExit = true)
-                            } else {
-                                sessionStore?.savePosition(pos, null, isCleanExit = true)
-                            }
-                        }
-                    }
-                    flushSessionWithCleanExit(isCleanExit = true)
-                }
+            current.isPlaying || current.isBuffering -> {
+                pause()
             }
 
             current.isPaused -> {
@@ -1009,6 +993,7 @@ class MusicPlayerAppSessionImpl(
 
     override fun pause() {
         clearPrerollIfActive()
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         playerEngine.pause()
         coroutineScope.launch {
             if (_isRestored.value) {
