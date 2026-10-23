@@ -79,12 +79,21 @@ class FakeMusicPlayerAppSession(
     var lastPlayInitialMetadata: Map<String, TrackMetadata> = emptyMap()
     var lastPlayVirtualTracksByAudioPath: Map<String, List<com.webdav.player.domain.model.VirtualTrack>> = emptyMap()
 
+    var pausedByTransientAudioFocusInternal: Boolean = false
+    override val pausedByTransientAudioFocus: Boolean
+        get() = pausedByTransientAudioFocusInternal
+
+    var audioFocusTransientLossCount = 0
+    var audioFocusGainCount = 0
+    var audioFocusLossCount = 0
+
     override fun playDirectoryTrack(
         directory: RemoteDirectory,
         selectedFile: RemoteFile,
         initialMetadata: Map<String, TrackMetadata>,
         virtualTracksByAudioPath: Map<String, List<com.webdav.player.domain.model.VirtualTrack>>,
     ) {
+        pausedByTransientAudioFocusInternal = false
         lastPlayDirectory = directory
         lastPlaySelectedFile = selectedFile
         lastPlayInitialMetadata = initialMetadata
@@ -92,12 +101,14 @@ class FakeMusicPlayerAppSession(
     }
 
     override fun playTrack(track: AudioTrack) {
+        pausedByTransientAudioFocusInternal = false
         lastPlayTrack = track
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
         _sessionState.update { it.copy(queue = queue) }
     }
 
     override fun playNext(track: AudioTrack) {
+        pausedByTransientAudioFocusInternal = false
         lastPlayNextTrack = track
         val currentQueue = _sessionState.value.queue
         val updatedQueue = currentQueue.insertNext(track)
@@ -105,15 +116,19 @@ class FakeMusicPlayerAppSession(
     }
 
     override fun togglePlayPause() {
+        pausedByTransientAudioFocusInternal = false
         togglePlayPauseCount++
     }
 
     override fun play() {
+        pausedByTransientAudioFocusInternal = false
         playCount++
     }
 
     override fun pause() {
+        pausedByTransientAudioFocusInternal = false
         pauseCount++
+        _sessionState.update { it.copy(playbackState = PlaybackState.Paused) }
     }
 
     override fun seekTo(positionMs: Long) {
@@ -122,10 +137,12 @@ class FakeMusicPlayerAppSession(
     }
 
     override fun skipToNext() {
+        pausedByTransientAudioFocusInternal = false
         skipNextCount++
     }
 
     override fun skipToPrevious() {
+        pausedByTransientAudioFocusInternal = false
         skipPreviousCount++
     }
 
@@ -210,7 +227,34 @@ class FakeMusicPlayerAppSession(
     }
 
     override fun stop() {
+        pausedByTransientAudioFocusInternal = false
         stopCount++
+    }
+
+    override fun onAudioFocusTransientLoss() {
+        audioFocusTransientLossCount++
+        val wasPlaying = _sessionState.value.isPlaying || _sessionState.value.isBuffering
+        if (wasPlaying) {
+            pausedByTransientAudioFocusInternal = true
+            pauseCount++
+            _sessionState.update { it.copy(playbackState = PlaybackState.Paused) }
+        } else {
+            pausedByTransientAudioFocusInternal = false
+        }
+    }
+
+    override fun onAudioFocusGain() {
+        audioFocusGainCount++
+        if (pausedByTransientAudioFocusInternal) {
+            pausedByTransientAudioFocusInternal = false
+            play()
+        }
+    }
+
+    override fun onAudioFocusLoss() {
+        audioFocusLossCount++
+        pausedByTransientAudioFocusInternal = false
+        pause()
     }
 
     override fun release() {}

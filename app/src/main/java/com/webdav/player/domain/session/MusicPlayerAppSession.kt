@@ -81,6 +81,15 @@ interface MusicPlayerAppSession {
 
     fun dismissUnsupportedRange() {}
 
+    val pausedByTransientAudioFocus: Boolean
+        get() = false
+
+    fun onAudioFocusTransientLoss() {}
+
+    fun onAudioFocusGain() {}
+
+    fun onAudioFocusLoss() {}
+
     fun stop()
 
     fun release()

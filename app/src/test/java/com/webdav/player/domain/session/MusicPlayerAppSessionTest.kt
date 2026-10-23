@@ -2374,6 +2374,207 @@ class MusicPlayerAppSessionTest {
             assertEquals(setOf(0, 1, 2), queue.shuffleOrder.toSet())
         }
 
+    @Test
+    fun audioFocus_transientLoss_pausesSession_andSetsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    durationMs = 200_000L,
+                    format = AudioFormat.MP3,
+                    size = 10_000_000L,
+                )
+            session.playTrack(track)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            // Transient focus loss (e.g. phone call)
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+
+            assertTrue("Flag must be set on transient focus loss", session.pausedByTransientAudioFocus)
+            assertEquals(1, fakeEngine.pauseCount)
+        }
+
+    @Test
+    fun audioFocus_ghostResumptionGuard_userPauseClearsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    durationMs = 200_000L,
+                    format = AudioFormat.MP3,
+                    size = 10_000_000L,
+                )
+            session.playTrack(track)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            // Call arrives -> transient focus loss
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+            assertTrue(session.pausedByTransientAudioFocus)
+
+            // User explicitly pauses during the phone call
+            session.pause()
+            advanceUntilIdle()
+            assertFalse("User active pause must clear transient resumption flag", session.pausedByTransientAudioFocus)
+
+            val playCountBefore = fakeEngine.playCount
+            // Call ends -> system grants focus back
+            session.onAudioFocusGain()
+            advanceUntilIdle()
+
+            assertEquals("Ghost resumption must be blocked", playCountBefore, fakeEngine.playCount)
+            assertFalse(session.pausedByTransientAudioFocus)
+        }
+
+    @Test
+    fun audioFocus_ghostResumptionGuard_userToggleClearsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    durationMs = 200_000L,
+                    format = AudioFormat.MP3,
+                    size = 10_000_000L,
+                )
+            session.playTrack(track)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+            assertTrue(session.pausedByTransientAudioFocus)
+
+            // User triggers togglePlayPause during the phone call
+            session.togglePlayPause()
+            advanceUntilIdle()
+            assertFalse("User active toggle must clear transient resumption flag", session.pausedByTransientAudioFocus)
+
+            val playCountBefore = fakeEngine.playCount
+            session.onAudioFocusGain()
+            advanceUntilIdle()
+
+            assertEquals("Ghost resumption must be blocked", playCountBefore, fakeEngine.playCount)
+        }
+
+    @Test
+    fun audioFocus_ghostResumptionGuard_userStopClearsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    durationMs = 200_000L,
+                    format = AudioFormat.MP3,
+                    size = 10_000_000L,
+                )
+            session.playTrack(track)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+            assertTrue(session.pausedByTransientAudioFocus)
+
+            session.stop()
+            advanceUntilIdle()
+            assertFalse("User active stop must clear transient resumption flag", session.pausedByTransientAudioFocus)
+
+            val playCountBefore = fakeEngine.playCount
+            session.onAudioFocusGain()
+            advanceUntilIdle()
+
+            assertEquals("Ghost resumption must be blocked", playCountBefore, fakeEngine.playCount)
+        }
+
+    @Test
+    fun audioFocus_gain_resumesPlayback_whenFlagIsSet() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    durationMs = 200_000L,
+                    format = AudioFormat.MP3,
+                    size = 10_000_000L,
+                )
+            session.playTrack(track)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            val initialPlayCount = fakeEngine.playCount
+
+            // Transient loss -> pause
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+            assertTrue(session.pausedByTransientAudioFocus)
+
+            // Call ends without user interaction -> focus gain
+            session.onAudioFocusGain()
+            advanceUntilIdle()
+
+            assertFalse(session.pausedByTransientAudioFocus)
+            assertEquals("Playback should resume smoothly", initialPlayCount + 1, fakeEngine.playCount)
+        }
+
+    @Test
+    fun audioFocus_permanentLoss_pausesSession_andClearsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    durationMs = 200_000L,
+                    format = AudioFormat.MP3,
+                    size = 10_000_000L,
+                )
+            session.playTrack(track)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            // Permanent focus loss
+            session.onAudioFocusLoss()
+            advanceUntilIdle()
+
+            assertFalse(session.pausedByTransientAudioFocus)
+            assertEquals(1, fakeEngine.pauseCount)
+
+            // Regaining focus later should NOT resume
+            val playCountBefore = fakeEngine.playCount
+            session.onAudioFocusGain()
+            advanceUntilIdle()
+            assertEquals(playCountBefore, fakeEngine.playCount)
+        }
+
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),
     ) : com.webdav.player.domain.repository.ServerRepository {

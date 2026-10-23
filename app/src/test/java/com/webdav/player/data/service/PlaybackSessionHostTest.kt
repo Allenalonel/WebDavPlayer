@@ -452,6 +452,55 @@ class PlaybackSessionHostTest {
     }
 
     @Test
+    fun audioFocus_withBoundAppSession_transientLossAndGhostResumptionGuard() {
+        val appSession =
+            com.webdav.player.domain.session.FakeMusicPlayerAppSession(
+                initialState =
+                    com.webdav.player.domain.model.PlayerSessionState(
+                        playbackState = PlaybackState.Playing,
+                    ),
+            )
+        host.bindAppSession(appSession)
+
+        // Transient loss (call comes in)
+        host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
+        assertEquals(1, appSession.pauseCount)
+        assertTrue(host.audioFocusHandler.resumeOnFocusGain)
+        assertTrue(appSession.pausedByTransientAudioFocus)
+
+        // User actively pauses during call
+        appSession.pause()
+        assertFalse(host.audioFocusHandler.resumeOnFocusGain)
+        assertFalse(appSession.pausedByTransientAudioFocus)
+
+        // Focus gained (call ends)
+        host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
+        assertEquals(0, appSession.playCount) // Ghost resumption blocked!
+    }
+
+    @Test
+    fun audioFocus_withBoundAppSession_permanentLoss_pausesAndAbandonsFocus() {
+        val appSession =
+            com.webdav.player.domain.session.FakeMusicPlayerAppSession(
+                initialState =
+                    com.webdav.player.domain.model.PlayerSessionState(
+                        playbackState = PlaybackState.Playing,
+                    ),
+            )
+        host.bindAppSession(appSession)
+
+        // Permanent loss
+        host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS)
+        assertEquals(1, appSession.pauseCount)
+        assertFalse(host.audioFocusHandler.resumeOnFocusGain)
+        assertFalse(appSession.pausedByTransientAudioFocus)
+
+        // Gain focus later
+        host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
+        assertEquals(0, appSession.playCount)
+    }
+
+    @Test
     fun hardwareMediaButtons_dispatchDirectlyToHost() {
         val appSession =
             com.webdav.player.domain.session

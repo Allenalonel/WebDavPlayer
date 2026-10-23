@@ -93,6 +93,7 @@ class Media3AudioPlayerEngine(
     val canonicalAudioProcessor: CanonicalResamplingAudioProcessor = CanonicalResamplingAudioProcessor(),
     customAudioSink: AudioSink? = null,
     customAudioRoutingObserver: AudioRoutingObserver? = null,
+    customAudioFocusHandler: AudioFocusHandler? = null,
 ) : AudioPlayerEngine {
     private val activeAudioSinkRef = AtomicReference<AudioSink?>(customAudioSink)
 
@@ -297,7 +298,7 @@ class Media3AudioPlayerEngine(
                 .build()
         }
 
-    val audioFocusHandler: AudioFocusHandler = AudioFocusHandler(context, this)
+    val audioFocusHandler: AudioFocusHandler = customAudioFocusHandler ?: AudioFocusHandler(context)
 
     @Volatile
     private var currentVolume: Float = 1.0f

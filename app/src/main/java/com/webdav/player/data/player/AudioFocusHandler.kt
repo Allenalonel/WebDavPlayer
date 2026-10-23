@@ -7,24 +7,59 @@ import android.os.Build
 import androidx.annotation.VisibleForTesting
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.player.AudioPlayerEngine
+import com.webdav.player.domain.session.MusicPlayerAppSession
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import android.media.AudioAttributes as AndroidAudioAttributes
 
 class AudioFocusHandler(
     private val context: Context,
-    private val playerEngine: AudioPlayerEngine,
+    appSession: MusicPlayerAppSession? = null,
     val duckVolume: Float = 0.2f,
     val normalVolume: Float = 1.0f,
     private val onVolumeChanged: ((Float) -> Unit)? = null,
 ) : AudioManager.OnAudioFocusChangeListener {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
-    var isDucked: Boolean = false
-        private set
+    private val isDuckedRef = AtomicBoolean(false)
+    val isDucked: Boolean
+        get() = isDuckedRef.get()
 
-    var resumeOnFocusGain: Boolean = false
-        private set
+    private val internalResumeOnFocusGain = AtomicBoolean(false)
 
-    private var audioFocusRequest: AudioFocusRequest? = null
+    private val appSessionRef = AtomicReference<MusicPlayerAppSession?>(appSession)
+    var appSession: MusicPlayerAppSession?
+        get() = appSessionRef.get()
+        set(value) {
+            appSessionRef.set(value)
+        }
+
+    val resumeOnFocusGain: Boolean
+        get() = appSessionRef.get()?.pausedByTransientAudioFocus ?: internalResumeOnFocusGain.get()
+
+    private val audioFocusRequestRef = AtomicReference<AudioFocusRequest?>(null)
+    private val legacyPlayerEngineRef = AtomicReference<AudioPlayerEngine?>(null)
+
+    fun bindAppSession(session: MusicPlayerAppSession) {
+        appSessionRef.set(session)
+    }
+
+    @Deprecated("Use appSession instead of playerEngine")
+    constructor(
+        context: Context,
+        playerEngine: AudioPlayerEngine,
+        duckVolume: Float = 0.2f,
+        normalVolume: Float = 1.0f,
+        onVolumeChanged: ((Float) -> Unit)? = null,
+    ) : this(
+        context = context,
+        appSession = null,
+        duckVolume = duckVolume,
+        normalVolume = normalVolume,
+        onVolumeChanged = onVolumeChanged,
+    ) {
+        legacyPlayerEngineRef.set(playerEngine)
+    }
 
     fun requestAudioFocus(): Boolean {
         val manager = audioManager ?: return true
@@ -43,9 +78,10 @@ class AudioFocusHandler(
                         .Builder(AudioManager.AUDIOFOCUS_GAIN)
                         .setAudioAttributes(playbackAttributes)
                         .setAcceptsDelayedFocusGain(false)
+                        .setWillPauseWhenDucked(false)
                         .setOnAudioFocusChangeListener(this)
                         .build()
-                audioFocusRequest = request
+                audioFocusRequestRef.set(request)
                 manager.requestAudioFocus(request)
             } else {
                 @Suppress("DEPRECATION")
@@ -62,14 +98,13 @@ class AudioFocusHandler(
     fun abandonAudioFocus() {
         val manager = audioManager ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { manager.abandonAudioFocusRequest(it) }
-            audioFocusRequest = null
+            audioFocusRequestRef.getAndSet(null)?.let { manager.abandonAudioFocusRequest(it) }
         } else {
             @Suppress("DEPRECATION")
             manager.abandonAudioFocus(this)
         }
-        resumeOnFocusGain = false
-        isDucked = false
+        internalResumeOnFocusGain.set(false)
+        isDuckedRef.set(false)
     }
 
     override fun onAudioFocusChange(focusChange: Int) {
@@ -80,42 +115,48 @@ class AudioFocusHandler(
     fun handleFocusChange(focusChange: Int) {
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                val wasPlaying = playerEngine.playbackState.value is PlaybackState.Playing
-                if (wasPlaying) {
-                    resumeOnFocusGain = true
-                    playerEngine.pause()
+                val session = appSessionRef.get()
+                if (session != null) {
+                    session.onAudioFocusTransientLoss()
+                } else {
+                    val wasPlaying = legacyPlayerEngineRef.get()?.playbackState?.value is PlaybackState.Playing
+                    if (wasPlaying) {
+                        internalResumeOnFocusGain.set(true)
+                        legacyPlayerEngineRef.get()?.pause()
+                    }
                 }
             }
 
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                isDucked = true
-                applyVolume(duckVolume)
+                isDuckedRef.set(true)
+                onVolumeChanged?.invoke(duckVolume)
             }
 
             AudioManager.AUDIOFOCUS_GAIN -> {
-                if (isDucked) {
-                    isDucked = false
-                    applyVolume(normalVolume)
+                if (isDuckedRef.compareAndSet(true, false)) {
+                    onVolumeChanged?.invoke(normalVolume)
                 }
-                if (resumeOnFocusGain) {
-                    resumeOnFocusGain = false
-                    playerEngine.play()
+                val session = appSessionRef.get()
+                if (session != null) {
+                    session.onAudioFocusGain()
+                } else if (internalResumeOnFocusGain.compareAndSet(true, false)) {
+                    legacyPlayerEngineRef.get()?.play()
                 }
             }
 
             AudioManager.AUDIOFOCUS_LOSS -> {
-                resumeOnFocusGain = false
-                if (isDucked) {
-                    isDucked = false
-                    applyVolume(normalVolume)
+                if (isDuckedRef.compareAndSet(true, false)) {
+                    onVolumeChanged?.invoke(normalVolume)
                 }
-                playerEngine.pause()
+                internalResumeOnFocusGain.set(false)
+                val session = appSessionRef.get()
+                if (session != null) {
+                    session.onAudioFocusLoss()
+                } else {
+                    legacyPlayerEngineRef.get()?.pause()
+                }
+                abandonAudioFocus()
             }
         }
-    }
-
-    private fun applyVolume(volume: Float) {
-        onVolumeChanged?.invoke(volume)
-        playerEngine.setVolume(volume)
     }
 }

@@ -79,6 +79,7 @@ class MusicPlayerAppSessionImpl(
         startPositionMs: Long = 0L,
     ) {
         clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
         hasStreamLoaded = true
         playerEngine.loadTrack(server, track, startPositionMs)
         coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = false) }
@@ -87,6 +88,17 @@ class MusicPlayerAppSessionImpl(
     private val bufferingWatchdogJobRef =
         java.util.concurrent.atomic
             .AtomicReference<Job?>(null)
+
+    private val _pausedByTransientAudioFocus =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
+
+    override val pausedByTransientAudioFocus: Boolean
+        get() = _pausedByTransientAudioFocus.get()
+
+    private fun clearTransientAudioFocusFlag() {
+        _pausedByTransientAudioFocus.set(false)
+    }
 
     @androidx.annotation.VisibleForTesting
     val lastBufferingTimestampMs =
@@ -890,6 +902,7 @@ class MusicPlayerAppSessionImpl(
 
     override fun togglePlayPause() {
         clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
         val current = _sessionState.value
         when {
             current.isPlaying || current.isBuffering -> {
@@ -947,6 +960,7 @@ class MusicPlayerAppSessionImpl(
 
     override fun play() {
         clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
         val current = _sessionState.value
         if (current.isPaused) {
             if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null && current.activeServer != null) {
@@ -992,6 +1006,11 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun pause() {
+        clearTransientAudioFocusFlag()
+        pauseInternal()
+    }
+
+    private fun pauseInternal() {
         clearPrerollIfActive()
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         playerEngine.pause()
@@ -1010,6 +1029,28 @@ class MusicPlayerAppSessionImpl(
             }
             flushSessionWithCleanExit(isCleanExit = true)
         }
+    }
+
+    override fun onAudioFocusTransientLoss() {
+        val state = _sessionState.value
+        val wasPlaying = state.isPlaying || state.isBuffering
+        if (wasPlaying) {
+            _pausedByTransientAudioFocus.set(true)
+            pauseInternal()
+        } else {
+            _pausedByTransientAudioFocus.set(false)
+        }
+    }
+
+    override fun onAudioFocusGain() {
+        if (_pausedByTransientAudioFocus.compareAndSet(true, false)) {
+            play()
+        }
+    }
+
+    override fun onAudioFocusLoss() {
+        _pausedByTransientAudioFocus.set(false)
+        pauseInternal()
     }
 
     override fun seekTo(positionMs: Long) {
@@ -1044,6 +1085,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun skipToNext() {
+        clearTransientAudioFocusFlag()
         clearPrerollIfActive()
         if (virtualTimelineEngine.isActive) {
             val seekResult = virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)
@@ -1061,6 +1103,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun skipToPrevious() {
+        clearTransientAudioFocusFlag()
         clearPrerollIfActive()
         if (virtualTimelineEngine.isActive) {
             val seekResult =
@@ -1088,6 +1131,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun playQueueIndex(index: Int) {
+        clearTransientAudioFocusFlag()
         clearPrerollIfActive()
         if (virtualTimelineEngine.isActive) {
             val seekResult = virtualTimelineEngine.seekToTrackIndex(index)
@@ -1209,6 +1253,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun stop() {
+        clearTransientAudioFocusFlag()
         clearPrerollIfActive()
         stopPeriodicFlush()
         virtualTimelineEngine.clear()

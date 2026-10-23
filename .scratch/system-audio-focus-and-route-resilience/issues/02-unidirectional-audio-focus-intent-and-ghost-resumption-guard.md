@@ -5,11 +5,21 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `AudioFocusHandler` 移除对底层引擎直接控制的依赖，改由应用会话层接缝（`MusicPlayerAppSession`）统一响应音频焦点事件。
-- [ ] 瞬态失焦（`AUDIOFOCUS_LOSS_TRANSIENT`）转化为会话级暂停意图，停止播放时钟并刷盘保存当前毫秒级进度。
-- [ ] 引入瞬态暂停仲裁标记：在通话打断期间，若用户通过任何途径主动触发了 `pause()`、`togglePlayPause()` 或 `stop()`，原子化重置恢复标志，通话结束后收到 `AUDIOFOCUS_GAIN` 坚决维持暂停状态，阻断幽灵复播。
-- [ ] 永久失焦（`AUDIOFOCUS_LOSS`）时，会话层执行暂停并调用 `abandonAudioFocus()`，主动退出系统焦点管理栈。
-- [ ] 规范化导航短通知等声音压低（Ducking）处理，消除应用层与系统层的重复音量衰减。
-- [ ] 编写焦点打断、通话中主动暂停阻断幽灵复播、永久失焦释放焦点的单元测试集。
+- [x] `AudioFocusHandler` 移除对底层引擎直接控制的依赖，改由应用会话层接缝（`MusicPlayerAppSession`）统一响应音频焦点事件。
+- [x] 瞬态失焦（`AUDIOFOCUS_LOSS_TRANSIENT`）转化为会话级暂停意图，停止播放时钟并刷盘保存当前毫秒级进度。
+- [x] 引入瞬态暂停仲裁标记：在通话打断期间，若用户通过任何途径主动触发了 `pause()`、`togglePlayPause()` 或 `stop()`，原子化重置恢复标志，通话结束后收到 `AUDIOFOCUS_GAIN` 坚决维持暂停状态，阻断幽灵复播。
+- [x] 永久失焦（`AUDIOFOCUS_LOSS`）时，会话层执行暂停并调用 `abandonAudioFocus()`，主动退出系统焦点管理栈。
+- [x] 规范化导航短通知等声音压低（Ducking）处理，消除应用层与系统层的重复音量衰减。
+- [x] 编写焦点打断、通话中主动暂停阻断幽灵复播、永久失焦释放焦点的单元测试集。
+
+## Comments
+
+### Resolution
+- `AudioFocusHandler` 移除对 `playerEngine` 的直接调用与依赖，改为主构造参数持有 `MusicPlayerAppSession`，在 `PlaybackSessionHost.bindAppSession` 中完成统一会话意图绑定（并保留标记 `@Deprecated` 的旧构造函数以维持平滑迁移）。
+- 在 `MusicPlayerAppSession` 与 `MusicPlayerAppSessionImpl` 中增加 `onAudioFocusTransientLoss()`、`onAudioFocusGain()` 与 `onAudioFocusLoss()` 统一意图通道，瞬态失焦转化为完整会话级暂停，立即取消弱网看门狗、停止播放时钟并异步落盘保存当前毫秒级断点。
+- 引入原子化瞬态暂停仲裁标记 `pausedByTransientAudioFocus`：若在通话打断期间用户主动触发了 `pause()`、`togglePlayPause()`、`stop()` 或切歌选轨等任何播控操作，立即原子化重置恢复标志；挂断电话收到 `AUDIOFOCUS_GAIN` 时坚决维持暂停，彻底熔断“幽灵自动复播”。
+- 永久失焦（`AUDIOFOCUS_LOSS`）时，通过会话层触发安全暂停，并调用 `abandonAudioFocus()` 主动注销系统音频焦点。
+- 规范化声音压低（Ducking）配置：在 Android 8.0+ `AudioFocusRequest` 构建器中明确声明 `.setWillPauseWhenDucked(false)`，将声音压低全权交由系统音频混音层统一管理，消除应用层与系统层的二次重复音量衰减。
+- 完备编写并更新了 `AudioFocusHandlerTest`、`MusicPlayerAppSessionTest`、`Media3AudioPlayerEngineTest` 与 `PlaybackSessionHostTest` 单元测试套件，全面覆盖焦点打断、通话中主动操作阻断幽灵复播、永久失焦主动退栈与压低规范化。

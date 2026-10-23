@@ -102,6 +102,7 @@ class PlaybackSessionHost(
 
     fun bindAppSession(session: MusicPlayerAppSession) {
         check(mediaSessionCallback == null) { "appSession has already been bound" }
+        audioFocusHandler.bindAppSession(session)
         val callback = WebDavMediaSessionCallback(appSession = session)
         this.mediaSessionCallback = callback
         (playerEngine as? Media3AudioPlayerEngine)?.let { engine ->
