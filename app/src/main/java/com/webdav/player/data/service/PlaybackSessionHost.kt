@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.media.AudioRouting
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
@@ -59,6 +60,14 @@ class PlaybackSessionHost(
 
     fun onAudioRoutingChanged() {
         (playerEngine as? Media3AudioPlayerEngine)?.onAudioRoutingChanged()
+    }
+
+    fun attachAudioRouting(audioRouting: AudioRouting?) {
+        (playerEngine as? Media3AudioPlayerEngine)?.attachAudioRouting(audioRouting)
+    }
+
+    fun detachAudioRouting() {
+        (playerEngine as? Media3AudioPlayerEngine)?.detachAudioRouting()
     }
     constructor(
         context: Context,

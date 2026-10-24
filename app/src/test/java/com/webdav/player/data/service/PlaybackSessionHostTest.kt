@@ -3,7 +3,10 @@ package com.webdav.player.data.service
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.AudioRouting
+import android.os.Handler
 import android.view.KeyEvent
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -735,5 +738,23 @@ class PlaybackSessionHostTest {
         assertNotNull(host)
         // Calling onAudioRoutingChanged executes safely without error
         host.onAudioRoutingChanged()
+    }
+
+    @Test
+    fun attachAndDetachAudioRouting_delegatesSafely() {
+        val fakeRouting =
+            object : AudioRouting {
+                override fun addOnRoutingChangedListener(
+                    listener: AudioRouting.OnRoutingChangedListener,
+                    handler: Handler?,
+                ) {}
+                override fun removeOnRoutingChangedListener(listener: AudioRouting.OnRoutingChangedListener) {}
+                override fun getRoutedDevice(): AudioDeviceInfo? = null
+                override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = true
+                override fun getPreferredDevice(): AudioDeviceInfo? = null
+            }
+
+        host.attachAudioRouting(fakeRouting)
+        host.detachAudioRouting()
     }
 }

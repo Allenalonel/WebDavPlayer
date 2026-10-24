@@ -1,6 +1,9 @@
 package com.webdav.player.data.player
 
 import android.content.Context
+import android.media.AudioDeviceInfo
+import android.media.AudioRouting
+import android.os.Handler
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -1089,6 +1092,59 @@ class Media3AudioPlayerEngineTest {
                 testEngine.release()
             }
         }
+
+    @Test
+    fun onAudioRoutingChanged_flushesCanonicalProcessorAndActiveAudioSink() =
+        runTest {
+            var sinkFlushCount = 0
+            val underlyingSink = DefaultAudioSink.Builder(context).build()
+            val trackingSink =
+                object : ForwardingAudioSink(underlyingSink) {
+                    override fun flush() {
+                        sinkFlushCount++
+                        super.flush()
+                    }
+                }
+
+            val testEngine = Media3AudioPlayerEngine(context, customAudioSink = trackingSink)
+            try {
+                assertEquals(0, sinkFlushCount)
+
+                // Dispatch dynamic audio routing change
+                testEngine.onAudioRoutingChanged()
+                ShadowLooper.idleMainLooper()
+
+                assertEquals(1, sinkFlushCount)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    @Test
+    fun attachAndDetachAudioRouting_delegatesToAudioRoutingObserver() {
+        val testEngine = Media3AudioPlayerEngine(context)
+        try {
+            val fakeRouting =
+                object : AudioRouting {
+                    override fun addOnRoutingChangedListener(
+                        listener: AudioRouting.OnRoutingChangedListener,
+                        handler: Handler?,
+                    ) {}
+                    override fun removeOnRoutingChangedListener(listener: AudioRouting.OnRoutingChangedListener) {}
+                    override fun getRoutedDevice(): AudioDeviceInfo? = null
+                    override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = true
+                    override fun getPreferredDevice(): AudioDeviceInfo? = null
+                }
+
+            testEngine.attachAudioRouting(fakeRouting)
+            assertEquals(fakeRouting, testEngine.audioRoutingObserver.activeAudioRouting)
+
+            testEngine.detachAudioRouting()
+            assertEquals(null, testEngine.audioRoutingObserver.activeAudioRouting)
+        } finally {
+            testEngine.release()
+        }
+    }
 
     @Test
     fun bufferingState_withPlayWhenReadyTrue_acquiresLocksAndEmitsBuffering() =

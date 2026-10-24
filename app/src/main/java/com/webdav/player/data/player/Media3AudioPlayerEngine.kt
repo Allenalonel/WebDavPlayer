@@ -3,6 +3,7 @@ package com.webdav.player.data.player
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioRouting
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -93,6 +94,7 @@ class Media3AudioPlayerEngine(
     val canonicalAudioProcessor: CanonicalResamplingAudioProcessor = CanonicalResamplingAudioProcessor(),
     customAudioSink: AudioSink? = null,
     customAudioRoutingObserver: AudioRoutingObserver? = null,
+    customAudioRouting: AudioRouting? = null,
     customAudioFocusHandler: AudioFocusHandler? = null,
 ) : AudioPlayerEngine {
     private val activeAudioSinkRef = AtomicReference<AudioSink?>(customAudioSink)
@@ -101,7 +103,10 @@ class Media3AudioPlayerEngine(
         get() = activeAudioSinkRef.get()
 
     val audioRoutingObserver: AudioRoutingObserver =
-        customAudioRoutingObserver ?: AudioRoutingObserver(context) { onAudioRoutingChanged() }
+        customAudioRoutingObserver ?: AudioRoutingObserver(
+            context = context,
+            audioRouting = customAudioRouting,
+        ) { onAudioRoutingChanged() }
     private val activeServerRef = AtomicReference<WebDavServer?>(null)
 
     val activeServer: WebDavServer?
@@ -590,8 +595,20 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    fun attachAudioRouting(audioRouting: AudioRouting?) {
+        audioRoutingObserver.attachAudioRouting(audioRouting)
+    }
+
+    fun detachAudioRouting() {
+        audioRoutingObserver.detachAudioRouting()
+    }
+
     fun onAudioRoutingChanged() {
         runOnApplicationLooper {
+            try {
+                canonicalAudioProcessor.flush()
+            } catch (_: Throwable) {
+            }
             try {
                 activeAudioSink?.flush()
             } catch (_: Throwable) {

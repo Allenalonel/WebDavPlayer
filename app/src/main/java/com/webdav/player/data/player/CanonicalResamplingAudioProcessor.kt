@@ -39,7 +39,14 @@ class CanonicalResamplingAudioProcessor(
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
         pendingInputAudioFormat = inputAudioFormat
 
-        if (inputAudioFormat.sampleRate >= canonicalSampleRateHz) {
+        // Passthrough for standard/high-resolution audio (>= 44,100 Hz),
+        // non-16-bit PCM streams (e.g. 32-bit Float PCM, 24-bit PCM),
+        // or invalid formats to prevent unhandled pipeline crashes.
+        if (inputAudioFormat.sampleRate >= canonicalSampleRateHz ||
+            inputAudioFormat.encoding != C.ENCODING_PCM_16BIT ||
+            inputAudioFormat.sampleRate <= 0 ||
+            inputAudioFormat.channelCount <= 0
+        ) {
             active = false
             duplicateMonoToStereo = false
             pendingOutputAudioFormat = AudioFormat.NOT_SET
@@ -53,10 +60,6 @@ class CanonicalResamplingAudioProcessor(
             return AudioFormat.NOT_SET
         }
 
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
-        }
-
         active = true
         duplicateMonoToStereo = (inputAudioFormat.channelCount == 1)
         val outputChannelCount = if (duplicateMonoToStereo) 2 else inputAudioFormat.channelCount
@@ -67,10 +70,18 @@ class CanonicalResamplingAudioProcessor(
                 C.ENCODING_PCM_16BIT,
             )
 
-        val sonic = sonicProcessor ?: SonicAudioProcessor().also { sonicProcessor = it }
-        sonic.setOutputSampleRateHz(canonicalSampleRateHz)
-        sonic.configure(inputAudioFormat)
-        return pendingOutputAudioFormat
+        try {
+            val sonic = sonicProcessor ?: SonicAudioProcessor().also { sonicProcessor = it }
+            sonic.setOutputSampleRateHz(canonicalSampleRateHz)
+            sonic.configure(inputAudioFormat)
+            return pendingOutputAudioFormat
+        } catch (_: Throwable) {
+            // Adaptive fallback to safe passthrough if Sonic configuration fails
+            active = false
+            duplicateMonoToStereo = false
+            pendingOutputAudioFormat = AudioFormat.NOT_SET
+            return AudioFormat.NOT_SET
+        }
     }
 
     override fun isActive(): Boolean = active
