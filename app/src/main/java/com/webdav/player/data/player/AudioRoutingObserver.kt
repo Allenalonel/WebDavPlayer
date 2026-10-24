@@ -103,6 +103,13 @@ class AudioRoutingObserver(
     val isObserving: Boolean
         get() = isStarted.get()
 
+    /**
+     * Attaches an AudioRouting instance to monitor dynamic routing changes via AudioRouting.OnRoutingChangedListener.
+     * Note: In production runtime, system Media Output Switcher transfers are monitored natively via
+     * MediaRouter2.TransferCallback (API 30+) and physical devices via AudioDeviceCallback.
+     * This attach/detach handle is exposed primarily for unit tests and direct AudioRouting injection.
+     */
+    @VisibleForTesting
     fun attachAudioRouting(audioRouting: AudioRouting?) {
         val old = attachedAudioRoutingRef.getAndSet(audioRouting)
         if (old === audioRouting) return
@@ -124,6 +131,7 @@ class AudioRoutingObserver(
         }
     }
 
+    @VisibleForTesting
     fun detachAudioRouting() {
         attachAudioRouting(null)
     }

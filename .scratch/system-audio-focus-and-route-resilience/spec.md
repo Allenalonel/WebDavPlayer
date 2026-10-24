@@ -40,7 +40,7 @@ Status: ready-for-agent
    - 将防外放拦截接收器的监听生命周期扩展至缓冲阶段（`Buffering`）。凡用户意图处于起播、换轨或网络恢复中，均严密布防 `ACTION_AUDIO_BECOMING_NOISY` 广播。
    - 在缓冲期间侦测到耳机拔出或蓝牙断连，立即拦截并触发会话级安全暂停，取消起播意图；当底层流缓冲完成时，严格维持在安全暂停状态，彻底消灭安静场合的大声公放事故。
 6. **双轨音频路由自愈与系统切换器联动（Dynamic Route Switcher Observer）**：
-   - 升级音频路由感知器为双轨监听架构：物理设备插拔回调（感知硬件增减）与发声管道路由变动监听（感知系统控制中心手动切换）协同运作。
+   - 升级音频路由感知器为双轨监听架构：物理设备插拔回调（通过 `AudioDeviceCallback` 感知硬件增减）与系统媒体输出切换器流转监听（API 30+ 通过 `MediaRouter2.TransferCallback` 原生监听控制中心手动设备切换）协同运作；底层 `AudioRouting` 接口作为保留测试与扩展接入点（标记 `@VisibleForTesting`）。
    - 无论通过拔出耳机还是在系统媒体输出弹窗中手动切换输出端口，均能在毫秒级内触发底层音频发声管道缓冲区刷新与时钟重同步，消除声道假死与静音空跑。
 7. **规范化重采样弹性直通（Canonical Resampling Robustness）**：
    - 重采样处理器增加弹性格式协商机制：凡输入格式为高解析度或非 16-bit 浮点音频流，一律保持非破坏性直通，杜绝异常崩溃。
@@ -101,7 +101,7 @@ Status: ready-for-agent
 - **双轨感知器架构**：
   音频路由监听器融合两路输入源：
   1. `AudioDeviceCallback`：侦测物理输出设备的硬件插拔与蓝牙连接断开；
-  2. `AudioRouting.OnRoutingChangedListener`（通过活跃发声管道或系统媒体路由）：实时捕获用户在系统控制中心“媒体输出切换器”中的手动设备路由变更。
+  2. `MediaRouter2.TransferCallback`（API 30+ 系统媒体路由）与 `AudioRouting.OnRoutingChangedListener`（通过注入的活跃发声管道，标记 `@VisibleForTesting`）：实时捕获用户在系统控制中心“媒体输出切换器”中的手动设备路由变更。
 - **无感缓冲区刷新与重同步**：
   任一轨道触发有效发声节点漂移时，统一调度 `activeAudioSink?.flush()`，清空旧设备的驻留 PCM 数据，触发驱动时钟重新握手，彻底消除静音空跑与假死。
 

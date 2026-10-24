@@ -160,13 +160,14 @@ tasks.register("verifyReleasePackaging") {
 
         val maxApkSizeBytes = 7_864_320L // 7.5 MB
         val maxDexUncompressedBytes = 4_194_304L // 4.0 MB
-        val expectedNativeLibs: Set<String> = setOf(
-            "lib/arm64-v8a/libavcodec.so",
-            "lib/arm64-v8a/libavformat.so",
-            "lib/arm64-v8a/libavutil.so",
-            "lib/arm64-v8a/libffmpegJNI.so",
-            "lib/arm64-v8a/libswresample.so",
-        )
+        val expectedNativeLibs: Set<String> =
+            setOf(
+                "lib/arm64-v8a/libavcodec.so",
+                "lib/arm64-v8a/libavformat.so",
+                "lib/arm64-v8a/libavutil.so",
+                "lib/arm64-v8a/libffmpegJNI.so",
+                "lib/arm64-v8a/libswresample.so",
+            )
 
         val apkSize = apkFile.length()
         check(apkSize <= maxApkSizeBytes) {
@@ -210,9 +211,27 @@ tasks.register("verifyReleasePackaging") {
             println("============================================================")
             println("RELEASE PACKAGING VERIFICATION PASSED")
             println("============================================================")
-            println("Total APK size:        $apkSize bytes (${String.format(Locale.US, "%.2f", apkSize / 1024.0 / 1024.0)} MB) [Budget: <= 7.5 MB]")
-            println("classes.dex size:      ${dex.size} bytes (${String.format(Locale.US, "%.2f", dex.size / 1024.0 / 1024.0)} MB) [Budget: <= 4.0 MB]")
-            println("classes.dex deflated:  ${dex.compressedSize} bytes (${String.format(Locale.US, "%.2f", dex.compressedSize / 1024.0 / 1024.0)} MB)")
+            println(
+                "Total APK size:        $apkSize bytes (${String.format(
+                    Locale.US,
+                    "%.2f",
+                    apkSize / 1024.0 / 1024.0,
+                )} MB) [Budget: <= 7.5 MB]",
+            )
+            println(
+                "classes.dex size:      ${dex.size} bytes (${String.format(
+                    Locale.US,
+                    "%.2f",
+                    dex.size / 1024.0 / 1024.0,
+                )} MB) [Budget: <= 4.0 MB]",
+            )
+            println(
+                "classes.dex deflated:  ${dex.compressedSize} bytes (${String.format(
+                    Locale.US,
+                    "%.2f",
+                    dex.compressedSize / 1024.0 / 1024.0,
+                )} MB)",
+            )
             println("Native architecture:   lib/arm64-v8a/ only (5 libraries, 0 32-bit)")
             println("============================================================")
         } finally {
@@ -220,4 +239,3 @@ tasks.register("verifyReleasePackaging") {
         }
     }
 }
-

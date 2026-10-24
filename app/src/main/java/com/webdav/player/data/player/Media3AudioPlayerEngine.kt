@@ -29,6 +29,7 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
+import com.webdav.player.data.service.AudioFocusHandler
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
@@ -595,10 +596,12 @@ class Media3AudioPlayerEngine(
         }
     }
 
+    @VisibleForTesting
     fun attachAudioRouting(audioRouting: AudioRouting?) {
         audioRoutingObserver.attachAudioRouting(audioRouting)
     }
 
+    @VisibleForTesting
     fun detachAudioRouting() {
         audioRoutingObserver.detachAudioRouting()
     }

@@ -97,9 +97,7 @@ class PlaybackSessionHostTest {
                 context = context,
                 playerEngine = fakeEngine,
                 mediaSession = mediaSession,
-                audioFocusHandler =
-                    com.webdav.player.data.player
-                        .AudioFocusHandler(context, fakeEngine),
+                audioFocusHandler = AudioFocusHandler(context),
                 coroutineScope = testScope,
             )
         PlaybackSessionHost.setInstanceForTesting(host)
@@ -421,37 +419,35 @@ class PlaybackSessionHostTest {
 
     @Test
     fun audioFocus_negotiatesDuckingAndResumption_seamlessly() {
+        val appSession =
+            com.webdav.player.domain.session.FakeMusicPlayerAppSession(
+                initialState =
+                    com.webdav.player.domain.model.PlayerSessionState(
+                        playbackState = PlaybackState.Playing,
+                    ),
+            )
+        host.bindAppSession(appSession)
         val focusHandler = host.audioFocusHandler
 
         // Play track
         host.loadTrack(testServer, testTrack)
-        assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
         // Transient loss (incoming call) -> pause
         focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
-        assertEquals(1, fakeEngine.pauseCount)
+        assertEquals(1, appSession.pauseCount)
         assertTrue(focusHandler.resumeOnFocusGain)
 
         // Gain focus -> resumes
         focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
-        assertEquals(1, fakeEngine.playCount) // resumed play
+        assertEquals(1, appSession.playCount) // resumed play
         assertFalse(focusHandler.resumeOnFocusGain)
 
-        // Transient duck (navigation prompt)
-        var reportedVolume: Float? = null
-        val duckHandler =
-            com.webdav.player.data.player.AudioFocusHandler(
-                context = context,
-                playerEngine = host,
-                onVolumeChanged = { reportedVolume = it },
-            )
-        duckHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
-        assertTrue(duckHandler.isDucked)
-        assertEquals(0.2f, reportedVolume)
+        // Transient duck (navigation prompt) -> normalized system ducking, application marks isDucked without double-ducking
+        focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
+        assertTrue(focusHandler.isDucked)
 
-        duckHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
-        assertFalse(duckHandler.isDucked)
-        assertEquals(1.0f, reportedVolume)
+        focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
+        assertFalse(focusHandler.isDucked)
     }
 
     @Test

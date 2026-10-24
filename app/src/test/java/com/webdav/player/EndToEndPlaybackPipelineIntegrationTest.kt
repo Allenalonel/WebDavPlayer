@@ -530,8 +530,8 @@ class EndToEndPlaybackPipelineIntegrationTest {
                 playerEngine = fakeEngine,
                 mediaSession = mediaSession,
                 audioFocusHandler =
-                    com.webdav.player.data.player
-                        .AudioFocusHandler(context, fakeEngine),
+                    com.webdav.player.data.service
+                        .AudioFocusHandler(context, fakeSession),
             )
         PlaybackSessionHost.setInstanceForTesting(host)
 
@@ -566,24 +566,25 @@ class EndToEndPlaybackPipelineIntegrationTest {
 
             // 4. Audio Focus Interruption: incoming call causes AUDIOFOCUS_LOSS_TRANSIENT while playing
             fakeEngine._playbackState.value = PlaybackState.Playing
+            fakeSession._sessionState.value = fakeSession.sessionState.value.copy(playbackState = PlaybackState.Playing)
             host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
-            assertEquals("Playback paused on audio focus loss", 1, fakeEngine.pauseCount)
+            assertEquals("Playback paused on audio focus loss", 1, fakeSession.pauseCount)
             assertTrue("Resume on focus gain is set", host.audioFocusHandler.resumeOnFocusGain)
 
             // Audio Focus Regained: call ends -> auto resume playback
             host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
-            assertEquals("Playback resumed on audio focus gain", 1, fakeEngine.playCount)
+            assertEquals("Playback resumed on audio focus gain", 1, fakeSession.playCount)
             assertFalse("Resume on focus gain is reset", host.audioFocusHandler.resumeOnFocusGain)
 
             // 5. Hardware Media Button controls dispatch directly to appSession
             val callback = WebDavMediaSessionCallback(fakeSession)
             val pauseButtonIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PAUSE)
             assertTrue(callback.handleMediaButtonIntent(pauseButtonIntent))
-            assertEquals(1, fakeSession.pauseCount)
+            assertEquals(2, fakeSession.pauseCount)
 
             val playButtonIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY)
             assertTrue(callback.handleMediaButtonIntent(playButtonIntent))
-            assertEquals(1, fakeSession.playCount)
+            assertEquals(2, fakeSession.playCount)
 
             // 6. Error state -> graceful foreground demote to prevent App Idle
             host.handlePlaybackStateChanged(PlaybackState.Error("Connection reset"))

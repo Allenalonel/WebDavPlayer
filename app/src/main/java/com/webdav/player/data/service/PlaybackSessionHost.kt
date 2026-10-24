@@ -16,7 +16,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
-import com.webdav.player.data.player.AudioFocusHandler
 import com.webdav.player.data.player.AudioRoutingObserver
 import com.webdav.player.data.player.DefaultStreamingHardwareLockManager
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
@@ -62,10 +61,12 @@ class PlaybackSessionHost(
         (playerEngine as? Media3AudioPlayerEngine)?.onAudioRoutingChanged()
     }
 
+    @VisibleForTesting
     fun attachAudioRouting(audioRouting: AudioRouting?) {
         (playerEngine as? Media3AudioPlayerEngine)?.attachAudioRouting(audioRouting)
     }
 
+    @VisibleForTesting
     fun detachAudioRouting() {
         (playerEngine as? Media3AudioPlayerEngine)?.detachAudioRouting()
     }

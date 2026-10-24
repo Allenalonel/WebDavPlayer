@@ -12,7 +12,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.media3.session.MediaSession
 import androidx.test.core.app.ApplicationProvider
-import com.webdav.player.data.player.AudioFocusHandler
+import com.webdav.player.data.service.AudioFocusHandler
 import com.webdav.player.data.player.CanonicalResamplingAudioProcessor
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.service.PlaybackSessionHost

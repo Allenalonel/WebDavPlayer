@@ -1,4 +1,4 @@
-package com.webdav.player.data.player
+package com.webdav.player.data.service
 
 import android.content.Context
 import android.media.AudioManager
@@ -8,7 +8,6 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.WebDavServer
-import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -51,7 +50,9 @@ class AudioFocusHandlerTest {
                 initialState =
                     PlayerSessionState(
                         activeServer = testServer,
-                        queue = com.webdav.player.domain.model.PlaybackQueue(listOf(testTrack), 0),
+                        queue =
+                            com.webdav.player.domain.model
+                                .PlaybackQueue(listOf(testTrack), 0),
                         playbackState = PlaybackState.Playing,
                     ),
             )
@@ -163,25 +164,15 @@ class AudioFocusHandlerTest {
 
     @Test
     fun systemNotification_lossTransientCanDuck_setsDucked_andRestoresOnGain() {
-        var recordedVolume: Float? = null
-        val customHandler =
-            AudioFocusHandler(
-                context = context,
-                appSession = fakeSession,
-                onVolumeChanged = { volume -> recordedVolume = volume },
-            )
-
         // System notification / navigation prompt
-        customHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
+        focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
 
-        assertTrue(customHandler.isDucked)
-        assertEquals(0.2f, recordedVolume)
+        assertTrue(focusHandler.isDucked)
 
         // Prompt finished -> AUDIOFOCUS_GAIN
-        customHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
+        focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
 
-        assertFalse(customHandler.isDucked)
-        assertEquals(1.0f, recordedVolume)
+        assertFalse(focusHandler.isDucked)
     }
 
     @Test
@@ -195,21 +186,12 @@ class AudioFocusHandlerTest {
     }
 
     @Test
-    fun legacyPlayerEngine_backwardCompatibility_worksWhenAppSessionNotProvided() {
-        val fakeEngine = FakeAudioPlayerEngine()
+    fun transientLoss_withoutAppSession_doesNothingSafely() {
+        val orphanHandler = AudioFocusHandler(context, appSession = null)
+        orphanHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
+        assertFalse(orphanHandler.resumeOnFocusGain)
 
-        @Suppress("DEPRECATION")
-        val legacyHandler = AudioFocusHandler(context, fakeEngine)
-
-        fakeEngine.loadTrack(testServer, testTrack)
-        assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
-
-        legacyHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
-        assertEquals(1, fakeEngine.pauseCount)
-        assertTrue(legacyHandler.resumeOnFocusGain)
-
-        legacyHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
-        assertEquals(1, fakeEngine.playCount)
-        assertFalse(legacyHandler.resumeOnFocusGain)
+        orphanHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
+        assertFalse(orphanHandler.resumeOnFocusGain)
     }
 }
