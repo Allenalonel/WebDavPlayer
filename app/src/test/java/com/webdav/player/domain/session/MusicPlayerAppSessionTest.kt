@@ -2554,6 +2554,58 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun audioFocus_ghostResumptionGuard_playVirtualTracksClearsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val parent =
+                AudioTrack(
+                    id = "parent-1",
+                    serverId = 1L,
+                    remotePath = "/music/album.flac",
+                    title = "Album",
+                    format = AudioFormat.FLAC,
+                    durationMs = 600_000L,
+                    size = 50_000_000L,
+                )
+            val virtualTracks =
+                listOf(
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 1,
+                        title = "Track 1",
+                        startTimeMs = 0L,
+                        endTimeMs = 300_000L,
+                        parentAudioPath = "/music/album.flac",
+                    ),
+                    com.webdav.player.domain.model.VirtualTrack(
+                        trackNumber = 2,
+                        title = "Track 2",
+                        startTimeMs = 300_000L,
+                        endTimeMs = 600_000L,
+                        parentAudioPath = "/music/album.flac",
+                    ),
+                )
+            session.playVirtualTracks(parent, virtualTracks, 0)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            // Phone call interrupts -> transient loss sets flag
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+            assertTrue(session.pausedByTransientAudioFocus)
+
+            // User switches to track 2 of the same virtual album during call
+            session.playVirtualTracks(parent, virtualTracks, 1)
+            advanceUntilIdle()
+
+            // User active action MUST clear the transient resumption flag
+            assertFalse(
+                "User active playVirtualTracks must clear transient resumption flag",
+                session.pausedByTransientAudioFocus,
+            )
+        }
+
+    @Test
     fun audioFocus_gain_resumesPlayback_whenFlagIsSet() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)

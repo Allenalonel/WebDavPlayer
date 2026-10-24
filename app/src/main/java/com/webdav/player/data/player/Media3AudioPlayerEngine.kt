@@ -600,41 +600,20 @@ class Media3AudioPlayerEngine(
         audioRoutingObserver.detachAudioRouting()
     }
 
+    private fun flushAudioPipelines() {
+        try {
+            canonicalAudioProcessor.flush()
+        } catch (_: Throwable) {
+        }
+        try {
+            activeAudioSink?.flush()
+        } catch (_: Throwable) {
+        }
+    }
+
     fun onAudioRoutingChanged() {
         runOnApplicationLooper {
-            if (player is ExoPlayer) {
-                try {
-                    player
-                        .createMessage { _, _ ->
-                            try {
-                                canonicalAudioProcessor.flush()
-                            } catch (_: Throwable) {
-                            }
-                            try {
-                                activeAudioSink?.flush()
-                            } catch (_: Throwable) {
-                            }
-                        }.send()
-                } catch (_: Throwable) {
-                    try {
-                        canonicalAudioProcessor.flush()
-                    } catch (_: Throwable) {
-                    }
-                    try {
-                        activeAudioSink?.flush()
-                    } catch (_: Throwable) {
-                    }
-                }
-            } else {
-                try {
-                    canonicalAudioProcessor.flush()
-                } catch (_: Throwable) {
-                }
-                try {
-                    activeAudioSink?.flush()
-                } catch (_: Throwable) {
-                }
-            }
+            flushAudioPipelines()
             if (_playbackState.value is PlaybackState.Playing) {
                 startPositionTicker()
             }

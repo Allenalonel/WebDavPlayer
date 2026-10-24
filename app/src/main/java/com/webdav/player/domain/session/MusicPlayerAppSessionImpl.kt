@@ -691,6 +691,8 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun playTrack(track: AudioTrack) {
+        clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
         _isRestored.value = true
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
@@ -756,6 +758,8 @@ class MusicPlayerAppSessionImpl(
         startIndex: Int,
         cuePath: String?,
     ) {
+        clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
         _isRestored.value = true
         val server = _sessionState.value.activeServer ?: return
         if (virtualTracks.isEmpty()) return

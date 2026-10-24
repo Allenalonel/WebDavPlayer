@@ -28,15 +28,13 @@ class AudioFocusHandler(
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
     private val isDuckedRef = AtomicBoolean(false)
+    @get:VisibleForTesting
     val isDucked: Boolean
         get() = isDuckedRef.get()
 
     private val appSessionRef = AtomicReference<MusicPlayerAppSession?>(appSession)
-    var appSession: MusicPlayerAppSession?
+    val appSession: MusicPlayerAppSession?
         get() = appSessionRef.get()
-        set(value) {
-            appSessionRef.set(value)
-        }
 
     val resumeOnFocusGain: Boolean
         get() = appSessionRef.get()?.pausedByTransientAudioFocus ?: false
@@ -44,7 +42,7 @@ class AudioFocusHandler(
     private val audioFocusRequestRef = AtomicReference<AudioFocusRequest?>(null)
 
     fun bindAppSession(session: MusicPlayerAppSession) {
-        appSessionRef.set(session)
+        check(appSessionRef.compareAndSet(null, session)) { "appSession has already been bound" }
     }
 
     fun requestAudioFocus(): Boolean {
