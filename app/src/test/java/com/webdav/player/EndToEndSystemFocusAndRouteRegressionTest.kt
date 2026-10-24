@@ -439,7 +439,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                     queueTracks = listOf(testTrack),
                     currentTrackIndex = 0,
                     positionMs = 15_000L,
-                    cleanExit = true,
+                    cleanExit = false,
                     playbackMode = PlaybackMode.LIST_LOOP,
                     currentDirectoryPath = "/music/",
                 )
@@ -462,37 +462,34 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                 coldAppSession.restoreSession()
                 advanceUntilIdle()
 
-                // Session restored in Paused state, but underlying physical stream is not yet loaded (Idle)
+                // Session restored in Paused state with cleanExit=false, underlying physical stream is empty (Idle)
                 assertEquals(PlaybackState.Paused, coldAppSession.sessionState.value.playbackState)
                 assertEquals(PlaybackState.Idle, fakeEngine.playbackState.value)
                 assertEquals(0, fakeEngine.loadTrackCount)
+                assertTrue(coldAppSession.sessionState.value.wasKilledBySystem)
 
-                // User initiates play from cold restored state -> triggers seamless stream reloading
-                coldAppSession.play()
-                advanceUntilIdle()
-                assertEquals(PlaybackState.Playing, coldAppSession.sessionState.value.playbackState)
-                assertEquals(1, fakeEngine.loadTrackCount)
-                assertEquals(15_000L, fakeEngine.lastStartPositionMs)
-
-                // Phone call interrupts -> transient focus loss
+                // Phone call interrupts immediately upon cold start (empty physical stream)
                 focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
                 runCurrent()
                 ShadowLooper.idleMainLooper()
-                assertEquals(PlaybackState.Paused, coldAppSession.sessionState.value.playbackState)
+                assertTrue(
+                    "Cold recovery session interrupted by call must remember transient focus loss",
+                    coldAppSession.pausedByTransientAudioFocus,
+                )
 
                 // Call ends -> system grants AUDIOFOCUS_GAIN
                 focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
                 advanceUntilIdle()
                 ShadowLooper.idleMainLooper()
 
-                // Playback resumes cleanly without getting stuck in silent/idle state
+                // Playback resumes cleanly by reloading track into the empty physical stream
                 assertEquals(
-                    "Cold start recovery must seamlessly resume and maintain playback",
+                    "Cold start recovery must seamlessly reload empty physical stream and resume playback",
                     PlaybackState.Playing,
                     coldAppSession.sessionState.value.playbackState,
                 )
-                assertEquals(1, fakeEngine.playCount)
                 assertEquals(1, fakeEngine.loadTrackCount)
+                assertEquals(15_000L, fakeEngine.lastStartPositionMs)
             } finally {
                 coldAppSession.release()
                 coldSessionJob.cancel()
@@ -518,7 +515,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                     context = context,
                     playerEngine = media3Engine,
                     mediaSession = media3Engine.mediaSession,
-                    audioFocusHandler = media3Engine.audioFocusHandler,
+                    audioFocusHandler = AudioFocusHandler(context),
                     notificationProvider = WebDavNotificationProvider(context),
                     coroutineScope = hostScope,
                 )

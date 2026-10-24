@@ -337,21 +337,6 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun audioFocusTransientDuck_setsDuckedWithoutDoubleDucking() {
-        engine.loadTrack(server = testServer, track = track1)
-        engine.setVolume(1.0f)
-
-        engine.audioFocusHandler.handleFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK)
-        assertTrue(engine.audioFocusHandler.isDucked)
-        // Normalization: system handles ducking, application does not double-duck volume
-        assertEquals(1.0f, engine.getVolume(), 0.01f)
-
-        engine.audioFocusHandler.handleFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN)
-        assertFalse(engine.audioFocusHandler.isDucked)
-        assertEquals(1.0f, engine.getVolume(), 0.01f)
-    }
-
-    @Test
     fun activeServer_initiallyNull() {
         assertNull(engine.activeServer)
     }

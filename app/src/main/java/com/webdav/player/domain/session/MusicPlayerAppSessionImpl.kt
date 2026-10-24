@@ -910,7 +910,7 @@ class MusicPlayerAppSessionImpl(
             }
 
             current.isPaused -> {
-                if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null &&
+                if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null &&
                     current.activeServer != null
                 ) {
                     if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
@@ -963,7 +963,7 @@ class MusicPlayerAppSessionImpl(
         clearTransientAudioFocusFlag()
         val current = _sessionState.value
         if (current.isPaused) {
-            if (playerEngine.playbackState.value is PlaybackState.Idle && current.currentTrack != null && current.activeServer != null) {
+            if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null && current.activeServer != null) {
                 if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
                     val resumePos =
                         (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) +
@@ -1013,7 +1013,9 @@ class MusicPlayerAppSessionImpl(
     private fun pauseInternal() {
         clearPrerollIfActive()
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-        playerEngine.pause()
+        if (hasStreamLoaded) {
+            playerEngine.pause()
+        }
         coroutineScope.launch {
             if (_isRestored.value) {
                 val pos = playerEngine.currentPositionMs.value
@@ -1033,7 +1035,7 @@ class MusicPlayerAppSessionImpl(
 
     override fun onAudioFocusTransientLoss() {
         val state = _sessionState.value
-        val wasPlaying = state.isPlaying || state.isBuffering
+        val wasPlaying = state.isPlaying || state.isBuffering || (state.wasKilledBySystem && state.hasTrack)
         if (wasPlaying) {
             _pausedByTransientAudioFocus.set(true)
             pauseInternal()

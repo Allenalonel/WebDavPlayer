@@ -3,7 +3,6 @@ package com.webdav.player.data.service
 import android.content.Context
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.os.Build
 import androidx.annotation.VisibleForTesting
 import com.webdav.player.domain.session.MusicPlayerAppSession
 import java.util.concurrent.atomic.AtomicBoolean
@@ -51,45 +50,28 @@ class AudioFocusHandler(
     fun requestAudioFocus(): Boolean {
         val manager = audioManager ?: return true
 
-        val result =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val playbackAttributes =
-                    AndroidAudioAttributes
-                        .Builder()
-                        .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
-                        .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
+        val playbackAttributes =
+            AndroidAudioAttributes
+                .Builder()
+                .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
+                .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
 
-                val request =
-                    AudioFocusRequest
-                        .Builder(AudioManager.AUDIOFOCUS_GAIN)
-                        .setAudioAttributes(playbackAttributes)
-                        .setAcceptsDelayedFocusGain(false)
-                        .setWillPauseWhenDucked(false)
-                        .setOnAudioFocusChangeListener(this)
-                        .build()
-                audioFocusRequestRef.set(request)
-                manager.requestAudioFocus(request)
-            } else {
-                @Suppress("DEPRECATION")
-                manager.requestAudioFocus(
-                    this,
-                    AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN,
-                )
-            }
-
-        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        val request =
+            AudioFocusRequest
+                .Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(playbackAttributes)
+                .setAcceptsDelayedFocusGain(false)
+                .setWillPauseWhenDucked(false)
+                .setOnAudioFocusChangeListener(this)
+                .build()
+        audioFocusRequestRef.set(request)
+        return manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     fun abandonAudioFocus() {
         val manager = audioManager ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequestRef.getAndSet(null)?.let { manager.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            manager.abandonAudioFocus(this)
-        }
+        audioFocusRequestRef.getAndSet(null)?.let { manager.abandonAudioFocusRequest(it) }
         isDuckedRef.set(false)
     }
 

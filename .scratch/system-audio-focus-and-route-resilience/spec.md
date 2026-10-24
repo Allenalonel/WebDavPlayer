@@ -133,6 +133,7 @@ Status: ready-for-agent
 - 参考 `AudioFocusHandlerTest.kt`（现有的电话与焦点测试）。
 - 参考 `AudioRoutingObserverTest.kt` 与 `CanonicalResamplingAudioProcessorTest.kt`。
 - 测试一律使用已有的 `FakeMusicPlayerAppSession` 与 `FakeAudioPlayerEngine`，遵循“替换而非层叠（Replace, Don't Layer）”原则更新测试桩。
+- 测试执行基础设施：针对工程内 800+ 项 Robolectric 单元测试与端到端回归套件的内存开销，配置 `testOptions.unitTests.all { it.maxHeapSize = "2048m" }` 保障多测试套件连续执行稳定性。
 
 ## Out of Scope
 

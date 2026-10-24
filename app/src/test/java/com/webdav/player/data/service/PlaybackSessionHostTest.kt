@@ -622,7 +622,7 @@ class PlaybackSessionHostTest {
     }
 
     @Test
-    fun becomingNoisy_whenAppSessionNotBound_fallsBackToPlayerEnginePause() {
+    fun becomingNoisy_whenAppSessionNotBound_doesNotBypassSessionSeam() {
         assertEquals(0, fakeEngine.pauseCount)
 
         host.handlePlaybackStateChanged(PlaybackState.Playing)
@@ -633,7 +633,8 @@ class PlaybackSessionHostTest {
         org.robolectric.shadows.ShadowLooper
             .idleMainLooper()
 
-        assertEquals(1, fakeEngine.pauseCount)
+        // Strict ADR-0018 conformance: no Option B bypass to playerEngine
+        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test
@@ -711,7 +712,7 @@ class PlaybackSessionHostTest {
     }
 
     @Test
-    fun becomingNoisy_whenBufferingAndAppSessionNotBound_fallsBackToPlayerEnginePause() {
+    fun becomingNoisy_whenBufferingAndAppSessionNotBound_doesNotBypassSessionSeam() {
         assertEquals(0, fakeEngine.pauseCount)
 
         fakeEngine.customPlayWhenReady = true
@@ -722,11 +723,8 @@ class PlaybackSessionHostTest {
         context.sendBroadcast(noisyIntent)
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
 
-        assertEquals(1, fakeEngine.pauseCount)
-        assertFalse(fakeEngine.playWhenReady)
-        host.handlePlaybackStateChanged(fakeEngine.playbackState.value)
-        assertFalse(host.isBecomingNoisyRegistered)
-        assertFalse(host.hardwareLockManager.isWakeLockHeld)
+        // Strict ADR-0018 conformance: no Option B bypass to playerEngine
+        assertEquals(0, fakeEngine.pauseCount)
     }
 
     @Test

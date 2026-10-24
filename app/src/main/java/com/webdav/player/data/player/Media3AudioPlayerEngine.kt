@@ -29,7 +29,6 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
-import com.webdav.player.data.service.AudioFocusHandler
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
@@ -96,7 +95,6 @@ class Media3AudioPlayerEngine(
     customAudioSink: AudioSink? = null,
     customAudioRoutingObserver: AudioRoutingObserver? = null,
     customAudioRouting: AudioRouting? = null,
-    customAudioFocusHandler: AudioFocusHandler? = null,
 ) : AudioPlayerEngine {
     private val activeAudioSinkRef = AtomicReference<AudioSink?>(customAudioSink)
 
@@ -304,8 +302,6 @@ class Media3AudioPlayerEngine(
                 .build()
         }
 
-    val audioFocusHandler: AudioFocusHandler = customAudioFocusHandler ?: AudioFocusHandler(context)
-
     @Volatile
     private var currentVolume: Float = 1.0f
 
@@ -464,14 +460,12 @@ class Media3AudioPlayerEngine(
                 player.setMediaItem(mediaItem, startPositionMs)
             }
             player.prepare()
-            audioFocusHandler.requestAudioFocus()
             player.play()
         }
     }
 
     override fun play() {
         runOnApplicationLooper {
-            audioFocusHandler.requestAudioFocus()
             player.play()
         }
     }
@@ -608,13 +602,41 @@ class Media3AudioPlayerEngine(
 
     fun onAudioRoutingChanged() {
         runOnApplicationLooper {
-            try {
-                canonicalAudioProcessor.flush()
-            } catch (_: Throwable) {
+            if (player is ExoPlayer) {
+                try {
+                    player
+                        .createMessage { _, _ ->
+                            try {
+                                canonicalAudioProcessor.flush()
+                            } catch (_: Throwable) {
+                            }
+                            try {
+                                activeAudioSink?.flush()
+                            } catch (_: Throwable) {
+                            }
+                        }.send()
+                } catch (_: Throwable) {
+                    try {
+                        canonicalAudioProcessor.flush()
+                    } catch (_: Throwable) {
+                    }
+                    try {
+                        activeAudioSink?.flush()
+                    } catch (_: Throwable) {
+                    }
+                }
+            } else {
+                try {
+                    canonicalAudioProcessor.flush()
+                } catch (_: Throwable) {
+                }
+                try {
+                    activeAudioSink?.flush()
+                } catch (_: Throwable) {
+                }
             }
-            try {
-                activeAudioSink?.flush()
-            } catch (_: Throwable) {
+            if (_playbackState.value is PlaybackState.Playing) {
+                startPositionTicker()
             }
             updatePositionAndDuration()
         }
@@ -625,7 +647,6 @@ class Media3AudioPlayerEngine(
             hardwareLockManager.releaseLocks()
             commitPendingEnrichedItem(0)
             activeTrackMetadataRef.set(null)
-            audioFocusHandler.abandonAudioFocus()
             stopPositionTicker()
             player.stop()
             player.playlistMetadata = MediaMetadata.EMPTY
@@ -643,7 +664,6 @@ class Media3AudioPlayerEngine(
             pendingEnrichedItems.clear()
             activeTrackMetadataRef.set(null)
             sessionListeners.clear()
-            audioFocusHandler.abandonAudioFocus()
             stopPositionTicker()
             player.removeListener(listener)
             mediaSession.release()

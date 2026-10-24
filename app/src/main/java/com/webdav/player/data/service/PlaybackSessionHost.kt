@@ -63,12 +63,12 @@ class PlaybackSessionHost(
 
     @VisibleForTesting
     fun attachAudioRouting(audioRouting: AudioRouting?) {
-        (playerEngine as? Media3AudioPlayerEngine)?.attachAudioRouting(audioRouting)
+        audioRoutingObserver?.attachAudioRouting(audioRouting)
     }
 
     @VisibleForTesting
     fun detachAudioRouting() {
-        (playerEngine as? Media3AudioPlayerEngine)?.detachAudioRouting()
+        audioRoutingObserver?.detachAudioRouting()
     }
     constructor(
         context: Context,
@@ -102,7 +102,7 @@ class PlaybackSessionHost(
         context = context,
         playerEngine = engine,
         mediaSession = engine.mediaSession,
-        audioFocusHandler = engine.audioFocusHandler,
+        audioFocusHandler = AudioFocusHandler(context),
         notificationProvider = WebDavNotificationProvider(context),
         mediaSessionCallback = null,
         coroutineScope = coroutineScope,
@@ -149,12 +149,7 @@ class PlaybackSessionHost(
                 intent: Intent?,
             ) {
                 if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
-                    val targetSession = appSession
-                    if (targetSession != null) {
-                        targetSession.pause()
-                    } else {
-                        playerEngine.pause()
-                    }
+                    appSession?.pause()
                 }
             }
         }
@@ -396,6 +391,7 @@ class PlaybackSessionHost(
         track: AudioTrack,
         startPositionMs: Long,
     ) {
+        audioFocusHandler.requestAudioFocus()
         ensureServiceStarted()
         playerEngine.loadTrack(server, track, startPositionMs)
     }
@@ -416,6 +412,7 @@ class PlaybackSessionHost(
     }
 
     override fun play() {
+        audioFocusHandler.requestAudioFocus()
         ensureServiceStarted()
         playerEngine.play()
     }
@@ -425,6 +422,7 @@ class PlaybackSessionHost(
         cancelDemotionTimer()
         unregisterBecomingNoisyReceiver()
         hasPlaybackStarted = false
+        audioFocusHandler.abandonAudioFocus()
         playerEngine.stop()
         demoteForeground(removeNotification = true)
     }
@@ -436,6 +434,7 @@ class PlaybackSessionHost(
         stateObserverJob?.cancel()
         stateObserverJob = null
         hasPlaybackStarted = false
+        audioFocusHandler.abandonAudioFocus()
         playerEngine.release()
         attachedService = null
         isForegroundActive = false

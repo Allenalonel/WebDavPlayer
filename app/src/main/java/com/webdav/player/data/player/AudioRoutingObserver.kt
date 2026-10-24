@@ -42,32 +42,24 @@ class AudioRoutingObserver(
     val activeAudioRouting: AudioRouting?
         get() = attachedAudioRoutingRef.get()
 
-    private val deviceCallback: AudioDeviceCallback? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            object : AudioDeviceCallback() {
-                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-                    if (addedDevices?.any { it.isSink } == true) {
-                        dispatchRoutingChanged()
-                    }
-                }
-
-                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-                    if (removedDevices?.any { it.isSink } == true) {
-                        dispatchRoutingChanged()
-                    }
+    private val deviceCallback: AudioDeviceCallback =
+        object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
+                if (addedDevices?.any { it.isSink } == true) {
+                    dispatchRoutingChanged()
                 }
             }
-        } else {
-            null
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
+                if (removedDevices?.any { it.isSink } == true) {
+                    dispatchRoutingChanged()
+                }
+            }
         }
 
-    private val routingListener: AudioRouting.OnRoutingChangedListener? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            AudioRouting.OnRoutingChangedListener {
-                dispatchRoutingChanged()
-            }
-        } else {
-            null
+    private val routingListener: AudioRouting.OnRoutingChangedListener =
+        AudioRouting.OnRoutingChangedListener {
+            dispatchRoutingChanged()
         }
 
     private val transferCallback: MediaRouter2.TransferCallback? =
@@ -114,19 +106,17 @@ class AudioRoutingObserver(
         val old = attachedAudioRoutingRef.getAndSet(audioRouting)
         if (old === audioRouting) return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && routingListener != null) {
-            if (isStarted.get() && old != null) {
-                try {
-                    old.removeOnRoutingChangedListener(routingListener)
-                } catch (_: Throwable) {
-                }
+        if (isStarted.get() && old != null) {
+            try {
+                old.removeOnRoutingChangedListener(routingListener)
+            } catch (_: Throwable) {
             }
-            if (isStarted.get() && audioRouting != null) {
-                try {
-                    val handler = Handler(Looper.getMainLooper())
-                    audioRouting.addOnRoutingChangedListener(routingListener, handler)
-                } catch (_: Throwable) {
-                }
+        }
+        if (isStarted.get() && audioRouting != null) {
+            try {
+                val handler = Handler(Looper.getMainLooper())
+                audioRouting.addOnRoutingChangedListener(routingListener, handler)
+            } catch (_: Throwable) {
             }
         }
     }
@@ -139,22 +129,18 @@ class AudioRoutingObserver(
     fun start() {
         if (isStarted.compareAndSet(false, true)) {
             // Track 1: Physical hardware device callbacks
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && deviceCallback != null) {
-                try {
-                    val handler = Handler(Looper.getMainLooper())
-                    audioManager?.registerAudioDeviceCallback(deviceCallback, handler)
-                } catch (_: Throwable) {
-                }
+            try {
+                val handler = Handler(Looper.getMainLooper())
+                audioManager?.registerAudioDeviceCallback(deviceCallback, handler)
+            } catch (_: Throwable) {
             }
 
             // Track 2a: Active AudioRouting dynamic routing listener
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && routingListener != null) {
-                attachedAudioRoutingRef.get()?.let { routing ->
-                    try {
-                        val handler = Handler(Looper.getMainLooper())
-                        routing.addOnRoutingChangedListener(routingListener, handler)
-                    } catch (_: Throwable) {
-                    }
+            attachedAudioRoutingRef.get()?.let { routing ->
+                try {
+                    val handler = Handler(Looper.getMainLooper())
+                    routing.addOnRoutingChangedListener(routingListener, handler)
+                } catch (_: Throwable) {
                 }
             }
 
@@ -175,20 +161,16 @@ class AudioRoutingObserver(
     fun stop() {
         if (isStarted.compareAndSet(true, false)) {
             // Track 1: Physical hardware device callbacks
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && deviceCallback != null) {
-                try {
-                    audioManager?.unregisterAudioDeviceCallback(deviceCallback)
-                } catch (_: Throwable) {
-                }
+            try {
+                audioManager?.unregisterAudioDeviceCallback(deviceCallback)
+            } catch (_: Throwable) {
             }
 
             // Track 2a: Active AudioRouting listener
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && routingListener != null) {
-                attachedAudioRoutingRef.get()?.let { routing ->
-                    try {
-                        routing.removeOnRoutingChangedListener(routingListener)
-                    } catch (_: Throwable) {
-                    }
+            attachedAudioRoutingRef.get()?.let { routing ->
+                try {
+                    routing.removeOnRoutingChangedListener(routingListener)
+                } catch (_: Throwable) {
                 }
             }
 
