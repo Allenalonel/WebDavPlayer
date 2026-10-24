@@ -1,6 +1,6 @@
 # Spec: 系统音频焦点仲裁、全流转防外放与动态路由自愈 (System Audio Focus Arbitration, Full-Lifecycle Becoming Noisy Guard & Dynamic Route Resilience)
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 
