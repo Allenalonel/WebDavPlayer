@@ -99,6 +99,21 @@ class CanonicalResamplingAudioProcessorTest {
     }
 
     @Test
+    fun configure_switchingFrom16BitResamplingToFloatPCM_safelyResetsWithoutThrowingToSonic() {
+        // 1. First active with 16-bit sub-44.1kHz (instantiates sonicProcessor)
+        val format16Bit = AudioFormat(22050, 2, C.ENCODING_PCM_16BIT)
+        val out16Bit = processor.configure(format16Bit)
+        assertTrue(processor.isActive)
+        assertEquals(44100, out16Bit.sampleRate)
+
+        // 2. Next track is Float PCM (must not throw UnhandledAudioFormatException inside sonicProcessor)
+        val formatFloat = AudioFormat(22050, 2, C.ENCODING_PCM_FLOAT)
+        val outFloat = processor.configure(formatFloat)
+        assertFalse(processor.isActive)
+        assertEquals(AudioFormat.NOT_SET, outFloat)
+    }
+
+    @Test
     fun audioDataProcessing_with22050HzPCM_producesResampledPCMAt44100Hz() {
         val inputFormat = AudioFormat(22050, 2, C.ENCODING_PCM_16BIT)
         processor.configure(inputFormat)

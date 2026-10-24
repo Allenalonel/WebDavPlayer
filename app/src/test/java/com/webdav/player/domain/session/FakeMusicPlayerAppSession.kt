@@ -233,7 +233,7 @@ class FakeMusicPlayerAppSession(
 
     override fun onAudioFocusTransientLoss() {
         audioFocusTransientLossCount++
-        val wasPlaying = _sessionState.value.isPlaying || _sessionState.value.isBuffering || (_sessionState.value.wasKilledBySystem && _sessionState.value.hasTrack)
+        val wasPlaying = _sessionState.value.isPlaying || _sessionState.value.isBuffering
         if (wasPlaying) {
             pausedByTransientAudioFocusInternal = true
             pauseCount++

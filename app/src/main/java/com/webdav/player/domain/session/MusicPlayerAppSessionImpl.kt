@@ -506,6 +506,8 @@ class MusicPlayerAppSessionImpl(
         initialMetadata: Map<String, TrackMetadata>,
         virtualTracksByAudioPath: Map<String, List<VirtualTrack>>,
     ) {
+        clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
         _isRestored.value = true
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
@@ -1035,7 +1037,7 @@ class MusicPlayerAppSessionImpl(
 
     override fun onAudioFocusTransientLoss() {
         val state = _sessionState.value
-        val wasPlaying = state.isPlaying || state.isBuffering || (state.wasKilledBySystem && state.hasTrack)
+        val wasPlaying = state.isPlaying || state.isBuffering
         if (wasPlaying) {
             _pausedByTransientAudioFocus.set(true)
             pauseInternal()

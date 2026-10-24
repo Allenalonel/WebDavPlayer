@@ -50,13 +50,7 @@ class CanonicalResamplingAudioProcessor(
             active = false
             duplicateMonoToStereo = false
             pendingOutputAudioFormat = AudioFormat.NOT_SET
-            sonicProcessor?.let {
-                try {
-                    it.setOutputSampleRateHz(SonicAudioProcessor.SAMPLE_RATE_NO_CHANGE)
-                    it.configure(inputAudioFormat)
-                } catch (_: Throwable) {
-                }
-            }
+            sonicProcessor?.reset()
             return AudioFormat.NOT_SET
         }
 

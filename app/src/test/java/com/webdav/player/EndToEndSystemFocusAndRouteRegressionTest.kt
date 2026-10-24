@@ -468,7 +468,11 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                 assertEquals(0, fakeEngine.loadTrackCount)
                 assertTrue(coldAppSession.sessionState.value.wasKilledBySystem)
 
-                // Phone call interrupts immediately upon cold start (empty physical stream)
+                // User initiates play from cold start before phone call interrupts
+                coldAppSession.play()
+                advanceUntilIdle()
+
+                // Phone call interrupts -> transient focus loss
                 focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
                 runCurrent()
                 ShadowLooper.idleMainLooper()
@@ -490,6 +494,82 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                 )
                 assertEquals(1, fakeEngine.loadTrackCount)
                 assertEquals(15_000L, fakeEngine.lastStartPositionMs)
+            } finally {
+                coldAppSession.release()
+                coldSessionJob.cancel()
+            }
+        }
+
+    @Test
+    fun idleRestoredSession_incomingCallEnds_doesNotTriggerGhostResumption() =
+        runTest(testDispatcher) {
+            val testTrack =
+                AudioTrack(
+                    id = "1:/music/Track01.flac",
+                    serverId = testServer.id,
+                    remotePath = "/music/Track01.flac",
+                    title = "Track01.flac",
+                    format = AudioFormat.FLAC,
+                    size = 45_000_000L,
+                )
+
+            val savedSessionData =
+                PlaybackSessionData(
+                    activeServerId = testServer.id,
+                    queueTracks = listOf(testTrack),
+                    currentTrackIndex = 0,
+                    positionMs = 15_000L,
+                    cleanExit = false,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                    currentDirectoryPath = "/music/",
+                )
+            sessionStore.saveSession(savedSessionData)
+
+            val coldSessionJob = SupervisorJob()
+            val coldSessionScope = CoroutineScope(testDispatcher + coldSessionJob)
+            val coldAppSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = host,
+                    serverRepository = serverRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = coldSessionScope,
+                    progressDispatcher = testDispatcher,
+                )
+
+            val focusHandler = AudioFocusHandler(context, appSession = coldAppSession)
+            try {
+                coldAppSession.restoreSession()
+                advanceUntilIdle()
+
+                // Session restored in Paused state, user does NOT tap play
+                assertEquals(PlaybackState.Paused, coldAppSession.sessionState.value.playbackState)
+                assertEquals(PlaybackState.Idle, fakeEngine.playbackState.value)
+                assertEquals(0, fakeEngine.loadTrackCount)
+
+                // Phone call interrupts idle restored session
+                focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
+                runCurrent()
+                ShadowLooper.idleMainLooper()
+
+                // Must NOT mark as paused by transient focus loss because session was idle/paused
+                assertFalse(
+                    "Idle restored session must not record transient focus loss without active playback",
+                    coldAppSession.pausedByTransientAudioFocus,
+                )
+
+                // Call ends -> AUDIOFOCUS_GAIN
+                focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
+                advanceUntilIdle()
+                ShadowLooper.idleMainLooper()
+
+                // Ghost resumption strictly blocked: session remains Paused, no track loaded
+                assertEquals(
+                    "Session must strictly remain Paused after call ends without spontaneous playback",
+                    PlaybackState.Paused,
+                    coldAppSession.sessionState.value.playbackState,
+                )
+                assertEquals(0, fakeEngine.loadTrackCount)
+                assertEquals(0, fakeEngine.playCount)
             } finally {
                 coldAppSession.release()
                 coldSessionJob.cancel()

@@ -2509,6 +2509,51 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun audioFocus_ghostResumptionGuard_playDirectoryTrackClearsFlag() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            val track1 =
+                AudioTrack(
+                    id = "track-1",
+                    serverId = 1L,
+                    remotePath = "/music/1.mp3",
+                    title = "Song 1",
+                    format = AudioFormat.MP3,
+                    durationMs = 120_000L,
+                    size = 1024L,
+                )
+            val dir =
+                RemoteDirectory(
+                    path = "/music/",
+                    name = "music",
+                    files =
+                        listOf(
+                            RemoteFile(name = "1.mp3", path = "/music/1.mp3"),
+                            RemoteFile(name = "2.mp3", path = "/music/2.mp3"),
+                        ),
+                )
+            session.playTrack(track1)
+            advanceUntilIdle()
+            fakeEngine._playbackState.value = PlaybackState.Playing
+            advanceUntilIdle()
+
+            // Call interrupts -> transient loss sets flag
+            session.onAudioFocusTransientLoss()
+            advanceUntilIdle()
+            assertTrue(session.pausedByTransientAudioFocus)
+
+            // User starts playing a new directory track during call
+            session.playDirectoryTrack(dir, RemoteFile(name = "2.mp3", path = "/music/2.mp3"))
+            advanceUntilIdle()
+
+            // User active action MUST clear the transient resumption flag
+            assertFalse(
+                "User active playDirectoryTrack must clear transient resumption flag",
+                session.pausedByTransientAudioFocus,
+            )
+        }
+
+    @Test
     fun audioFocus_gain_resumesPlayback_whenFlagIsSet() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)
