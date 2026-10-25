@@ -51,6 +51,7 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
 
     var updateTrackMetadataCalls = 0
     var lastUpdatedTrack: AudioTrack? = null
+    var onAudioRoutingChangedCount = 0
 
     override fun loadTrack(
         server: WebDavServer,
@@ -134,4 +135,8 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     }
 
     override fun getVolume(): Float = currentVolume
+
+    override fun onAudioRoutingChanged() {
+        onAudioRoutingChangedCount++
+    }
 }

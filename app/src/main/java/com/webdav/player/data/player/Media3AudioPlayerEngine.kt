@@ -560,7 +560,7 @@ class Media3AudioPlayerEngine(
         }
     }
 
-    fun onAudioRoutingChanged() {
+    override fun onAudioRoutingChanged() {
         runOnApplicationLooper {
             flushAudioPipelines()
             if (_playbackState.value is PlaybackState.Playing) {

@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
-import android.media.AudioRouting
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
@@ -18,7 +17,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
-import com.webdav.player.data.player.AudioRoutingObserver
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.WebDavMediaSourceAdapter
@@ -31,7 +29,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
@@ -97,22 +94,10 @@ class PlaybackSessionHost(
     val appSession: MusicPlayerAppSession?
         get() = mediaSessionCallback?.appSession
 
-    val audioRoutingObserver: AudioRoutingObserver?
-        get() = (playerEngine as? Media3AudioPlayerEngine)?.audioRoutingObserver
-
-    fun onAudioRoutingChanged() {
-        (playerEngine as? Media3AudioPlayerEngine)?.onAudioRoutingChanged()
+    override fun onAudioRoutingChanged() {
+        playerEngine.onAudioRoutingChanged()
     }
 
-    @VisibleForTesting
-    fun attachAudioRouting(audioRouting: AudioRouting?) {
-        audioRoutingObserver?.attachAudioRouting(audioRouting)
-    }
-
-    @VisibleForTesting
-    fun detachAudioRouting() {
-        audioRoutingObserver?.detachAudioRouting()
-    }
     constructor(
         context: Context,
         mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),

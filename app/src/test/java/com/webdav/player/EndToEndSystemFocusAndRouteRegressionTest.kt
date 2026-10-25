@@ -12,9 +12,9 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.media3.session.MediaSession
 import androidx.test.core.app.ApplicationProvider
-import com.webdav.player.data.service.AudioFocusHandler
 import com.webdav.player.data.player.CanonicalResamplingAudioProcessor
 import com.webdav.player.data.player.Media3AudioPlayerEngine
+import com.webdav.player.data.service.AudioFocusHandler
 import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.data.service.WebDavMediaService
 import com.webdav.player.data.service.WebDavNotificationProvider
@@ -677,6 +677,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             host.onAudioRoutingChanged()
             runCurrent()
             ShadowLooper.idleMainLooper()
+            assertEquals(1, fakeEngine.onAudioRoutingChangedCount)
 
             // 6. Call ends -> AUDIOFOCUS_GAIN
             host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)

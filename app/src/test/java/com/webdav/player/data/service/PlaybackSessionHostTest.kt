@@ -3,10 +3,7 @@ package com.webdav.player.data.service
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
-import android.media.AudioDeviceInfo
 import android.media.AudioManager
-import android.media.AudioRouting
-import android.os.Handler
 import android.view.KeyEvent
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -681,7 +678,8 @@ class PlaybackSessionHostTest {
         // Send ACTION_AUDIO_BECOMING_NOISY broadcast
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         context.sendBroadcast(noisyIntent)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         // Assert appSession.pause() was invoked
         assertEquals(1, appSession.pauseCount)
@@ -720,7 +718,8 @@ class PlaybackSessionHostTest {
         // System dispatches ACTION_AUDIO_BECOMING_NOISY
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         context.sendBroadcast(noisyIntent)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         // AppSession receives pause
         assertEquals(1, appSession.pauseCount)
@@ -744,7 +743,8 @@ class PlaybackSessionHostTest {
 
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         context.sendBroadcast(noisyIntent)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        org.robolectric.shadows.ShadowLooper
+            .idleMainLooper()
 
         // Strict ADR-0018 conformance: no Option B bypass to playerEngine
         assertEquals(0, fakeEngine.pauseCount)
@@ -752,26 +752,10 @@ class PlaybackSessionHostTest {
 
     @Test
     fun onAudioRoutingChanged_delegatesToUnderlyingEngineSafely() {
-        assertNotNull(host)
-        // Calling onAudioRoutingChanged executes safely without error
+        assertEquals(0, fakeEngine.onAudioRoutingChangedCount)
+
         host.onAudioRoutingChanged()
-    }
 
-    @Test
-    fun attachAndDetachAudioRouting_delegatesSafely() {
-        val fakeRouting =
-            object : AudioRouting {
-                override fun addOnRoutingChangedListener(
-                    listener: AudioRouting.OnRoutingChangedListener,
-                    handler: Handler?,
-                ) {}
-                override fun removeOnRoutingChangedListener(listener: AudioRouting.OnRoutingChangedListener) {}
-                override fun getRoutedDevice(): AudioDeviceInfo? = null
-                override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = true
-                override fun getPreferredDevice(): AudioDeviceInfo? = null
-            }
-
-        host.attachAudioRouting(fakeRouting)
-        host.detachAudioRouting()
+        assertEquals(1, fakeEngine.onAudioRoutingChangedCount)
     }
 }
