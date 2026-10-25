@@ -1,8 +1,6 @@
 package com.webdav.player.data.player
 
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.media.AudioRouting
 import android.net.Uri
 import android.os.Handler
@@ -27,8 +25,6 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ExtractorsFactory
-import androidx.media3.session.MediaSession
-import com.webdav.player.MainActivity
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
@@ -85,7 +81,6 @@ class Media3AudioPlayerEngine(
     private val context: Context,
     val mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
     customPlayer: Player? = null,
-    customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
     val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
@@ -213,19 +208,19 @@ class Media3AudioPlayerEngine(
             }
 
             override fun seekToNext() {
-                onSkipToNext()
+                // Handled at session layer via WebDavMediaSessionCallback
             }
 
             override fun seekToNextMediaItem() {
-                onSkipToNext()
+                // Handled at session layer via WebDavMediaSessionCallback
             }
 
             override fun seekToPrevious() {
-                onSkipToPrevious()
+                // Handled at session layer via WebDavMediaSessionCallback
             }
 
             override fun seekToPreviousMediaItem() {
-                onSkipToPrevious()
+                // Handled at session layer via WebDavMediaSessionCallback
             }
 
             override fun isCommandAvailable(command: Int): Boolean =
@@ -253,51 +248,6 @@ class Media3AudioPlayerEngine(
                 }
                 return commands.build()
             }
-        }
-
-    var sessionCallback: MediaSession.Callback? = null
-    var onSkipToNext: () -> Unit = {}
-    var onSkipToPrevious: () -> Unit = {}
-
-    private val internalSessionCallback =
-        object : MediaSession.Callback {
-            override fun onMediaButtonEvent(
-                session: MediaSession,
-                controllerInfo: MediaSession.ControllerInfo,
-                intent: Intent,
-            ): Boolean =
-                sessionCallback?.onMediaButtonEvent(session, controllerInfo, intent)
-                    ?: super.onMediaButtonEvent(session, controllerInfo, intent)
-
-            @Suppress("DEPRECATION")
-            @Deprecated("Deprecated in Java")
-            override fun onPlayerCommandRequest(
-                session: MediaSession,
-                controller: MediaSession.ControllerInfo,
-                playerCommand: Int,
-            ): Int =
-                sessionCallback?.onPlayerCommandRequest(session, controller, playerCommand)
-                    ?: super.onPlayerCommandRequest(session, controller, playerCommand)
-        }
-
-    val mediaSession: MediaSession =
-        customMediaSession ?: run {
-            val sessionActivity =
-                PendingIntent.getActivity(
-                    context,
-                    0,
-                    Intent(context, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    },
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                )
-
-            MediaSession
-                .Builder(context, sessionPlayer)
-                .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
-                .setSessionActivity(sessionActivity)
-                .setCallback(internalSessionCallback)
-                .build()
         }
 
     @Volatile
@@ -644,7 +594,6 @@ class Media3AudioPlayerEngine(
             sessionListeners.clear()
             stopPositionTicker()
             player.removeListener(listener)
-            mediaSession.release()
             player.release()
         }
     }

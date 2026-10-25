@@ -33,7 +33,9 @@ class WebDavMediaService : MediaSessionService() {
         startForegroundSafely(notification, host.notificationProvider.notificationId)
         host.attachService(this)
         setMediaNotificationProvider(host.notificationProvider)
-        addSession(host.mediaSession)
+        if (!isSessionAdded(host.mediaSession)) {
+            addSession(host.mediaSession)
+        }
     }
 
     fun startForegroundSafely(
@@ -93,10 +95,16 @@ class WebDavMediaService : MediaSessionService() {
         }
     }
 
+    fun unregisterSession(session: MediaSession) {
+        if (isSessionAdded(session)) {
+            removeSession(session)
+        }
+    }
+
     override fun onDestroy() {
         sessionHost?.let { host ->
             host.detachService(this)
-            removeSession(host.mediaSession)
+            unregisterSession(host.mediaSession)
         }
         sessionHost = null
         super.onDestroy()

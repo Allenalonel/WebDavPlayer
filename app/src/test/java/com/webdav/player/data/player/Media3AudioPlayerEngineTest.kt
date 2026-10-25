@@ -7,6 +7,7 @@ import android.os.Handler
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
@@ -15,13 +16,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.test.core.app.ApplicationProvider
-import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
-import com.webdav.player.domain.session.FakeMusicPlayerAppSession
-import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -91,19 +89,6 @@ class Media3AudioPlayerEngineTest {
             format = AudioFormat.WMA,
             size = 4000L,
         )
-
-    private class RecordingAppSession : MusicPlayerAppSession by FakeMusicPlayerAppSession() {
-        var skipToNextCount = 0
-        var skipToPreviousCount = 0
-
-        override fun skipToNext() {
-            skipToNextCount++
-        }
-
-        override fun skipToPrevious() {
-            skipToPreviousCount++
-        }
-    }
 
     @Before
     fun setUp() {
@@ -233,11 +218,17 @@ class Media3AudioPlayerEngineTest {
         val originalItem = engine.player.getMediaItemAt(0)
         assertEquals(5000L, engine.currentPositionMs.value)
 
+        var observedSessionMeta: MediaMetadata? = null
+        val listener =
+            object : Player.Listener {
+                override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                    observedSessionMeta = mediaMetadata
+                }
+            }
+        engine.sessionPlayer.addListener(listener)
+
         val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist")
         engine.updateTrackMetadata(updated)
-
-        // Verify mediaSession is active and intact
-        assertNotNull(engine.mediaSession)
 
         // Active playing MediaItem is NOT replaced to avoid decoder destruction / rebuffering glitches
         val currentItem = engine.player.getMediaItemAt(0)
@@ -248,25 +239,20 @@ class Media3AudioPlayerEngineTest {
         assertEquals(5000L, engine.currentPositionMs.value)
         assertTrue(engine.playbackState.value is PlaybackState.Playing || engine.playbackState.value is PlaybackState.Buffering)
 
-        // Playlist and mediaSession mediaMetadata must be updated non-destructively for external presentation flows
+        // Playlist and sessionPlayer mediaMetadata must be updated non-destructively for external presentation flows
         assertEquals(
             "Updated Song Title",
-            engine.mediaSession.player.mediaMetadata.title
+            engine.sessionPlayer.mediaMetadata.title
                 ?.toString(),
         )
         assertEquals(
             "Updated Artist",
-            engine.mediaSession.player.mediaMetadata.artist
+            engine.sessionPlayer.mediaMetadata.artist
                 ?.toString(),
         )
-
-        // Notification constructed from mediaSession must reflect updated metadata
-        val notificationProvider =
-            com.webdav.player.data.service
-                .WebDavNotificationProvider(context)
-        val notification = notificationProvider.buildNotification(engine.mediaSession, engine.playbackState.value)
-        assertEquals("Updated Song Title", notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
-        assertEquals("Updated Artist", notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
+        assertEquals("Updated Song Title", observedSessionMeta?.title?.toString())
+        assertEquals("Updated Artist", observedSessionMeta?.artist?.toString())
+        engine.sessionPlayer.removeListener(listener)
     }
 
     @Test
@@ -439,25 +425,34 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun sessionCallback_andSessionPlayerDelegatesSkip() {
-        val appSession = RecordingAppSession()
-        engine.sessionCallback = WebDavMediaSessionCallback(appSession)
-        engine.onSkipToNext = { appSession.skipToNext() }
-        engine.onSkipToPrevious = { appSession.skipToPrevious() }
-
-        engine.loadTrack(server = testServer, track = track1)
+    fun sessionPlayer_seekToNextAndPrevious_areNoOpsAndDoNotMutateUnderlyingPlayer() {
+        engine.loadTrack(
+            server = testServer,
+            track = track1,
+            startPositionMs = 4000L,
+        )
+        engine.prerollTrack(testServer, track2)
         org.robolectric.shadows.ShadowLooper
             .idleMainLooper()
 
-        engine.sessionPlayer.seekToNext()
-        assertEquals(1, appSession.skipToNextCount)
+        assertEquals(2, engine.player.mediaItemCount)
+        assertEquals(0, engine.player.currentMediaItemIndex)
+        assertEquals(4000L, engine.currentPositionMs.value)
 
+        engine.sessionPlayer.seekToNext()
+        engine.sessionPlayer.seekToNextMediaItem()
         engine.sessionPlayer.seekToPrevious()
-        assertEquals(1, appSession.skipToPreviousCount)
+        engine.sessionPlayer.seekToPreviousMediaItem()
+
+        assertEquals(0, engine.player.currentMediaItemIndex)
+        assertEquals(4000L, engine.currentPositionMs.value)
     }
 
     @Test
-    fun virtualTrackSingleItem_enablesNextPreviousCommands_andDelegatesToAppSession() {
+    fun virtualTrackSingleItem_enablesNextPreviousCommandsOnSessionPlayer() {
+        assertFalse(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+        assertFalse(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+
         engine.loadTrack(
             server = testServer,
             track = track1,
@@ -465,22 +460,12 @@ class Media3AudioPlayerEngineTest {
 
         // With 1 item, standard ExoPlayer disables SEEK_TO_NEXT_MEDIA_ITEM / SEEK_TO_PREVIOUS_MEDIA_ITEM
         // sessionPlayer must expose them as available so notification / MediaSession controls remain enabled
+        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
         assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
         assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
         assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
         assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
-
-        val appSession = RecordingAppSession()
-        engine.sessionCallback = WebDavMediaSessionCallback(appSession)
-        engine.onSkipToNext = { appSession.skipToNext() }
-        engine.onSkipToPrevious = { appSession.skipToPrevious() }
-
-        // Invoking seekToNextMediaItem / seekToPreviousMediaItem on sessionPlayer (as MediaSession does)
-        engine.sessionPlayer.seekToNextMediaItem()
-        assertEquals(1, appSession.skipToNextCount)
-
-        engine.sessionPlayer.seekToPreviousMediaItem()
-        assertEquals(1, appSession.skipToPreviousCount)
     }
 
     @Test
@@ -635,30 +620,16 @@ class Media3AudioPlayerEngineTest {
                 engine.playbackState.value is PlaybackState.Buffering,
         )
 
-        // MediaSession player mediaMetadata is updated
+        // sessionPlayer mediaMetadata is updated
         assertEquals(
             "Enriched Stream Title",
-            engine.mediaSession.player.mediaMetadata.title
+            engine.sessionPlayer.mediaMetadata.title
                 ?.toString(),
         )
         assertEquals(
             "Enriched Artist",
-            engine.mediaSession.player.mediaMetadata.artist
+            engine.sessionPlayer.mediaMetadata.artist
                 ?.toString(),
-        )
-
-        // Notification constructed from mediaSession reflects updated metadata
-        val notificationProvider =
-            com.webdav.player.data.service
-                .WebDavNotificationProvider(context)
-        val notification = notificationProvider.buildNotification(engine.mediaSession, engine.playbackState.value)
-        assertEquals(
-            "Enriched Stream Title",
-            notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString(),
-        )
-        assertEquals(
-            "Enriched Artist",
-            notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString(),
         )
     }
 

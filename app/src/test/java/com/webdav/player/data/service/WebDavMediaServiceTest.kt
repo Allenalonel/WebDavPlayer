@@ -58,15 +58,45 @@ class WebDavMediaServiceTest {
     @After
     fun tearDown() {
         serviceController.destroy()
+        PlaybackSessionHost.currentInstanceForTesting()?.release()
         PlaybackSessionHost.resetForTesting()
     }
 
     @Test
     fun onCreate_addsSessionAndSetsNotificationProvider() {
+        val host = PlaybackSessionHost.getInstance(app)
         assertNotNull(service.notificationProvider)
-        // Service owns its mediaSession and playerEngine cohesively without app downcast
+        // Service obtains and registers its mediaSession and playerEngine from host cohesively
         assertNotNull(service.mediaSession)
+        assertEquals(host.mediaSession, service.mediaSession)
+        assertTrue(service.sessions.contains(host.mediaSession))
         assertNotNull(service.playerEngine)
+    }
+
+    @Test
+    fun onDestroy_detachesServiceAndRemovesSessionFromService() {
+        val host = PlaybackSessionHost.getInstance(app)
+        assertEquals(service, host.attachedService)
+        assertTrue(service.sessions.contains(host.mediaSession))
+
+        service.onDestroy()
+
+        assertFalse(service.sessions.contains(host.mediaSession))
+        assertEquals(null, host.attachedService)
+        assertFalse(host.isForegroundActive)
+    }
+
+    @Test
+    fun onDestroy_afterHostRelease_completesGracefullyWithoutException() {
+        val host = PlaybackSessionHost.getInstance(app)
+        assertTrue(service.isSessionAdded(host.mediaSession))
+
+        host.release()
+        assertFalse(service.isSessionAdded(host.mediaSession))
+
+        // Subsequent service destruction must not throw IllegalArgumentException("session not found")
+        service.onDestroy()
+        assertEquals(null, host.attachedService)
     }
 
     @Test

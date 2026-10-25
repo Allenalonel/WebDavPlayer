@@ -586,8 +586,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             val realHost =
                 PlaybackSessionHost(
                     context = context,
-                    playerEngine = media3Engine,
-                    mediaSession = media3Engine.mediaSession,
+                    engine = media3Engine,
                     audioFocusHandler = AudioFocusHandler(context),
                     notificationProvider = WebDavNotificationProvider(context),
                     coroutineScope = hostScope,

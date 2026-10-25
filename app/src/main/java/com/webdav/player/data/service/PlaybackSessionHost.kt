@@ -2,20 +2,22 @@ package com.webdav.player.data.service
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ServiceInfo
 import android.media.AudioManager
 import android.media.AudioRouting
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
+import com.webdav.player.MainActivity
 import com.webdav.player.data.player.AudioRoutingObserver
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
@@ -36,15 +38,61 @@ import kotlinx.coroutines.launch
 class PlaybackSessionHost(
     val context: Context,
     val playerEngine: AudioPlayerEngine,
-    val mediaSession: MediaSession,
-    val audioFocusHandler: AudioFocusHandler,
+    mediaSession: MediaSession? = null,
+    val audioFocusHandler: AudioFocusHandler = AudioFocusHandler(context),
     val notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
     mediaSessionCallback: WebDavMediaSessionCallback? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
+    sessionPlayer: Player? = null,
 ) : AudioPlayerEngine by playerEngine {
     var mediaSessionCallback: WebDavMediaSessionCallback? = mediaSessionCallback
         private set
+
+    private val internalSessionCallback =
+        object : MediaSession.Callback {
+            override fun onMediaButtonEvent(
+                session: MediaSession,
+                controllerInfo: MediaSession.ControllerInfo,
+                intent: Intent,
+            ): Boolean =
+                this@PlaybackSessionHost.mediaSessionCallback?.onMediaButtonEvent(session, controllerInfo, intent)
+                    ?: super.onMediaButtonEvent(session, controllerInfo, intent)
+
+            @Suppress("DEPRECATION")
+            @Deprecated("Deprecated in Java")
+            override fun onPlayerCommandRequest(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo,
+                playerCommand: Int,
+            ): Int =
+                this@PlaybackSessionHost.mediaSessionCallback?.onPlayerCommandRequest(session, controller, playerCommand)
+                    ?: super.onPlayerCommandRequest(session, controller, playerCommand)
+        }
+
+    val mediaSession: MediaSession =
+        mediaSession ?: run {
+            val targetPlayer =
+                requireNotNull(sessionPlayer) {
+                    "Either mediaSession or sessionPlayer must be provided to PlaybackSessionHost"
+                }
+            val sessionActivity =
+                PendingIntent.getActivity(
+                    context,
+                    0,
+                    Intent(context, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+
+            MediaSession
+                .Builder(context, targetPlayer)
+                .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
+                .setSessionActivity(sessionActivity)
+                .setCallback(internalSessionCallback)
+                .build()
+        }
 
     val appSession: MusicPlayerAppSession?
         get() = mediaSessionCallback?.appSession
@@ -82,32 +130,29 @@ class PlaybackSessionHost(
         demotionTimeoutMs = demotionTimeoutMs,
     )
 
-    private constructor(
+    constructor(
         context: Context,
         engine: Media3AudioPlayerEngine,
-        coroutineScope: CoroutineScope,
+        audioFocusHandler: AudioFocusHandler = AudioFocusHandler(context),
+        notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
+        coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
         demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
     ) : this(
         context = context,
         playerEngine = engine,
-        mediaSession = engine.mediaSession,
-        audioFocusHandler = AudioFocusHandler(context),
-        notificationProvider = WebDavNotificationProvider(context),
+        mediaSession = null,
+        audioFocusHandler = audioFocusHandler,
+        notificationProvider = notificationProvider,
         mediaSessionCallback = null,
         coroutineScope = coroutineScope,
         demotionTimeoutMs = demotionTimeoutMs,
+        sessionPlayer = engine.sessionPlayer,
     )
 
     fun bindAppSession(session: MusicPlayerAppSession) {
         check(mediaSessionCallback == null) { "appSession has already been bound" }
         audioFocusHandler.bindAppSession(session)
-        val callback = WebDavMediaSessionCallback(appSession = session)
-        this.mediaSessionCallback = callback
-        (playerEngine as? Media3AudioPlayerEngine)?.let { engine ->
-            engine.sessionCallback = callback
-            engine.onSkipToNext = { session.skipToNext() }
-            engine.onSkipToPrevious = { session.skipToPrevious() }
-        }
+        this.mediaSessionCallback = WebDavMediaSessionCallback(appSession = session)
     }
 
     var attachedService: WebDavMediaService? = null
@@ -166,13 +211,6 @@ class PlaybackSessionHost(
 
     init {
         observePlaybackState()
-        mediaSessionCallback?.let { callback ->
-            (playerEngine as? Media3AudioPlayerEngine)?.let { engine ->
-                engine.sessionCallback = callback
-                engine.onSkipToNext = { callback.appSession.skipToNext() }
-                engine.onSkipToPrevious = { callback.appSession.skipToPrevious() }
-            }
-        }
     }
 
     private fun observePlaybackState() {
@@ -413,6 +451,11 @@ class PlaybackSessionHost(
         stateObserverJob = null
         hasPlaybackStarted = false
         audioFocusHandler.abandonAudioFocus()
+        attachedService?.unregisterSession(mediaSession)
+        try {
+            mediaSession.release()
+        } catch (_: Throwable) {
+        }
         playerEngine.release()
         attachedService = null
         isForegroundActive = false

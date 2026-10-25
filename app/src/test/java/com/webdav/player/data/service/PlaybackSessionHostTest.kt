@@ -11,7 +11,6 @@ import android.view.KeyEvent
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
@@ -40,7 +39,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 
-@OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class PlaybackSessionHostTest {
     private val testDispatcher = StandardTestDispatcher()
@@ -49,7 +49,6 @@ class PlaybackSessionHostTest {
     private lateinit var context: Context
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var exoPlayer: Player
-    private lateinit var mediaSession: MediaSession
     private lateinit var host: PlaybackSessionHost
     private lateinit var serviceController: ServiceController<WebDavMediaService>
     private lateinit var service: WebDavMediaService
@@ -82,23 +81,14 @@ class PlaybackSessionHostTest {
 
         fakeEngine = FakeAudioPlayerEngine()
         exoPlayer = ExoPlayer.Builder(context).build()
-        val fakeSession =
-            com.webdav.player.domain.session
-                .FakeMusicPlayerAppSession()
-        mediaSession =
-            MediaSession
-                .Builder(context, exoPlayer)
-                .setId("test_session_${System.currentTimeMillis()}")
-                .setCallback(WebDavMediaSessionCallback(fakeSession))
-                .build()
 
         host =
             PlaybackSessionHost(
                 context = context,
                 playerEngine = fakeEngine,
-                mediaSession = mediaSession,
                 audioFocusHandler = AudioFocusHandler(context),
                 coroutineScope = testScope,
+                sessionPlayer = exoPlayer,
             )
         PlaybackSessionHost.setInstanceForTesting(host)
 
@@ -114,7 +104,6 @@ class PlaybackSessionHostTest {
             serviceController.destroy()
         }
         host.release()
-        mediaSession.release()
         exoPlayer.release()
         PlaybackSessionHost.setInstanceForTesting(previousHost)
         Dispatchers.resetMain()
@@ -473,7 +462,8 @@ class PlaybackSessionHostTest {
         val appSession =
             com.webdav.player.domain.session
                 .FakeMusicPlayerAppSession()
-        val callback = WebDavMediaSessionCallback(appSession)
+        host.bindAppSession(appSession)
+        val callback = requireNotNull(host.mediaSessionCallback)
 
         val playIntent =
             Intent(Intent.ACTION_MEDIA_BUTTON).apply {
@@ -502,6 +492,74 @@ class PlaybackSessionHostTest {
             }
         assertTrue(callback.handleMediaButtonIntent(prevIntent))
         assertEquals(1, appSession.skipPreviousCount)
+    }
+
+    @Test
+    fun host_assemblesMediaSessionDirectly_andRoutesCommandsWithoutEngineCallbacks() {
+        val media3Engine =
+            com.webdav.player.data.player.Media3AudioPlayerEngine(
+                context = context,
+                coroutineScope = testScope,
+            )
+        val standaloneHost =
+            PlaybackSessionHost(
+                context = context,
+                engine = media3Engine,
+                audioFocusHandler = AudioFocusHandler(context),
+                coroutineScope = testScope,
+            )
+        try {
+            assertNotNull(standaloneHost.mediaSession)
+            assertEquals(media3Engine.sessionPlayer, standaloneHost.mediaSession.player)
+
+            val appSession =
+                com.webdav.player.domain.session
+                    .FakeMusicPlayerAppSession()
+            standaloneHost.bindAppSession(appSession)
+            assertEquals(appSession, standaloneHost.appSession)
+
+            // Verify non-disruptive metadata enrichment flows into host's MediaSession and Notification
+            standaloneHost.loadTrack(testServer, testTrack, startPositionMs = 5000L)
+            org.robolectric.shadows.ShadowLooper
+                .idleMainLooper()
+            val enrichedTrack = testTrack.copy(title = "Host Enriched Title", artist = "Host Enriched Artist")
+            standaloneHost.updateTrackMetadata(enrichedTrack)
+            org.robolectric.shadows.ShadowLooper
+                .idleMainLooper()
+
+            assertEquals(
+                "Host Enriched Title",
+                standaloneHost.mediaSession.player.mediaMetadata.title
+                    ?.toString(),
+            )
+            val notification = standaloneHost.buildCurrentNotification()
+            assertEquals(
+                "Host Enriched Title",
+                notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString(),
+            )
+            assertEquals(
+                "Host Enriched Artist",
+                notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString(),
+            )
+
+            // Verify media buttons and player commands route to appSession without engine callbacks
+            val callback = requireNotNull(standaloneHost.mediaSessionCallback)
+            val nextIntent =
+                Intent(Intent.ACTION_MEDIA_BUTTON).apply {
+                    putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT))
+                }
+            assertTrue(callback.handleMediaButtonIntent(nextIntent))
+            assertEquals(1, appSession.skipNextCount)
+
+            val prevIntent =
+                Intent(Intent.ACTION_MEDIA_BUTTON).apply {
+                    putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+                }
+            assertTrue(callback.handleMediaButtonIntent(prevIntent))
+            assertEquals(1, appSession.skipPreviousCount)
+        } finally {
+            standaloneHost.release()
+        }
     }
 
     @Test
