@@ -242,37 +242,6 @@ class PlaybackSessionHostTest {
     }
 
     @Test
-    fun hardwareLocks_acquiredOnPlayingAndBuffering_releasedOnPauseAndStop() {
-        assertFalse(host.hardwareLockManager.isWakeLockHeld)
-        assertFalse(host.hardwareLockManager.isWifiLockHeld)
-
-        // Buffering acquires both locks
-        host.handlePlaybackStateChanged(PlaybackState.Buffering)
-        assertTrue(host.hardwareLockManager.isWakeLockHeld)
-        assertTrue(host.hardwareLockManager.isWifiLockHeld)
-
-        // Playing keeps both locks held
-        host.handlePlaybackStateChanged(PlaybackState.Playing)
-        assertTrue(host.hardwareLockManager.isWakeLockHeld)
-        assertTrue(host.hardwareLockManager.isWifiLockHeld)
-
-        // Paused immediately releases both locks to save battery
-        host.handlePlaybackStateChanged(PlaybackState.Paused)
-        assertFalse(host.hardwareLockManager.isWakeLockHeld)
-        assertFalse(host.hardwareLockManager.isWifiLockHeld)
-
-        // Resume playing re-acquires locks
-        host.handlePlaybackStateChanged(PlaybackState.Playing)
-        assertTrue(host.hardwareLockManager.isWakeLockHeld)
-        assertTrue(host.hardwareLockManager.isWifiLockHeld)
-
-        // Stop releases locks
-        host.stop()
-        assertFalse(host.hardwareLockManager.isWakeLockHeld)
-        assertFalse(host.hardwareLockManager.isWifiLockHeld)
-    }
-
-    @Test
     fun playbackPaused_maintainsForegroundAndSchedulesDeferredDemotion() {
         val shadowService = shadowOf(service)
 
@@ -689,8 +658,6 @@ class PlaybackSessionHostTest {
         fakeEngine.customPlayWhenReady = true
         host.handlePlaybackStateChanged(PlaybackState.Buffering)
         assertTrue(host.isBecomingNoisyRegistered)
-        assertTrue(host.hardwareLockManager.isWakeLockHeld)
-        assertTrue(host.hardwareLockManager.isWifiLockHeld)
 
         // System dispatches ACTION_AUDIO_BECOMING_NOISY
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
@@ -706,8 +673,6 @@ class PlaybackSessionHostTest {
 
         // Safe degradation asserted
         assertFalse(host.isBecomingNoisyRegistered)
-        assertFalse(host.hardwareLockManager.isWakeLockHeld)
-        assertFalse(host.hardwareLockManager.isWifiLockHeld)
         assertTrue(host.isDemotionPending)
     }
 

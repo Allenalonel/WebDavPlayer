@@ -737,6 +737,12 @@ class Media3AudioPlayerEngineTest {
                 listener.onTimelineChanged(currentTimeline, reason)
             }
         }
+
+        fun notifyPlayerError(error: androidx.media3.common.PlaybackException) {
+            for (listener in customListeners) {
+                listener.onPlayerError(error)
+            }
+        }
     }
 
     @Test
@@ -1187,5 +1193,89 @@ class Media3AudioPlayerEngineTest {
             } finally {
                 testEngine.release()
             }
+        }
+
+    @Test
+    fun hardwareLocks_fullLifecycle_acquiresOnPlayingAndBuffering_releasesOnPausedErrorEndedIdleStopAndRelease() =
+        runTest {
+            val basePlayer = ExoPlayer.Builder(context).build()
+            val controllablePlayer = TestControllablePlayer(basePlayer)
+            val testEngine = Media3AudioPlayerEngine(context, customPlayer = controllablePlayer)
+
+            fun assertLocksHeld(expected: Boolean) {
+                assertEquals(expected, testEngine.hardwareLockManager.isWakeLockHeld)
+                assertEquals(expected, testEngine.hardwareLockManager.isWifiLockHeld)
+            }
+
+            fun resumePlayingAndAssertLocksHeld() {
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.notifyPlaybackState(Player.STATE_READY)
+                ShadowLooper.idleMainLooper()
+                assertEquals(PlaybackState.Playing, testEngine.playbackState.value)
+                assertLocksHeld(true)
+            }
+
+            try {
+                // Initial Idle: locks not held
+                assertEquals(PlaybackState.Idle, testEngine.playbackState.value)
+                assertLocksHeld(false)
+
+                // 1. Buffering (playWhenReady = true) -> acquires both locks
+                controllablePlayer.customPlayWhenReady = true
+                controllablePlayer.notifyPlaybackState(Player.STATE_BUFFERING)
+                ShadowLooper.idleMainLooper()
+                assertEquals(PlaybackState.Buffering, testEngine.playbackState.value)
+                assertLocksHeld(true)
+
+                // 2. Playing (STATE_READY + playWhenReady = true) -> keeps both locks held
+                resumePlayingAndAssertLocksHeld()
+
+                // 3. Paused -> releases both locks immediately
+                controllablePlayer.notifyPlayWhenReady(false)
+                ShadowLooper.idleMainLooper()
+                assertEquals(PlaybackState.Paused, testEngine.playbackState.value)
+                assertLocksHeld(false)
+
+                // 4. Resume Playing -> re-acquires locks, then Error -> releases locks immediately
+                resumePlayingAndAssertLocksHeld()
+                val playbackError =
+                    androidx.media3.common.PlaybackException(
+                        "Stream read timeout",
+                        java.io.IOException("Timeout"),
+                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+                    )
+                controllablePlayer.notifyPlayerError(playbackError)
+                ShadowLooper.idleMainLooper()
+                assertTrue(testEngine.playbackState.value is PlaybackState.Error)
+                assertLocksHeld(false)
+
+                // 5. Resume Playing -> re-acquires locks, then Ended -> releases locks
+                resumePlayingAndAssertLocksHeld()
+                controllablePlayer.notifyPlaybackState(Player.STATE_ENDED)
+                ShadowLooper.idleMainLooper()
+                assertEquals(PlaybackState.Ended, testEngine.playbackState.value)
+                assertLocksHeld(false)
+
+                // 6. Resume Playing -> re-acquires locks, then Idle -> releases locks
+                resumePlayingAndAssertLocksHeld()
+                controllablePlayer.notifyPlaybackState(Player.STATE_IDLE)
+                ShadowLooper.idleMainLooper()
+                assertEquals(PlaybackState.Idle, testEngine.playbackState.value)
+                assertLocksHeld(false)
+
+                // 7. Resume Playing -> re-acquires locks, then stop() -> releases locks
+                resumePlayingAndAssertLocksHeld()
+                testEngine.stop()
+                ShadowLooper.idleMainLooper()
+                assertEquals(PlaybackState.Idle, testEngine.playbackState.value)
+                assertLocksHeld(false)
+
+                // 8. Resume Playing -> re-acquires locks, then release() -> releases locks
+                resumePlayingAndAssertLocksHeld()
+            } finally {
+                testEngine.release()
+                ShadowLooper.idleMainLooper()
+            }
+            assertLocksHeld(false)
         }
 }

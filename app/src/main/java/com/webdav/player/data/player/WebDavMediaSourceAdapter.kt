@@ -66,11 +66,11 @@ interface WebDavMediaSourceAdapter {
 
 @OptIn(UnstableApi::class)
 class DefaultWebDavMediaSourceAdapter(
-    private val context: Context,
+    @Suppress("UNUSED_PARAMETER")
+    context: Context? = null,
     val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
     val loadErrorHandlingPolicy: LoadErrorHandlingPolicy = WebDavLoadErrorHandlingPolicy(),
     val resilientSleeper: ((Long) -> Unit)? = null,
-    val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
 ) : WebDavMediaSourceAdapter {
     private data class DataSourceCacheKey(
         val serverId: Long,

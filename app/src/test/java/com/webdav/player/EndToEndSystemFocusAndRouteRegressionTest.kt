@@ -232,13 +232,11 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             runCurrent()
             ShadowLooper.idleMainLooper()
 
-            // Verify: Becoming-noisy receiver is actively registered and locks held during buffering
+            // Verify: Becoming-noisy receiver is actively registered during buffering
             assertTrue(
                 "BecomingNoisy receiver must be registered during buffering with playWhenReady=true",
                 host.isBecomingNoisyRegistered,
             )
-            assertTrue("WakeLock must be held during buffering", host.hardwareLockManager.isWakeLockHeld)
-            assertTrue("WifiLock must be held during buffering", host.hardwareLockManager.isWifiLockHeld)
 
             // 3. System broadcasts ACTION_AUDIO_BECOMING_NOISY (e.g. wired headphones unplugged or Bluetooth speaker dies)
             sendBecomingNoisyBroadcast()
@@ -257,9 +255,6 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                 "BecomingNoisy receiver must be unregistered after degradation",
                 host.isBecomingNoisyRegistered,
             )
-            // Hardware locks are immediately released to prevent battery drain
-            assertFalse("WakeLock must be released", host.hardwareLockManager.isWakeLockHeld)
-            assertFalse("WifiLock must be released", host.hardwareLockManager.isWifiLockHeld)
 
             val playCountAfterPause = fakeEngine.playCount
 
@@ -399,8 +394,6 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                 "resumeOnFocusGain must be false on permanent loss",
                 host.audioFocusHandler.resumeOnFocusGain,
             )
-            assertFalse("WakeLock must be released", host.hardwareLockManager.isWakeLockHeld)
-            assertFalse("WifiLock must be released", host.hardwareLockManager.isWifiLockHeld)
 
             // 5. If system subsequently sends AUDIOFOCUS_GAIN, playback must NOT automatically resume
             host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)
@@ -694,8 +687,6 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             // Assert absolute silence: no audio leaks, remains firmly Paused
             assertEquals(PlaybackState.Paused, appSession.sessionState.value.playbackState)
             assertFalse(host.audioFocusHandler.resumeOnFocusGain)
-            assertFalse(host.hardwareLockManager.isWakeLockHeld)
-            assertFalse(host.hardwareLockManager.isWifiLockHeld)
 
             // 7. Explicit user play starts playback cleanly
             appSession.play()

@@ -88,9 +88,7 @@ class Media3AudioPlayerEngine(
     customMediaSession: MediaSession? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
-    val hardwareLockManager: StreamingHardwareLockManager =
-        (mediaSourceAdapter as? DefaultWebDavMediaSourceAdapter)?.hardwareLockManager
-            ?: DefaultStreamingHardwareLockManager(context),
+    val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
     val canonicalAudioProcessor: CanonicalResamplingAudioProcessor = CanonicalResamplingAudioProcessor(),
     customAudioSink: AudioSink? = null,
     customAudioRoutingObserver: AudioRoutingObserver? = null,
@@ -404,6 +402,7 @@ class Media3AudioPlayerEngine(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                hardwareLockManager.releaseLocks()
                 _playbackState.value = toPlaybackError(error)
             }
 
