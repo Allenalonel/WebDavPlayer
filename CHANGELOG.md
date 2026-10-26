@@ -4,6 +4,24 @@
 
 ---
 
+## [2.6] - 2026-10-26
+
+### 🚀 新增 (Added)
+- **单向系统音频焦点意图路由与幽灵自恢复防护 (Unidirectional Focus Routing & Ghost Resumption Guard)**：构建专职 `AudioFocusHandler` 与单向焦点意图管道，系统音频焦点（`AUDIOFOCUS_GAIN`、`AUDIOFOCUS_LOSS`、`LOSS_TRANSIENT`、`LOSS_TRANSIENT_CAN_DUCK`）变更 100% 规范化路由至应用会话层 `MusicPlayerAppSession` 集中仲裁。建立严格的幽灵自恢复拦截状态机，杜绝在外部断开或永久失去焦点后意外后台自动起播；规范化音量压低（Ducking）系数并在冷启动重建时支持焦点平滑恢复。
+- **缓冲期 Becoming-Noisy 智能防外放兜底 (Buffering Becoming-Noisy Guard)**：将防外放保护延伸覆盖至“网络缓冲等待态（Buffering）”。在弱网加载或冷启动缓冲期间若发生有线耳机拔出或蓝牙设备断连，立即拦截挂起并收敛至安全暂停状态，杜绝音频缓冲就绪后意外大声公放的尴尬。
+- **动态物理音频路由感知与底层 AudioSink 强同步刷新 (Dynamic Routing Observer & Sink Flush)**：接入 `AudioRoutingObserver` 监听系统 `AudioDeviceCallback`，精准识别物理发声端点（`isSink == true`）的动态接入与移除。在多音频外设切换或车载蓝牙迁移时，顺应系统仲裁策略并调度底层 `activeAudioSink?.flush()` 强行对齐缓冲管道与硬件驱动时钟，彻底根除“进度条走动、硬件无声音”的时钟错位假死问题。
+
+### ⚡ 优化与架构演进 (Changed & Refactored)
+- **深度模块演进：会话宿主收拢硬件锁与 MediaSession 所有权 (PlaybackSessionHost Consolidation)**：依据深层模块设计原则，将 Wi-Fi 高性能锁、CPU 唤醒锁以及 `MediaSession` / `sessionPlayer` 的所有权完全收拢至 `PlaybackSessionHost`，彻底消除播放引擎与数据源适配器中的硬件锁泄漏；底层播放引擎收敛为高内聚、职责纯粹的流式渲染管道。
+- **消除跨接缝向下转型 (Eliminate Cross-Seam Downcasts)**：重构 `PlaybackSessionHost` 与底层引擎协作契约，消除所有对具体引擎实现类的向下强制类型转换，统一通过 `AudioPlayerEngine` 抽象多态驱动，提高测试置换性与架构扩展性。
+- **浅层辅助工具精简与领域模型内聚 (Prune Shallow Helpers)**：依照深度模块理念，彻底剔除 `AudioQualityBadgeHelper`、`BreadcrumbNavigationHelper`、`PlayerTimeFormatter` 与 `WebDavDataSourceFactory` 等浅层静态工具类，将面包屑推导、音质徽章计算及时间格式化直接内聚到领域实体与 Navigation Coordinator，显著收窄代码表面积。
+
+### 🧪 质量保证与自动化门禁 (Testing & Quality Assurance)
+- **端到端音频焦点与路由弹性全链路回归套件 (End-to-End System Focus & Route Regression Suite)**：新增 `EndToEndSystemFocusAndRouteRegressionTest`，覆盖瞬态抢占、暂时压低、耳机插拔、弱网断流并发等多种极端边界工况的确定性状态机流转。
+- **回放管线集成与包体积硬预算门禁**：通过 `EndToEndPlaybackPipelineIntegrationTest` 验证端到端回放管线完整生命周期；持续执行 `verifyReleasePackaging` 门禁守门：Release APK 稳定控制在 **6.61 MB**（预算 <= 7.5 MB），`classes.dex` 保持在 **3.99 MB**（预算 <= 4.0 MB），纯 64 位 `arm64-v8a` 架构无任何冗余。
+
+---
+
 ## [2.5] - 2026-10-18
 
 ### 🚀 新增 (Added)
