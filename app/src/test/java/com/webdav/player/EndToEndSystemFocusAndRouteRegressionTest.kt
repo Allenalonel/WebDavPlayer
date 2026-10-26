@@ -10,7 +10,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
-import androidx.media3.session.MediaSession
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.player.CanonicalResamplingAudioProcessor
 import com.webdav.player.data.player.Media3AudioPlayerEngine
@@ -75,7 +74,6 @@ class EndToEndSystemFocusAndRouteRegressionTest {
     private lateinit var context: Context
     private lateinit var fakeEngine: FakeAudioPlayerEngine
     private lateinit var exoPlayer: ExoPlayer
-    private lateinit var mediaSession: MediaSession
     private lateinit var audioFocusHandler: AudioFocusHandler
     private lateinit var host: PlaybackSessionHost
     private lateinit var sessionStore: FakePlaybackSessionStore
@@ -150,21 +148,14 @@ class EndToEndSystemFocusAndRouteRegressionTest {
         exoPlayer = ExoPlayer.Builder(context).build()
         audioFocusHandler = AudioFocusHandler(context, appSession = null)
 
-        mediaSession =
-            MediaSession
-                .Builder(context, exoPlayer)
-                .setId("test_session_${System.currentTimeMillis()}")
-                .build()
-
         host =
             PlaybackSessionHost(
                 context = context,
                 playerEngine = fakeEngine,
-                mediaSession = mediaSession,
                 audioFocusHandler = audioFocusHandler,
                 notificationProvider = WebDavNotificationProvider(context),
-                mediaSessionCallback = null,
                 coroutineScope = hostScope,
+                sessionPlayer = exoPlayer,
             )
         PlaybackSessionHost.setInstanceForTesting(host)
 
@@ -195,7 +186,6 @@ class EndToEndSystemFocusAndRouteRegressionTest {
         sessionJob.cancel()
         host.release()
         hostJob.cancel()
-        mediaSession.release()
         exoPlayer.release()
         PlaybackSessionHost.setInstanceForTesting(previousHost)
         Dispatchers.resetMain()

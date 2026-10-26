@@ -30,9 +30,6 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
     var loadedTrack: AudioTrack? = null
     var lastStartPositionMs: Long = 0L
     var loadTrackCount = 0
-    val playTracksCount: Int get() = loadTrackCount
-    val lastTracks: List<AudioTrack> get() = loadedTrack?.let { listOf(it) } ?: emptyList()
-    var lastStartIndex: Int = -1
 
     var customPlayWhenReady: Boolean = true
     override val playWhenReady: Boolean
@@ -61,7 +58,6 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         loadTrackCount++
         lastServer = server
         loadedTrack = track
-        lastStartIndex = 0
         lastStartPositionMs = startPositionMs
         _currentPositionMs.value = startPositionMs
         _durationMs.value = track.durationMs

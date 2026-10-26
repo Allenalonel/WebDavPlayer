@@ -163,7 +163,7 @@ class PlaybackSessionHostTest {
 
         // Caller plays track solely through AudioPlayerEngine interface
         host.loadTrack(testServer, testTrack)
-        assertEquals(listOf(testTrack), fakeEngine.lastTracks)
+        assertEquals(testTrack, fakeEngine.loadedTrack)
         assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
         // Caller invokes play solely through AudioPlayerEngine interface
@@ -748,6 +748,53 @@ class PlaybackSessionHostTest {
 
         // Strict ADR-0018 conformance: no Option B bypass to playerEngine
         assertEquals(0, fakeEngine.pauseCount)
+    }
+
+    @Test
+    fun buildCurrentNotification_acrossPlaybackStatesAndWeakNetwork_constructsAccurateNotificationContentAndActions() {
+        val mediaItem =
+            androidx.media3.common.MediaItem
+                .Builder()
+                .setUri("http://127.0.0.1:8080/dav/track.mp3")
+                .setMediaId(testTrack.id)
+                .setMediaMetadata(
+                    androidx.media3.common.MediaMetadata
+                        .Builder()
+                        .setTitle("Symphony No. 5")
+                        .setArtist("Beethoven")
+                        .setAlbumTitle("Classical Collection")
+                        .build(),
+                ).build()
+        exoPlayer.setMediaItem(mediaItem)
+        exoPlayer.prepare()
+
+        // 1. Playing state -> ongoing = true, action = Pause, album subtext
+        val playingNotification = host.buildCurrentNotification(PlaybackState.Playing)
+        assertEquals("Symphony No. 5", playingNotification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
+        assertEquals("Beethoven", playingNotification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
+        assertEquals(
+            "Classical Collection",
+            playingNotification.extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT)?.toString(),
+        )
+        assertTrue(playingNotification.flags and android.app.Notification.FLAG_ONGOING_EVENT != 0)
+        assertEquals("Pause", playingNotification.actions[1].title.toString())
+
+        // 2. Buffering with weak network -> ongoing = true, weak network subtext
+        val weakNetNotification = host.buildCurrentNotification(PlaybackState.Buffering, isWeakNetwork = true)
+        assertEquals("网络受阻，正在重连...", weakNetNotification.extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT)?.toString())
+        assertTrue(weakNetNotification.flags and android.app.Notification.FLAG_ONGOING_EVENT != 0)
+        assertEquals("Pause", weakNetNotification.actions[1].title.toString())
+
+        // 3. Paused state -> ongoing = false, action = Play
+        val pausedNotification = host.buildCurrentNotification(PlaybackState.Paused)
+        assertEquals(0, pausedNotification.flags and android.app.Notification.FLAG_ONGOING_EVENT)
+        assertEquals("Play", pausedNotification.actions[1].title.toString())
+
+        // 4. Error state -> ongoing = false, error message as artist text, action = Play
+        val errorNotification = host.buildCurrentNotification(PlaybackState.Error("Stream timeout"))
+        assertEquals(0, errorNotification.flags and android.app.Notification.FLAG_ONGOING_EVENT)
+        assertEquals("Stream timeout", errorNotification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
+        assertEquals("Play", errorNotification.actions[1].title.toString())
     }
 
     @Test

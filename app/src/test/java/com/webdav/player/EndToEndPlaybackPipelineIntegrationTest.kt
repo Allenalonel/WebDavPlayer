@@ -34,7 +34,6 @@ import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.data.service.WebDavMediaService
-import com.webdav.player.data.service.WebDavMediaSessionCallback
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.ListDirectoryResult
@@ -517,22 +516,17 @@ class EndToEndPlaybackPipelineIntegrationTest {
             androidx.media3.exoplayer.ExoPlayer
                 .Builder(context)
                 .build()
-        val mediaSession =
-            androidx.media3.session.MediaSession
-                .Builder(context, exoPlayer)
-                .setId("e2e_session_${System.currentTimeMillis()}")
-                .setCallback(WebDavMediaSessionCallback(fakeSession))
-                .build()
 
         val host =
             PlaybackSessionHost(
                 context = context,
                 playerEngine = fakeEngine,
-                mediaSession = mediaSession,
                 audioFocusHandler =
                     com.webdav.player.data.service
-                        .AudioFocusHandler(context, fakeSession),
+                        .AudioFocusHandler(context),
+                sessionPlayer = exoPlayer,
             )
+        host.bindAppSession(fakeSession)
         PlaybackSessionHost.setInstanceForTesting(host)
 
         val serviceController: ServiceController<WebDavMediaService> = Robolectric.buildService(WebDavMediaService::class.java)
@@ -576,8 +570,8 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals("Playback resumed on audio focus gain", 1, fakeSession.playCount)
             assertFalse("Resume on focus gain is reset", host.audioFocusHandler.resumeOnFocusGain)
 
-            // 5. Hardware Media Button controls dispatch directly to appSession
-            val callback = WebDavMediaSessionCallback(fakeSession)
+            // 5. Hardware Media Button controls dispatch directly to appSession via host's mediaSessionCallback
+            val callback = requireNotNull(host.mediaSessionCallback)
             val pauseButtonIntent = createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PAUSE)
             assertTrue(callback.handleMediaButtonIntent(pauseButtonIntent))
             assertEquals(2, fakeSession.pauseCount)
@@ -596,7 +590,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
         } finally {
             serviceController.destroy()
             host.release()
-            mediaSession.release()
             exoPlayer.release()
         }
     }

@@ -193,7 +193,7 @@ class PlaybackSessionResumptionTest {
 
             // Engine should still be idle - no network streaming has started yet
             assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
-            assertEquals(-1, fakeEngine.lastStartIndex)
+            assertEquals(0, fakeEngine.loadTrackCount)
             assertFalse(state.wasKilledBySystem)
         }
 
@@ -334,7 +334,7 @@ class PlaybackSessionResumptionTest {
             session.play()
             runCurrent()
 
-            assertEquals(0, fakeEngine.lastStartIndex)
+            assertEquals(1, fakeEngine.loadTrackCount)
             assertEquals(90000L, fakeEngine.lastStartPositionMs)
             assertTrue(session.sessionState.value.isPlaying)
 
@@ -664,10 +664,10 @@ class PlaybackSessionResumptionTest {
             session.togglePlayPause()
             runCurrent()
 
-            assertEquals(1, fakeEngine.lastTracks.size)
+            assertEquals(1, fakeEngine.loadTrackCount)
             assertNull(
                 "PlayerEngine must receive null artwork URI avoiding FileNotFoundException crashes",
-                fakeEngine.lastTracks[0].coverThumbnailPath,
+                fakeEngine.loadedTrack?.coverThumbnailPath,
             )
         }
 
@@ -738,7 +738,7 @@ class PlaybackSessionResumptionTest {
 
             // Player engine received track update non-disruptively
             assertTrue(fakeEngine.updateTrackMetadataCalls >= 1)
-            assertEquals(healedCoverPath, fakeEngine.lastTracks[0].coverThumbnailPath)
+            assertEquals(healedCoverPath, fakeEngine.loadedTrack?.coverThumbnailPath)
             assertTrue("Playback must not be interrupted during enrichment", session.sessionState.value.isPlaying)
         }
 
@@ -1001,7 +1001,7 @@ class PlaybackSessionResumptionTest {
 
             // Physical engine should still be idle before user taps play
             assertTrue(fakeEngine.playbackState.value is PlaybackState.Idle)
-            assertEquals(-1, fakeEngine.lastStartIndex)
+            assertEquals(0, fakeEngine.loadTrackCount)
             // MediaSession was primed with virtual track metadata non-disruptively
             assertTrue(fakeEngine.updateTrackMetadataCalls >= 1)
         }
@@ -1035,9 +1035,8 @@ class PlaybackSessionResumptionTest {
 
             // Underlying physical audio stream starts at absolute ms (73000 + 25000 = 98000ms)
             assertEquals(testServer, fakeEngine.lastServer)
-            assertEquals(1, fakeEngine.lastTracks.size)
-            assertEquals("/Music/PinkFloyd/dark_side.flac", fakeEngine.lastTracks[0].remotePath)
-            assertEquals(0, fakeEngine.lastStartIndex)
+            assertEquals(1, fakeEngine.loadTrackCount)
+            assertEquals("/Music/PinkFloyd/dark_side.flac", fakeEngine.loadedTrack?.remotePath)
             assertEquals(98000L, fakeEngine.lastStartPositionMs)
             assertTrue(session.sessionState.value.isPlaying)
             assertEquals(
@@ -1088,8 +1087,8 @@ class PlaybackSessionResumptionTest {
             session.togglePlayPause()
             runCurrent()
 
-            assertEquals(1, fakeEngine.lastTracks.size)
-            assertEquals("/Music/PinkFloyd/dark_side.flac", fakeEngine.lastTracks[0].remotePath)
+            assertEquals(1, fakeEngine.loadTrackCount)
+            assertEquals("/Music/PinkFloyd/dark_side.flac", fakeEngine.loadedTrack?.remotePath)
             assertEquals(98000L, fakeEngine.lastStartPositionMs)
             assertTrue(session.sessionState.value.isPlaying)
         }

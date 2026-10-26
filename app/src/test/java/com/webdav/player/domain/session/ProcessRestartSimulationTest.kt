@@ -215,7 +215,7 @@ class ProcessRestartSimulationTest {
 
             // Engine must be idle before user taps play
             assertTrue(engine2.playbackState.value is PlaybackState.Idle)
-            assertEquals(-1, engine2.lastStartIndex)
+            assertEquals(0, engine2.loadTrackCount)
 
             // User single-taps play on the restored mini-player
             session2.togglePlayPause()
@@ -514,8 +514,8 @@ class ProcessRestartSimulationTest {
             runCurrent()
 
             assertEquals(testServer, engine2.lastServer)
-            assertEquals(1, engine2.lastTracks.size)
-            assertEquals(track2.remotePath, engine2.lastTracks[0].remotePath)
+            assertEquals(1, engine2.loadTrackCount)
+            assertEquals(track2.remotePath, engine2.loadedTrack?.remotePath)
             assertEquals(115000L, engine2.lastStartPositionMs)
             assertTrue(session2.sessionState.value.isPlaying)
 

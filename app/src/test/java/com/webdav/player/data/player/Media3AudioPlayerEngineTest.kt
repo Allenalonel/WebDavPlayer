@@ -227,13 +227,14 @@ class Media3AudioPlayerEngineTest {
             }
         engine.sessionPlayer.addListener(listener)
 
-        val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist")
+        val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist", album = "Updated Album")
         engine.updateTrackMetadata(updated)
 
         // Active playing MediaItem is NOT replaced to avoid decoder destruction / rebuffering glitches
         val currentItem = engine.player.getMediaItemAt(0)
         assertEquals("01.mp3", currentItem.mediaMetadata.title?.toString())
         assertEquals(originalItem.mediaMetadata.title, currentItem.mediaMetadata.title)
+        assertEquals(1, engine.player.mediaItemCount)
 
         // Position is preserved and not reset
         assertEquals(5000L, engine.currentPositionMs.value)
@@ -250,8 +251,14 @@ class Media3AudioPlayerEngineTest {
             engine.sessionPlayer.mediaMetadata.artist
                 ?.toString(),
         )
+        assertEquals(
+            "Updated Album",
+            engine.sessionPlayer.mediaMetadata.albumTitle
+                ?.toString(),
+        )
         assertEquals("Updated Song Title", observedSessionMeta?.title?.toString())
         assertEquals("Updated Artist", observedSessionMeta?.artist?.toString())
+        assertEquals("Updated Album", observedSessionMeta?.albumTitle?.toString())
         engine.sessionPlayer.removeListener(listener)
     }
 
@@ -277,49 +284,6 @@ class Media3AudioPlayerEngineTest {
             engine.player.playlistMetadata.title
                 ?.toString(),
         )
-    }
-
-    @Test
-    fun reactiveSession_receivesEnrichedMetadata_whileActiveTimelineRemainsIntact() {
-        val appSession =
-            com.webdav.player.domain.session.MusicPlayerAppSessionImpl(
-                playerEngine = engine,
-                coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main),
-            )
-        appSession.setActiveServer(testServer)
-        val file1 =
-            com.webdav.player.domain.model
-                .RemoteFile(name = "01.mp3", path = "/Music/01.mp3")
-        val file2 =
-            com.webdav.player.domain.model
-                .RemoteFile(name = "02.flac", path = "/Music/02.flac")
-        val dir =
-            com.webdav.player.domain.model
-                .RemoteDirectory(path = "/Music/", name = "Music", files = listOf(file1, file2))
-        appSession.playDirectoryTrack(dir, file1)
-
-        assertEquals(
-            "01.mp3",
-            appSession.sessionState.value.currentTrack
-                ?.title,
-        )
-
-        // Enrich playing track
-        val enrichedTrack1 = track1.copy(title = "Enriched Title 1", artist = "Artist 1")
-        engine.updateTrackMetadata(enrichedTrack1)
-
-        // Active item timeline is continuous and not replaced
-        val activeItem = engine.player.getMediaItemAt(0)
-        assertEquals("01.mp3", activeItem.mediaMetadata.title?.toString())
-        assertEquals(
-            "Enriched Title 1",
-            engine.player.playlistMetadata.title
-                ?.toString(),
-        )
-
-        assertEquals(1, engine.player.mediaItemCount)
-
-        appSession.release()
     }
 
     @Test
@@ -1070,6 +1034,15 @@ class Media3AudioPlayerEngineTest {
 
             val testEngine = Media3AudioPlayerEngine(context, customAudioSink = trackingSink)
             try {
+                val lowRateFormat =
+                    androidx.media3.common.audio.AudioProcessor.AudioFormat(
+                        22050,
+                        2,
+                        C.ENCODING_PCM_16BIT,
+                    )
+                val outFormat = testEngine.canonicalAudioProcessor.configure(lowRateFormat)
+                assertTrue(testEngine.canonicalAudioProcessor.isActive)
+                assertEquals(44100, outFormat.sampleRate)
                 assertEquals(0, sinkFlushCount)
 
                 // Dispatch dynamic audio routing change
@@ -1077,10 +1050,63 @@ class Media3AudioPlayerEngineTest {
                 ShadowLooper.idleMainLooper()
 
                 assertEquals(1, sinkFlushCount)
+                assertTrue(testEngine.canonicalAudioProcessor.isActive)
             } finally {
                 testEngine.release()
             }
         }
+
+    @Test
+    fun canonicalAudioProcessor_upsamplesLowSampleRateStreamsTo44100HzStereo_andPassthroughStandardRates() {
+        val processor = engine.canonicalAudioProcessor
+
+        // 1. Sub-44100Hz mono (e.g. 16000Hz voice/audiobook) -> upsampled to 44100Hz stereo
+        val mono16kFormat =
+            androidx.media3.common.audio.AudioProcessor.AudioFormat(
+                16000,
+                1,
+                C.ENCODING_PCM_16BIT,
+            )
+        val monoOut = processor.configure(mono16kFormat)
+        processor.flush()
+        assertTrue(processor.isActive)
+        assertEquals(44100, monoOut.sampleRate)
+        assertEquals(2, monoOut.channelCount)
+        assertEquals(C.ENCODING_PCM_16BIT, monoOut.encoding)
+
+        val inputBuffer = java.nio.ByteBuffer.allocateDirect(512).order(java.nio.ByteOrder.nativeOrder())
+        while (inputBuffer.hasRemaining()) {
+            inputBuffer.putShort(200)
+        }
+        inputBuffer.flip()
+        processor.queueInput(inputBuffer)
+        val resampledOutput = processor.output
+        assertTrue("Resampled stereo output must contain PCM bytes", resampledOutput.remaining() > 0)
+
+        // 2. Sub-44100Hz stereo (22050Hz) -> upsampled to 44100Hz stereo
+        val stereo22kFormat =
+            androidx.media3.common.audio.AudioProcessor.AudioFormat(
+                22050,
+                2,
+                C.ENCODING_PCM_16BIT,
+            )
+        val stereoOut = processor.configure(stereo22kFormat)
+        processor.flush()
+        assertTrue(processor.isActive)
+        assertEquals(44100, stereoOut.sampleRate)
+        assertEquals(2, stereoOut.channelCount)
+
+        // 3. Standard/Hi-Res (>= 44100Hz) -> passthrough (isActive = false)
+        val standard44kFormat =
+            androidx.media3.common.audio.AudioProcessor.AudioFormat(
+                44100,
+                2,
+                C.ENCODING_PCM_16BIT,
+            )
+        val passthroughOut = processor.configure(standard44kFormat)
+        assertFalse(processor.isActive)
+        assertEquals(androidx.media3.common.audio.AudioProcessor.AudioFormat.NOT_SET, passthroughOut)
+    }
 
     @Test
     fun attachAndDetachAudioRouting_delegatesToAudioRoutingObserver() {
@@ -1092,9 +1118,13 @@ class Media3AudioPlayerEngineTest {
                         listener: AudioRouting.OnRoutingChangedListener,
                         handler: Handler?,
                     ) {}
+
                     override fun removeOnRoutingChangedListener(listener: AudioRouting.OnRoutingChangedListener) {}
+
                     override fun getRoutedDevice(): AudioDeviceInfo? = null
+
                     override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = true
+
                     override fun getPreferredDevice(): AudioDeviceInfo? = null
                 }
 

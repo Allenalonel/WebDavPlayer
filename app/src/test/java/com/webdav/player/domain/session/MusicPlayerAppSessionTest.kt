@@ -1247,8 +1247,8 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             // 1. Under physical engine: only 1 track (parentTrack) was played, starting at 180_000L
-            assertEquals(1, fakeEngine.lastTracks.size)
-            assertEquals("/Music/album.flac", fakeEngine.lastTracks[0].remotePath)
+            assertEquals(1, fakeEngine.loadTrackCount)
+            assertEquals("/Music/album.flac", fakeEngine.loadedTrack?.remotePath)
             assertEquals(180_000L, fakeEngine.lastStartPositionMs)
 
             // 2. In session state: queue has 2 virtual tracks, active is index 1
@@ -1340,15 +1340,15 @@ class MusicPlayerAppSessionTest {
 
             // 4. Non-disruptive metadata enrichment: updateTrackMetadata was called on engine to update MediaSession
             assertTrue("Expected updateTrackMetadataCalls to increase", fakeEngine.updateTrackMetadataCalls > initialUpdateCalls)
-            assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 2", fakeEngine.loadedTrack?.title)
 
             // 5. Playback progress mapped to relative position in Track 2 (185_000 - 180_000 = 5_000)
             val progress = session.playbackProgress.value
             assertEquals(5_000L, progress.currentPositionMs)
             assertEquals(240_000L, progress.durationMs)
 
-            // 6. Underlying engine was NOT restarted (playTracks called only once at start)
-            assertEquals(1, fakeEngine.lastTracks.size)
+            // 6. Underlying engine was NOT restarted (loadTrack called only once at start)
+            assertEquals(1, fakeEngine.loadTrackCount)
         }
 
     @Test
@@ -1478,7 +1478,7 @@ class MusicPlayerAppSessionTest {
                     ?.title,
             )
             assertEquals(180_000L, fakeEngine.seekToPosition)
-            assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 2", fakeEngine.loadedTrack?.title)
 
             // 2. skipToPrevious when played > 3s (e.g. global position = 185_000L, relative = 5s > 3s)
             fakeEngine._currentPositionMs.value = 185_000L
@@ -1500,7 +1500,7 @@ class MusicPlayerAppSessionTest {
                     ?.title,
             )
             assertEquals(0L, fakeEngine.seekToPosition)
-            assertEquals("Virtual Track 1", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 1", fakeEngine.loadedTrack?.title)
 
             // 4. playQueueIndex(2) -> jumps directly to Track 3 (starts at 420_000L)
             session.playQueueIndex(2)
@@ -1512,7 +1512,7 @@ class MusicPlayerAppSessionTest {
                     ?.title,
             )
             assertEquals(420_000L, fakeEngine.seekToPosition)
-            assertEquals("Virtual Track 3", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 3", fakeEngine.loadedTrack?.title)
         }
 
     @Test
@@ -1579,7 +1579,7 @@ class MusicPlayerAppSessionTest {
                     ?.title,
             )
             assertEquals(180_000L, fakeEngine.seekToPosition)
-            assertEquals("Virtual Track 2", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 2", fakeEngine.loadedTrack?.title)
 
             // 2. Session skipToPrevious when played > 3s
             fakeEngine._currentPositionMs.value = 185_000L
@@ -1599,7 +1599,7 @@ class MusicPlayerAppSessionTest {
                     ?.title,
             )
             assertEquals(0L, fakeEngine.seekToPosition)
-            assertEquals("Virtual Track 1", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 1", fakeEngine.loadedTrack?.title)
         }
 
     @Test
@@ -1657,7 +1657,7 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            assertEquals(1, fakeEngine.playTracksCount)
+            assertEquals(1, fakeEngine.loadTrackCount)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
             assertEquals(
                 "Virtual Track 1",
@@ -1673,8 +1673,8 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            // CRITICAL: playTracks must NOT be called again; single physical stream must be maintained!
-            assertEquals(1, fakeEngine.playTracksCount)
+            // CRITICAL: loadTrack must NOT be called again; single physical stream must be maintained!
+            assertEquals(1, fakeEngine.loadTrackCount)
             assertEquals(420_000L, fakeEngine.seekToPosition)
             assertEquals(2, session.sessionState.value.queue.currentIndex)
             assertEquals(
@@ -1684,7 +1684,7 @@ class MusicPlayerAppSessionTest {
             )
             assertEquals(0L, session.playbackProgress.value.currentPositionMs)
             assertEquals(180_000L, session.playbackProgress.value.durationMs)
-            assertEquals("Virtual Track 3", fakeEngine.lastTracks[0].title)
+            assertEquals("Virtual Track 3", fakeEngine.loadedTrack?.title)
 
             // 3. User pauses and then selects Track 2: should in-stream seek AND resume playback
             session.pause()
@@ -1698,7 +1698,7 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            assertEquals(1, fakeEngine.playTracksCount) // Still no re-creation!
+            assertEquals(1, fakeEngine.loadTrackCount) // Still no re-creation!
             assertEquals(180_000L, fakeEngine.seekToPosition)
             assertEquals(1, session.sessionState.value.queue.currentIndex)
             assertEquals(
@@ -1728,7 +1728,7 @@ class MusicPlayerAppSessionTest {
             )
             advanceUntilIdle()
 
-            assertEquals(2, fakeEngine.playTracksCount)
+            assertEquals(2, fakeEngine.loadTrackCount)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
             assertEquals(
                 "Other Track 1",
@@ -2129,15 +2129,15 @@ class MusicPlayerAppSessionTest {
             session.seekTo(42_000L)
             advanceUntilIdle()
 
-            val initialPlayTracksCount = fakeEngine.playTracksCount
+            val initialLoadTrackCount = fakeEngine.loadTrackCount
 
             // User triggers manual retry
             session.retryPlayback()
             advanceUntilIdle()
 
-            assertTrue(fakeEngine.playTracksCount > initialPlayTracksCount)
+            assertTrue(fakeEngine.loadTrackCount > initialLoadTrackCount)
             assertEquals(42_000L, fakeEngine.lastStartPositionMs)
-            assertEquals("01.mp3", fakeEngine.lastTracks[0].title)
+            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
         }
 
     @Test
@@ -2194,14 +2194,14 @@ class MusicPlayerAppSessionTest {
             assertEquals(35_000L, session.playbackProgress.value.currentPositionMs)
 
             // User triggers manual retry
-            val initialPlayTracksCount = fakeEngine.playTracksCount
+            val initialLoadTrackCount = fakeEngine.loadTrackCount
             session.retryPlayback()
             advanceUntilIdle()
 
             // Verify in-place resumption from preserved timestamp
-            assertTrue(fakeEngine.playTracksCount > initialPlayTracksCount)
+            assertTrue(fakeEngine.loadTrackCount > initialLoadTrackCount)
             assertEquals(35_000L, fakeEngine.lastStartPositionMs)
-            assertEquals("01.mp3", fakeEngine.lastTracks[0].title)
+            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
             assertEquals(0, session.sessionState.value.queue.currentIndex)
             assertEquals(2, session.sessionState.value.queue.tracks.size)
 

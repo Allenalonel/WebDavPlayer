@@ -35,15 +35,13 @@ import kotlinx.coroutines.launch
 class PlaybackSessionHost(
     val context: Context,
     val playerEngine: AudioPlayerEngine,
-    mediaSession: MediaSession? = null,
+    sessionPlayer: Player,
     val audioFocusHandler: AudioFocusHandler = AudioFocusHandler(context),
     val notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
-    mediaSessionCallback: WebDavMediaSessionCallback? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
-    sessionPlayer: Player? = null,
 ) : AudioPlayerEngine by playerEngine {
-    var mediaSessionCallback: WebDavMediaSessionCallback? = mediaSessionCallback
+    var mediaSessionCallback: WebDavMediaSessionCallback? = null
         private set
 
     private val internalSessionCallback =
@@ -68,11 +66,7 @@ class PlaybackSessionHost(
         }
 
     val mediaSession: MediaSession =
-        mediaSession ?: run {
-            val targetPlayer =
-                requireNotNull(sessionPlayer) {
-                    "Either mediaSession or sessionPlayer must be provided to PlaybackSessionHost"
-                }
+        run {
             val sessionActivity =
                 PendingIntent.getActivity(
                     context,
@@ -84,7 +78,7 @@ class PlaybackSessionHost(
                 )
 
             MediaSession
-                .Builder(context, targetPlayer)
+                .Builder(context, sessionPlayer)
                 .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
                 .setSessionActivity(sessionActivity)
                 .setCallback(internalSessionCallback)
@@ -125,13 +119,11 @@ class PlaybackSessionHost(
     ) : this(
         context = context,
         playerEngine = engine,
-        mediaSession = null,
+        sessionPlayer = engine.sessionPlayer,
         audioFocusHandler = audioFocusHandler,
         notificationProvider = notificationProvider,
-        mediaSessionCallback = null,
         coroutineScope = coroutineScope,
         demotionTimeoutMs = demotionTimeoutMs,
-        sessionPlayer = engine.sessionPlayer,
     )
 
     fun bindAppSession(session: MusicPlayerAppSession) {
