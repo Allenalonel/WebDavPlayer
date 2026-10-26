@@ -16,8 +16,71 @@ import java.util.zip.ZipFile
  *    and excludes material-icons-extended.
  * 3. When release APK is present, total APK size <= 7.5 MB, classes.dex <= 4.0 MB,
  *    and native libraries contain strictly arm64-v8a with zero 32-bit .so files.
+ * 4. The Streaming Playback Pipeline / Session Host boundary (ADR-0019) has no reverse coupling.
  */
 class PackagingSeamVerificationTest {
+    private val sourceRoot = File("src/main/java/com/webdav/player")
+
+    private fun source(relativePath: String): String {
+        val file = File(sourceRoot, relativePath)
+        assertTrue("${file.path} must exist", file.exists())
+        return file.readText()
+    }
+
+    @Test
+    fun playbackPipelineSeam_hasNoReverseCouplingToSessionHost() {
+        // Session host talks to the engine solely through AudioPlayerEngine: zero downcasts
+        val host = source("data/service/PlaybackSessionHost.kt")
+        assertFalse(
+            "PlaybackSessionHost must not downcast to Media3AudioPlayerEngine",
+            Regex("""\bas\??\s+Media3AudioPlayerEngine\b""").containsMatchIn(host),
+        )
+        assertFalse(
+            "PlaybackSessionHost must not reach into engine audio routing internals",
+            host.contains("audioRoutingObserver") || host.contains("attachAudioRouting"),
+        )
+
+        // Streaming pipeline owns no MediaSession, hardware locks, or reverse callbacks
+        val engine = source("data/player/Media3AudioPlayerEngine.kt")
+        listOf("MediaSession", "StreamingHardwareLockManager", "hardwareLockManager", "sessionCallback", "onSkipToNext", "onSkipToPrevious")
+            .forEach { leak ->
+                assertFalse("Media3AudioPlayerEngine must not reference '$leak'", engine.contains(leak))
+            }
+
+        // Media source adapter stays focused on authenticated streaming sources
+        val adapter = source("data/player/WebDavMediaSourceAdapter.kt")
+        assertFalse(
+            "WebDavMediaSourceAdapter must not carry hardware lock dependencies",
+            adapter.contains("hardwareLockManager") || adapter.contains("StreamingHardwareLockManager"),
+        )
+
+        // AudioPlayerEngine interface exposes no routing or host concerns
+        val engineInterface = source("domain/player/AudioPlayerEngine.kt")
+        assertFalse(
+            "AudioPlayerEngine must not expose audio routing hooks",
+            engineInterface.contains("onAudioRoutingChanged"),
+        )
+        assertFalse(
+            "AudioPlayerEngine must not depend on the data layer",
+            Regex("""^import com\.webdav\.player\.data\.""", RegexOption.MULTILINE).containsMatchIn(engineInterface),
+        )
+
+        // No data.player source depends back on the host, the app session, or Media3 session APIs
+        val reverseImport =
+            Regex(
+                """^import (com\.webdav\.player\.(data\.service|domain\.session|ui)\.|androidx\.media3\.session\.)""",
+                RegexOption.MULTILINE,
+            )
+        val offenders =
+            File(sourceRoot, "data/player")
+                .walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .filter { reverseImport.containsMatchIn(it.readText()) }
+                .map { it.name }
+                .toList()
+        assertTrue("data.player must not import host/session/ui or media3.session: $offenders", offenders.isEmpty())
+    }
+
     @Test
     fun proguardRules_enforcePreciseKeepRulesWithoutBloatedWildcards() {
         val proguardFile = File("proguard-rules.pro")

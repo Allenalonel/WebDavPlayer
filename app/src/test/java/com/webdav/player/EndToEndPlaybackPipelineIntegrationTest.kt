@@ -62,6 +62,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import okhttp3.Credentials
@@ -593,6 +594,135 @@ class EndToEndPlaybackPipelineIntegrationTest {
             exoPlayer.release()
         }
     }
+
+    /**
+     * Unified pipeline (ADR-0019): app session -> PlaybackSessionHost -> AudioPlayerEngine.
+     * The host alone arbitrates Dual Streaming Hardware Locks, foreground elevation and deferred
+     * demotion, while its own MediaSession routes Playback Intents to the app session without any
+     * engine callbacks.
+     */
+    @Test
+    fun e2e_unifiedSessionHost_drivesLocksForegroundAndMediaSessionAcrossPlaybackLifecycle() =
+        runTest(testDispatcher) {
+            val fakeEngine = FakeAudioPlayerEngine()
+            val exoPlayer =
+                androidx.media3.exoplayer.ExoPlayer
+                    .Builder(context)
+                    .build()
+            val hostJob = SupervisorJob()
+            val host =
+                PlaybackSessionHost(
+                    context = context,
+                    playerEngine = fakeEngine,
+                    sessionPlayer = exoPlayer,
+                    coroutineScope = kotlinx.coroutines.CoroutineScope(testDispatcher + hostJob),
+                )
+            val sessionJob = SupervisorJob()
+            val appSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = host,
+                    serverRepository = serverRepository,
+                    sessionStore = sessionStore,
+                    coroutineScope = kotlinx.coroutines.CoroutineScope(testDispatcher + sessionJob),
+                    progressDispatcher = testDispatcher,
+                )
+            host.bindAppSession(appSession)
+            PlaybackSessionHost.setInstanceForTesting(host)
+
+            val serviceController: ServiceController<WebDavMediaService> = Robolectric.buildService(WebDavMediaService::class.java)
+            val service = serviceController.create().get()
+            val shadowService = shadowOf(service)
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val mediaButtons = requireNotNull(host.mediaSessionCallback)
+
+            fun settle() {
+                runCurrent()
+                org.robolectric.shadows.ShadowLooper
+                    .idleMainLooper()
+                runCurrent()
+            }
+
+            fun assertLocks(
+                expectedHeld: Boolean,
+                phase: String,
+            ) {
+                assertEquals("WakeLock held during $phase", expectedHeld, host.hardwareLockManager.isWakeLockHeld)
+                assertEquals("WifiLock held during $phase", expectedHeld, host.hardwareLockManager.isWifiLockHeld)
+            }
+
+            val file1 = RemoteFile("01.flac", "/Music/01.flac", 1_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val file2 = RemoteFile("02.mp3", "/Music/02.mp3", 1_000L, fileType = RemoteFileType.Audio(AudioFormat.MP3))
+            val directory = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(file1, file2))
+
+            try {
+                // 1. Launch -> WebDAV stream starts -> host elevates foreground and acquires both locks
+                appSession.setActiveServer(testServer)
+                appSession.playDirectoryTrack(directory, file1)
+                settle()
+                assertEquals("01.flac", fakeEngine.loadedTrack?.title)
+                assertEquals(PlaybackState.Playing, appSession.sessionState.value.playbackState)
+                assertLocks(expectedHeld = true, phase = "playing")
+                assertTrue(host.isForegroundActive)
+                assertNotNull(shadowService.lastForegroundNotification)
+
+                // 2. Active rebuffering keeps locks and foreground
+                fakeEngine.customPlayWhenReady = true
+                fakeEngine._playbackState.value = PlaybackState.Buffering
+                settle()
+                assertLocks(expectedHeld = true, phase = "active buffering")
+                assertTrue(host.isForegroundActive)
+                fakeEngine._playbackState.value = PlaybackState.Playing
+                settle()
+
+                // 3. Lock-screen pause via host MediaSession -> app session -> locks released immediately,
+                //    foreground kept under the deferred demotion grace window
+                assertTrue(mediaButtons.handleMediaButtonIntent(createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PAUSE)))
+                settle()
+                assertEquals(1, fakeEngine.pauseCount)
+                assertEquals(PlaybackState.Paused, appSession.sessionState.value.playbackState)
+                assertLocks(expectedHeld = false, phase = "paused")
+                assertTrue("Deferred demotion scheduled on pause", host.isDemotionPending)
+                assertTrue("Foreground retained during grace window", host.isForegroundActive)
+                assertTrue(notificationManager.activeNotifications.any { it.id == host.notificationProvider.notificationId })
+
+                // 4. Notification/headset play -> locks re-acquired, demotion cancelled
+                assertTrue(mediaButtons.handleMediaButtonIntent(createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_PLAY)))
+                settle()
+                assertEquals(PlaybackState.Playing, appSession.sessionState.value.playbackState)
+                assertLocks(expectedHeld = true, phase = "resumed playback")
+                assertFalse(host.isDemotionPending)
+
+                // 5. Bluetooth next -> session-managed queue progression loads the next physical stream
+                assertTrue(mediaButtons.handleMediaButtonIntent(createMediaButtonIntent(KeyEvent.KEYCODE_MEDIA_NEXT)))
+                settle()
+                assertEquals(1, appSession.sessionState.value.queue.currentIndex)
+                assertEquals("02.mp3", fakeEngine.loadedTrack?.title)
+                assertEquals(2, fakeEngine.loadTrackCount)
+                assertLocks(expectedHeld = true, phase = "next track")
+
+                // 6. Transient network error -> locks released and foreground demoted deterministically
+                fakeEngine._playbackState.value = PlaybackState.Error("Connection reset")
+                settle()
+                assertLocks(expectedHeld = false, phase = "error")
+                assertFalse(host.isForegroundActive)
+                assertFalse(host.isDemotionPending)
+
+                // 7. Stop -> engine idle, notification cleared
+                appSession.stop()
+                settle()
+                assertEquals(1, fakeEngine.stopCount)
+                assertEquals(PlaybackState.Idle, fakeEngine.playbackState.value)
+                assertLocks(expectedHeld = false, phase = "stopped")
+                assertFalse(notificationManager.activeNotifications.any { it.id == host.notificationProvider.notificationId })
+            } finally {
+                serviceController.destroy()
+                appSession.release()
+                sessionJob.cancel()
+                host.release()
+                hostJob.cancel()
+                exoPlayer.release()
+            }
+        }
 
     /**
      * Acceptance Criterion 4:
