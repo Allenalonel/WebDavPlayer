@@ -1074,7 +1074,10 @@ class Media3AudioPlayerEngineTest {
         assertEquals(2, monoOut.channelCount)
         assertEquals(C.ENCODING_PCM_16BIT, monoOut.encoding)
 
-        val inputBuffer = java.nio.ByteBuffer.allocateDirect(512).order(java.nio.ByteOrder.nativeOrder())
+        val inputBuffer =
+            java.nio.ByteBuffer
+                .allocateDirect(512)
+                .order(java.nio.ByteOrder.nativeOrder())
         while (inputBuffer.hasRemaining()) {
             inputBuffer.putShort(200)
         }
