@@ -218,14 +218,14 @@ class Media3AudioPlayerEngineTest {
         val originalItem = engine.player.getMediaItemAt(0)
         assertEquals(5000L, engine.currentPositionMs.value)
 
-        var observedSessionMeta: MediaMetadata? = null
+        var observedPlaylistMeta: MediaMetadata? = null
         val listener =
             object : Player.Listener {
-                override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                    observedSessionMeta = mediaMetadata
+                override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {
+                    observedPlaylistMeta = mediaMetadata
                 }
             }
-        engine.sessionPlayer.addListener(listener)
+        engine.player.addListener(listener)
 
         val updated = track1.copy(title = "Updated Song Title", artist = "Updated Artist", album = "Updated Album")
         engine.updateTrackMetadata(updated)
@@ -240,26 +240,26 @@ class Media3AudioPlayerEngineTest {
         assertEquals(5000L, engine.currentPositionMs.value)
         assertTrue(engine.playbackState.value is PlaybackState.Playing || engine.playbackState.value is PlaybackState.Buffering)
 
-        // Playlist and sessionPlayer mediaMetadata must be updated non-destructively for external presentation flows
+        // Playlist metadata on player must be updated non-destructively for external presentation flows
         assertEquals(
             "Updated Song Title",
-            engine.sessionPlayer.mediaMetadata.title
+            engine.player.playlistMetadata.title
                 ?.toString(),
         )
         assertEquals(
             "Updated Artist",
-            engine.sessionPlayer.mediaMetadata.artist
+            engine.player.playlistMetadata.artist
                 ?.toString(),
         )
         assertEquals(
             "Updated Album",
-            engine.sessionPlayer.mediaMetadata.albumTitle
+            engine.player.playlistMetadata.albumTitle
                 ?.toString(),
         )
-        assertEquals("Updated Song Title", observedSessionMeta?.title?.toString())
-        assertEquals("Updated Artist", observedSessionMeta?.artist?.toString())
-        assertEquals("Updated Album", observedSessionMeta?.albumTitle?.toString())
-        engine.sessionPlayer.removeListener(listener)
+        assertEquals("Updated Song Title", observedPlaylistMeta?.title?.toString())
+        assertEquals("Updated Artist", observedPlaylistMeta?.artist?.toString())
+        assertEquals("Updated Album", observedPlaylistMeta?.albumTitle?.toString())
+        engine.player.removeListener(listener)
     }
 
     @Test
@@ -347,7 +347,7 @@ class Media3AudioPlayerEngineTest {
         assertEquals(testServer, engine.activeServer)
         assertEquals(
             "Rebuilt Title",
-            engine.sessionPlayer.mediaMetadata.title
+            engine.player.playlistMetadata.title
                 ?.toString(),
         )
 
@@ -389,47 +389,29 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun sessionPlayer_seekToNextAndPrevious_areNoOpsAndDoNotMutateUnderlyingPlayer() {
-        engine.loadTrack(
-            server = testServer,
-            track = track1,
-            startPositionMs = 4000L,
-        )
-        engine.prerollTrack(testServer, track2)
-        org.robolectric.shadows.ShadowLooper
-            .idleMainLooper()
+    fun engine_doesNotExposeMediaSessionOrSessionPlayerOrReverseCallbackHooks() {
+        val declaredMethods =
+            Media3AudioPlayerEngine::class.java.declaredMethods
+                .map { it.name }
+                .toSet()
+        val declaredFields =
+            Media3AudioPlayerEngine::class.java.declaredFields
+                .map { it.name }
+                .toSet()
 
-        assertEquals(2, engine.player.mediaItemCount)
-        assertEquals(0, engine.player.currentMediaItemIndex)
-        assertEquals(4000L, engine.currentPositionMs.value)
-
-        engine.sessionPlayer.seekToNext()
-        engine.sessionPlayer.seekToNextMediaItem()
-        engine.sessionPlayer.seekToPrevious()
-        engine.sessionPlayer.seekToPreviousMediaItem()
-
-        assertEquals(0, engine.player.currentMediaItemIndex)
-        assertEquals(4000L, engine.currentPositionMs.value)
-    }
-
-    @Test
-    fun virtualTrackSingleItem_enablesNextPreviousCommandsOnSessionPlayer() {
-        assertFalse(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
-        assertFalse(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
-
-        engine.loadTrack(
-            server = testServer,
-            track = track1,
-        )
-
-        // With 1 item, standard ExoPlayer disables SEEK_TO_NEXT_MEDIA_ITEM / SEEK_TO_PREVIOUS_MEDIA_ITEM
-        // sessionPlayer must expose them as available so notification / MediaSession controls remain enabled
-        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
-        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
-        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
-        assertTrue(engine.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
-        assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
-        assertTrue(engine.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+        assertFalse("Media3AudioPlayerEngine must not expose getMediaSession", "getMediaSession" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose getSessionPlayer", "getSessionPlayer" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose getSessionCallback", "getSessionCallback" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose setSessionCallback", "setSessionCallback" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose getOnSkipToNext", "getOnSkipToNext" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose setOnSkipToNext", "setOnSkipToNext" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose getOnSkipToPrevious", "getOnSkipToPrevious" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not expose setOnSkipToPrevious", "setOnSkipToPrevious" in declaredMethods)
+        assertFalse("Media3AudioPlayerEngine must not retain mediaSession field", "mediaSession" in declaredFields)
+        assertFalse("Media3AudioPlayerEngine must not retain sessionPlayer field", "sessionPlayer" in declaredFields)
+        assertFalse("Media3AudioPlayerEngine must not retain sessionCallback field", "sessionCallback" in declaredFields)
+        assertFalse("Media3AudioPlayerEngine must not retain onSkipToNext field", "onSkipToNext" in declaredFields)
+        assertFalse("Media3AudioPlayerEngine must not retain onSkipToPrevious field", "onSkipToPrevious" in declaredFields)
     }
 
     @Test
@@ -584,15 +566,15 @@ class Media3AudioPlayerEngineTest {
                 engine.playbackState.value is PlaybackState.Buffering,
         )
 
-        // sessionPlayer mediaMetadata is updated
+        // player playlistMetadata is updated
         assertEquals(
             "Enriched Stream Title",
-            engine.sessionPlayer.mediaMetadata.title
+            engine.player.playlistMetadata.title
                 ?.toString(),
         )
         assertEquals(
             "Enriched Artist",
-            engine.sessionPlayer.mediaMetadata.artist
+            engine.player.playlistMetadata.artist
                 ?.toString(),
         )
     }

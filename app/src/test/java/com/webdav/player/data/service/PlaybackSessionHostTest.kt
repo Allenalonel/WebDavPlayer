@@ -572,8 +572,17 @@ class PlaybackSessionHostTest {
                 coroutineScope = testScope,
             )
         try {
+            assertNotNull(standaloneHost.sessionPlayer)
             assertNotNull(standaloneHost.mediaSession)
-            assertEquals(media3Engine.sessionPlayer, standaloneHost.mediaSession.player)
+            assertEquals(standaloneHost.sessionPlayer, standaloneHost.mediaSession.player)
+            assertEquals(
+                media3Engine.player,
+                (standaloneHost.sessionPlayer as androidx.media3.common.ForwardingPlayer).wrappedPlayer,
+            )
+
+            // Before any track is loaded, next/previous media item commands are not forced available
+            assertFalse(standaloneHost.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+            assertFalse(standaloneHost.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
 
             val appSession =
                 com.webdav.player.domain.session
@@ -581,11 +590,47 @@ class PlaybackSessionHostTest {
             standaloneHost.bindAppSession(appSession)
             assertEquals(appSession, standaloneHost.appSession)
 
-            // Verify non-disruptive metadata enrichment flows into host's MediaSession and Notification
+            var observedSessionMeta: androidx.media3.common.MediaMetadata? = null
+            val metadataListener =
+                object : Player.Listener {
+                    override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+                        observedSessionMeta = mediaMetadata
+                    }
+                }
+            standaloneHost.sessionPlayer.addListener(metadataListener)
+
+            // Verify non-disruptive metadata enrichment flows into host's sessionPlayer, MediaSession, and Notification
             standaloneHost.loadTrack(testServer, testTrack, startPositionMs = 5000L)
             org.robolectric.shadows.ShadowLooper
                 .idleMainLooper()
-            val enrichedTrack = testTrack.copy(title = "Host Enriched Title", artist = "Host Enriched Artist")
+
+            // Single loaded item enables seek-to-next/previous commands on host's sessionPlayer
+            assertTrue(standaloneHost.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+            assertTrue(standaloneHost.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+            assertTrue(standaloneHost.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+            assertTrue(standaloneHost.sessionPlayer.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+            assertTrue(standaloneHost.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+            assertTrue(standaloneHost.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+
+            // Preroll a second track and verify seekToNext/Previous on sessionPlayer are no-ops
+            val secondTrack = testTrack.copy(id = "2", remotePath = "/track2.mp3", title = "Track 2")
+            standaloneHost.prerollTrack(testServer, secondTrack)
+            org.robolectric.shadows.ShadowLooper
+                .idleMainLooper()
+            assertEquals(2, media3Engine.player.mediaItemCount)
+            standaloneHost.sessionPlayer.seekToNext()
+            standaloneHost.sessionPlayer.seekToNextMediaItem()
+            standaloneHost.sessionPlayer.seekToPrevious()
+            standaloneHost.sessionPlayer.seekToPreviousMediaItem()
+            assertEquals(0, media3Engine.player.currentMediaItemIndex)
+            assertEquals(5000L, media3Engine.currentPositionMs.value)
+
+            val enrichedTrack =
+                testTrack.copy(
+                    title = "Host Enriched Title",
+                    artist = "Host Enriched Artist",
+                    album = "Host Enriched Album",
+                )
             standaloneHost.updateTrackMetadata(enrichedTrack)
             org.robolectric.shadows.ShadowLooper
                 .idleMainLooper()
@@ -595,6 +640,21 @@ class PlaybackSessionHostTest {
                 standaloneHost.mediaSession.player.mediaMetadata.title
                     ?.toString(),
             )
+            assertEquals(
+                "Host Enriched Artist",
+                standaloneHost.mediaSession.player.mediaMetadata.artist
+                    ?.toString(),
+            )
+            assertEquals(
+                "Host Enriched Album",
+                standaloneHost.mediaSession.player.mediaMetadata.albumTitle
+                    ?.toString(),
+            )
+            assertEquals("Host Enriched Title", observedSessionMeta?.title?.toString())
+            assertEquals("Host Enriched Artist", observedSessionMeta?.artist?.toString())
+            assertEquals("Host Enriched Album", observedSessionMeta?.albumTitle?.toString())
+            standaloneHost.sessionPlayer.removeListener(metadataListener)
+
             val notification = standaloneHost.buildCurrentNotification()
             assertEquals(
                 "Host Enriched Title",

@@ -9,7 +9,6 @@ import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -43,7 +42,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
 data class StreamingLoadControlConfig(
@@ -184,73 +182,6 @@ class Media3AudioPlayerEngine(
 
     private val pendingEnrichedItems = ConcurrentHashMap<Int, MediaItem>()
 
-    private val activeTrackMetadataRef = AtomicReference<MediaMetadata?>(null)
-    private val sessionListeners = CopyOnWriteArrayList<Player.Listener>()
-
-    val sessionPlayer: Player =
-        object : ForwardingPlayer(player) {
-            override fun addListener(listener: Player.Listener) {
-                sessionListeners.add(listener)
-                super.addListener(listener)
-            }
-
-            override fun removeListener(listener: Player.Listener) {
-                sessionListeners.remove(listener)
-                super.removeListener(listener)
-            }
-
-            override fun getMediaMetadata(): MediaMetadata {
-                val active = activeTrackMetadataRef.get()
-                return if (active != null && active != MediaMetadata.EMPTY) {
-                    active
-                } else {
-                    super.getMediaMetadata()
-                }
-            }
-
-            override fun seekToNext() {
-                // Handled at session layer via WebDavMediaSessionCallback
-            }
-
-            override fun seekToNextMediaItem() {
-                // Handled at session layer via WebDavMediaSessionCallback
-            }
-
-            override fun seekToPrevious() {
-                // Handled at session layer via WebDavMediaSessionCallback
-            }
-
-            override fun seekToPreviousMediaItem() {
-                // Handled at session layer via WebDavMediaSessionCallback
-            }
-
-            override fun isCommandAvailable(command: Int): Boolean =
-                if (player.mediaItemCount > 0 && (
-                        command == Player.COMMAND_SEEK_TO_NEXT ||
-                            command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
-                            command == Player.COMMAND_SEEK_TO_PREVIOUS ||
-                            command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
-                    )
-                ) {
-                    true
-                } else {
-                    super.isCommandAvailable(command)
-                }
-
-            override fun getAvailableCommands(): Player.Commands {
-                val commands = super.getAvailableCommands().buildUpon()
-                if (player.mediaItemCount > 0) {
-                    commands.addAll(
-                        Player.COMMAND_SEEK_TO_NEXT,
-                        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-                        Player.COMMAND_SEEK_TO_PREVIOUS,
-                        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-                    )
-                }
-                return commands.build()
-            }
-        }
-
     @Volatile
     private var currentVolume: Float = 1.0f
 
@@ -337,7 +268,6 @@ class Media3AudioPlayerEngine(
                 if (playerIndex == 1 && player.mediaItemCount >= 2) {
                     player.removeMediaItem(0)
                     commitPendingEnrichedItem(0)
-                    activeTrackMetadataRef.set(null)
                     player.playlistMetadata = MediaMetadata.EMPTY
                     updatePositionAndDuration()
                     updatePlaybackState()
@@ -346,7 +276,6 @@ class Media3AudioPlayerEngine(
                 }
 
                 commitPendingEnrichedItem(0)
-                activeTrackMetadataRef.set(null)
                 player.playlistMetadata = MediaMetadata.EMPTY
                 updatePositionAndDuration()
                 updatePlaybackState()
@@ -395,7 +324,6 @@ class Media3AudioPlayerEngine(
     ) {
         runOnApplicationLooper {
             pendingEnrichedItems.clear()
-            activeTrackMetadataRef.set(null)
             player.playlistMetadata = MediaMetadata.EMPTY
             activeServerRef.set(server)
             _currentPositionMs.value = startPositionMs
@@ -513,16 +441,8 @@ class Media3AudioPlayerEngine(
                 .build()
 
         if (isActivelyPlayingOrBuffering) {
-            activeTrackMetadataRef.set(updatedMetadata)
             player.playlistMetadata = updatedMetadata
             pendingEnrichedItems[0] = updatedItem
-
-            for (l in sessionListeners) {
-                try {
-                    l.onMediaMetadataChanged(updatedMetadata)
-                } catch (_: Throwable) {
-                }
-            }
         } else {
             pendingEnrichedItems.remove(0)
             player.replaceMediaItem(0, updatedItem)
@@ -574,7 +494,6 @@ class Media3AudioPlayerEngine(
     override fun stop() {
         runOnApplicationLooper {
             commitPendingEnrichedItem(0)
-            activeTrackMetadataRef.set(null)
             stopPositionTicker()
             player.stop()
             player.playlistMetadata = MediaMetadata.EMPTY
@@ -589,8 +508,6 @@ class Media3AudioPlayerEngine(
         runOnApplicationLooper {
             audioRoutingObserver.stop()
             pendingEnrichedItems.clear()
-            activeTrackMetadataRef.set(null)
-            sessionListeners.clear()
             stopPositionTicker()
             player.removeListener(listener)
             player.release()

@@ -13,6 +13,8 @@ import android.os.Build
 import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
@@ -32,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.CopyOnWriteArrayList
 
 @OptIn(UnstableApi::class)
 class PlaybackSessionHost(
@@ -44,6 +47,76 @@ class PlaybackSessionHost(
     val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
     val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
 ) : AudioPlayerEngine by playerEngine {
+    private val basePlayer: Player = sessionPlayer
+    private val sessionListeners = CopyOnWriteArrayList<Player.Listener>()
+
+    private val playlistMetadataBridgeListener =
+        object : Player.Listener {
+            override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {
+                if (mediaMetadata != MediaMetadata.EMPTY) {
+                    for (listener in sessionListeners) {
+                        try {
+                            listener.onMediaMetadataChanged(mediaMetadata)
+                        } catch (_: Throwable) {
+                        }
+                    }
+                }
+            }
+        }
+
+    val sessionPlayer: Player =
+        object : ForwardingPlayer(basePlayer) {
+            override fun addListener(listener: Player.Listener) {
+                sessionListeners.add(listener)
+                super.addListener(listener)
+            }
+
+            override fun removeListener(listener: Player.Listener) {
+                sessionListeners.remove(listener)
+                super.removeListener(listener)
+            }
+
+            override fun getMediaMetadata(): MediaMetadata {
+                val playlistMeta = super.getPlaylistMetadata()
+                return if (playlistMeta != MediaMetadata.EMPTY) {
+                    playlistMeta
+                } else {
+                    super.getMediaMetadata()
+                }
+            }
+
+            override fun seekToNext() {
+                // Handled at session layer via WebDavMediaSessionCallback
+            }
+
+            override fun seekToNextMediaItem() {
+                // Handled at session layer via WebDavMediaSessionCallback
+            }
+
+            override fun seekToPrevious() {
+                // Handled at session layer via WebDavMediaSessionCallback
+            }
+
+            override fun seekToPreviousMediaItem() {
+                // Handled at session layer via WebDavMediaSessionCallback
+            }
+
+            override fun isCommandAvailable(command: Int): Boolean =
+                if (mediaItemCount > 0 && command in SESSION_SKIP_COMMANDS) {
+                    true
+                } else {
+                    super.isCommandAvailable(command)
+                }
+
+            override fun getAvailableCommands(): Player.Commands {
+                val commands = super.getAvailableCommands().buildUpon()
+                if (mediaItemCount > 0) {
+                    commands.addAll(*SESSION_SKIP_COMMANDS)
+                }
+                return commands.build()
+            }
+        }
+
     var mediaSessionCallback: WebDavMediaSessionCallback? = null
         private set
 
@@ -81,7 +154,7 @@ class PlaybackSessionHost(
                 )
 
             MediaSession
-                .Builder(context, sessionPlayer)
+                .Builder(context, this.sessionPlayer)
                 .setId("WebDavPlayerSession_${System.currentTimeMillis()}_${(1..99999).random()}")
                 .setSessionActivity(sessionActivity)
                 .setCallback(internalSessionCallback)
@@ -121,7 +194,7 @@ class PlaybackSessionHost(
     ) : this(
         context = context,
         playerEngine = engine,
-        sessionPlayer = engine.sessionPlayer,
+        sessionPlayer = engine.player,
         audioFocusHandler = audioFocusHandler,
         notificationProvider = notificationProvider,
         coroutineScope = coroutineScope,
@@ -190,6 +263,7 @@ class PlaybackSessionHost(
     }
 
     init {
+        basePlayer.addListener(playlistMetadataBridgeListener)
         observePlaybackState()
     }
 
@@ -442,6 +516,8 @@ class PlaybackSessionHost(
         hasPlaybackStarted = false
         audioFocusHandler.abandonAudioFocus()
         attachedService?.unregisterSession(mediaSession)
+        basePlayer.removeListener(playlistMetadataBridgeListener)
+        sessionListeners.clear()
         try {
             mediaSession.release()
         } catch (_: Throwable) {
@@ -459,6 +535,14 @@ class PlaybackSessionHost(
 
     companion object {
         const val DEFAULT_DEMOTION_TIMEOUT_MS: Long = 15 * 60 * 1000L
+
+        private val SESSION_SKIP_COMMANDS =
+            intArrayOf(
+                Player.COMMAND_SEEK_TO_NEXT,
+                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                Player.COMMAND_SEEK_TO_PREVIOUS,
+                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            )
 
         @Volatile
         private var instance: PlaybackSessionHost? = null
