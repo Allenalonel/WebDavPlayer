@@ -112,6 +112,7 @@ class PlaybackSessionHostTest {
         assertNotNull(host.mediaSession)
         assertNotNull(host.notificationProvider)
         assertNotNull(host.audioFocusHandler)
+        assertNotNull(host.hardwareLockManager)
         // Verify service attached to host during its onCreate
         assertEquals(service, host.attachedService)
         assertTrue(host.isForegroundActive)
@@ -225,6 +226,71 @@ class PlaybackSessionHostTest {
         host.handlePlaybackStateChanged(PlaybackState.Playing)
         assertTrue(host.isForegroundActive)
         assertFalse(shadowService.isForegroundStopped)
+    }
+
+    @Test
+    fun hardwareLocks_acquiredOnPlayingAndActiveBuffering_releasedOnPausedErrorIdleEndedDetachStopAndRelease() {
+        fun assertLocksHeld(expected: Boolean) {
+            assertEquals(expected, host.hardwareLockManager.isWakeLockHeld)
+            assertEquals(expected, host.hardwareLockManager.isWifiLockHeld)
+        }
+
+        fun resumePlayingAndAssertLocksHeld() {
+            fakeEngine.customPlayWhenReady = true
+            host.handlePlaybackStateChanged(PlaybackState.Playing)
+            assertLocksHeld(true)
+        }
+
+        // Initial state: locks not held
+        assertLocksHeld(false)
+
+        // 1. Active Buffering (playWhenReady = true) acquires both locks
+        fakeEngine.customPlayWhenReady = true
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertLocksHeld(true)
+
+        // 2. Inactive Buffering (playWhenReady = false) releases both locks
+        fakeEngine.customPlayWhenReady = false
+        host.handlePlaybackStateChanged(PlaybackState.Buffering)
+        assertLocksHeld(false)
+
+        // 3. Playing keeps both locks held
+        resumePlayingAndAssertLocksHeld()
+
+        // 4. Paused immediately releases both locks to save battery
+        host.handlePlaybackStateChanged(PlaybackState.Paused)
+        assertLocksHeld(false)
+
+        // 5. Error immediately releases both locks
+        resumePlayingAndAssertLocksHeld()
+        host.handlePlaybackStateChanged(PlaybackState.Error("Stream connection timeout"))
+        assertLocksHeld(false)
+
+        // 6. Idle immediately releases both locks
+        resumePlayingAndAssertLocksHeld()
+        host.handlePlaybackStateChanged(PlaybackState.Idle)
+        assertLocksHeld(false)
+
+        // 7. Ended immediately releases both locks
+        resumePlayingAndAssertLocksHeld()
+        host.handlePlaybackStateChanged(PlaybackState.Ended)
+        assertLocksHeld(false)
+
+        // 8. Service detachment releases both locks
+        resumePlayingAndAssertLocksHeld()
+        host.detachService(service)
+        assertLocksHeld(false)
+        host.attachService(service)
+
+        // 9. stop() releases both locks
+        resumePlayingAndAssertLocksHeld()
+        host.stop()
+        assertLocksHeld(false)
+
+        // 10. release() releases both locks
+        resumePlayingAndAssertLocksHeld()
+        host.release()
+        assertLocksHeld(false)
     }
 
     @Test
@@ -714,6 +780,8 @@ class PlaybackSessionHostTest {
         fakeEngine.customPlayWhenReady = true
         host.handlePlaybackStateChanged(PlaybackState.Buffering)
         assertTrue(host.isBecomingNoisyRegistered)
+        assertTrue(host.hardwareLockManager.isWakeLockHeld)
+        assertTrue(host.hardwareLockManager.isWifiLockHeld)
 
         // System dispatches ACTION_AUDIO_BECOMING_NOISY
         val noisyIntent = Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
@@ -730,6 +798,8 @@ class PlaybackSessionHostTest {
 
         // Safe degradation asserted
         assertFalse(host.isBecomingNoisyRegistered)
+        assertFalse(host.hardwareLockManager.isWakeLockHeld)
+        assertFalse(host.hardwareLockManager.isWifiLockHeld)
         assertTrue(host.isDemotionPending)
     }
 

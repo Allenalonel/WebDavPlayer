@@ -83,7 +83,6 @@ class Media3AudioPlayerEngine(
     customPlayer: Player? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
-    val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
     val canonicalAudioProcessor: CanonicalResamplingAudioProcessor = CanonicalResamplingAudioProcessor(),
     customAudioSink: AudioSink? = null,
     customAudioRoutingObserver: AudioRoutingObserver? = null,
@@ -352,7 +351,6 @@ class Media3AudioPlayerEngine(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                hardwareLockManager.releaseLocks()
                 _playbackState.value = toPlaybackError(error)
             }
 
@@ -572,7 +570,6 @@ class Media3AudioPlayerEngine(
 
     override fun stop() {
         runOnApplicationLooper {
-            hardwareLockManager.releaseLocks()
             commitPendingEnrichedItem(0)
             activeTrackMetadataRef.set(null)
             stopPositionTicker()
@@ -587,7 +584,6 @@ class Media3AudioPlayerEngine(
 
     override fun release() {
         runOnApplicationLooper {
-            hardwareLockManager.release()
             audioRoutingObserver.stop()
             pendingEnrichedItems.clear()
             activeTrackMetadataRef.set(null)
@@ -650,13 +646,6 @@ class Media3AudioPlayerEngine(
                 }
             }
 
-        when (state) {
-            is PlaybackState.Playing,
-            is PlaybackState.Buffering,
-            -> hardwareLockManager.acquireLocks()
-
-            else -> hardwareLockManager.releaseLocks()
-        }
         _playbackState.value = state
     }
 

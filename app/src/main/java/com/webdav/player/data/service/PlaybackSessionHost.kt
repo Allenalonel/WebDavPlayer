@@ -17,8 +17,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
+import com.webdav.player.data.player.DefaultStreamingHardwareLockManager
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
+import com.webdav.player.data.player.StreamingHardwareLockManager
 import com.webdav.player.data.player.WebDavMediaSourceAdapter
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
@@ -40,6 +42,7 @@ class PlaybackSessionHost(
     val notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
+    val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
 ) : AudioPlayerEngine by playerEngine {
     var mediaSessionCallback: WebDavMediaSessionCallback? = null
         private set
@@ -97,6 +100,7 @@ class PlaybackSessionHost(
         mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
         coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
         demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
+        hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
     ) : this(
         context = context,
         engine =
@@ -107,6 +111,7 @@ class PlaybackSessionHost(
             ),
         coroutineScope = coroutineScope,
         demotionTimeoutMs = demotionTimeoutMs,
+        hardwareLockManager = hardwareLockManager,
     )
 
     constructor(
@@ -116,6 +121,7 @@ class PlaybackSessionHost(
         notificationProvider: WebDavNotificationProvider = WebDavNotificationProvider(context),
         coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
         demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
+        hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
     ) : this(
         context = context,
         playerEngine = engine,
@@ -124,6 +130,7 @@ class PlaybackSessionHost(
         notificationProvider = notificationProvider,
         coroutineScope = coroutineScope,
         demotionTimeoutMs = demotionTimeoutMs,
+        hardwareLockManager = hardwareLockManager,
     )
 
     fun bindAppSession(session: MusicPlayerAppSession) {
@@ -204,6 +211,7 @@ class PlaybackSessionHost(
     fun handlePlaybackStateChanged(state: PlaybackState) {
         when (state) {
             is PlaybackState.Playing -> {
+                hardwareLockManager.acquireLocks()
                 cancelDemotionTimer()
                 hasPlaybackStarted = true
                 registerBecomingNoisyReceiver()
@@ -212,28 +220,33 @@ class PlaybackSessionHost(
 
             is PlaybackState.Buffering -> {
                 if (playerEngine.playWhenReady) {
+                    hardwareLockManager.acquireLocks()
                     cancelDemotionTimer()
                     hasPlaybackStarted = true
                     registerBecomingNoisyReceiver()
                     elevateForeground(state)
                 } else {
+                    hardwareLockManager.releaseLocks()
                     unregisterBecomingNoisyReceiver()
                     scheduleDeferredDemotion(state)
                 }
             }
 
             is PlaybackState.Paused -> {
+                hardwareLockManager.releaseLocks()
                 unregisterBecomingNoisyReceiver()
                 scheduleDeferredDemotion(state)
             }
 
             is PlaybackState.Error -> {
+                hardwareLockManager.releaseLocks()
                 unregisterBecomingNoisyReceiver()
                 cancelDemotionTimer()
                 demoteForeground(removeNotification = false, playbackState = state)
             }
 
             is PlaybackState.Idle -> {
+                hardwareLockManager.releaseLocks()
                 unregisterBecomingNoisyReceiver()
                 cancelDemotionTimer()
                 if (hasPlaybackStarted) {
@@ -243,6 +256,7 @@ class PlaybackSessionHost(
             }
 
             is PlaybackState.Ended -> {
+                hardwareLockManager.releaseLocks()
                 unregisterBecomingNoisyReceiver()
                 cancelDemotionTimer()
                 hasPlaybackStarted = false
@@ -286,6 +300,7 @@ class PlaybackSessionHost(
 
     fun detachService(service: WebDavMediaService? = null) {
         if (service == null || this.attachedService == service) {
+            hardwareLockManager.releaseLocks()
             cancelDemotionTimer()
             unregisterBecomingNoisyReceiver()
             this.attachedService = null
@@ -413,6 +428,7 @@ class PlaybackSessionHost(
     }
 
     override fun stop() {
+        hardwareLockManager.releaseLocks()
         cancelDemotionTimer()
         unregisterBecomingNoisyReceiver()
         hasPlaybackStarted = false
@@ -422,6 +438,7 @@ class PlaybackSessionHost(
     }
 
     override fun release() {
+        hardwareLockManager.release()
         cancelDemotionTimer()
         unregisterBecomingNoisyReceiver()
         stateObserverJob?.cancel()
