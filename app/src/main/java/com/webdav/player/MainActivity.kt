@@ -44,6 +44,7 @@ import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.browser.DirectoryBrowserViewModelFactory
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
 import com.webdav.player.ui.navigation.AppDestination
+import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.DockedMiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
@@ -88,23 +89,15 @@ class MainActivity : ComponentActivity() {
                 )
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
-                var destination by rememberSaveable {
-                    mutableStateOf(AppDestination.DIRECTORY_BROWSER)
+                val coordinator = remember(musicSession) { MainNavigationCoordinator(musicSession) }
+                val navState by coordinator.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(serverState.activeServer) {
+                    coordinator.onActiveServerLoaded(serverState.activeServer)
                 }
 
-                var isFullPlayerExpanded by rememberSaveable { mutableStateOf(false) }
-
-                // If active server is confirmed absent once loaded, fall back to server list
-                LaunchedEffect(serverState.isLoading, serverState.activeServer) {
-                    if (!serverState.isLoading && serverState.activeServer == null && destination == AppDestination.DIRECTORY_BROWSER) {
-                        destination = AppDestination.SERVER_LIST
-                    }
-                }
-
-                LaunchedEffect(playerSessionState.hasTrack) {
-                    if (!playerSessionState.hasTrack) {
-                        isFullPlayerExpanded = false
-                    }
+                LaunchedEffect(playerSessionState) {
+                    coordinator.onSessionStateChanged(playerSessionState)
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -115,7 +108,7 @@ class MainActivity : ComponentActivity() {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 // Hoisted Docked Mini-Player floating above navigation bar
                                 AnimatedVisibility(
-                                    visible = playerSessionState.hasTrack,
+                                    visible = navState.isMiniPlayerVisible,
                                     enter =
                                         slideInVertically(
                                             initialOffsetY = { it },
@@ -132,7 +125,7 @@ class MainActivity : ComponentActivity() {
                                         playbackProgress = playbackProgress,
                                         onTogglePlayPause = { musicSession?.togglePlayPause() },
                                         onSkipToNext = { musicSession?.skipToNext() },
-                                        onMiniPlayerClick = { isFullPlayerExpanded = true },
+                                        onMiniPlayerClick = { coordinator.expandFullPlayer() },
                                         onRetryPlayback = { musicSession?.retryPlayback() },
                                         modifier =
                                             Modifier
@@ -148,12 +141,12 @@ class MainActivity : ComponentActivity() {
                                     tonalElevation = 3.dp,
                                 ) {
                                     NavigationBarItem(
-                                        selected = destination == AppDestination.DIRECTORY_BROWSER,
-                                        onClick = { destination = AppDestination.DIRECTORY_BROWSER },
+                                        selected = navState.currentDestination == AppDestination.DIRECTORY_BROWSER,
+                                        onClick = { coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER) },
                                         icon = {
                                             Icon(
                                                 imageVector =
-                                                    if (destination == AppDestination.DIRECTORY_BROWSER) {
+                                                    if (navState.currentDestination == AppDestination.DIRECTORY_BROWSER) {
                                                         AppIcons.FolderOpen
                                                     } else {
                                                         AppIcons.Folder
@@ -164,8 +157,8 @@ class MainActivity : ComponentActivity() {
                                         label = { Text("媒体库") },
                                     )
                                     NavigationBarItem(
-                                        selected = destination == AppDestination.SERVER_LIST,
-                                        onClick = { destination = AppDestination.SERVER_LIST },
+                                        selected = navState.currentDestination == AppDestination.SERVER_LIST,
+                                        onClick = { coordinator.selectDestination(AppDestination.SERVER_LIST) },
                                         icon = {
                                             Icon(
                                                 imageVector = AppIcons.Storage,
@@ -185,7 +178,7 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxSize()
                                     .padding(bottom = innerPadding.calculateBottomPadding()),
                         ) {
-                            val isBrowser = destination == AppDestination.DIRECTORY_BROWSER
+                            val isBrowser = navState.currentDestination == AppDestination.DIRECTORY_BROWSER
                             Box(
                                 modifier =
                                     Modifier
@@ -199,16 +192,16 @@ class MainActivity : ComponentActivity() {
                                 DirectoryBrowserScreen(
                                     viewModel = browserViewModel,
                                     onNavigateToServerManagement = {
-                                        destination = AppDestination.SERVER_LIST
+                                        coordinator.selectDestination(AppDestination.SERVER_LIST)
                                     },
                                     isCurrentTab = isBrowser,
                                     onOpenFullPlayer = {
-                                        isFullPlayerExpanded = true
+                                        coordinator.expandFullPlayer()
                                     },
                                 )
                             }
 
-                            val isServers = destination == AppDestination.SERVER_LIST
+                            val isServers = navState.currentDestination == AppDestination.SERVER_LIST
                             Box(
                                 modifier =
                                     Modifier
@@ -222,11 +215,11 @@ class MainActivity : ComponentActivity() {
                                 ServerListScreen(
                                     viewModel = serverViewModel,
                                     onNavigateToBrowser = {
-                                        destination = AppDestination.DIRECTORY_BROWSER
+                                        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
                                     },
                                     onSelectServerAndNavigate = { server ->
                                         serverViewModel.onSelectActiveServer(server.id)
-                                        destination = AppDestination.DIRECTORY_BROWSER
+                                        coordinator.onServerCardClicked(server)
                                     },
                                 )
                             }
@@ -235,7 +228,7 @@ class MainActivity : ComponentActivity() {
 
                     // Hoisted Full Player View Overlay
                     AnimatedVisibility(
-                        visible = isFullPlayerExpanded && playerSessionState.hasTrack,
+                        visible = navState.isFullPlayerExpanded && playerSessionState.hasTrack,
                         enter =
                             slideInVertically(
                                 initialOffsetY = { it },
@@ -250,7 +243,7 @@ class MainActivity : ComponentActivity() {
                         FullPlayerView(
                             sessionState = playerSessionState,
                             playbackProgress = playbackProgress,
-                            onCollapse = { isFullPlayerExpanded = false },
+                            onCollapse = { coordinator.collapseFullPlayer() },
                             onTogglePlayPause = { musicSession?.togglePlayPause() },
                             onSeek = { musicSession?.seekTo(it) },
                             onSkipToNext = { musicSession?.skipToNext() },

@@ -12,6 +12,8 @@ import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.AudioQuality
+import com.webdav.player.domain.model.AudioQualityLevel
 import com.webdav.player.domain.model.RemoteFileType
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
@@ -19,9 +21,6 @@ import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.session.FakePlaybackSessionStore
 import com.webdav.player.domain.session.MusicPlayerAppSessionImpl
-import com.webdav.player.ui.browser.AudioQualityBadgeHelper
-import com.webdav.player.ui.browser.AudioQualityLevel
-import com.webdav.player.ui.browser.BreadcrumbNavigationHelper
 import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.player.ArtworkColorExtractor
@@ -343,8 +342,6 @@ class EndToEndMusicPlayerPipelineTest {
     fun e2e_breadcrumbNavigationHierarchy() {
         val fullPath = "/Music/Lossless/Symphonies/Beethoven"
         val breadcrumbs = RemoteDirectory.buildBreadcrumbs(sampleServer, fullPath)
-        val helperBreadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(sampleServer, fullPath)
-        assertEquals(breadcrumbs, helperBreadcrumbs)
 
         assertEquals(5, breadcrumbs.size)
         assertEquals("Synology NAS", breadcrumbs[0].name)
@@ -360,18 +357,17 @@ class EndToEndMusicPlayerPipelineTest {
         val targetBreadcrumb = breadcrumbs[1]
         val isAncestor = RemoteDirectory.isAncestor(targetBreadcrumb.path, fullPath)
         assertTrue("Target is ancestor of current path", isAncestor)
-        assertTrue(BreadcrumbNavigationHelper.isAncestor(targetBreadcrumb.path, fullPath))
     }
 
     @Test
     fun e2e_audioQualityBadgesAndColorExtractionFallback() {
-        val flacBadge = AudioQualityBadgeHelper.getBadge(flacFile)
+        val flacBadge = AudioQuality.resolveBadge(flacFile)
         assertNotNull(flacBadge)
         assertEquals("FLAC", flacBadge!!.label)
         assertTrue(flacBadge.isLossless)
         assertEquals(AudioQualityLevel.LOSSLESS, flacBadge.qualityLevel)
 
-        val mp3Badge = AudioQualityBadgeHelper.getBadge(mp3File)
+        val mp3Badge = AudioQuality.resolveBadge(mp3File)
         assertNotNull(mp3Badge)
         assertEquals("MP3 320k", mp3Badge!!.label)
         assertEquals(AudioQualityLevel.HIGH_QUALITY, mp3Badge.qualityLevel)

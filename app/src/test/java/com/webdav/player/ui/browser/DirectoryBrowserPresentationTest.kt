@@ -1,6 +1,8 @@
 package com.webdav.player.ui.browser
 
 import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.AudioQuality
+import com.webdav.player.domain.model.AudioQualityLevel
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.RemoteDirectory
@@ -30,8 +32,6 @@ class DirectoryBrowserPresentationTest {
     fun breadcrumbStrip_generatesHierarchyWithActiveTail() {
         val path = "/Music/Lossless/Pink Floyd/"
         val breadcrumbs = RemoteDirectory.buildBreadcrumbs(sampleServer, path)
-        val helperBreadcrumbs = BreadcrumbNavigationHelper.buildBreadcrumbs(sampleServer, path)
-        assertEquals(breadcrumbs, helperBreadcrumbs)
 
         assertEquals(4, breadcrumbs.size)
         assertEquals(Breadcrumb("Synology NAS", "/"), breadcrumbs[0])
@@ -49,12 +49,10 @@ class DirectoryBrowserPresentationTest {
         val ancestorBreadcrumb = Breadcrumb("Music", "/Music/")
 
         assertTrue(RemoteDirectory.isAncestor(ancestorBreadcrumb.path, currentPath))
-        assertTrue(BreadcrumbNavigationHelper.isAncestor(ancestorBreadcrumb.path, currentPath))
         assertEquals("/Music/", ancestorBreadcrumb.path)
 
         val rootBreadcrumb = Breadcrumb("Synology NAS", "/")
         assertTrue(RemoteDirectory.isAncestor(rootBreadcrumb.path, currentPath))
-        assertTrue(BreadcrumbNavigationHelper.isAncestor(rootBreadcrumb.path, currentPath))
     }
 
     @Test
@@ -63,7 +61,6 @@ class DirectoryBrowserPresentationTest {
         val tailBreadcrumb = Breadcrumb("Pink Floyd", "/Music/Lossless/Pink Floyd/")
 
         assertFalse(RemoteDirectory.isAncestor(tailBreadcrumb.path, currentPath))
-        assertFalse(BreadcrumbNavigationHelper.isAncestor(tailBreadcrumb.path, currentPath))
     }
 
     @Test
@@ -72,19 +69,19 @@ class DirectoryBrowserPresentationTest {
         val wavFile = RemoteFile(name = "Money.wav", path = "/Music/Money.wav", size = 60_000_000L)
         val apeFile = RemoteFile(name = "UsAndThem.ape", path = "/Music/UsAndThem.ape", size = 40_000_000L)
 
-        val flacBadge = AudioQualityBadgeHelper.getBadge(flacFile)
+        val flacBadge = AudioQuality.resolveBadge(flacFile)
         assertNotNull(flacBadge)
         assertEquals("FLAC", flacBadge!!.label)
         assertTrue(flacBadge.isLossless)
         assertEquals(AudioQualityLevel.LOSSLESS, flacBadge.qualityLevel)
 
-        val wavBadge = AudioQualityBadgeHelper.getBadge(wavFile)
+        val wavBadge = AudioQuality.resolveBadge(wavFile)
         assertNotNull(wavBadge)
         assertEquals("WAV", wavBadge!!.label)
         assertTrue(wavBadge.isLossless)
         assertEquals(AudioQualityLevel.LOSSLESS, wavBadge.qualityLevel)
 
-        val apeBadge = AudioQualityBadgeHelper.getBadge(apeFile)
+        val apeBadge = AudioQuality.resolveBadge(apeFile)
         assertNotNull(apeBadge)
         assertEquals("APE", apeBadge!!.label)
         assertTrue(apeBadge.isLossless)
@@ -95,7 +92,7 @@ class DirectoryBrowserPresentationTest {
     fun audioQualityBadge_cueFile_mapsCueBadge() {
         val cueFile = RemoteFile(name = "DarkSide.cue", path = "/Music/DarkSide.cue", size = 1024L)
         assertTrue(cueFile.isCue)
-        val badge = AudioQualityBadgeHelper.getBadge(cueFile)
+        val badge = AudioQuality.resolveBadge(cueFile)
         assertNotNull(badge)
         assertEquals("CUE", badge!!.label)
     }
@@ -105,7 +102,7 @@ class DirectoryBrowserPresentationTest {
         val mp3_320 = RemoteFile(name = "Comfortably Numb.mp3", path = "/Music/Comfortably Numb.mp3", size = 14_400_000L)
         val meta_320 = TrackMetadata(serverId = 1L, remotePath = mp3_320.path, durationMs = 360_000L) // 360s, 14.4MB = 320 kbps
 
-        val badge320 = AudioQualityBadgeHelper.getBadge(mp3_320, meta_320)
+        val badge320 = AudioQuality.resolveBadge(mp3_320, meta_320)
         assertNotNull(badge320)
         assertEquals("MP3 320k", badge320!!.label)
         assertEquals(320, badge320.estimatedBitrateKbps)
@@ -114,7 +111,7 @@ class DirectoryBrowserPresentationTest {
         val mp3_192 = RemoteFile(name = "Echoes.mp3", path = "/Music/Echoes.mp3", size = 8_640_000L)
         val meta_192 = TrackMetadata(serverId = 1L, remotePath = mp3_192.path, durationMs = 360_000L) // 360s, 8.64MB = 192 kbps
 
-        val badge192 = AudioQualityBadgeHelper.getBadge(mp3_192, meta_192)
+        val badge192 = AudioQuality.resolveBadge(mp3_192, meta_192)
         assertNotNull(badge192)
         assertEquals("MP3 192k", badge192!!.label)
         assertEquals(192, badge192.estimatedBitrateKbps)
@@ -123,7 +120,7 @@ class DirectoryBrowserPresentationTest {
         val mp3_128 = RemoteFile(name = "Radio.mp3", path = "/Music/Radio.mp3", size = 5_760_000L)
         val meta_128 = TrackMetadata(serverId = 1L, remotePath = mp3_128.path, durationMs = 360_000L) // 360s, 5.76MB = 128 kbps
 
-        val badge128 = AudioQualityBadgeHelper.getBadge(mp3_128, meta_128)
+        val badge128 = AudioQuality.resolveBadge(mp3_128, meta_128)
         assertNotNull(badge128)
         assertEquals("MP3 128k", badge128!!.label)
         assertEquals(128, badge128.estimatedBitrateKbps)
@@ -139,7 +136,7 @@ class DirectoryBrowserPresentationTest {
                 size = 5_000_000L,
             )
 
-        val badge = AudioQualityBadgeHelper.getBadge(taggedFile, null)
+        val badge = AudioQuality.resolveBadge(taggedFile, null)
         assertNotNull(badge)
         assertEquals("MP3 320k", badge!!.label)
         assertEquals(320, badge.estimatedBitrateKbps)
