@@ -1112,24 +1112,83 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
+    fun audioRoutingObserver_deviceConnectDisconnectAndRoutingChange_flushesAudioPipelineInternally() =
+        runTest {
+            var flushCount = 0
+            val underlyingSink = DefaultAudioSink.Builder(context).build()
+            val trackingSink =
+                object : ForwardingAudioSink(underlyingSink) {
+                    override fun flush() {
+                        flushCount++
+                        super.flush()
+                    }
+                }
+
+            val testEngine = Media3AudioPlayerEngine(context, customAudioSink = trackingSink)
+            try {
+                val callback = requireNotNull(testEngine.audioRoutingObserver.internalCallback)
+
+                fun createSinkDevice(type: Int): AudioDeviceInfo {
+                    val device =
+                        org.robolectric.shadows.AudioDeviceInfoBuilder
+                            .newBuilder()
+                            .setType(type)
+                            .build()
+                    val port =
+                        org.robolectric.util.ReflectionHelpers
+                            .getField<Any>(device, "mPort")
+                    org.robolectric.util.ReflectionHelpers
+                        .setField(port, "mRole", 2)
+                    return device
+                }
+
+                // 1. Bluetooth sink connected -> flushes pipeline internally
+                val bluetoothSink = createSinkDevice(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+                callback.onAudioDevicesAdded(arrayOf(bluetoothSink))
+                ShadowLooper.idleMainLooper()
+                assertEquals(1, flushCount)
+
+                // 2. Wired headset unplugged -> flushes pipeline internally
+                val wiredHeadset = createSinkDevice(AudioDeviceInfo.TYPE_WIRED_HEADSET)
+                callback.onAudioDevicesRemoved(arrayOf(wiredHeadset))
+                ShadowLooper.idleMainLooper()
+                assertEquals(2, flushCount)
+
+                // 3. Dynamic AudioRouting change -> flushes pipeline internally
+                val fakeRouting = TestAudioRouting()
+                testEngine.attachAudioRouting(fakeRouting)
+                fakeRouting.addedListener?.onRoutingChanged(fakeRouting)
+                ShadowLooper.idleMainLooper()
+                assertEquals(3, flushCount)
+            } finally {
+                testEngine.release()
+            }
+        }
+
+    private class TestAudioRouting : AudioRouting {
+        var addedListener: AudioRouting.OnRoutingChangedListener? = null
+
+        override fun addOnRoutingChangedListener(
+            listener: AudioRouting.OnRoutingChangedListener,
+            handler: Handler?,
+        ) {
+            addedListener = listener
+        }
+
+        override fun removeOnRoutingChangedListener(listener: AudioRouting.OnRoutingChangedListener) {}
+
+        override fun getRoutedDevice(): AudioDeviceInfo? = null
+
+        override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = true
+
+        override fun getPreferredDevice(): AudioDeviceInfo? = null
+    }
+
+    @Test
     fun attachAndDetachAudioRouting_delegatesToAudioRoutingObserver() {
         val testEngine = Media3AudioPlayerEngine(context)
         try {
-            val fakeRouting =
-                object : AudioRouting {
-                    override fun addOnRoutingChangedListener(
-                        listener: AudioRouting.OnRoutingChangedListener,
-                        handler: Handler?,
-                    ) {}
-
-                    override fun removeOnRoutingChangedListener(listener: AudioRouting.OnRoutingChangedListener) {}
-
-                    override fun getRoutedDevice(): AudioDeviceInfo? = null
-
-                    override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = true
-
-                    override fun getPreferredDevice(): AudioDeviceInfo? = null
-                }
+            val fakeRouting = TestAudioRouting()
 
             testEngine.attachAudioRouting(fakeRouting)
             assertEquals(fakeRouting, testEngine.audioRoutingObserver.activeAudioRouting)

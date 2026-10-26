@@ -868,11 +868,20 @@ class PlaybackSessionHostTest {
     }
 
     @Test
-    fun onAudioRoutingChanged_delegatesToUnderlyingEngineSafely() {
-        assertEquals(0, fakeEngine.onAudioRoutingChangedCount)
+    fun host_doesNotExposeAudioRoutingLeakageAcrossEngineSeam() {
+        val hostMethods =
+            PlaybackSessionHost::class.java.declaredMethods
+                .map { it.name }
+                .toSet()
+        val engineMethods =
+            com.webdav.player.domain.player.AudioPlayerEngine::class.java.declaredMethods
+                .map { it.name }
+                .toSet()
 
-        host.onAudioRoutingChanged()
-
-        assertEquals(1, fakeEngine.onAudioRoutingChangedCount)
+        assertFalse("PlaybackSessionHost must not expose getAudioRoutingObserver", "getAudioRoutingObserver" in hostMethods)
+        assertFalse("PlaybackSessionHost must not expose onAudioRoutingChanged", "onAudioRoutingChanged" in hostMethods)
+        assertFalse("PlaybackSessionHost must not expose attachAudioRouting", "attachAudioRouting" in hostMethods)
+        assertFalse("PlaybackSessionHost must not expose detachAudioRouting", "detachAudioRouting" in hostMethods)
+        assertFalse("AudioPlayerEngine must not expose onAudioRoutingChanged", "onAudioRoutingChanged" in engineMethods)
     }
 }

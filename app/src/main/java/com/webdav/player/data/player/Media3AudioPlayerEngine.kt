@@ -90,10 +90,12 @@ class Media3AudioPlayerEngine(
 ) : AudioPlayerEngine {
     private val activeAudioSinkRef = AtomicReference<AudioSink?>(customAudioSink)
 
-    val activeAudioSink: AudioSink?
+    @get:VisibleForTesting
+    internal val activeAudioSink: AudioSink?
         get() = activeAudioSinkRef.get()
 
-    val audioRoutingObserver: AudioRoutingObserver =
+    @get:VisibleForTesting
+    internal val audioRoutingObserver: AudioRoutingObserver =
         customAudioRoutingObserver ?: AudioRoutingObserver(
             context = context,
             audioRouting = customAudioRouting,
@@ -538,12 +540,12 @@ class Media3AudioPlayerEngine(
     }
 
     @VisibleForTesting
-    fun attachAudioRouting(audioRouting: AudioRouting?) {
+    internal fun attachAudioRouting(audioRouting: AudioRouting?) {
         audioRoutingObserver.attachAudioRouting(audioRouting)
     }
 
     @VisibleForTesting
-    fun detachAudioRouting() {
+    internal fun detachAudioRouting() {
         audioRoutingObserver.detachAudioRouting()
     }
 
@@ -558,7 +560,8 @@ class Media3AudioPlayerEngine(
         }
     }
 
-    override fun onAudioRoutingChanged() {
+    @VisibleForTesting
+    internal fun onAudioRoutingChanged() {
         runOnApplicationLooper {
             flushAudioPipelines()
             if (_playbackState.value is PlaybackState.Playing) {

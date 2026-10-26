@@ -43,6 +43,4 @@ interface AudioPlayerEngine {
     fun setVolume(volume: Float)
 
     fun getVolume(): Float
-
-    fun onAudioRoutingChanged() {}
 }

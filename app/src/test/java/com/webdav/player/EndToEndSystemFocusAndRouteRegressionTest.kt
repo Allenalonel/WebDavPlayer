@@ -567,7 +567,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
         }
 
     @Test
-    fun dynamicAudioRouting_systemMediaOutputSwitcherTransfer_flushesActiveSinkViaHost() =
+    fun dynamicAudioRouting_systemMediaOutputSwitcherTransfer_flushesActiveSinkInEngine() =
         runTest(testDispatcher) {
             var flushCount = 0
             val underlyingSink = DefaultAudioSink.Builder(context).build()
@@ -580,25 +580,16 @@ class EndToEndSystemFocusAndRouteRegressionTest {
                 }
 
             val media3Engine = Media3AudioPlayerEngine(context, customAudioSink = trackingSink)
-            val realHost =
-                PlaybackSessionHost(
-                    context = context,
-                    engine = media3Engine,
-                    audioFocusHandler = AudioFocusHandler(context),
-                    notificationProvider = WebDavNotificationProvider(context),
-                    coroutineScope = hostScope,
-                )
             try {
                 assertEquals(0, flushCount)
 
                 // 1. User switches media output in System Control Center / Volume Switcher
-                realHost.onAudioRoutingChanged()
+                media3Engine.audioRoutingObserver.dispatchRoutingChanged()
                 ShadowLooper.idleMainLooper()
 
-                // 2. Underlying AudioSink is flushed to eliminate stale PCM data and resync driver clock
+                // 2. Underlying AudioSink is flushed internally by Media3AudioPlayerEngine
                 assertEquals(1, flushCount)
             } finally {
-                realHost.release()
                 media3Engine.release()
             }
         }
@@ -671,10 +662,24 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             triggerNotificationPause()
 
             // 5. System audio route jitter occurs (e.g. bluetooth fallback to speaker)
-            host.onAudioRoutingChanged()
-            runCurrent()
-            ShadowLooper.idleMainLooper()
-            assertEquals(1, fakeEngine.onAudioRoutingChangedCount)
+            var routeFlushCount = 0
+            val underlyingSink = DefaultAudioSink.Builder(context).build()
+            val trackingSink =
+                object : ForwardingAudioSink(underlyingSink) {
+                    override fun flush() {
+                        routeFlushCount++
+                        super.flush()
+                    }
+                }
+            val media3Engine = Media3AudioPlayerEngine(context, customAudioSink = trackingSink)
+            try {
+                media3Engine.audioRoutingObserver.dispatchRoutingChanged()
+                runCurrent()
+                ShadowLooper.idleMainLooper()
+                assertEquals(1, routeFlushCount)
+            } finally {
+                media3Engine.release()
+            }
 
             // 6. Call ends -> AUDIOFOCUS_GAIN
             host.audioFocusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_GAIN)

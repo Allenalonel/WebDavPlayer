@@ -91,10 +91,6 @@ class PlaybackSessionHost(
     val appSession: MusicPlayerAppSession?
         get() = mediaSessionCallback?.appSession
 
-    override fun onAudioRoutingChanged() {
-        playerEngine.onAudioRoutingChanged()
-    }
-
     constructor(
         context: Context,
         mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
