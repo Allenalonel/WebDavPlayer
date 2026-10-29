@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 实现 Room 数据库版本 4 $\to$ 5 平滑迁移（`MIGRATION_4_5`），新增 `playlists` 与 `playlist_tracks` 表，保持老版本 SWR 目录缓存与服务器列表无损
 - [ ] 构建 `PlaylistRepository` 领域仓储接缝，提供歌单 CRUD、音轨批量追加及级联删除接口

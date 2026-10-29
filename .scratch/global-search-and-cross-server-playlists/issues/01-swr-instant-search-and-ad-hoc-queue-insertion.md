@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 曲库顶栏右侧常驻搜索图标，点击平滑展开全宽 Material 3 搜索栏（SearchBar），自动聚焦输入框并支持清空按钮与历史搜索词记录
 - [ ] 构建 `LibrarySearchRepository` 检索接缝，对本地已访问目录快照（`directory_cache`）与音频元数据表（`track_metadata`）进行大小写不敏感的毫秒级全文匹配
