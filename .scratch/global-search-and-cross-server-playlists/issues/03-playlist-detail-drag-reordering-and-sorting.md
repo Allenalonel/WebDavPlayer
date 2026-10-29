@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Cross-Server Playlist Persistence and Management)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 构建歌单详情界面（`PlaylistDetailScreen`），展示歌单标题、创建时间、曲目总数及完整的音轨条目列表
 - [ ] 基于 LazyColumn 实现流畅的长按上下拖拽重排交互手势，附带触感反馈与平滑位移动画
