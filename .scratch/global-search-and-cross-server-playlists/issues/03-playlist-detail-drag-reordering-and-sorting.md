@@ -4,11 +4,19 @@
 
 **Blocked by:** 02 (Cross-Server Playlist Persistence and Management)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] 构建歌单详情界面（`PlaylistDetailScreen`），展示歌单标题、创建时间、曲目总数及完整的音轨条目列表
-- [ ] 基于 LazyColumn 实现流畅的长按上下拖拽重排交互手势，附带触感反馈与平滑位移动画
-- [ ] 拖拽释放时，由 `PlaylistRepository` 原子更新受影响音轨条目的 `sortOrder`，确保即使进程重启顺序依然保持
-- [ ] 顶栏操作区提供排序弹窗菜单，支持一键按“添加时间（最新优先/最早优先）”、“歌曲标题（A-Z）”、“艺术家（A-Z）”进行排序，并同步写回持久层
-- [ ] 歌单曲目条目支持单曲从歌单中移除（通过向左滑动或点击三点菜单中的“从歌单移除”），且仅删除歌单关联记录，严格保留远程物理文件
-- [ ] 编写针对拖拽换位索引更新、多维排序稳定性及单曲移除逻辑的自动化单元与 UI 测试
+- [x] 构建歌单详情界面（`PlaylistDetailScreen`），展示歌单标题、创建时间、曲目总数及完整的音轨条目列表
+- [x] 基于 LazyColumn 实现流畅的长按上下拖拽重排交互手势，附带触感反馈与平滑位移动画
+- [x] 拖拽释放时，由 `PlaylistRepository` 原子更新受影响音轨条目的 `sortOrder`，确保即使进程重启顺序依然保持
+- [x] 顶栏操作区提供排序弹窗菜单，支持一键按“添加时间（最新优先/最早优先）”、“歌曲标题（A-Z）”、“艺术家（A-Z）”进行排序，并同步写回持久层
+- [x] 歌单曲目条目支持单曲从歌单中移除（通过向左滑动或点击三点菜单中的“从歌单移除”），且仅删除歌单关联记录，严格保留远程物理文件
+- [x] 编写针对拖拽换位索引更新、多维排序稳定性及单曲移除逻辑的自动化单元与 UI 测试
+
+## Answer
+- 构建了 `PlaylistDetailScreen` 与 `PlaylistDetailViewModel`，展示歌单详情、曲目列表，支持一键播放全部及单曲点播。
+- 基于 Jetpack Compose LazyColumn 实现了长按上下拖拽重排交互与触感反馈，释放时通过 `playlistRepository.updateTrackOrders` 原子更新并持久化排序。
+- 提供了多维排序菜单（添加时间最新/最早、歌曲名 A-Z、艺术家 A-Z），排序后立即更新单调递增 sortOrder 并写回 Room。
+- 支持从歌单单曲移除，仅删除数据库关联记录，完整保留远端物理文件。
+- 编写并通过了完整的 `PlaylistDetailViewModelTest`、`PlaylistRepositoryTest` 等测试。
+

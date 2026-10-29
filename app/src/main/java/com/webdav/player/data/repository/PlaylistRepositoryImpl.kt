@@ -129,6 +129,28 @@ class PlaylistRepositoryImpl(
         playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
     }
 
+    override suspend fun removeTrackFromPlaylist(trackEntryId: Long) {
+        val track = playlistDao.getTrackById(trackEntryId)
+        playlistDao.deleteTrackById(trackEntryId)
+        if (track != null) {
+            playlistDao.updatePlaylistTimestamp(track.playlistId, timeProvider())
+        }
+    }
+
+    override suspend fun updateTrackOrders(
+        playlistId: Long,
+        orderedTrackIds: List<Long>,
+    ) {
+        val currentTracks = playlistDao.getTracksForPlaylist(playlistId)
+        val trackMap = currentTracks.associateBy { it.id }
+        val updatedEntities =
+            orderedTrackIds.mapIndexedNotNull { index, id ->
+                trackMap[id]?.copy(sortOrder = index)
+            }
+        playlistDao.updateTracks(updatedEntities)
+        playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
+    }
+
     override suspend fun updateTrackOrder(
         playlistId: Long,
         trackEntries: List<PlaylistTrackEntry>,

@@ -51,6 +51,9 @@ import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.DockedMiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
+import com.webdav.player.ui.playlist.PlaylistDetailScreen
+import com.webdav.player.ui.playlist.PlaylistDetailViewModel
+import com.webdav.player.ui.playlist.PlaylistDetailViewModelFactory
 import com.webdav.player.ui.playlist.PlaylistListScreen
 import com.webdav.player.ui.playlist.PlaylistListViewModel
 import com.webdav.player.ui.playlist.PlaylistListViewModelFactory
@@ -241,12 +244,34 @@ class MainActivity : ComponentActivity() {
                                             translationX = if (isPlaylists) 0f else 99999f
                                         },
                             ) {
-                                PlaylistListScreen(
-                                    viewModel = playlistViewModel,
-                                    onPlaylistClick = { _ ->
-                                        // Detail navigation hook for Ticket 03
-                                    },
-                                )
+                                if (navState.selectedPlaylistId != null) {
+                                    val selectedId = navState.selectedPlaylistId!!
+                                    val detailViewModel: PlaylistDetailViewModel =
+                                        androidx.lifecycle.viewmodel.compose.viewModel(
+                                            key = "playlist_detail_$selectedId",
+                                            factory = PlaylistDetailViewModelFactory(context, selectedId),
+                                        )
+                                    PlaylistDetailScreen(
+                                        viewModel = detailViewModel,
+                                        onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
+                                        onTrackClick = { track, _ ->
+                                            musicSession?.playTrack(track.toAudioTrack())
+                                        },
+                                        onPlayAll = {
+                                            val tracks = detailViewModel.uiState.value.tracks
+                                            if (tracks.isNotEmpty()) {
+                                                musicSession?.playTrack(tracks.first().toAudioTrack())
+                                            }
+                                        },
+                                    )
+                                } else {
+                                    PlaylistListScreen(
+                                        viewModel = playlistViewModel,
+                                        onPlaylistClick = { playlist ->
+                                            coordinator.navigateToPlaylistDetail(playlist.id)
+                                        },
+                                    )
+                                }
                             }
 
                             val isServers = navState.currentDestination == AppDestination.SERVER_LIST

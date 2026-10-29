@@ -331,4 +331,52 @@ class PlaylistRepositoryTest {
 
             assertEquals(3_000_000L, repository.getPlaylist(playlistId)?.updatedAtMs)
         }
+
+    @Test
+    fun updateTrackOrders_reordersUsingIdsList() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("ID列表排序测试")
+            val track1 = AudioTrack(id = "1:/1.mp3", serverId = 1L, remotePath = "/1.mp3", title = "T1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/2.mp3", serverId = 1L, remotePath = "/2.mp3", title = "T2", format = AudioFormat.MP3)
+            val track3 = AudioTrack(id = "1:/3.mp3", serverId = 1L, remotePath = "/3.mp3", title = "T3", format = AudioFormat.MP3)
+
+            val id1 = repository.addTrackToPlaylist(playlistId, track1)
+            val id2 = repository.addTrackToPlaylist(playlistId, track2)
+            val id3 = repository.addTrackToPlaylist(playlistId, track3)
+
+            simulatedTime = 4_000_000L
+            repository.updateTrackOrders(playlistId, listOf(id3, id1, id2))
+
+            val updated = repository.getTracksForPlaylist(playlistId)
+            assertEquals(3, updated.size)
+            assertEquals("T3", updated[0].title)
+            assertEquals(0, updated[0].sortOrder)
+            assertEquals("T1", updated[1].title)
+            assertEquals(1, updated[1].sortOrder)
+            assertEquals("T2", updated[2].title)
+            assertEquals(2, updated[2].sortOrder)
+
+            assertEquals(4_000_000L, repository.getPlaylist(playlistId)?.updatedAtMs)
+        }
+
+    @Test
+    fun removeTrackFromPlaylist_byIdOnly_removesEntryAndUpdateCount() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("单ID移除测试")
+            val track1 = AudioTrack(id = "1:/1.mp3", serverId = 1L, remotePath = "/1.mp3", title = "T1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/2.mp3", serverId = 1L, remotePath = "/2.mp3", title = "T2", format = AudioFormat.MP3)
+
+            val entryId1 = repository.addTrackToPlaylist(playlistId, track1)
+            repository.addTrackToPlaylist(playlistId, track2)
+            assertEquals(2, repository.getPlaylist(playlistId)?.trackCount)
+
+            simulatedTime = 5_000_000L
+            repository.removeTrackFromPlaylist(entryId1)
+
+            val remaining = repository.getTracksForPlaylist(playlistId)
+            assertEquals(1, remaining.size)
+            assertEquals("T2", remaining[0].title)
+            assertEquals(1, repository.getPlaylist(playlistId)?.trackCount)
+            assertEquals(5_000_000L, repository.getPlaylist(playlistId)?.updatedAtMs)
+        }
 }

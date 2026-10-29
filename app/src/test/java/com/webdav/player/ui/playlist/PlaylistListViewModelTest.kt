@@ -36,8 +36,7 @@ class FakePlaylistRepository : PlaylistRepository {
 
     override suspend fun getAllPlaylists(): List<Playlist> = playlistsFlow.value
 
-    override fun getPlaylistFlow(playlistId: Long): Flow<Playlist?> =
-        playlistsFlow.map { list -> list.firstOrNull { it.id == playlistId } }
+    override fun getPlaylistFlow(playlistId: Long): Flow<Playlist?> = playlistsFlow.map { list -> list.firstOrNull { it.id == playlistId } }
 
     override suspend fun getPlaylist(playlistId: Long): Playlist? = playlistsFlow.value.firstOrNull { it.id == playlistId }
 
@@ -114,6 +113,29 @@ class FakePlaylistRepository : PlaylistRepository {
         playlistsFlow.update { current ->
             current.map { if (it.id == playlistId) it.copy(trackCount = list.size) else it }
         }
+    }
+
+    override suspend fun removeTrackFromPlaylist(trackEntryId: Long) {
+        for ((pId, list) in tracksMap) {
+            val removed = list.removeAll { it.id == trackEntryId }
+            if (removed) {
+                playlistsFlow.update { current ->
+                    current.map { if (it.id == pId) it.copy(trackCount = list.size) else it }
+                }
+                break
+            }
+        }
+    }
+
+    override suspend fun updateTrackOrders(
+        playlistId: Long,
+        orderedTrackIds: List<Long>,
+    ) {
+        val list = tracksMap[playlistId] ?: return
+        val map = list.associateBy { it.id }
+        val reordered = orderedTrackIds.mapIndexedNotNull { idx, id -> map[id]?.copy(sortOrder = idx) }
+        list.clear()
+        list.addAll(reordered)
     }
 
     override suspend fun updateTrackOrder(
