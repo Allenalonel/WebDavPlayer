@@ -17,7 +17,8 @@ enum class AppDestination(val label: String) {
 data class MainNavigationUiState(
     val currentDestination: AppDestination = AppDestination.SERVER_LIST,
     val isFullPlayerExpanded: Boolean = false,
-    val isMiniPlayerVisible: Boolean = false
+    val isMiniPlayerVisible: Boolean = false,
+    val selectedPlaylistId: Long? = null,
 )
 
 class MainNavigationCoordinator(
@@ -46,7 +47,23 @@ class MainNavigationCoordinator(
     }
 
     fun selectDestination(destination: AppDestination) {
-        _uiState.update { it.copy(currentDestination = destination) }
+        _uiState.update {
+            if (destination == AppDestination.PLAYLISTS && it.currentDestination == AppDestination.PLAYLISTS && it.selectedPlaylistId != null) {
+                it.copy(selectedPlaylistId = null)
+            } else if (destination != AppDestination.PLAYLISTS) {
+                it.copy(currentDestination = destination, selectedPlaylistId = null)
+            } else {
+                it.copy(currentDestination = destination)
+            }
+        }
+    }
+
+    fun navigateToPlaylistDetail(playlistId: Long) {
+        _uiState.update { it.copy(selectedPlaylistId = playlistId) }
+    }
+
+    fun navigateBackFromPlaylistDetail() {
+        _uiState.update { it.copy(selectedPlaylistId = null) }
     }
 
     fun onServerCardClicked(@Suppress("UNUSED_PARAMETER") server: WebDavServer, onResetToRoot: (() -> Unit)? = null) {

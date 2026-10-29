@@ -198,5 +198,39 @@ class MainNavigationCoordinatorTest {
         assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
         assertTrue(rootResetCalled)
     }
+
+    @Test
+    fun playlistDetailNavigation_managesSelectedPlaylistId() {
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(null, coordinator.uiState.value.selectedPlaylistId)
+
+        coordinator.navigateToPlaylistDetail(42L)
+        assertEquals(42L, coordinator.uiState.value.selectedPlaylistId)
+
+        coordinator.navigateBackFromPlaylistDetail()
+        assertEquals(null, coordinator.uiState.value.selectedPlaylistId)
+    }
+
+    @Test
+    fun playlistDetailNavigation_switchingTabsClearsSelectedPlaylist() {
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        coordinator.navigateToPlaylistDetail(42L)
+        assertEquals(42L, coordinator.uiState.value.selectedPlaylistId)
+
+        coordinator.selectDestination(AppDestination.SERVER_LIST)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.currentDestination)
+        assertEquals(null, coordinator.uiState.value.selectedPlaylistId)
+    }
+
+    @Test
+    fun playlistDetailNavigation_tappingPlaylistsTabWhileInDetail_popsBackToList() {
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        coordinator.navigateToPlaylistDetail(42L)
+        assertEquals(42L, coordinator.uiState.value.selectedPlaylistId)
+
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+        assertEquals(null, coordinator.uiState.value.selectedPlaylistId)
+    }
 }
 

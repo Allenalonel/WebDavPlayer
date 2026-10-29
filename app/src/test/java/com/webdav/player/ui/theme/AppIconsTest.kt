@@ -66,6 +66,10 @@ class AppIconsTest {
                 AppIcons.Language,
                 AppIcons.Security,
                 AppIcons.NetworkCheck,
+                AppIcons.PlaylistPlay,
+                AppIcons.PlaylistAdd,
+                AppIcons.DragHandle,
+                AppIcons.Sort,
             )
 
         for (icon in extendedIcons) {

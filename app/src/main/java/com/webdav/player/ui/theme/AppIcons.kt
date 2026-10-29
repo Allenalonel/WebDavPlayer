@@ -1077,4 +1077,62 @@ object AppIcons {
             return _playlistAdd!!
         }
     private var _playlistAdd: ImageVector? = null
+
+    val DragHandle: ImageVector
+        get() {
+            if (_dragHandle != null) {
+                return _dragHandle!!
+            }
+            _dragHandle =
+                materialIcon(name = "Filled.DragHandle") {
+                    materialPath {
+                        moveTo(20.0f, 9.0f)
+                        horizontalLineTo(4.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(16.0f)
+                        verticalLineTo(9.0f)
+                        close()
+                        moveTo(4.0f, 15.0f)
+                        horizontalLineToRelative(16.0f)
+                        verticalLineToRelative(-2.0f)
+                        horizontalLineTo(4.0f)
+                        verticalLineToRelative(2.0f)
+                        close()
+                    }
+                }
+            return _dragHandle!!
+        }
+    private var _dragHandle: ImageVector? = null
+
+    val Sort: ImageVector
+        get() {
+            if (_sort != null) {
+                return _sort!!
+            }
+            _sort =
+                materialIcon(name = "AutoMirrored.Filled.Sort", autoMirror = true) {
+                    materialPath {
+                        moveTo(3.0f, 18.0f)
+                        horizontalLineToRelative(6.0f)
+                        verticalLineToRelative(-2.0f)
+                        horizontalLineTo(3.0f)
+                        verticalLineToRelative(2.0f)
+                        close()
+                        moveTo(3.0f, 6.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(18.0f)
+                        verticalLineTo(6.0f)
+                        horizontalLineTo(3.0f)
+                        close()
+                        moveTo(3.0f, 13.0f)
+                        horizontalLineToRelative(12.0f)
+                        verticalLineToRelative(-2.0f)
+                        horizontalLineTo(3.0f)
+                        verticalLineToRelative(2.0f)
+                        close()
+                    }
+                }
+            return _sort!!
+        }
+    private var _sort: ImageVector? = null
 }

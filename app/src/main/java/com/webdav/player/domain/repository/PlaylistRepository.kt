@@ -48,6 +48,13 @@ interface PlaylistRepository {
         trackEntryId: Long,
     )
 
+    suspend fun removeTrackFromPlaylist(trackEntryId: Long)
+
+    suspend fun updateTrackOrders(
+        playlistId: Long,
+        orderedTrackIds: List<Long>,
+    )
+
     suspend fun updateTrackOrder(
         playlistId: Long,
         trackEntries: List<PlaylistTrackEntry>,
