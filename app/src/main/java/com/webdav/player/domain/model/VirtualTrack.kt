@@ -21,7 +21,7 @@ data class VirtualTrack(
     /**
      * Converts this virtual track into a playable AudioTrack instance bound to the parent physical audio file.
      */
-    fun toAudioTrack(parentTrack: AudioTrack): AudioTrack =
+    fun toAudioTrack(parentTrack: AudioTrack, cuePath: String? = null): AudioTrack =
         AudioTrack(
             id = "${parentTrack.id.substringBefore("#cue_")}#cue_$trackNumber",
             serverId = parentTrack.serverId,
@@ -33,5 +33,6 @@ data class VirtualTrack(
             size = parentTrack.size,
             format = parentTrack.format,
             coverThumbnailPath = parentTrack.coverThumbnailPath,
+            cuePath = cuePath ?: parentTrack.cuePath,
         )
 }

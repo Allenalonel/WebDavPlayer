@@ -149,7 +149,7 @@ class LibrarySearchRepositoryImpl(
                             )
 
                         for (vt in parsedVirtualTracks) {
-                            val vtTrack = vt.toAudioTrack(parentTrack)
+                            val vtTrack = vt.toAudioTrack(parentTrack, cuePath = cueFile.path)
                             val vtMatch =
                                 vt.title.contains(cleanQuery, ignoreCase = true) ||
                                     vt.performer?.contains(cleanQuery, ignoreCase = true) == true ||

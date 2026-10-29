@@ -36,13 +36,19 @@ class DetailFakeServerRepository(
     initialServers: List<WebDavServer> = emptyList(),
 ) : ServerRepository {
     val serversFlow = MutableStateFlow(initialServers)
+
     override fun getAllServers(): Flow<List<WebDavServer>> = serversFlow.asStateFlow()
+
     override fun getActiveServer(): Flow<WebDavServer?> = serversFlow.map { it.firstOrNull() }
+
     override suspend fun getServerById(id: Long): WebDavServer? = serversFlow.value.firstOrNull { it.id == id }
+
     override suspend fun saveServer(server: WebDavServer): Long = server.id
+
     override suspend fun deleteServer(id: Long) {
         serversFlow.update { list -> list.filterNot { it.id == id } }
     }
+
     override suspend fun setActiveServer(id: Long) {}
 }
 
@@ -125,12 +131,12 @@ class DetailFakePlaylistRepository : PlaylistRepository {
         tracks: List<AudioTrack>,
     ): List<Long> = tracks.map { addTrackToPlaylist(playlistId, it) }
 
-    override suspend fun removeTrackFromPlaylist(
+    override suspend fun removeTracksFromPlaylist(
         playlistId: Long,
-        trackEntryId: Long,
+        trackEntryIds: List<Long>,
     ) {
         val list = tracksMap[playlistId] ?: return
-        list.removeAll { it.id == trackEntryId }
+        list.removeAll { it.id in trackEntryIds }
         playlistsFlow.update { current ->
             current.map { if (it.id == playlistId) it.copy(trackCount = list.size) else it }
         }
@@ -159,19 +165,6 @@ class DetailFakePlaylistRepository : PlaylistRepository {
         val reordered = orderedTrackIds.mapIndexedNotNull { idx, id -> map[id]?.copy(sortOrder = idx) }
         list.clear()
         list.addAll(reordered)
-        playlistsFlow.update { current ->
-            current.map { if (it.id == playlistId) it.copy(updatedAtMs = 3000L) else it }
-        }
-        syncTracksFlow(playlistId)
-    }
-
-    override suspend fun updateTrackOrder(
-        playlistId: Long,
-        trackEntries: List<PlaylistTrackEntry>,
-    ) {
-        val list = tracksMap.getOrPut(playlistId) { mutableListOf() }
-        list.clear()
-        list.addAll(trackEntries.mapIndexed { idx, e -> e.copy(sortOrder = idx) })
         playlistsFlow.update { current ->
             current.map { if (it.id == playlistId) it.copy(updatedAtMs = 3000L) else it }
         }
@@ -498,14 +491,17 @@ class PlaylistDetailViewModelTest {
             advanceUntilIdle()
 
             var emittedToast: String? = null
-            val job = launch {
-                vm.toastEvent.collect { message ->
-                    emittedToast = message
+            val job =
+                launch {
+                    vm.toastEvent.collect { message ->
+                        emittedToast = message
+                    }
                 }
-            }
             advanceUntilIdle()
 
-            val unreachableTrack = vm.uiState.value.tracks.first { it.title == "Unreachable Song" }
+            val unreachableTrack =
+                vm.uiState.value.tracks
+                    .first { it.title == "Unreachable Song" }
             fakeSession.lastPlayPlaylist = null
 
             vm.onTrackClick(unreachableTrack)
@@ -517,10 +513,11 @@ class PlaylistDetailViewModelTest {
             assertNull(fakeSession.lastPlayPlaylist)
 
             // Test 404 inactive track
-            val notFoundTrack = unreachableTrack.copy(
-                isInactive = true,
-                inactiveReason = InactiveReason.FILE_NOT_FOUND,
-            )
+            val notFoundTrack =
+                unreachableTrack.copy(
+                    isInactive = true,
+                    inactiveReason = InactiveReason.FILE_NOT_FOUND,
+                )
             vm.onTrackClick(notFoundTrack)
             advanceUntilIdle()
 
@@ -537,8 +534,10 @@ class PlaylistDetailViewModelTest {
             val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://2.2.2.2")
             val serverRepo = DetailFakeServerRepository(listOf(server1, server2))
 
-            val offline1 = AudioTrack(id = "888:/off1.mp3", serverId = 888L, remotePath = "/off1.mp3", title = "Off 1", format = AudioFormat.MP3)
-            val offline2 = AudioTrack(id = "999:/off2.mp3", serverId = 999L, remotePath = "/off2.mp3", title = "Off 2", format = AudioFormat.MP3)
+            val offline1 =
+                AudioTrack(id = "888:/off1.mp3", serverId = 888L, remotePath = "/off1.mp3", title = "Off 1", format = AudioFormat.MP3)
+            val offline2 =
+                AudioTrack(id = "999:/off2.mp3", serverId = 999L, remotePath = "/off2.mp3", title = "Off 2", format = AudioFormat.MP3)
             fakeRepo.addTrackToPlaylist(playlistId, offline1)
             fakeRepo.addTrackToPlaylist(playlistId, offline2)
 
@@ -553,7 +552,11 @@ class PlaylistDetailViewModelTest {
 
             // Initially 3 active + 2 offline = 5 tracks
             assertEquals(5, vm.uiState.value.tracks.size)
-            assertEquals(2, vm.uiState.value.tracks.count { it.isInactive })
+            assertEquals(
+                2,
+                vm.uiState.value.tracks
+                    .count { it.isInactive },
+            )
 
             vm.cleanInactiveTracks()
             advanceUntilIdle()

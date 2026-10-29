@@ -78,6 +78,7 @@ class FakeMusicPlayerAppSession(
 
     var lastPlayTrack: AudioTrack? = null
     var lastPlayNextTrack: AudioTrack? = null
+    var lastPlayNextAndAdvanceTrack: AudioTrack? = null
     var lastPlayPlaylist: Playlist? = null
     var lastPlayPlaylistStartIndex: Int? = null
     var lastPlayInitialMetadata: Map<String, TrackMetadata> = emptyMap()
@@ -125,6 +126,20 @@ class FakeMusicPlayerAppSession(
         lastPlayNextTrack = track
         val currentQueue = _sessionState.value.queue
         val updatedQueue = currentQueue.insertNext(track)
+        _sessionState.update { it.copy(queue = updatedQueue) }
+    }
+
+    override fun playNextAndAdvance(track: AudioTrack) {
+        pausedByTransientAudioFocusInternal = false
+        lastPlayNextTrack = track
+        lastPlayNextAndAdvanceTrack = track
+        val currentQueue = _sessionState.value.queue
+        if (currentQueue.isEmpty) {
+            playTrack(track)
+            return
+        }
+        val targetIndex = (currentQueue.currentIndex + 1).coerceAtMost(currentQueue.tracks.size)
+        val updatedQueue = currentQueue.insertNext(track).copy(currentIndex = targetIndex)
         _sessionState.update { it.copy(queue = updatedQueue) }
     }
 

@@ -413,17 +413,24 @@ fun SearchResultTrackItem(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            val artistAlbum =
+            val subtitle =
                 buildString {
                     append(track.artist ?: "未知艺术家")
                     if (!track.album.isNullOrBlank()) {
                         append(" · ")
                         append(track.album)
                     }
+                    if (track.isVirtualTrack) {
+                        val parentFileName = track.fileName.ifEmpty { track.remotePath.substringAfterLast('/') }
+                        if (parentFileName.isNotBlank()) {
+                            append(" · ")
+                            append(parentFileName)
+                        }
+                    }
                 }
 
             Text(
-                text = artistAlbum,
+                text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

@@ -262,13 +262,11 @@ class PlaylistDetailViewModel(
     }
 
     fun cleanInactiveTracks() {
-        val inactiveTracks = _uiState.value.tracks.filter { it.isInactive }
-        if (inactiveTracks.isEmpty()) return
+        val inactiveTrackIds = _uiState.value.tracks.filter { it.isInactive }.map { it.id }
+        if (inactiveTrackIds.isEmpty()) return
         viewModelScope.launch {
             try {
-                for (track in inactiveTracks) {
-                    playlistRepository.removeTrackFromPlaylist(track.id)
-                }
+                playlistRepository.removeTracksFromPlaylist(playlistId, inactiveTrackIds)
             } catch (e: Exception) {
                 _uiState.update { it.copy(errorMessage = e.message ?: "清理失效歌曲失败") }
             }

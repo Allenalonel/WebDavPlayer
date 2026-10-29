@@ -8,18 +8,24 @@ import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import com.webdav.player.domain.repository.PlaylistRepository
+import com.webdav.player.domain.repository.TrackKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class PlaylistRepositoryImpl(
     private val playlistDao: PlaylistDao,
     private val timeProvider: () -> Long = { System.currentTimeMillis() },
+    private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : PlaylistRepository {
-    private val _inactiveTracksFlow = MutableStateFlow<Map<Pair<Long, String>, InactiveReason>>(emptyMap())
+    private val _inactiveTracksFlow = MutableStateFlow<Map<TrackKey, InactiveReason>>(emptyMap())
 
     override fun getAllPlaylistsFlow(): Flow<List<Playlist>> =
         playlistDao.getAllPlaylistsWithTrackCountFlow().map { list ->
@@ -86,8 +92,8 @@ class PlaylistRepositoryImpl(
         ) { entities, inactiveMap ->
             entities.map { entity ->
                 val domain = entity.toDomain()
-                val reason = inactiveMap[Pair(domain.serverId, domain.remotePath)]
-                if (reason != null) {
+                val reason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
+                if (reason != null || domain.isInactive) {
                     domain.copy(isInactive = true, inactiveReason = reason)
                 } else {
                     domain
@@ -99,8 +105,8 @@ class PlaylistRepositoryImpl(
         val inactiveMap = _inactiveTracksFlow.value
         return playlistDao.getTracksForPlaylist(playlistId).map { entity ->
             val domain = entity.toDomain()
-            val reason = inactiveMap[Pair(domain.serverId, domain.remotePath)]
-            if (reason != null) {
+            val reason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
+            if (reason != null || domain.isInactive) {
                 domain.copy(isInactive = true, inactiveReason = reason)
             } else {
                 domain
@@ -120,7 +126,7 @@ class PlaylistRepositoryImpl(
                 playlistId = playlistId,
                 track = track,
                 sortOrder = newSortOrder,
-                cuePath = cuePath,
+                cuePath = cuePath ?: track.cuePath,
             )
         val insertedId = playlistDao.insertTrack(PlaylistTrackEntity.fromDomain(entry))
         playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
@@ -141,6 +147,7 @@ class PlaylistRepositoryImpl(
                         playlistId = playlistId,
                         track = track,
                         sortOrder = nextSort++,
+                        cuePath = track.cuePath,
                     )
                 PlaylistTrackEntity.fromDomain(entry)
             }
@@ -149,20 +156,21 @@ class PlaylistRepositoryImpl(
         return insertedIds
     }
 
-    override suspend fun removeTrackFromPlaylist(
-        playlistId: Long,
-        trackEntryId: Long,
-    ) {
-        playlistDao.deleteTrackById(trackEntryId)
-        playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
-    }
-
     override suspend fun removeTrackFromPlaylist(trackEntryId: Long) {
         val track = playlistDao.getTrackById(trackEntryId)
         playlistDao.deleteTrackById(trackEntryId)
         if (track != null) {
             playlistDao.updatePlaylistTimestamp(track.playlistId, timeProvider())
         }
+    }
+
+    override suspend fun removeTracksFromPlaylist(
+        playlistId: Long,
+        trackEntryIds: List<Long>,
+    ) {
+        if (trackEntryIds.isEmpty()) return
+        playlistDao.deleteTracksByIds(trackEntryIds)
+        playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
     }
 
     override suspend fun updateTrackOrders(
@@ -179,27 +187,23 @@ class PlaylistRepositoryImpl(
         playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
     }
 
-    override suspend fun updateTrackOrder(
-        playlistId: Long,
-        trackEntries: List<PlaylistTrackEntry>,
-    ) {
-        val updatedEntities =
-            trackEntries.mapIndexed { index, entry ->
-                PlaylistTrackEntity.fromDomain(entry.copy(sortOrder = index))
-            }
-        playlistDao.updateTracks(updatedEntities)
-        playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
-    }
-
     override fun markTrackInactive(
         serverId: Long,
         remotePath: String,
         reason: InactiveReason,
     ) {
         _inactiveTracksFlow.update { current ->
-            current + (Pair(serverId, remotePath) to reason)
+            current + (TrackKey(serverId, remotePath) to reason)
+        }
+        coroutineScope.launch {
+            playlistDao.updateTrackInactiveStatus(
+                serverId = serverId,
+                remotePath = remotePath,
+                isInactive = true,
+                reason = reason.name,
+            )
         }
     }
 
-    override fun getInactiveTracksFlow(): Flow<Map<Pair<Long, String>, InactiveReason>> = _inactiveTracksFlow.asStateFlow()
+    override fun getInactiveTracksFlow(): Flow<Map<TrackKey, InactiveReason>> = _inactiveTracksFlow.asStateFlow()
 }

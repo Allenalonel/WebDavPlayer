@@ -80,6 +80,8 @@ abstract class AppDatabase : RoomDatabase() {
                             `coverThumbnailPath` TEXT,
                             `cuePath` TEXT,
                             `virtualTrackId` TEXT,
+                            `isInactive` INTEGER NOT NULL DEFAULT 0,
+                            `inactiveReason` TEXT,
                             FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                         )
                         """.trimIndent(),

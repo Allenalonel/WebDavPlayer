@@ -34,6 +34,7 @@ data class PlaylistTrackEntry(
             size = size,
             format = format,
             coverThumbnailPath = coverThumbnailPath,
+            cuePath = cuePath,
         )
     }
 
@@ -57,7 +58,7 @@ data class PlaylistTrackEntry(
                 size = track.size,
                 format = track.format,
                 coverThumbnailPath = track.coverThumbnailPath,
-                cuePath = cuePath,
+                cuePath = cuePath ?: track.cuePath,
                 virtualTrackId = if (track.isVirtualTrack) track.id else null,
             )
     }
