@@ -1,0 +1,307 @@
+package com.webdav.player.ui.playlist
+
+import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.Playlist
+import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.repository.PlaylistRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class FakePlaylistRepository : PlaylistRepository {
+    private val playlistsFlow = MutableStateFlow<List<Playlist>>(emptyList())
+    private val tracksMap = mutableMapOf<Long, MutableList<PlaylistTrackEntry>>()
+    private var nextPlaylistId = 1L
+    private var nextTrackId = 1L
+
+    override fun getAllPlaylistsFlow(): Flow<List<Playlist>> = playlistsFlow.asStateFlow()
+
+    override suspend fun getAllPlaylists(): List<Playlist> = playlistsFlow.value
+
+    override fun getPlaylistFlow(playlistId: Long): Flow<Playlist?> =
+        playlistsFlow.map { list -> list.firstOrNull { it.id == playlistId } }
+
+    override suspend fun getPlaylist(playlistId: Long): Playlist? = playlistsFlow.value.firstOrNull { it.id == playlistId }
+
+    override suspend fun createPlaylist(name: String): Long {
+        val trimmed = name.trim()
+        require(trimmed.isNotEmpty())
+        require(playlistsFlow.value.none { it.name.equals(trimmed, ignoreCase = true) })
+        val id = nextPlaylistId++
+        val p = Playlist(id = id, name = trimmed, createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 0)
+        playlistsFlow.update { it + p }
+        tracksMap[id] = mutableListOf()
+        return id
+    }
+
+    override suspend fun renamePlaylist(
+        playlistId: Long,
+        newName: String,
+    ) {
+        val trimmed = newName.trim()
+        playlistsFlow.update { list ->
+            list.map {
+                if (it.id == playlistId) it.copy(name = trimmed, updatedAtMs = 2000L) else it
+            }
+        }
+    }
+
+    override suspend fun deletePlaylist(playlistId: Long) {
+        playlistsFlow.update { list -> list.filterNot { it.id == playlistId } }
+        tracksMap.remove(playlistId)
+    }
+
+    override suspend fun isPlaylistNameExists(
+        name: String,
+        excludePlaylistId: Long?,
+    ): Boolean {
+        val trimmed = name.trim()
+        return playlistsFlow.value.any { it.name.equals(trimmed, ignoreCase = true) && it.id != excludePlaylistId }
+    }
+
+    override fun getTracksForPlaylistFlow(playlistId: Long): Flow<List<PlaylistTrackEntry>> =
+        MutableStateFlow(tracksMap[playlistId] ?: emptyList())
+
+    override suspend fun getTracksForPlaylist(playlistId: Long): List<PlaylistTrackEntry> = tracksMap[playlistId]?.toList() ?: emptyList()
+
+    override suspend fun addTrackToPlaylist(
+        playlistId: Long,
+        track: AudioTrack,
+        cuePath: String?,
+    ): Long {
+        val list = tracksMap.getOrPut(playlistId) { mutableListOf() }
+        val id = nextTrackId++
+        val entry = PlaylistTrackEntry.fromAudioTrack(playlistId, track, list.size, cuePath).copy(id = id)
+        list.add(entry)
+        playlistsFlow.update { current ->
+            current.map { if (it.id == playlistId) it.copy(trackCount = list.size, updatedAtMs = 3000L) else it }
+        }
+        return id
+    }
+
+    override suspend fun addTracksToPlaylist(
+        playlistId: Long,
+        tracks: List<AudioTrack>,
+    ): List<Long> =
+        tracks.map {
+            addTrackToPlaylist(playlistId, it)
+        }
+
+    override suspend fun removeTrackFromPlaylist(
+        playlistId: Long,
+        trackEntryId: Long,
+    ) {
+        val list = tracksMap[playlistId] ?: return
+        list.removeAll { it.id == trackEntryId }
+        playlistsFlow.update { current ->
+            current.map { if (it.id == playlistId) it.copy(trackCount = list.size) else it }
+        }
+    }
+
+    override suspend fun updateTrackOrder(
+        playlistId: Long,
+        trackEntries: List<PlaylistTrackEntry>,
+    ) {
+        val list = tracksMap.getOrPut(playlistId) { mutableListOf() }
+        list.clear()
+        list.addAll(trackEntries.mapIndexed { idx, e -> e.copy(sortOrder = idx) })
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class PlaylistListViewModelTest {
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var fakeRepo: FakePlaylistRepository
+    private lateinit var viewModel: PlaylistListViewModel
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        fakeRepo = FakePlaylistRepository()
+        viewModel = PlaylistListViewModel(fakeRepo)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun initialState_loadsPlaylistsFlow() =
+        runTest(testDispatcher) {
+            advanceUntilIdle()
+            val state = viewModel.uiState.value
+            assertFalse(state.isLoading)
+            assertTrue(state.playlists.isEmpty())
+        }
+
+    @Test
+    fun createPlaylist_success_updatesStateAndClosesDialog() =
+        runTest(testDispatcher) {
+            viewModel.openCreateDialog()
+            assertTrue(viewModel.uiState.value.showCreateDialog)
+
+            var createdId = -1L
+            viewModel.createPlaylist("我的新歌单") { createdId = it }
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.showCreateDialog)
+            assertNull(state.errorMessage)
+            assertEquals(1, state.playlists.size)
+            assertEquals("我的新歌单", state.playlists[0].name)
+            assertTrue(createdId > 0)
+        }
+
+    @Test
+    fun createPlaylist_emptyName_setsErrorMessage() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("   ")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("歌单名称不能为空", state.errorMessage)
+        }
+
+    @Test
+    fun createPlaylist_duplicateName_setsErrorMessage() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("流行榜")
+            advanceUntilIdle()
+
+            viewModel.createPlaylist("流行榜")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("歌单 “流行榜” 已存在", state.errorMessage)
+        }
+
+    @Test
+    fun renamePlaylist_success_updatesPlaylistName() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("旧歌单名")
+            advanceUntilIdle()
+            val playlist =
+                viewModel.uiState.value.playlists
+                    .first()
+
+            viewModel.openRenameDialog(playlist)
+            assertEquals(playlist, viewModel.uiState.value.playlistToRename)
+
+            viewModel.renamePlaylist(playlist.id, "更新后的歌单名")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertNull(state.playlistToRename)
+            assertNull(state.errorMessage)
+            assertEquals("更新后的歌单名", state.playlists.first().name)
+        }
+
+    @Test
+    fun renamePlaylist_duplicateName_setsError() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("歌单A")
+            viewModel.createPlaylist("歌单B")
+            advanceUntilIdle()
+
+            val playlistB =
+                viewModel.uiState.value.playlists
+                    .first { it.name == "歌单B" }
+            viewModel.renamePlaylist(playlistB.id, "歌单A")
+            advanceUntilIdle()
+
+            assertEquals("歌单 “歌单A” 已存在", viewModel.uiState.value.errorMessage)
+        }
+
+    @Test
+    fun deletePlaylist_confirmsAndDelete() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("待删歌单")
+            advanceUntilIdle()
+            val playlist =
+                viewModel.uiState.value.playlists
+                    .first()
+
+            viewModel.openDeleteDialog(playlist)
+            assertEquals(playlist, viewModel.uiState.value.playlistToDelete)
+
+            viewModel.confirmDeletePlaylist(playlist.id)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertNull(state.playlistToDelete)
+            assertTrue(state.playlists.isEmpty())
+        }
+
+    @Test
+    fun createPlaylistAndAddTrack_createsAndAddsTrack() =
+        runTest(testDispatcher) {
+            val sampleTrack =
+                AudioTrack(
+                    id = "1:/song.flac",
+                    serverId = 1L,
+                    remotePath = "/song.flac",
+                    title = "Song",
+                    format = AudioFormat.FLAC,
+                )
+
+            var successCalled = false
+            viewModel.createPlaylistAndAddTrack("夜曲歌单", sampleTrack) {
+                successCalled = true
+            }
+            advanceUntilIdle()
+
+            assertTrue(successCalled)
+            val state = viewModel.uiState.value
+            assertEquals(1, state.playlists.size)
+            assertEquals("夜曲歌单", state.playlists[0].name)
+            assertEquals(1, state.playlists[0].trackCount)
+        }
+
+    @Test
+    fun addTrackToPlaylist_addsTrackSuccessfully() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("已有歌单")
+            advanceUntilIdle()
+            val playlist =
+                viewModel.uiState.value.playlists
+                    .first()
+
+            val sampleTrack =
+                AudioTrack(
+                    id = "1:/song.flac",
+                    serverId = 1L,
+                    remotePath = "/song.flac",
+                    title = "Song",
+                    format = AudioFormat.FLAC,
+                )
+
+            var successCalled = false
+            viewModel.addTrackToPlaylist(playlist.id, sampleTrack) {
+                successCalled = true
+            }
+            advanceUntilIdle()
+
+            assertTrue(successCalled)
+            val state = viewModel.uiState.value
+            assertEquals(1, state.playlists[0].trackCount)
+        }
+}

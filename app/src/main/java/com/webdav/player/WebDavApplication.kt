@@ -10,6 +10,7 @@ import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
 import com.webdav.player.data.repository.LibrarySearchRepositoryImpl
 import com.webdav.player.data.repository.LyricsRepositoryImpl
+import com.webdav.player.data.repository.PlaylistRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
@@ -18,6 +19,7 @@ import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LibrarySearchRepository
 import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.PlaybackSessionStore
+import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
@@ -43,6 +45,9 @@ class WebDavApplication : Application() {
         private set
 
     lateinit var librarySearchRepository: LibrarySearchRepository
+        private set
+
+    lateinit var playlistRepository: PlaylistRepository
         private set
 
     lateinit var playerEngine: AudioPlayerEngine
@@ -92,6 +97,11 @@ class WebDavApplication : Application() {
             LibrarySearchRepositoryImpl(
                 directoryCacheDao = database.directoryCacheDao(),
                 trackMetadataDao = database.trackMetadataDao(),
+            )
+
+        playlistRepository =
+            PlaylistRepositoryImpl(
+                playlistDao = database.playlistDao(),
             )
 
         musicPlayerAppSession =

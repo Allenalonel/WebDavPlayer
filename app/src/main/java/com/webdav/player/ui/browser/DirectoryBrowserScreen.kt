@@ -36,10 +36,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.ui.browser.components.AudioTrackItemRow
 import com.webdav.player.ui.browser.components.CueAlbumCard
 import com.webdav.player.ui.browser.components.DirectoryBreadcrumbStrip
@@ -59,6 +61,7 @@ fun DirectoryBrowserScreen(
     isCurrentTab: Boolean = true,
     onFileClicked: (RemoteFile) -> Unit = { viewModel.onAudioTrackClicked(it) },
     @Suppress("UNUSED_PARAMETER") onOpenFullPlayer: () -> Unit = {},
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -129,6 +132,7 @@ fun DirectoryBrowserScreen(
                         onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
                         onDirectoryClick = { viewModel.onSearchResultDirectoryClicked(it) },
                         onTrackClick = { viewModel.onSearchResultTrackClicked(it) },
+                        onAddToPlaylist = onAddToPlaylist,
                     )
                 }
             } else {
@@ -258,9 +262,11 @@ fun DirectoryBrowserScreen(
                             activeTrackId = uiState.activeTrackId,
                             cueAlbums = uiState.cueAlbums,
                             isPlaying = uiState.isPlaying,
+                            activeServer = uiState.activeServer,
                             onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
                             onFileClicked = onFileClicked,
                             onPlayNext = { viewModel.playNext(it) },
+                            onAddToPlaylist = onAddToPlaylist,
                             onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
                             onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
                             onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
@@ -288,9 +294,11 @@ fun DirectoryContentList(
     activeTrackId: String? = null,
     cueAlbums: List<CueAlbumItem> = emptyList(),
     isPlaying: Boolean = false,
+    activeServer: WebDavServer? = null,
     onDirectoryClicked: (RemoteDirectory) -> Unit,
     onFileClicked: (RemoteFile) -> Unit,
     onPlayNext: (RemoteFile) -> Unit = {},
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
     onVirtualTrackClick: (CueAlbumItem, Int) -> Unit = { _, _ -> },
     onPlayCueAlbum: (CueAlbumItem) -> Unit = {},
     onToggleCueAlbumExpanded: (String) -> Unit = {},
@@ -350,6 +358,13 @@ fun DirectoryContentList(
                 isPlaying = isPlaying,
                 onClick = { onFileClicked(file) },
                 onPlayNext = { onPlayNext(file) },
+                onAddToPlaylist = {
+                    if (activeServer != null) {
+                        AudioTrack.fromRemoteFile(activeServer, file, metadata)?.let { track ->
+                            onAddToPlaylist(track)
+                        }
+                    }
+                },
             )
         }
     }

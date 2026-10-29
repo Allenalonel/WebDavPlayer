@@ -66,6 +66,7 @@ fun AudioTrackItemRow(
     isPlaying: Boolean = false,
     onClick: () -> Unit,
     onPlayNext: () -> Unit = {},
+    onAddToPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -340,6 +341,20 @@ fun AudioTrackItemRow(
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("添加到歌单") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = AppIcons.PlaylistAdd,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onAddToPlaylist()
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("查看详细信息") },
                                 leadingIcon = {
                                     Icon(
@@ -386,6 +401,7 @@ fun FileItemRow(
     isPlaying: Boolean = false,
     onClick: () -> Unit,
     onPlayNext: () -> Unit = {},
+    onAddToPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     AudioTrackItemRow(
@@ -395,6 +411,7 @@ fun FileItemRow(
         isPlaying = isPlaying,
         onClick = onClick,
         onPlayNext = onPlayNext,
+        onAddToPlaylist = onAddToPlaylist,
         modifier = modifier,
     )
 }

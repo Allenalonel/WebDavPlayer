@@ -145,8 +145,35 @@ class MainNavigationCoordinatorTest {
         assertEquals(2, fakeSession.togglePlayPauseCount)
         assertEquals(2, fakeSession.skipNextCount)
 
-        // Mini player remains visible on Server List
+        // Switch to Playlists tab
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        coordinator.togglePlayPause()
+        coordinator.skipToNext()
+        assertEquals(3, fakeSession.togglePlayPauseCount)
+        assertEquals(3, fakeSession.skipNextCount)
+
+        // Mini player remains visible on Playlists
         assertTrue(coordinator.uiState.value.isMiniPlayerVisible)
+    }
+
+    @Test
+    fun selectDestination_includesPlaylistsTab() {
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+        assertEquals("歌单", AppDestination.PLAYLISTS.label)
+    }
+
+    @Test
+    fun onActiveServerLoaded_nullServerWhileOnPlaylists_remainsOnPlaylists() {
+        coordinator.onActiveServerLoaded(sampleServer)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+
+        coordinator.onActiveServerLoaded(null)
+        // Playlists are local, so it should stay on PLAYLISTS
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
     }
 
     @Test

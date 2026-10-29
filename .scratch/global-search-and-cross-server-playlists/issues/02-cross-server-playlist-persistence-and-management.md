@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] 实现 Room 数据库版本 4 $\to$ 5 平滑迁移（`MIGRATION_4_5`），新增 `playlists` 与 `playlist_tracks` 表，保持老版本 SWR 目录缓存与服务器列表无损
-- [ ] 构建 `PlaylistRepository` 领域仓储接缝，提供歌单 CRUD、音轨批量追加及级联删除接口
-- [ ] 歌单音轨条目显式持久化 `serverId`、`remotePath` 以及标题、艺术家、专辑、时长快照与 CUE 虚拟分轨标识
-- [ ] 主底栏导航（`MainNavigationCoordinator`）拓展为三栏架构（曲库 / 歌单 / 服务器），新增独立的歌单广场视图（`PlaylistListScreen`）
-- [ ] 歌单广场提供新建歌单浮动操作按钮（FAB），支持输入歌单名称并做空值与重名校验；提供歌单卡片重命名与带二次确认的删除操作
-- [ ] 在曲库目录浏览、搜索结果列表及播放队列抽屉的歌曲三点菜单中，增加“添加到歌单”操作弹窗，支持勾选已有歌单或即时新建并添加
-- [ ] 编写针对 `PlaylistRepository` 契约与跨服务器音轨持久化的全量单元测试
+- [x] 实现 Room 数据库版本 4 $\to$ 5 平滑迁移（`MIGRATION_4_5`），新增 `playlists` 与 `playlist_tracks` 表，保持老版本 SWR 目录缓存与服务器列表无损
+- [x] 构建 `PlaylistRepository` 领域仓储接缝，提供歌单 CRUD、音轨批量追加及级联删除接口
+- [x] 歌单音轨条目显式持久化 `serverId`、`remotePath` 以及标题、艺术家、专辑、时长快照与 CUE 虚拟分轨标识
+- [x] 主底栏导航（`MainNavigationCoordinator`）拓展为三栏架构（曲库 / 歌单 / 服务器），新增独立的歌单广场视图（`PlaylistListScreen`）
+- [x] 歌单广场提供新建歌单浮动操作按钮（FAB），支持输入歌单名称并做空值与重名校验；提供歌单卡片重命名与带二次确认的删除操作
+- [x] 在曲库目录浏览、搜索结果列表及播放队列抽屉的歌曲三点菜单中，增加“添加到歌单”操作弹窗，支持勾选已有歌单或即时新建并添加
+- [x] 编写针对 `PlaylistRepository` 契约与跨服务器音轨持久化的全量单元测试
