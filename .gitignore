@@ -19,4 +19,5 @@ app/build
 .pi/
 .pi-lens.json
 app/.pi-lens.json
+.worktrees/
 
