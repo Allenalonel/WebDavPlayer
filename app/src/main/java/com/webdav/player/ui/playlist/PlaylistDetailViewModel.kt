@@ -2,14 +2,21 @@ package com.webdav.player.ui.playlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import com.webdav.player.domain.repository.PlaylistRepository
+import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -38,9 +45,13 @@ class PlaylistDetailViewModel(
     val playlistId: Long,
     private val playlistRepository: PlaylistRepository,
     private val musicPlayerAppSession: MusicPlayerAppSession? = null,
+    private val serverRepository: ServerRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlaylistDetailUiState(isLoading = true))
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
+
+    private val _toastEvent = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 64)
+    val toastEvent: SharedFlow<String> = _toastEvent.asSharedFlow()
 
     init {
         loadData()
@@ -55,8 +66,30 @@ class PlaylistDetailViewModel(
                 _uiState.update { it.copy(errorMessage = e.message ?: "加载歌单失败") }
             }.launchIn(viewModelScope)
 
-        playlistRepository
-            .getTracksForPlaylistFlow(playlistId)
+        val rawTracksFlow = playlistRepository.getTracksForPlaylistFlow(playlistId)
+        val tracksFlow: Flow<List<PlaylistTrackEntry>> =
+            if (serverRepository != null) {
+                combine(rawTracksFlow, serverRepository.getAllServers()) { tracks, servers ->
+                    val serverIds = servers.map { it.id }.toSet()
+                    tracks.map { track ->
+                        when {
+                            track.serverId !in serverIds -> {
+                                track.copy(isInactive = true, inactiveReason = InactiveReason.SERVER_UNREACHABLE)
+                            }
+                            track.isInactive -> {
+                                track
+                            }
+                            else -> {
+                                track
+                            }
+                        }
+                    }
+                }
+            } else {
+                rawTracksFlow
+            }
+
+        tracksFlow
             .onEach { tracks ->
                 _uiState.update { current ->
                     if (current.isReordering) {
@@ -194,7 +227,52 @@ class PlaylistDetailViewModel(
     }
 
     fun playTrack(track: PlaylistTrackEntry) {
-        musicPlayerAppSession?.playTrack(track.toAudioTrack())
+        val index = _uiState.value.tracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+        onTrackClick(track, index)
+    }
+
+    fun playAll() {
+        val playlist = _uiState.value.playlist ?: return
+        if (_uiState.value.tracks.isEmpty()) return
+        musicPlayerAppSession?.playPlaylist(playlist, 0)
+    }
+
+    fun onTrackClick(
+        track: PlaylistTrackEntry,
+        index: Int = _uiState.value.tracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0),
+    ) {
+        if (track.isInactive) {
+            val message =
+                when (track.inactiveReason) {
+                    InactiveReason.SERVER_UNREACHABLE -> "所属服务器无法连接"
+                    InactiveReason.FILE_NOT_FOUND -> "音频文件已被重命名或删除"
+                    InactiveReason.SERVER_CREDENTIAL_INVALID -> "所属服务器无法连接"
+                    null -> "音频文件已被重命名或删除"
+                }
+            _toastEvent.tryEmit(message)
+            return
+        }
+
+        val playlist = _uiState.value.playlist
+        if (playlist != null) {
+            musicPlayerAppSession?.playPlaylist(playlist, index)
+        } else {
+            musicPlayerAppSession?.playTrack(track.toAudioTrack())
+        }
+    }
+
+    fun cleanInactiveTracks() {
+        val inactiveTracks = _uiState.value.tracks.filter { it.isInactive }
+        if (inactiveTracks.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                for (track in inactiveTracks) {
+                    playlistRepository.removeTrackFromPlaylist(track.id)
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = e.message ?: "清理失效歌曲失败") }
+            }
+        }
     }
 
     fun playNext(track: PlaylistTrackEntry) {

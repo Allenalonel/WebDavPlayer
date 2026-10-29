@@ -4,6 +4,7 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
@@ -40,6 +41,11 @@ interface MusicPlayerAppSession {
         selectedFile: RemoteFile,
         initialMetadata: Map<String, TrackMetadata> = emptyMap(),
         virtualTracksByAudioPath: Map<String, List<VirtualTrack>> = emptyMap(),
+    )
+
+    fun playPlaylist(
+        playlist: Playlist,
+        startIndex: Int = 0,
     )
 
     fun playVirtualTracks(

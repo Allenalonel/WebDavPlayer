@@ -4,6 +4,7 @@ data class PlaybackQueue(
     val tracks: List<AudioTrack> = emptyList(),
     val currentIndex: Int = -1,
     val shuffleOrder: List<Int> = emptyList(),
+    val origin: QueueOrigin = QueueOrigin.DIRECTORY,
 ) {
     val currentTrack: AudioTrack?
         get() = if (currentIndex in tracks.indices) tracks[currentIndex] else null
@@ -14,6 +15,10 @@ data class PlaybackQueue(
 
     val hasNext: Boolean get() = currentIndex < tracks.size - 1
     val hasPrevious: Boolean get() = currentIndex > 0
+
+    val isPlaylistQueue: Boolean get() = origin == QueueOrigin.PLAYLIST
+    val isDirectoryQueue: Boolean get() = origin == QueueOrigin.DIRECTORY
+    val isAdHocQueue: Boolean get() = origin == QueueOrigin.AD_HOC
 
     fun playTrackAt(index: Int): PlaybackQueue {
         if (index !in tracks.indices) return this
@@ -183,6 +188,7 @@ data class PlaybackQueue(
             virtualTracksMap: Map<String, List<VirtualTrack>> = emptyMap(),
             selectedIndex: Int = 0,
             shuffleOrder: List<Int> = emptyList(),
+            origin: QueueOrigin = QueueOrigin.DIRECTORY,
         ): PlaybackQueue {
             if (tracks.isEmpty()) return EMPTY
             if (virtualTracksMap.isEmpty()) {
@@ -200,6 +206,7 @@ data class PlaybackQueue(
                     tracks = tracks,
                     currentIndex = validSelectedIndex,
                     shuffleOrder = initialShuffle,
+                    origin = origin,
                 )
             }
 
@@ -235,6 +242,7 @@ data class PlaybackQueue(
                 tracks = expandedTracks,
                 currentIndex = targetIndex,
                 shuffleOrder = initialShuffle,
+                origin = origin,
             )
         }
     }

@@ -2,17 +2,22 @@ package com.webdav.player.ui.playlist
 
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.PlaylistRepository
+import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -26,6 +31,20 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+
+class DetailFakeServerRepository(
+    initialServers: List<WebDavServer> = emptyList(),
+) : ServerRepository {
+    val serversFlow = MutableStateFlow(initialServers)
+    override fun getAllServers(): Flow<List<WebDavServer>> = serversFlow.asStateFlow()
+    override fun getActiveServer(): Flow<WebDavServer?> = serversFlow.map { it.firstOrNull() }
+    override suspend fun getServerById(id: Long): WebDavServer? = serversFlow.value.firstOrNull { it.id == id }
+    override suspend fun saveServer(server: WebDavServer): Long = server.id
+    override suspend fun deleteServer(id: Long) {
+        serversFlow.update { list -> list.filterNot { it.id == id } }
+    }
+    override suspend fun setActiveServer(id: Long) {}
+}
 
 class DetailFakePlaylistRepository : PlaylistRepository {
     val playlistsFlow = MutableStateFlow<List<Playlist>>(emptyList())
@@ -405,7 +424,147 @@ class PlaylistDetailViewModelTest {
             val track = viewModel.uiState.value.tracks[0]
             viewModel.playTrack(track)
 
-            assertEquals("Alpha", fakeSession.lastPlayTrack?.title)
+            assertEquals(playlistId, fakeSession.lastPlayPlaylist?.id)
+            assertEquals(0, fakeSession.lastPlayPlaylistStartIndex)
+        }
+
+    @Test
+    fun playAll_delegatesToMusicPlayerAppSessionWithZeroIndex() =
+        runTest(testDispatcher) {
+            advanceUntilIdle()
+
+            viewModel.playAll()
+
+            assertEquals(playlistId, fakeSession.lastPlayPlaylist?.id)
+            assertEquals(0, fakeSession.lastPlayPlaylistStartIndex)
+        }
+
+    @Test
+    fun inactiveTrackDetection_whenServerMissing_marksServerUnreachable() =
+        runTest(testDispatcher) {
+            val server1 = WebDavServer(id = 1L, name = "Server 1", url = "http://1.1.1.1")
+            val serverRepo = DetailFakeServerRepository(listOf(server1))
+
+            // Add track on server 2 (missing from serverRepo)
+            val trackOnMissingServer =
+                AudioTrack(
+                    id = "2:/missing.mp3",
+                    serverId = 2L,
+                    remotePath = "/missing.mp3",
+                    title = "Offline Server Song",
+                    format = AudioFormat.MP3,
+                )
+            fakeRepo.addTrackToPlaylist(playlistId, trackOnMissingServer)
+
+            val vmWithServerRepo =
+                PlaylistDetailViewModel(
+                    playlistId = playlistId,
+                    playlistRepository = fakeRepo,
+                    musicPlayerAppSession = fakeSession,
+                    serverRepository = serverRepo,
+                )
+            advanceUntilIdle()
+
+            val tracks = vmWithServerRepo.uiState.value.tracks
+            val offlineTrack = tracks.first { it.title == "Offline Server Song" }
+            assertTrue(offlineTrack.isInactive)
+            assertEquals(InactiveReason.SERVER_UNREACHABLE, offlineTrack.inactiveReason)
+        }
+
+    @Test
+    fun onTrackClick_inactiveTrack_triggersToastAndBlocksPlayback() =
+        runTest(testDispatcher) {
+            val server1 = WebDavServer(id = 1L, name = "Server 1", url = "http://1.1.1.1")
+            val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://2.2.2.2")
+            val serverRepo = DetailFakeServerRepository(listOf(server1, server2))
+
+            val offlineTrackEntry =
+                AudioTrack(
+                    id = "999:/offline.mp3",
+                    serverId = 999L,
+                    remotePath = "/offline.mp3",
+                    title = "Unreachable Song",
+                    format = AudioFormat.MP3,
+                )
+            fakeRepo.addTrackToPlaylist(playlistId, offlineTrackEntry)
+
+            val vm =
+                PlaylistDetailViewModel(
+                    playlistId = playlistId,
+                    playlistRepository = fakeRepo,
+                    musicPlayerAppSession = fakeSession,
+                    serverRepository = serverRepo,
+                )
+            advanceUntilIdle()
+
+            var emittedToast: String? = null
+            val job = launch {
+                vm.toastEvent.collect { message ->
+                    emittedToast = message
+                }
+            }
+            advanceUntilIdle()
+
+            val unreachableTrack = vm.uiState.value.tracks.first { it.title == "Unreachable Song" }
+            fakeSession.lastPlayPlaylist = null
+
+            vm.onTrackClick(unreachableTrack)
+            advanceUntilIdle()
+
+            // Toast emitted
+            assertEquals("所属服务器无法连接", emittedToast)
+            // Playback NOT started
+            assertNull(fakeSession.lastPlayPlaylist)
+
+            // Test 404 inactive track
+            val notFoundTrack = unreachableTrack.copy(
+                isInactive = true,
+                inactiveReason = InactiveReason.FILE_NOT_FOUND,
+            )
+            vm.onTrackClick(notFoundTrack)
+            advanceUntilIdle()
+
+            assertEquals("音频文件已被重命名或删除", emittedToast)
+            assertNull(fakeSession.lastPlayPlaylist)
+
+            job.cancel()
+        }
+
+    @Test
+    fun cleanInactiveTracks_removesAllInactiveTracks() =
+        runTest(testDispatcher) {
+            val server1 = WebDavServer(id = 1L, name = "Server 1", url = "http://1.1.1.1")
+            val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://2.2.2.2")
+            val serverRepo = DetailFakeServerRepository(listOf(server1, server2))
+
+            val offline1 = AudioTrack(id = "888:/off1.mp3", serverId = 888L, remotePath = "/off1.mp3", title = "Off 1", format = AudioFormat.MP3)
+            val offline2 = AudioTrack(id = "999:/off2.mp3", serverId = 999L, remotePath = "/off2.mp3", title = "Off 2", format = AudioFormat.MP3)
+            fakeRepo.addTrackToPlaylist(playlistId, offline1)
+            fakeRepo.addTrackToPlaylist(playlistId, offline2)
+
+            val vm =
+                PlaylistDetailViewModel(
+                    playlistId = playlistId,
+                    playlistRepository = fakeRepo,
+                    musicPlayerAppSession = fakeSession,
+                    serverRepository = serverRepo,
+                )
+            advanceUntilIdle()
+
+            // Initially 3 active + 2 offline = 5 tracks
+            assertEquals(5, vm.uiState.value.tracks.size)
+            assertEquals(2, vm.uiState.value.tracks.count { it.isInactive })
+
+            vm.cleanInactiveTracks()
+            advanceUntilIdle()
+
+            // After clean, only 3 active tracks remain
+            val remaining = vm.uiState.value.tracks
+            assertEquals(3, remaining.size)
+            assertTrue(remaining.none { it.isInactive })
+
+            val repoTracks = fakeRepo.getTracksForPlaylist(playlistId)
+            assertEquals(3, repoTracks.size)
         }
 
     @Test

@@ -7,6 +7,7 @@ import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.PlaylistDao
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -378,5 +379,25 @@ class PlaylistRepositoryTest {
             assertEquals("T2", remaining[0].title)
             assertEquals(1, repository.getPlaylist(playlistId)?.trackCount)
             assertEquals(5_000_000L, repository.getPlaylist(playlistId)?.updatedAtMs)
+        }
+
+    @Test
+    fun markTrackInactive_updatesTracksFlowWithInactiveReason() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("失效标记测试")
+            val track1 = AudioTrack(id = "1:/1.mp3", serverId = 1L, remotePath = "/1.mp3", title = "T1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/2.mp3", serverId = 1L, remotePath = "/2.mp3", title = "T2", format = AudioFormat.MP3)
+
+            repository.addTrackToPlaylist(playlistId, track1)
+            repository.addTrackToPlaylist(playlistId, track2)
+
+            repository.markTrackInactive(1L, "/1.mp3", InactiveReason.FILE_NOT_FOUND)
+
+            val tracks = repository.getTracksForPlaylistFlow(playlistId).first()
+            assertEquals(2, tracks.size)
+            assertTrue(tracks[0].isInactive)
+            assertEquals(InactiveReason.FILE_NOT_FOUND, tracks[0].inactiveReason)
+            assertFalse(tracks[1].isInactive)
+            assertNull(tracks[1].inactiveReason)
         }
 }

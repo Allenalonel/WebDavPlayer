@@ -27,6 +27,34 @@ class PlaybackQueueTest {
     }
 
     @Test
+    fun queueOrigin_defaultsAndCustomOrigins() {
+        val t1 = createTrack("1", "Song 1")
+        val defaultQueue = PlaybackQueue(tracks = listOf(t1), currentIndex = 0)
+        assertEquals(QueueOrigin.DIRECTORY, defaultQueue.origin)
+        assertTrue(defaultQueue.isDirectoryQueue)
+        assertFalse(defaultQueue.isPlaylistQueue)
+        assertFalse(defaultQueue.isAdHocQueue)
+
+        val playlistQueue =
+            PlaybackQueue(
+                tracks = listOf(t1),
+                currentIndex = 0,
+                origin = QueueOrigin.PLAYLIST,
+            )
+        assertEquals(QueueOrigin.PLAYLIST, playlistQueue.origin)
+        assertTrue(playlistQueue.isPlaylistQueue)
+        assertFalse(playlistQueue.isDirectoryQueue)
+
+        val fromTracksQueue =
+            PlaybackQueue.fromTracks(
+                tracks = listOf(t1),
+                origin = QueueOrigin.PLAYLIST,
+            )
+        assertEquals(QueueOrigin.PLAYLIST, fromTracksQueue.origin)
+        assertTrue(fromTracksQueue.isPlaylistQueue)
+    }
+
+    @Test
     fun emptyQueue_behavior() {
         val queue = PlaybackQueue.EMPTY
         assertTrue(queue.isEmpty)
@@ -308,36 +336,40 @@ class PlaybackQueueTest {
     @Test
     fun fromTracks_withVirtualTracksMap_inlinesVirtualTracksAndAdjustsIndices() {
         val t1 = createTrack("track_1", "Intro").copy(remotePath = "/music/01.mp3")
-        val tAlbum = createTrack("parent_album", "Full Album").copy(
-            remotePath = "/music/album.flac",
-            format = AudioFormat.FLAC,
-        )
+        val tAlbum =
+            createTrack("parent_album", "Full Album").copy(
+                remotePath = "/music/album.flac",
+                format = AudioFormat.FLAC,
+            )
         val t3 = createTrack("track_3", "Outro").copy(remotePath = "/music/03.mp3")
 
-        val vt1 = VirtualTrack(
-            trackNumber = 1,
-            title = "Overture",
-            performer = "Orchestra",
-            startTimeMs = 0L,
-            endTimeMs = 120000L,
-            parentAudioPath = "/music/album.flac",
-        )
-        val vt2 = VirtualTrack(
-            trackNumber = 2,
-            title = "Movement 1",
-            performer = "Orchestra",
-            startTimeMs = 120000L,
-            endTimeMs = 300000L,
-            parentAudioPath = "/music/album.flac",
-        )
-        val vt3 = VirtualTrack(
-            trackNumber = 3,
-            title = "Movement 2",
-            performer = "Orchestra",
-            startTimeMs = 300000L,
-            endTimeMs = 500000L,
-            parentAudioPath = "/music/album.flac",
-        )
+        val vt1 =
+            VirtualTrack(
+                trackNumber = 1,
+                title = "Overture",
+                performer = "Orchestra",
+                startTimeMs = 0L,
+                endTimeMs = 120000L,
+                parentAudioPath = "/music/album.flac",
+            )
+        val vt2 =
+            VirtualTrack(
+                trackNumber = 2,
+                title = "Movement 1",
+                performer = "Orchestra",
+                startTimeMs = 120000L,
+                endTimeMs = 300000L,
+                parentAudioPath = "/music/album.flac",
+            )
+        val vt3 =
+            VirtualTrack(
+                trackNumber = 3,
+                title = "Movement 2",
+                performer = "Orchestra",
+                startTimeMs = 300000L,
+                endTimeMs = 500000L,
+                parentAudioPath = "/music/album.flac",
+            )
 
         val virtualMap = mapOf("/music/album.flac" to listOf(vt1, vt2, vt3))
         val rawTracks = listOf(t1, tAlbum, t3)
@@ -371,20 +403,22 @@ class PlaybackQueueTest {
         val tAlbum = createTrack("album", "Album").copy(remotePath = "/music/album.flac")
         val t3 = createTrack("3", "Song 3").copy(remotePath = "/music/3.mp3")
 
-        val vt1 = VirtualTrack(
-            trackNumber = 1,
-            title = "V1",
-            startTimeMs = 0L,
-            endTimeMs = 60000L,
-            parentAudioPath = "/music/album.flac",
-        )
-        val vt2 = VirtualTrack(
-            trackNumber = 2,
-            title = "V2",
-            startTimeMs = 60000L,
-            endTimeMs = 120000L,
-            parentAudioPath = "/music/album.flac",
-        )
+        val vt1 =
+            VirtualTrack(
+                trackNumber = 1,
+                title = "V1",
+                startTimeMs = 0L,
+                endTimeMs = 60000L,
+                parentAudioPath = "/music/album.flac",
+            )
+        val vt2 =
+            VirtualTrack(
+                trackNumber = 2,
+                title = "V2",
+                startTimeMs = 60000L,
+                endTimeMs = 120000L,
+                parentAudioPath = "/music/album.flac",
+            )
         val vts = listOf(vt1, vt2)
 
         val queueWithCurrentAtAlbum = PlaybackQueue(tracks = listOf(t1, tAlbum, t3), currentIndex = 1)
@@ -412,21 +446,23 @@ class PlaybackQueueTest {
 
     @Test
     fun toAudioTrack_producesValidVirtualTrackAttributes() {
-        val parent = createTrack("parent_id", "Parent Album").copy(
-            remotePath = "/remote/album.flac",
-            artist = "Original Artist",
-            album = "Master Album",
-            format = AudioFormat.FLAC,
-            coverThumbnailPath = "/covers/art.jpg",
-        )
-        val vt = VirtualTrack(
-            trackNumber = 4,
-            title = "Specific Movement",
-            performer = "Guest Soloist",
-            startTimeMs = 100000L,
-            endTimeMs = 250000L,
-            parentAudioPath = "/remote/album.flac",
-        )
+        val parent =
+            createTrack("parent_id", "Parent Album").copy(
+                remotePath = "/remote/album.flac",
+                artist = "Original Artist",
+                album = "Master Album",
+                format = AudioFormat.FLAC,
+                coverThumbnailPath = "/covers/art.jpg",
+            )
+        val vt =
+            VirtualTrack(
+                trackNumber = 4,
+                title = "Specific Movement",
+                performer = "Guest Soloist",
+                startTimeMs = 100000L,
+                endTimeMs = 250000L,
+                parentAudioPath = "/remote/album.flac",
+            )
 
         val virtualAudioTrack = vt.toAudioTrack(parent)
         assertEquals("parent_id#cue_4", virtualAudioTrack.id)
