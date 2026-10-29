@@ -94,4 +94,21 @@ class DirectoryCacheDaoTest {
         assertNull(dao.getCache(1L, "/a/"))
         assertNull(dao.getCache(2L, "/b/"))
     }
+
+    @Test
+    fun getAllAndGetAllByServerId_queriesCorrectEntities() = runTest {
+        dao.insertOrUpdate(DirectoryCacheEntity(1L, "/a/", "{}", 100L))
+        dao.insertOrUpdate(DirectoryCacheEntity(1L, "/b/", "{}", 200L))
+        dao.insertOrUpdate(DirectoryCacheEntity(2L, "/c/", "{}", 300L))
+
+        val all = dao.getAll()
+        assertEquals(3, all.size)
+
+        val server1 = dao.getAllByServerId(1L)
+        assertEquals(2, server1.size)
+
+        val server2 = dao.getAllByServerId(2L)
+        assertEquals(1, server2.size)
+        assertEquals("/c/", server2.first().path)
+    }
 }

@@ -3,8 +3,10 @@ package com.webdav.player.ui.browser
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioQuality
 import com.webdav.player.domain.model.AudioQualityLevel
+import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.LibrarySearchResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
@@ -283,5 +285,70 @@ class DirectoryBrowserPresentationTest {
         assertTrue(state.isCueAlbumActive(album))
         assertFalse(state.isVirtualTrackActive(album, track1))
         assertTrue(state.isVirtualTrackActive(album, track2))
+    }
+
+    @Test
+    fun searchResult_presentationModel_calculatesTotalAndEmptyCorrectly() {
+        val emptyResult = LibrarySearchResult()
+        assertTrue(emptyResult.isEmpty)
+        assertEquals(0, emptyResult.totalMatchesCount)
+
+        val populatedResult =
+            LibrarySearchResult(
+                matchedDirectories = listOf(RemoteDirectory(path = "/Music/Pop/", name = "Pop")),
+                matchedTracks =
+                    listOf(
+                        AudioTrack(id = "1:/s1.mp3", serverId = 1L, remotePath = "/s1.mp3", title = "S1", format = AudioFormat.MP3),
+                        AudioTrack(id = "1:/s2.mp3", serverId = 1L, remotePath = "/s2.mp3", title = "S2", format = AudioFormat.MP3),
+                    ),
+            )
+        assertFalse(populatedResult.isEmpty)
+        assertEquals(3, populatedResult.totalMatchesCount)
+        assertEquals(1, populatedResult.matchedDirectories.size)
+        assertEquals(2, populatedResult.matchedTracks.size)
+    }
+
+    @Test
+    fun searchUiState_tracksQueryAndSearchActiveFlags() {
+        val state =
+            DirectoryBrowserUiState(
+                isSearchActive = true,
+                searchQuery = "beethoven",
+                isSearching = true,
+                searchHistory = listOf("bach", "mozart"),
+            )
+        assertTrue(state.isSearchActive)
+        assertEquals("beethoven", state.searchQuery)
+        assertTrue(state.isSearching)
+        assertEquals(listOf("bach", "mozart"), state.searchHistory)
+    }
+
+    @Test
+    fun searchResultTrack_identifiesVirtualTrack_andResolvesDisplayProperties() {
+        val standardTrack =
+            AudioTrack(
+                id = "1:/music/track.flac",
+                serverId = 1L,
+                remotePath = "/music/track.flac",
+                title = "Whole Symphony",
+                artist = "Beethoven",
+                album = "Symphony No. 9",
+                format = AudioFormat.FLAC,
+            )
+        assertFalse(standardTrack.isVirtualTrack)
+
+        val virtualTrack =
+            AudioTrack(
+                id = "1:/music/track.flac#cue_1",
+                serverId = 1L,
+                remotePath = "/music/track.flac",
+                title = "Allegro",
+                artist = "Herbert von Karajan",
+                album = "Symphony No. 9",
+                format = AudioFormat.FLAC,
+            )
+        assertTrue(virtualTrack.isVirtualTrack)
+        assertEquals("Allegro", virtualTrack.title)
+        assertEquals("Herbert von Karajan", virtualTrack.artist)
     }
 }

@@ -25,6 +25,7 @@ class AppIconsTest {
                 AppIcons.Person,
                 AppIcons.PlayArrow,
                 AppIcons.Refresh,
+                AppIcons.Search,
                 AppIcons.Warning,
             )
 

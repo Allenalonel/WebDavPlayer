@@ -8,12 +8,14 @@ import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
+import com.webdav.player.data.repository.LibrarySearchRepositoryImpl
 import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
+import com.webdav.player.domain.repository.LibrarySearchRepository
 import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.PlaybackSessionStore
 import com.webdav.player.domain.repository.ServerRepository
@@ -38,6 +40,9 @@ class WebDavApplication : Application() {
         private set
 
     lateinit var directoryRepository: DirectoryRepository
+        private set
+
+    lateinit var librarySearchRepository: LibrarySearchRepository
         private set
 
     lateinit var playerEngine: AudioPlayerEngine
@@ -82,6 +87,12 @@ class WebDavApplication : Application() {
                 directoryCacheDao = database.directoryCacheDao(),
             )
         this.directoryRepository = directoryRepository
+
+        librarySearchRepository =
+            LibrarySearchRepositoryImpl(
+                directoryCacheDao = database.directoryCacheDao(),
+                trackMetadataDao = database.trackMetadataDao(),
+            )
 
         musicPlayerAppSession =
             MusicPlayerAppSessionImpl(

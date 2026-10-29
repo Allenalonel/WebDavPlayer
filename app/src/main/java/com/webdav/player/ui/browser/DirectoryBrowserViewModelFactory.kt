@@ -47,12 +47,21 @@ class DirectoryBrowserViewModelFactory(
                         webDavServerDao = database.webDavServerDao(),
                     )
                 }
+            val searchRepository =
+                app?.librarySearchRepository ?: run {
+                    val database = AppDatabase.getInstance(context)
+                    com.webdav.player.data.repository.LibrarySearchRepositoryImpl(
+                        directoryCacheDao = database.directoryCacheDao(),
+                        trackMetadataDao = database.trackMetadataDao(),
+                    )
+                }
             return DirectoryBrowserViewModel(
                 serverRepository = serverRepository,
                 directoryRepository = directoryRepository,
                 musicPlayerAppSession = session,
                 trackMetadataRepository = metadataRepository,
                 webDavClient = client,
+                librarySearchRepository = searchRepository,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
