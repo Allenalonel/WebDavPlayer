@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (SWR Instant Search and Ad-hoc Queue Insertion), 04 (Cross-Server Playback and Inactive Track Fault-Tolerance)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 编写端到端全链路集成回归测试（`EndToEndPlaylistAndSearchPipelineTest`），验证从创建歌单、搜索穿梭、插队起播到跨服播放的全链路状态一致性
 - [ ] 验证包含跨服务器歌单上下文的会话持久化与冷启动无缝断点恢复（`PlaybackSessionState` 正确恢复歌单队列与对应服务器上下文）
