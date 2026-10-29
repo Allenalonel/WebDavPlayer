@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SearchBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -45,6 +47,7 @@ import com.webdav.player.ui.browser.components.DirectoryItemRow
 import com.webdav.player.ui.browser.components.EmptyFolderState
 import com.webdav.player.ui.browser.components.ErrorState
 import com.webdav.player.ui.browser.components.NoActiveServerState
+import com.webdav.player.ui.browser.components.SearchResultsContent
 import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +62,11 @@ fun DirectoryBrowserScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = isCurrentTab) {
+    BackHandler(enabled = isCurrentTab && uiState.isSearchActive) {
+        viewModel.onSearchActiveChanged(false)
+    }
+
+    BackHandler(enabled = isCurrentTab && !uiState.isSearchActive) {
         val handled = viewModel.onNavigateUp()
         if (!handled) {
             onNavigateToServerManagement()
@@ -81,42 +88,95 @@ fun DirectoryBrowserScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = {
-                    val titleText = uiState.headerTitle
-                    Text(
-                        text = titleText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    if (uiState.canNavigateUp && !uiState.isInitializing) {
-                        IconButton(onClick = { viewModel.onNavigateUp() }) {
+            if (uiState.isSearchActive) {
+                SearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                    onSearch = { viewModel.onSearchSubmitted(it) },
+                    active = true,
+                    onActiveChange = { viewModel.onSearchActiveChanged(it) },
+                    placeholder = { Text("搜索歌曲、歌手、专辑或文件夹...") },
+                    leadingIcon = {
+                        IconButton(onClick = { viewModel.onSearchActiveChanged(false) }) {
                             Icon(
                                 imageVector = AppIcons.ArrowBack,
-                                contentDescription = "返回上级",
+                                contentDescription = "退出搜索",
                             )
                         }
-                    }
-                },
-                actions = {
-                    if (!uiState.isInitializing) {
-                        IconButton(onClick = { viewModel.onRefresh() }) {
-                            Icon(
-                                imageVector = AppIcons.Refresh,
-                                contentDescription = "刷新目录",
-                            )
+                    },
+                    trailingIcon = {
+                        if (uiState.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onClearSearchQuery() }) {
+                                Icon(
+                                    imageVector = AppIcons.Close,
+                                    contentDescription = "清空输入",
+                                )
+                            }
                         }
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
-            )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    SearchResultsContent(
+                        query = uiState.searchQuery,
+                        isSearching = uiState.isSearching,
+                        searchResult = uiState.searchResult,
+                        searchHistory = uiState.searchHistory,
+                        onSelectHistoryQuery = {
+                            viewModel.onSearchQueryChanged(it)
+                            viewModel.onSearchSubmitted(it)
+                        },
+                        onClearHistory = { viewModel.onClearSearchHistory() },
+                        onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
+                        onDirectoryClick = { viewModel.onSearchResultDirectoryClicked(it) },
+                        onTrackClick = { viewModel.onSearchResultTrackClicked(it) },
+                    )
+                }
+            } else {
+                TopAppBar(
+                    title = {
+                        val titleText = uiState.headerTitle
+                        Text(
+                            text = titleText,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    navigationIcon = {
+                        if (uiState.canNavigateUp && !uiState.isInitializing) {
+                            IconButton(onClick = { viewModel.onNavigateUp() }) {
+                                Icon(
+                                    imageVector = AppIcons.ArrowBack,
+                                    contentDescription = "返回上级",
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        if (!uiState.isInitializing && uiState.activeServer != null) {
+                            IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {
+                                Icon(
+                                    imageVector = AppIcons.Search,
+                                    contentDescription = "搜索曲库",
+                                )
+                            }
+                        }
+                        if (!uiState.isInitializing) {
+                            IconButton(onClick = { viewModel.onRefresh() }) {
+                                Icon(
+                                    imageVector = AppIcons.Refresh,
+                                    contentDescription = "刷新目录",
+                                )
+                            }
+                        }
+                    },
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
+                )
+            }
         },
     ) { innerPadding ->
         Column(

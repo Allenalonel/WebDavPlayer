@@ -2,6 +2,7 @@ package com.webdav.player.ui.browser
 
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.LibrarySearchResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
@@ -24,6 +25,11 @@ data class DirectoryBrowserUiState(
     val activeTrackId: String? = null,
     val isPlaying: Boolean = false,
     val cueAlbums: List<CueAlbumItem> = emptyList(),
+    val isSearchActive: Boolean = false,
+    val searchQuery: String = "",
+    val searchResult: LibrarySearchResult = LibrarySearchResult(),
+    val searchHistory: List<String> = emptyList(),
+    val isSearching: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = currentDirectory?.isEmpty == true

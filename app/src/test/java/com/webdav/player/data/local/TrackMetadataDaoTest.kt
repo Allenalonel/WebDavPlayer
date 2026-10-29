@@ -119,4 +119,24 @@ class TrackMetadataDaoTest {
         dao.deleteMetadata(1L, "/music/song.mp3")
         assertNull(dao.getMetadata(1L, "/music/song.mp3"))
     }
+
+    @Test
+    fun getAllMetadata_andGetAllMetadataForServer_returnsEntities() = runTest {
+        dao.insertOrUpdateAll(
+            listOf(
+                TrackMetadataEntity(1L, "/s1.mp3", "S1", "A1", "Alb1", 1, 1000L, null),
+                TrackMetadataEntity(1L, "/s2.mp3", "S2", "A2", "Alb2", 2, 2000L, null),
+                TrackMetadataEntity(2L, "/s3.mp3", "S3", "A3", "Alb3", 3, 3000L, null),
+            )
+        )
+        val all = dao.getAllMetadata()
+        assertEquals(3, all.size)
+
+        val server1 = dao.getAllMetadataForServer(1L)
+        assertEquals(2, server1.size)
+
+        val server2 = dao.getAllMetadataForServer(2L)
+        assertEquals(1, server2.size)
+        assertEquals("S3", server2.first().title)
+    }
 }

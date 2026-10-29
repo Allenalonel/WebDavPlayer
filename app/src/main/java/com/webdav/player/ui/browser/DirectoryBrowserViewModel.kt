@@ -8,11 +8,13 @@ import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.LibrarySearchResult
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
+import com.webdav.player.domain.repository.LibrarySearchRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
@@ -35,6 +37,7 @@ class DirectoryBrowserViewModel(
     val musicPlayerAppSession: MusicPlayerAppSession? = null,
     val trackMetadataRepository: TrackMetadataRepository? = null,
     val webDavClient: WebDavClient? = null,
+    val librarySearchRepository: LibrarySearchRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
     val uiState: StateFlow<DirectoryBrowserUiState> = _uiState.asStateFlow()
@@ -44,6 +47,7 @@ class DirectoryBrowserViewModel(
     private var currentLoadJob: Job? = null
     private var activeRefreshJob: Job? = null
     private var cueResolutionJob: Job? = null
+    private var searchJob: Job? = null
     private var activeMetadataPath: String? = null
 
     init {
@@ -216,6 +220,94 @@ class DirectoryBrowserViewModel(
         musicPlayerAppSession?.playNext(track)
     }
 
+    fun playNext(track: AudioTrack) {
+        musicPlayerAppSession?.playNext(track)
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        searchJob?.cancel()
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            _uiState.update { it.copy(searchResult = LibrarySearchResult(), isSearching = false) }
+            return
+        }
+        _uiState.update { it.copy(isSearching = true) }
+        searchJob =
+            viewModelScope.launch {
+                val serverId = _uiState.value.activeServer?.id
+                librarySearchRepository?.search(trimmed, serverId)?.collect { result ->
+                    _uiState.update { it.copy(searchResult = result, isSearching = false) }
+                } ?: run {
+                    _uiState.update { it.copy(isSearching = false) }
+                }
+            }
+    }
+
+    fun onSearchActiveChanged(active: Boolean) {
+        if (!active) {
+            searchJob?.cancel()
+            _uiState.update {
+                it.copy(
+                    isSearchActive = false,
+                    searchQuery = "",
+                    searchResult = LibrarySearchResult(),
+                    isSearching = false,
+                )
+            }
+        } else {
+            _uiState.update { it.copy(isSearchActive = true) }
+        }
+    }
+
+    fun onClearSearchQuery() {
+        searchJob?.cancel()
+        _uiState.update {
+            it.copy(
+                searchQuery = "",
+                searchResult = LibrarySearchResult(),
+                isSearching = false,
+            )
+        }
+    }
+
+    fun onSearchSubmitted(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isNotBlank()) {
+            _uiState.update { current ->
+                val updatedHistory = (listOf(trimmed) + current.searchHistory.filter { it != trimmed }).take(10)
+                current.copy(searchHistory = updatedHistory)
+            }
+        }
+    }
+
+    fun onClearSearchHistory() {
+        _uiState.update { it.copy(searchHistory = emptyList()) }
+    }
+
+    fun onRemoveSearchHistoryItem(item: String) {
+        _uiState.update { current ->
+            current.copy(searchHistory = current.searchHistory.filter { it != item })
+        }
+    }
+
+    fun onSearchResultDirectoryClicked(directory: RemoteDirectory) {
+        val currentQuery = _uiState.value.searchQuery.trim()
+        if (currentQuery.isNotBlank()) {
+            onSearchSubmitted(currentQuery)
+        }
+        _uiState.update { it.copy(isSearchActive = false, searchQuery = "") }
+        loadDirectory(directory.path, forceRefresh = false)
+    }
+
+    fun onSearchResultTrackClicked(track: AudioTrack) {
+        val currentQuery = _uiState.value.searchQuery.trim()
+        if (currentQuery.isNotBlank()) {
+            onSearchSubmitted(currentQuery)
+        }
+        musicPlayerAppSession?.playNext(track)
+    }
+
     fun onNavigateUp(): Boolean {
         val current = _uiState.value.currentPath
         val parentPath = RemoteDirectory.getParentPath(current) ?: return false
@@ -357,9 +449,9 @@ class DirectoryBrowserViewModel(
         }
     }
 
-    private fun loadDirectory(
+    fun loadDirectory(
         path: String,
-        forceRefresh: Boolean,
+        forceRefresh: Boolean = false,
         fallbackToRoot: Boolean = false,
     ) {
         val server = _uiState.value.activeServer ?: return

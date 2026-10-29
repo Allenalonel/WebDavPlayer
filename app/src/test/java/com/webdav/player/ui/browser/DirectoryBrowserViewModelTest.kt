@@ -6,6 +6,7 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.LibrarySearchResult
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackState
@@ -16,6 +17,7 @@ import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
+import com.webdav.player.domain.repository.LibrarySearchRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
@@ -48,6 +50,7 @@ class DirectoryBrowserViewModelTest {
     private lateinit var fakeMusicPlayerAppSession: FakeMusicPlayerAppSession
     private lateinit var fakeTrackMetadataRepository: FakeTrackMetadataRepository
     private lateinit var fakeWebDavClient: FakeWebDavClient
+    private lateinit var fakeLibrarySearchRepository: FakeLibrarySearchRepository
     private lateinit var viewModel: DirectoryBrowserViewModel
 
     private val sampleServer =
@@ -112,6 +115,7 @@ class DirectoryBrowserViewModelTest {
         fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(rootDir))
         fakeDirectoryRepository.setResult("/Music/", ListDirectoryResult.Success(musicDir))
         fakeDirectoryRepository.setResult("/Music/Rock/", ListDirectoryResult.Success(rockDir))
+        fakeLibrarySearchRepository = FakeLibrarySearchRepository()
 
         viewModel =
             DirectoryBrowserViewModel(
@@ -120,6 +124,7 @@ class DirectoryBrowserViewModelTest {
                 musicPlayerAppSession = fakeMusicPlayerAppSession,
                 trackMetadataRepository = fakeTrackMetadataRepository,
                 webDavClient = fakeWebDavClient,
+                librarySearchRepository = fakeLibrarySearchRepository,
             )
     }
 
@@ -1611,4 +1616,212 @@ class DirectoryBrowserViewModelTest {
             remotePath: String,
         ): String? = textResponses[remotePath]
     }
+
+    private class FakeLibrarySearchRepository : LibrarySearchRepository {
+        var lastSearchQuery: String? = null
+        var lastSearchServerId: Long? = null
+        val searchResultFlow = MutableStateFlow(LibrarySearchResult())
+
+        fun emitResult(result: LibrarySearchResult) {
+            searchResultFlow.value = result
+        }
+
+        override fun search(
+            query: String,
+            serverId: Long?,
+        ): Flow<LibrarySearchResult> {
+            lastSearchQuery = query
+            lastSearchServerId = serverId
+            return searchResultFlow
+        }
+    }
+
+    @Test
+    fun searchBar_activeStateToggle_updatesUiState_andClearsOnClose() =
+        runTest {
+            assertFalse(viewModel.uiState.value.isSearchActive)
+
+            viewModel.onSearchActiveChanged(true)
+            assertTrue(viewModel.uiState.value.isSearchActive)
+
+            viewModel.onSearchQueryChanged("pink floyd")
+            assertEquals("pink floyd", viewModel.uiState.value.searchQuery)
+
+            viewModel.onSearchActiveChanged(false)
+            assertFalse(viewModel.uiState.value.isSearchActive)
+            assertEquals("", viewModel.uiState.value.searchQuery)
+            assertTrue(viewModel.uiState.value.searchResult.isEmpty)
+        }
+
+    @Test
+    fun searchBar_queryChange_triggersLibrarySearchRepository_andUpdatesResult() =
+        runTest {
+            advanceUntilIdle()
+
+            viewModel.onSearchActiveChanged(true)
+            viewModel.onSearchQueryChanged("rock")
+            advanceUntilIdle()
+
+            assertEquals("rock", fakeLibrarySearchRepository.lastSearchQuery)
+            assertEquals(1L, fakeLibrarySearchRepository.lastSearchServerId)
+
+            val matchedDir = RemoteDirectory(path = "/Music/Rock/", name = "Rock")
+            val matchedTrack =
+                AudioTrack(
+                    id = "1:/Music/Rock/queen.mp3",
+                    serverId = 1L,
+                    remotePath = "/Music/Rock/queen.mp3",
+                    title = "Bohemian Rhapsody",
+                    format = AudioFormat.MP3,
+                )
+            val result =
+                LibrarySearchResult(
+                    matchedDirectories = listOf(matchedDir),
+                    matchedTracks = listOf(matchedTrack),
+                )
+
+            fakeLibrarySearchRepository.emitResult(result)
+            advanceUntilIdle()
+
+            assertEquals(1, viewModel.uiState.value.searchResult.matchedDirectories.size)
+            assertEquals(1, viewModel.uiState.value.searchResult.matchedTracks.size)
+            assertEquals("Rock", viewModel.uiState.value.searchResult.matchedDirectories.first().name)
+            assertEquals("Bohemian Rhapsody", viewModel.uiState.value.searchResult.matchedTracks.first().title)
+        }
+
+    @Test
+    fun searchBar_blankQuery_clearsResultWithoutCallingRepository() =
+        runTest {
+            viewModel.onSearchQueryChanged("   ")
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.searchResult.isEmpty)
+            assertFalse(viewModel.uiState.value.isSearching)
+            assertNull(fakeLibrarySearchRepository.lastSearchQuery)
+        }
+
+    @Test
+    fun searchBar_clearQuery_resetsQueryAndResult() =
+        runTest {
+            viewModel.onSearchQueryChanged("queen")
+            advanceUntilIdle()
+            assertEquals("queen", viewModel.uiState.value.searchQuery)
+
+            viewModel.onClearSearchQuery()
+            assertEquals("", viewModel.uiState.value.searchQuery)
+            assertTrue(viewModel.uiState.value.searchResult.isEmpty)
+        }
+
+    @Test
+    fun searchBar_searchHistory_recordsMru_deduplicates_andCapsAt10() =
+        runTest {
+            viewModel.onSearchSubmitted("Rock")
+            viewModel.onSearchSubmitted("Jazz")
+            viewModel.onSearchSubmitted("Classical")
+            viewModel.onSearchSubmitted("Rock") // should move to front
+
+            assertEquals(listOf("Rock", "Classical", "Jazz"), viewModel.uiState.value.searchHistory)
+
+            // Remove specific item
+            viewModel.onRemoveSearchHistoryItem("Classical")
+            assertEquals(listOf("Rock", "Jazz"), viewModel.uiState.value.searchHistory)
+
+            // Clear all
+            viewModel.onClearSearchHistory()
+            assertTrue(viewModel.uiState.value.searchHistory.isEmpty())
+        }
+
+    @Test
+    fun searchBar_directoryClick_exitsSearch_andShuttlesNavigationToDirectory_updatingBreadcrumbs() =
+        runTest {
+            advanceUntilIdle()
+            viewModel.onSearchActiveChanged(true)
+            viewModel.onSearchQueryChanged("Rock")
+            advanceUntilIdle()
+
+            // Click matched directory
+            viewModel.onSearchResultDirectoryClicked(rockDir)
+            advanceUntilIdle()
+
+            // Search should be closed
+            assertFalse(viewModel.uiState.value.isSearchActive)
+            assertEquals("", viewModel.uiState.value.searchQuery)
+
+            // Current directory and breadcrumbs should point to /Music/Rock/
+            assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
+            assertEquals(rockDir, viewModel.uiState.value.currentDirectory)
+            val breadcrumbPaths = viewModel.uiState.value.breadcrumbs.map { it.path }
+            assertEquals(listOf("/", "/Music/", "/Music/Rock/"), breadcrumbPaths)
+        }
+
+    @Test
+    fun searchBar_trackClick_callsPlayNextOnSession_withoutClearingExistingQueue() =
+        runTest {
+            advanceUntilIdle()
+
+            // Setup existing queue with 2 tracks
+            val track1 =
+                AudioTrack(
+                    id = "1:/track1.mp3",
+                    serverId = 1L,
+                    remotePath = "/track1.mp3",
+                    title = "Track 1",
+                    format = AudioFormat.MP3,
+                )
+            val track2 =
+                AudioTrack(
+                    id = "1:/track2.mp3",
+                    serverId = 1L,
+                    remotePath = "/track2.mp3",
+                    title = "Track 2",
+                    format = AudioFormat.MP3,
+                )
+            fakeMusicPlayerAppSession.playTrack(track1)
+            fakeMusicPlayerAppSession.playNext(track2)
+            advanceUntilIdle()
+            assertEquals(2, fakeMusicPlayerAppSession.sessionState.value.queue.tracks.size)
+
+            // Now in search, click track 3
+            val track3 =
+                AudioTrack(
+                    id = "1:/track3.mp3",
+                    serverId = 1L,
+                    remotePath = "/track3.mp3",
+                    title = "Track 3",
+                    format = AudioFormat.MP3,
+                )
+            viewModel.onSearchActiveChanged(true)
+            viewModel.onSearchQueryChanged("Track 3")
+            viewModel.onSearchResultTrackClicked(track3)
+            advanceUntilIdle()
+
+            // Play next was called with track 3
+            assertEquals(track3, fakeMusicPlayerAppSession.lastPlayNextTrack)
+
+            // Existing queue was NOT replaced/cleared; track3 was inserted next
+            val queueTracks = fakeMusicPlayerAppSession.sessionState.value.queue.tracks
+            assertEquals(3, queueTracks.size)
+            assertEquals(track1.id, queueTracks[0].id)
+            assertEquals(track3.id, queueTracks[1].id)
+            assertEquals(track2.id, queueTracks[2].id)
+
+            // Query was recorded in history
+            assertTrue(viewModel.uiState.value.searchHistory.contains("Track 3"))
+        }
+
+    @Test
+    fun playNext_withAudioTrack_delegatesDirectlyToAppSession() =
+        runTest {
+            val track =
+                AudioTrack(
+                    id = "1:/direct.flac",
+                    serverId = 1L,
+                    remotePath = "/direct.flac",
+                    title = "Direct Flac",
+                    format = AudioFormat.FLAC,
+                )
+
+            viewModel.playNext(track)
+            assertEquals(track, fakeMusicPlayerAppSession.lastPlayNextTrack)
+        }
 }

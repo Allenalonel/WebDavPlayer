@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.materialIcon
@@ -44,6 +45,7 @@ object AppIcons {
     val Person: ImageVector = Icons.Filled.Person
     val PlayArrow: ImageVector = Icons.Filled.PlayArrow
     val Refresh: ImageVector = Icons.Filled.Refresh
+    val Search: ImageVector = Icons.Filled.Search
     val Warning: ImageVector = Icons.Filled.Warning
 
     // --- Localized Extended Material Icons ---
