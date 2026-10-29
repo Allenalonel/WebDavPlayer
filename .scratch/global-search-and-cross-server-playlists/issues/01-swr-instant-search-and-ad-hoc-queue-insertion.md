@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** completed
+**Status:** resolved
 
 - [x] 曲库顶栏右侧常驻搜索图标，点击平滑展开全宽 Material 3 搜索栏（SearchBar），自动聚焦输入框并支持清空按钮与历史搜索词记录
 - [x] 构建 `LibrarySearchRepository` 检索接缝，对本地已访问目录快照（`directory_cache`）与音频元数据表（`track_metadata`）进行大小写不敏感的毫秒级全文匹配
@@ -13,3 +13,10 @@
 - [x] 点击搜索结果中的“音频曲目”或“虚拟分轨”，调用会话层 `playNext(track)` 执行即时插队起播，保持当前播放队列的主体结构不变
 - [x] 编写针对 `LibrarySearchRepository` 的多维检索测试（大小写不敏感、中英文混合、特殊字符过滤、空查询处理）
 - [x] 编写针对搜索结果分流交互与穿梭导航的端到端集成测试
+
+## Answer
+- 实现了 `LibrarySearchRepository` 及其接口实现 `LibrarySearchRepositoryImpl`，提供基于本地 Room 数据库的 SWR 快照毫秒级检索，深度支持物理曲目、目录及 CUE 虚拟分轨。
+- 在 `DirectoryBrowserScreen` 和 `DirectoryBrowserViewModel` 中集成 Material 3 `SearchBar`，支持即时响应、历史搜索词与清空。
+- 搜索结果按目录与音轨区分：点击目录穿梭直达并刷新面包屑；点击音轨调用 `musicPlayerAppSession.playNext(track)` 进行即时插队起播。
+- 编写并全量通过了 `LibrarySearchRepositoryTest`、`DirectoryBrowserViewModelTest`、`DirectoryBrowserPresentationTest` 等测试。
+
