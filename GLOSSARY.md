@@ -45,8 +45,29 @@ _Avoid_: ID3, Tag, Audio Info
 _Avoid_: External Image, Folder Icon, Album Photo
 
 **Playback Queue**:
-当前播放会话中排队待播的有序音频曲目集合。在目录中点选曲目时，默认以当前目录的所有有效音频填充。
-_Avoid_: Playlist, Track List
+当前播放会话中排队待播的有序音频曲目运行时集合。与用户持久化保存的 Playlist 解耦。
+_Avoid_: Track List, Song Sequence
+
+**Playlist**:
+用户创建并持久化保存的自定义音频曲目集合，支持跨多个 WebDAV Server 引用音轨。
+_Avoid_: Song List, Favorite Folder, Collection
+
+**Playlist Track Entry**:
+持久化在本地数据库中的歌单曲目引用，明确记录所属的 WebDAV Server 标识符、远程相对路径及快照元数据（标题、艺术家、专辑、时长等）。
+_Avoid_: Song Item, Playlist Item
+
+**Inactive Playlist Track**:
+当所属 WebDAV Server 处于离线/无法连接状态，或远程文件返回 404（已被重命名、移动或删除）时，歌单中呈现为置灰不可点击的音轨状态，点击触发 Toast 告知具体不可用原因，流式回放自动跳过。
+_Avoid_: Disabled Song, Dead Link, Error Item
+
+**Library Search Index**:
+基于已访问目录的 SWR 镜像快照（及可选的 Wi-Fi 后台增量遍历）在本地持久层构建的即时全文索引，支持对 Remote File 与 Remote Directory 进行毫秒级多维检索。
+_Avoid_: WebDAV Search, Server Index, Cloud Crawler
+
+**Ad-hoc Queue Insertion**:
+在搜索结果中点击可播放音频文件时，将目标曲目即时插队至当前 Playback Queue 的下一曲（Play Next）或单曲起播，不破坏现有队列所属目录或歌单的主体结构。
+_Avoid_: Queue Overwrite, Single Song Wipe
+
 
 **Playback Mode**:
 播放队列在切歌时的流转规则，包含列表循环（List Loop）、单曲循环（Single Loop）与随机播放（Shuffle）。
