@@ -13,3 +13,11 @@
 - [x] 歌单广场提供新建歌单浮动操作按钮（FAB），支持输入歌单名称并做空值与重名校验；提供歌单卡片重命名与带二次确认的删除操作
 - [x] 在曲库目录浏览、搜索结果列表及播放队列抽屉的歌曲三点菜单中，增加“添加到歌单”操作弹窗，支持勾选已有歌单或即时新建并添加
 - [x] 编写针对 `PlaylistRepository` 契约与跨服务器音轨持久化的全量单元测试
+
+## Answer
+- 实现了 Room 数据库从版本 4 到 5 的平滑迁移（`MIGRATION_4_5`），新增 `playlists` 与 `playlist_tracks` 表及级联删除与复合索引。
+- 构建了纯领域模型 `Playlist`、`PlaylistTrackEntry` 以及仓储接缝 `PlaylistRepository` / `PlaylistRepositoryImpl`。
+- 将主界面底栏导航扩展为三栏架构（媒体库、歌单、服务器），新增 `PlaylistListScreen` 与 `PlaylistListViewModel`，提供歌单卡片展示、新建歌单 FAB、重命名与删除二次确认。
+- 在曲库列表、搜索结果及当前播放队列的曲目菜单中新增统一的 `AddToPlaylistDialog` 弹窗。
+- 编写并通过了 `DatabaseMigrationTest`、`PlaylistRepositoryTest`、`PlaylistListViewModelTest`、`MainNavigationCoordinatorTest` 全量测试。
+
