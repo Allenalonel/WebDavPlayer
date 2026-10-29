@@ -632,10 +632,14 @@ class DirectoryBrowserViewModel(
                 val resolvedAlbums =
                     initialAlbums.map { initialAlbum ->
                         try {
-                            val cachedCue = com.webdav.player.data.cue.CueTextCache.get(server.id, initialAlbum.cueFile.path)
-                            val cueContent = cachedCue ?: webDavClient.fetchText(server, initialAlbum.cueFile.path)?.also {
-                                com.webdav.player.data.cue.CueTextCache.put(server.id, initialAlbum.cueFile.path, it)
-                            }
+                            val cachedCue =
+                                com.webdav.player.data.cue.CueTextCache
+                                    .get(server.id, initialAlbum.cueFile.path)
+                            val cueContent =
+                                cachedCue ?: webDavClient.fetchText(server, initialAlbum.cueFile.path)?.also {
+                                    com.webdav.player.data.cue.CueTextCache
+                                        .put(server.id, initialAlbum.cueFile.path, it)
+                                }
                             if (cueContent.isNullOrBlank()) {
                                 initialAlbum.copy(
                                     isLoading = false,
