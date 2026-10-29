@@ -11,6 +11,7 @@ data class AudioTrack(
     val size: Long = 0L,
     val format: AudioFormat,
     val coverThumbnailPath: String? = null,
+    val cuePath: String? = null,
 ) {
     val fileName: String
         get() = remotePath.substringAfterLast('/').ifEmpty { title }

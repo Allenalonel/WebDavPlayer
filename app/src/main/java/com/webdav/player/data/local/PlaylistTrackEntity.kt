@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaylistTrackEntry
 
 @Entity(
@@ -38,6 +39,8 @@ data class PlaylistTrackEntity(
     val coverThumbnailPath: String? = null,
     val cuePath: String? = null,
     val virtualTrackId: String? = null,
+    val isInactive: Boolean = false,
+    val inactiveReason: String? = null,
 ) {
     fun toDomain(): PlaylistTrackEntry =
         PlaylistTrackEntry(
@@ -58,6 +61,11 @@ data class PlaylistTrackEntity(
             coverThumbnailPath = coverThumbnailPath,
             cuePath = cuePath,
             virtualTrackId = virtualTrackId,
+            isInactive = isInactive,
+            inactiveReason =
+                inactiveReason?.let { reasonStr ->
+                    InactiveReason.entries.firstOrNull { it.name.equals(reasonStr, ignoreCase = true) }
+                },
         )
 
     companion object {
@@ -77,6 +85,8 @@ data class PlaylistTrackEntity(
                 coverThumbnailPath = domain.coverThumbnailPath,
                 cuePath = domain.cuePath,
                 virtualTrackId = domain.virtualTrackId,
+                isInactive = domain.isInactive,
+                inactiveReason = domain.inactiveReason?.name,
             )
     }
 }

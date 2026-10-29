@@ -2880,10 +2880,9 @@ class MusicPlayerAppSessionTest {
         override suspend fun getTracksForPlaylist(playlistId: Long): List<PlaylistTrackEntry> = tracks
         override suspend fun addTrackToPlaylist(playlistId: Long, track: AudioTrack, cuePath: String?): Long = 1L
         override suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<AudioTrack>): List<Long> = emptyList()
-        override suspend fun removeTrackFromPlaylist(playlistId: Long, trackEntryId: Long) {}
         override suspend fun removeTrackFromPlaylist(trackEntryId: Long) {}
+        override suspend fun removeTracksFromPlaylist(playlistId: Long, trackEntryIds: List<Long>) {}
         override suspend fun updateTrackOrders(playlistId: Long, orderedTrackIds: List<Long>) {}
-        override suspend fun updateTrackOrder(playlistId: Long, trackEntries: List<PlaylistTrackEntry>) {}
         override fun markTrackInactive(serverId: Long, remotePath: String, reason: InactiveReason) {
             markedInactive.add(serverId to remotePath)
         }

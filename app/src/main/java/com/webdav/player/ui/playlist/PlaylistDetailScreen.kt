@@ -38,11 +38,15 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -467,6 +471,7 @@ fun PlaylistHeaderArea(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistTrackRow(
     track: PlaylistTrackEntry,
@@ -499,7 +504,22 @@ fun PlaylistTrackRow(
             parts.joinToString(" · ")
         }
 
-    Box(
+    val dismissState =
+        key(track.id) {
+            rememberSwipeToDismissBoxState(
+                confirmValueChange = { value ->
+                    if (value == SwipeToDismissBoxValue.EndToStart || value == SwipeToDismissBoxValue.StartToEnd) {
+                        onRemove()
+                        true
+                    } else {
+                        false
+                    }
+                },
+            )
+        }
+
+    SwipeToDismissBox(
+        state = dismissState,
         modifier =
             modifier
                 .fillMaxWidth()
@@ -507,139 +527,170 @@ fun PlaylistTrackRow(
                 .graphicsLayer {
                     translationY = if (isDragging) dragDropState.dragOffset else 0f
                     shadowElevation = elevation.toPx()
-                }.background(
-                    if (isDragging) {
-                        MaterialTheme.colorScheme.surfaceContainerHigh
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                ).pointerInput(dragDropState, index) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            dragDropState.onDragStart(index)
-                        },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            dragDropState.onDrag(dragAmount.y)
-                        },
-                        onDragEnd = { dragDropState.onDragStopped() },
-                        onDragCancel = { dragDropState.onDragStopped() },
-                    )
                 },
+        backgroundContent = {
+            val color = MaterialTheme.colorScheme.errorContainer
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(color)
+                        .padding(horizontal = 20.dp),
+                contentAlignment =
+                    if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
+                        Alignment.CenterStart
+                    } else {
+                        Alignment.CenterEnd
+                    },
+            ) {
+                Icon(
+                    imageVector = AppIcons.DeleteOutline,
+                    contentDescription = "从歌单移除",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        },
     ) {
-        ListItem(
+        Surface(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onClick)
-                    .alpha(if (track.isInactive) 0.38f else 1f),
-            leadingContent = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // Drag Handle
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(32.dp)
-                                .pointerInput(dragDropState, index) {
-                                    detectVerticalDragGestures(
-                                        onDragStart = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            dragDropState.onDragStart(index)
-                                        },
-                                        onVerticalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragDropState.onDrag(dragAmount)
-                                        },
-                                        onDragEnd = { dragDropState.onDragStopped() },
-                                        onDragCancel = { dragDropState.onDragStopped() },
-                                    )
-                                },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.DragHandle,
-                            contentDescription = "拖拽排序",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(20.dp),
+                    .pointerInput(dragDropState, index) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                dragDropState.onDragStart(index)
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragDropState.onDrag(dragAmount.y)
+                            },
+                            onDragEnd = { dragDropState.onDragStopped() },
+                            onDragCancel = { dragDropState.onDragStopped() },
                         )
-                    }
-
-                    // Track index
-                    Text(
-                        text = "${index + 1}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(22.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            },
-            headlineContent = {
-                Text(
-                    text = track.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
-            supportingContent = {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
-            trailingContent = {
-                Box {
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.MoreVert,
-                            contentDescription = "更多操作",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = {
+                    },
+            color =
+                if (isDragging) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                ListItem(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onClick)
+                            .alpha(if (track.isInactive) 0.38f else 1f),
+                    leadingContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // Drag Handle
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(32.dp)
+                                        .pointerInput(dragDropState, index) {
+                                            detectVerticalDragGestures(
+                                                onDragStart = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    dragDropState.onDragStart(index)
+                                                },
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragDropState.onDrag(dragAmount)
+                                                },
+                                                onDragEnd = { dragDropState.onDragStopped() },
+                                                onDragCancel = { dragDropState.onDragStopped() },
+                                            )
+                                        },
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 Icon(
-                                    imageVector = AppIcons.DeleteOutline,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
+                                    imageVector = AppIcons.DragHandle,
+                                    contentDescription = "拖拽排序",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     modifier = Modifier.size(20.dp),
                                 )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onRemove()
-                            },
-                        )
-                    }
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        )
+                            }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 72.dp, end = 16.dp).align(Alignment.BottomCenter),
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-        )
+                            // Track index
+                            Text(
+                                text = "${index + 1}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(22.dp),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    },
+                    headlineContent = {
+                        Text(
+                            text = track.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    trailingContent = {
+                        Box {
+                            IconButton(
+                                onClick = { showMenu = true },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = AppIcons.MoreVert,
+                                    contentDescription = "更多操作",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = AppIcons.DeleteOutline,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onRemove()
+                                    },
+                                )
+                            }
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp, end = 16.dp).align(Alignment.BottomCenter),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                )
+            }
+        }
     }
 }
 

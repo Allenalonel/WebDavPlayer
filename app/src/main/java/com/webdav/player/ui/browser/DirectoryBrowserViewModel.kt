@@ -300,12 +300,17 @@ class DirectoryBrowserViewModel(
         loadDirectory(directory.path, forceRefresh = false)
     }
 
+    fun closeSearchBar() {
+        _uiState.update { it.copy(isSearchActive = false, searchQuery = "", isSearching = false) }
+    }
+
     fun onSearchResultTrackClicked(track: AudioTrack) {
         val currentQuery = _uiState.value.searchQuery.trim()
         if (currentQuery.isNotBlank()) {
             onSearchSubmitted(currentQuery)
         }
-        musicPlayerAppSession?.playNext(track)
+        closeSearchBar()
+        musicPlayerAppSession?.playNextAndAdvance(track)
     }
 
     fun onNavigateUp(): Boolean {

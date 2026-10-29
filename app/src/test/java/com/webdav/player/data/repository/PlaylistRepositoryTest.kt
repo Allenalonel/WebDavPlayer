@@ -294,7 +294,7 @@ class PlaylistRepositoryTest {
 
             assertEquals(2, repository.getPlaylist(playlistId)?.trackCount)
 
-            repository.removeTrackFromPlaylist(playlistId, entryId1)
+            repository.removeTrackFromPlaylist(entryId1)
 
             val remaining = repository.getTracksForPlaylist(playlistId)
             assertEquals(1, remaining.size)
@@ -319,7 +319,7 @@ class PlaylistRepositoryTest {
             val reversed = listOf(initial[2], initial[1], initial[0])
 
             simulatedTime = 3_000_000L
-            repository.updateTrackOrder(playlistId, reversed)
+            repository.updateTrackOrders(playlistId, reversed.map { it.id })
 
             val updated = repository.getTracksForPlaylist(playlistId)
             assertEquals(3, updated.size)
@@ -399,5 +399,44 @@ class PlaylistRepositoryTest {
             assertEquals(InactiveReason.FILE_NOT_FOUND, tracks[0].inactiveReason)
             assertFalse(tracks[1].isInactive)
             assertNull(tracks[1].inactiveReason)
+        }
+
+    @Test
+    fun removeTracksFromPlaylist_batchRemovesEntriesAndUpdateCount() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("批量移除测试")
+            val track1 = AudioTrack(id = "1:/1.mp3", serverId = 1L, remotePath = "/1.mp3", title = "T1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/2.mp3", serverId = 1L, remotePath = "/2.mp3", title = "T2", format = AudioFormat.MP3)
+            val track3 = AudioTrack(id = "1:/3.mp3", serverId = 1L, remotePath = "/3.mp3", title = "T3", format = AudioFormat.MP3)
+
+            val id1 = repository.addTrackToPlaylist(playlistId, track1)
+            val id2 = repository.addTrackToPlaylist(playlistId, track2)
+            val id3 = repository.addTrackToPlaylist(playlistId, track3)
+
+            assertEquals(3, repository.getPlaylist(playlistId)?.trackCount)
+
+            repository.removeTracksFromPlaylist(playlistId, listOf(id1, id3))
+
+            val remaining = repository.getTracksForPlaylist(playlistId)
+            assertEquals(1, remaining.size)
+            assertEquals("T2", remaining[0].title)
+            assertEquals(1, repository.getPlaylist(playlistId)?.trackCount)
+        }
+
+    @Test
+    fun markTrackInactive_persistsToDatabaseAndSurvivesRestart() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("持久化失效测试")
+            val track1 = AudioTrack(id = "1:/1.mp3", serverId = 1L, remotePath = "/1.mp3", title = "T1", format = AudioFormat.MP3)
+            repository.addTrackToPlaylist(playlistId, track1)
+
+            repository.markTrackInactive(1L, "/1.mp3", InactiveReason.FILE_NOT_FOUND)
+            kotlinx.coroutines.delay(100)
+
+            val newRepo = PlaylistRepositoryImpl(database.playlistDao(), timeProvider = { simulatedTime })
+            val tracks = newRepo.getTracksForPlaylist(playlistId)
+            assertEquals(1, tracks.size)
+            assertTrue(tracks[0].isInactive)
+            assertEquals(InactiveReason.FILE_NOT_FOUND, tracks[0].inactiveReason)
         }
 }

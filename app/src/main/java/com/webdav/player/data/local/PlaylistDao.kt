@@ -97,6 +97,17 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE id = :trackEntryId")
     suspend fun deleteTrackById(trackEntryId: Long): Int
 
+    @Query("DELETE FROM playlist_tracks WHERE id IN (:ids)")
+    suspend fun deleteTracksByIds(ids: List<Long>): Int
+
+    @Query("UPDATE playlist_tracks SET isInactive = :isInactive, inactiveReason = :reason WHERE serverId = :serverId AND remotePath = :remotePath")
+    suspend fun updateTrackInactiveStatus(
+        serverId: Long,
+        remotePath: String,
+        isInactive: Boolean,
+        reason: String?,
+    ): Int
+
     @Query("SELECT * FROM playlist_tracks WHERE id = :trackEntryId LIMIT 1")
     suspend fun getTrackById(trackEntryId: Long): PlaylistTrackEntity?
 

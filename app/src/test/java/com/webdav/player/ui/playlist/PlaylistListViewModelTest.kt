@@ -104,12 +104,12 @@ class FakePlaylistRepository : PlaylistRepository {
             addTrackToPlaylist(playlistId, it)
         }
 
-    override suspend fun removeTrackFromPlaylist(
+    override suspend fun removeTracksFromPlaylist(
         playlistId: Long,
-        trackEntryId: Long,
+        trackEntryIds: List<Long>,
     ) {
         val list = tracksMap[playlistId] ?: return
-        list.removeAll { it.id == trackEntryId }
+        list.removeAll { it.id in trackEntryIds }
         playlistsFlow.update { current ->
             current.map { if (it.id == playlistId) it.copy(trackCount = list.size) else it }
         }
@@ -136,15 +136,6 @@ class FakePlaylistRepository : PlaylistRepository {
         val reordered = orderedTrackIds.mapIndexedNotNull { idx, id -> map[id]?.copy(sortOrder = idx) }
         list.clear()
         list.addAll(reordered)
-    }
-
-    override suspend fun updateTrackOrder(
-        playlistId: Long,
-        trackEntries: List<PlaylistTrackEntry>,
-    ) {
-        val list = tracksMap.getOrPut(playlistId) { mutableListOf() }
-        list.clear()
-        list.addAll(trackEntries.mapIndexed { idx, e -> e.copy(sortOrder = idx) })
     }
 }
 

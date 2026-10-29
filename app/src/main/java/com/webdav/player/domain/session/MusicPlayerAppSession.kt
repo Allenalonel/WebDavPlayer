@@ -59,6 +59,8 @@ interface MusicPlayerAppSession {
 
     fun playNext(track: AudioTrack)
 
+    fun playNextAndAdvance(track: AudioTrack)
+
     fun togglePlayPause()
 
     fun play()

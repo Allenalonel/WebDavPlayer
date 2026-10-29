@@ -7,6 +7,8 @@ import com.webdav.player.domain.model.PlaylistTrackEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
+data class TrackKey(val serverId: Long, val remotePath: String)
+
 interface PlaylistRepository {
     fun getAllPlaylistsFlow(): Flow<List<Playlist>>
 
@@ -45,21 +47,16 @@ interface PlaylistRepository {
         tracks: List<AudioTrack>,
     ): List<Long>
 
-    suspend fun removeTrackFromPlaylist(
-        playlistId: Long,
-        trackEntryId: Long,
-    )
-
     suspend fun removeTrackFromPlaylist(trackEntryId: Long)
+
+    suspend fun removeTracksFromPlaylist(
+        playlistId: Long,
+        trackEntryIds: List<Long>,
+    )
 
     suspend fun updateTrackOrders(
         playlistId: Long,
         orderedTrackIds: List<Long>,
-    )
-
-    suspend fun updateTrackOrder(
-        playlistId: Long,
-        trackEntries: List<PlaylistTrackEntry>,
     )
 
     fun markTrackInactive(
@@ -68,5 +65,5 @@ interface PlaylistRepository {
         reason: InactiveReason,
     ) {}
 
-    fun getInactiveTracksFlow(): Flow<Map<Pair<Long, String>, InactiveReason>> = emptyFlow()
+    fun getInactiveTracksFlow(): Flow<Map<TrackKey, InactiveReason>> = emptyFlow()
 }
