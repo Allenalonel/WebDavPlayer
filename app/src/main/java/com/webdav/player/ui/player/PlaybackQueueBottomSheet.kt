@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,6 +38,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +71,7 @@ fun PlaybackQueueBottomSheet(
     modifier: Modifier = Modifier,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
     isPlaying: Boolean = false,
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     ModalBottomSheet(
@@ -190,6 +197,7 @@ fun PlaybackQueueBottomSheet(
                             playbackProgress = if (isActive) playbackProgress else PlaybackProgress.ZERO,
                             onClick = { onTrackClick(index) },
                             onRemove = { onRemoveTrack(index) },
+                            onAddToPlaylist = onAddToPlaylist,
                         )
                     }
                 }
@@ -207,9 +215,11 @@ private fun QueueTrackItemRow(
     isPlaying: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
     modifier: Modifier = Modifier,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     val dismissState =
         rememberSwipeToDismissBoxState(
             confirmValueChange = { value ->
@@ -336,17 +346,52 @@ private fun QueueTrackItemRow(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Delete Button
-                IconButton(
-                    onClick = onRemove,
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    Icon(
-                        imageVector = AppIcons.Close,
-                        contentDescription = "从队列移除",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.MoreVert,
+                            contentDescription = "更多操作",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("添加到歌单") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = AppIcons.PlaylistAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onAddToPlaylist(track)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("从队列移除") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = AppIcons.Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onRemove()
+                            },
+                        )
+                    }
                 }
             }
         }

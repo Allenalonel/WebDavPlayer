@@ -1,6 +1,7 @@
 package com.webdav.player
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -34,9 +35,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.browser.DirectoryBrowserScreen
@@ -48,6 +51,10 @@ import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.DockedMiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
+import com.webdav.player.ui.playlist.PlaylistListScreen
+import com.webdav.player.ui.playlist.PlaylistListViewModel
+import com.webdav.player.ui.playlist.PlaylistListViewModelFactory
+import com.webdav.player.ui.playlist.components.AddToPlaylistDialog
 import com.webdav.player.ui.server.ServerListScreen
 import com.webdav.player.ui.server.ServerManagementViewModel
 import com.webdav.player.ui.server.ServerManagementViewModelFactory
@@ -70,6 +77,10 @@ class MainActivity : ComponentActivity() {
         DirectoryBrowserViewModelFactory(applicationContext)
     }
 
+    private val playlistViewModel: PlaylistListViewModel by viewModels {
+        PlaylistListViewModelFactory(applicationContext)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -89,8 +100,12 @@ class MainActivity : ComponentActivity() {
                 )
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
+                val playlistState by playlistViewModel.uiState.collectAsStateWithLifecycle()
                 val coordinator = remember(musicSession) { MainNavigationCoordinator(musicSession) }
                 val navState by coordinator.uiState.collectAsStateWithLifecycle()
+
+                var trackToAddToPlaylist by remember { mutableStateOf<AudioTrack?>(null) }
+                val context = LocalContext.current
 
                 LaunchedEffect(serverState.activeServer) {
                     coordinator.onActiveServerLoaded(serverState.activeServer)
@@ -157,6 +172,17 @@ class MainActivity : ComponentActivity() {
                                         label = { Text("媒体库") },
                                     )
                                     NavigationBarItem(
+                                        selected = navState.currentDestination == AppDestination.PLAYLISTS,
+                                        onClick = { coordinator.selectDestination(AppDestination.PLAYLISTS) },
+                                        icon = {
+                                            Icon(
+                                                imageVector = AppIcons.QueueMusic,
+                                                contentDescription = "歌单",
+                                            )
+                                        },
+                                        label = { Text("歌单") },
+                                    )
+                                    NavigationBarItem(
                                         selected = navState.currentDestination == AppDestination.SERVER_LIST,
                                         onClick = { coordinator.selectDestination(AppDestination.SERVER_LIST) },
                                         icon = {
@@ -197,6 +223,28 @@ class MainActivity : ComponentActivity() {
                                     isCurrentTab = isBrowser,
                                     onOpenFullPlayer = {
                                         coordinator.expandFullPlayer()
+                                    },
+                                    onAddToPlaylist = { track ->
+                                        trackToAddToPlaylist = track
+                                    },
+                                )
+                            }
+
+                            val isPlaylists = navState.currentDestination == AppDestination.PLAYLISTS
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .tabAccessibilityGuard(isPlaylists)
+                                        .graphicsLayer {
+                                            alpha = if (isPlaylists) 1f else 0f
+                                            translationX = if (isPlaylists) 0f else 99999f
+                                        },
+                            ) {
+                                PlaylistListScreen(
+                                    viewModel = playlistViewModel,
+                                    onPlaylistClick = { _ ->
+                                        // Detail navigation hook for Ticket 03
                                     },
                                 )
                             }
@@ -255,6 +303,40 @@ class MainActivity : ComponentActivity() {
                             onDismissBatteryBanner = { musicSession?.clearKilledBySystemFlag() },
                             onConfirmUnsupportedRangeReplay = { musicSession?.confirmUnsupportedRangeReplay() },
                             onDismissUnsupportedRange = { musicSession?.dismissUnsupportedRange() },
+                            onAddToPlaylist = { track ->
+                                trackToAddToPlaylist = track
+                            },
+                        )
+                    }
+
+                    if (trackToAddToPlaylist != null) {
+                        val track = trackToAddToPlaylist!!
+                        AddToPlaylistDialog(
+                            track = track,
+                            playlists = playlistState.playlists,
+                            onDismissRequest = { trackToAddToPlaylist = null },
+                            onSelectPlaylist = { playlist ->
+                                val trackName = track.title
+                                playlistViewModel.addTrackToPlaylist(playlist.id, track) {
+                                    Toast.makeText(
+                                        context,
+                                        "已将 “$trackName” 添加到歌单 “${playlist.name}”",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                                trackToAddToPlaylist = null
+                            },
+                            onCreatePlaylistAndAdd = { name ->
+                                val trackName = track.title
+                                playlistViewModel.createPlaylistAndAddTrack(name, track) {
+                                    Toast.makeText(
+                                        context,
+                                        "已新建歌单 “$name” 并添加 “$trackName”",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                                trackToAddToPlaylist = null
+                            },
                         )
                     }
                 }

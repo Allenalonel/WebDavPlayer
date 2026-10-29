@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,6 +30,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +55,7 @@ fun SearchResultsContent(
     onRemoveHistoryItem: (String) -> Unit,
     onDirectoryClick: (RemoteDirectory) -> Unit,
     onTrackClick: (AudioTrack) -> Unit,
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val cleanQuery = query.trim()
@@ -118,6 +125,7 @@ fun SearchResultsContent(
                     searchResult = searchResult,
                     onDirectoryClick = onDirectoryClick,
                     onTrackClick = onTrackClick,
+                    onAddToPlaylist = onAddToPlaylist,
                 )
             }
         }
@@ -216,6 +224,7 @@ fun SearchResultsList(
     searchResult: LibrarySearchResult,
     onDirectoryClick: (RemoteDirectory) -> Unit,
     onTrackClick: (AudioTrack) -> Unit,
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -266,6 +275,7 @@ fun SearchResultsList(
                 SearchResultTrackItem(
                     track = track,
                     onClick = { onTrackClick(track) },
+                    onAddToPlaylist = onAddToPlaylist,
                 )
             }
         }
@@ -334,8 +344,11 @@ fun SearchResultDirectoryItem(
 fun SearchResultTrackItem(
     track: AudioTrack,
     onClick: () -> Unit,
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier =
             modifier
@@ -431,6 +444,54 @@ fun SearchResultTrackItem(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp),
             )
+        }
+
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    imageVector = AppIcons.MoreVert,
+                    contentDescription = "更多操作",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("下一首播放") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = AppIcons.QueueMusic,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        onClick()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("添加到歌单") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = AppIcons.PlaylistAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        onAddToPlaylist(track)
+                    },
+                )
+            }
         }
     }
 }

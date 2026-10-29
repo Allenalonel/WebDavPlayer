@@ -994,4 +994,87 @@ object AppIcons {
             return _networkCheck!!
         }
     private var _networkCheck: ImageVector? = null
+
+    val PlaylistPlay: ImageVector
+        get() {
+            if (_playlistPlay != null) {
+                return _playlistPlay!!
+            }
+            _playlistPlay =
+                materialIcon(name = "AutoMirrored.Filled.PlaylistPlay", autoMirror = true) {
+                    materialPath {
+                        moveTo(19.0f, 9.0f)
+                        horizontalLineTo(4.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(15.0f)
+                        verticalLineTo(9.0f)
+                        close()
+                        moveTo(4.0f, 15.0f)
+                        horizontalLineToRelative(8.0f)
+                        verticalLineToRelative(-2.0f)
+                        horizontalLineTo(4.0f)
+                        verticalLineToRelative(2.0f)
+                        close()
+                        moveTo(4.0f, 5.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(15.0f)
+                        verticalLineTo(5.0f)
+                        horizontalLineTo(4.0f)
+                        close()
+                        moveTo(16.0f, 13.0f)
+                        verticalLineToRelative(8.0f)
+                        lineToRelative(6.0f, -4.0f)
+                        lineToRelative(-6.0f, -4.0f)
+                        close()
+                    }
+                }
+            return _playlistPlay!!
+        }
+    private var _playlistPlay: ImageVector? = null
+
+    val PlaylistAdd: ImageVector
+        get() {
+            if (_playlistAdd != null) {
+                return _playlistAdd!!
+            }
+            _playlistAdd =
+                materialIcon(name = "AutoMirrored.Filled.PlaylistAdd", autoMirror = true) {
+                    materialPath {
+                        moveTo(14.0f, 10.0f)
+                        horizontalLineTo(2.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(12.0f)
+                        verticalLineToRelative(-2.0f)
+                        close()
+                        moveTo(14.0f, 6.0f)
+                        horizontalLineTo(2.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(12.0f)
+                        verticalLineTo(6.0f)
+                        close()
+                        moveTo(18.0f, 14.0f)
+                        verticalLineToRelative(-4.0f)
+                        horizontalLineToRelative(-2.0f)
+                        verticalLineToRelative(4.0f)
+                        horizontalLineToRelative(-4.0f)
+                        verticalLineToRelative(2.0f)
+                        horizontalLineToRelative(4.0f)
+                        verticalLineToRelative(4.0f)
+                        horizontalLineToRelative(2.0f)
+                        verticalLineToRelative(-4.0f)
+                        horizontalLineToRelative(4.0f)
+                        verticalLineToRelative(-2.0f)
+                        horizontalLineToRelative(-4.0f)
+                        close()
+                        moveTo(2.0f, 16.0f)
+                        horizontalLineToRelative(8.0f)
+                        verticalLineToRelative(-2.0f)
+                        horizontalLineTo(2.0f)
+                        verticalLineToRelative(2.0f)
+                        close()
+                    }
+                }
+            return _playlistAdd!!
+        }
+    private var _playlistAdd: ImageVector? = null
 }

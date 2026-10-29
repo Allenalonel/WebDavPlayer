@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 
 enum class AppDestination(val label: String) {
     DIRECTORY_BROWSER("媒体库"),
+    PLAYLISTS("歌单"),
     SERVER_LIST("服务器")
 }
 

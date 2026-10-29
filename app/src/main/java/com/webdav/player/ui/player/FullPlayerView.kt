@@ -102,6 +102,7 @@ fun FullPlayerView(
     onDismissBatteryBanner: () -> Unit = {},
     onConfirmUnsupportedRangeReplay: () -> Unit = {},
     onDismissUnsupportedRange: () -> Unit = {},
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
 ) {
     var showQueueSheet by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -547,6 +548,7 @@ fun FullPlayerView(
             },
             onCyclePlaybackMode = onCyclePlaybackMode,
             onDismissRequest = { showQueueSheet = false },
+            onAddToPlaylist = onAddToPlaylist,
         )
     }
 
