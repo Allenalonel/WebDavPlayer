@@ -112,6 +112,7 @@ class WebDavApplication : Application() {
                 lyricsRepository = lyricsRepository,
                 sessionStore = sessionStore,
                 webDavClient = webDavClient,
+                playlistRepository = playlistRepository,
             )
         (playerEngine as? PlaybackSessionHost)?.bindAppSession(musicPlayerAppSession)
     }

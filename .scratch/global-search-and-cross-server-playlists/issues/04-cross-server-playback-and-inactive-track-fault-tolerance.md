@@ -4,12 +4,12 @@
 
 **Blocked by:** 03 (Playlist Detail, Drag Reordering and Sorting)
 
-**Status:** claimed
+**Status:** ready-for-review
 
-- [ ] 歌单详情页提供“播放全部”与单曲点播操作，调用会话层 `playPlaylist(playlist, startIndex)` 装载整张歌单为 `PlaybackQueue`，设置来源为 `PlaylistQueue`
-- [ ] 会话层在加载跨服务器音轨时，根据 `track.serverId` 动态提取对应的 `Server Context`，由 `WebDavMediaSourceAdapter` 动态生成携带对应 Basic/Digest 凭证与 SSL 配置的媒体源
-- [ ] 结合 `WebDavServerRepository` 监听服务器存活性，当服务器不可达或文件已标记 404 时，歌单条目置为 `isInactive = true`，并在 UI 中以半透明灰色减淡呈现
-- [ ] 点击置灰失效曲目时，拦截普通播放动作并弹出明确的 Toast 提示具体不可用原因（如“所属服务器无法连接”或“音频文件已被重命名或删除”）
-- [ ] 回放流转（自然播放结束或主动切歌）遇到置灰音轨或底层流式 404 响应时，由会话层统一拦截并静默平滑跳过下一首有效歌曲，杜绝看门狗挂死或应用崩溃
-- [ ] 歌单详情顶部更多菜单提供“清理失效歌曲”选项，可一键批量从歌单中清除当前无法访问的条目
-- [ ] 编写针对跨服务器凭据动态切换、失效曲目置灰判定、点击诊断 Toast 派发及 404 静默自愈跳过的自动化测试
+- [x] 歌单详情页提供“播放全部”与单曲点播操作，调用会话层 `playPlaylist(playlist, startIndex)` 装载整张歌单为 `PlaybackQueue`，设置来源为 `PlaylistQueue`
+- [x] 会话层在加载跨服务器音轨时，根据 `track.serverId` 动态提取对应的 `Server Context`，由 `WebDavMediaSourceAdapter` 动态生成携带对应 Basic/Digest 凭证与 SSL 配置的媒体源
+- [x] 结合 `WebDavServerRepository` 监听服务器存活性，当服务器不可达或文件已标记 404 时，歌单条目置为 `isInactive = true`，并在 UI 中以半透明灰色减淡呈现
+- [x] 点击置灰失效曲目时，拦截普通播放动作并弹出明确的 Toast 提示具体不可用原因（如“所属服务器无法连接”或“音频文件已被重命名或删除”）
+- [x] 回放流转（自然播放结束或主动切歌）遇到置灰音轨或底层流式 404 响应时，由会话层统一拦截并静默平滑跳过下一首有效歌曲，杜绝看门狗挂死或应用崩溃
+- [x] 歌单详情顶部更多菜单提供“清理失效歌曲”选项，可一键批量从歌单中清除当前无法访问的条目
+- [x] 编写针对跨服务器凭据动态切换、失效曲目置灰判定、点击诊断 Toast 派发及 404 静默自愈跳过的自动化测试

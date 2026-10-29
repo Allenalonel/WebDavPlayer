@@ -3,17 +3,23 @@ package com.webdav.player.domain.session
 import com.webdav.player.data.player.UnsupportedRangeReconnectionException
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
+import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.domain.model.Playlist
+import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.model.QueueOrigin
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
+import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -2671,6 +2677,217 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
             assertEquals(playCountBefore, fakeEngine.playCount)
         }
+
+    @Test
+    fun playPlaylist_loadsPlaylistIntoQueueWithPlaylistOriginAndStartsPlayback() =
+        runTest(testDispatcher) {
+            val playlist = Playlist(id = 100L, name = "精选歌单", createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 3)
+            val entry1 = PlaylistTrackEntry(id = 1L, playlistId = 100L, serverId = 1L, remotePath = "/song1.mp3", sortOrder = 0, title = "Song 1", format = AudioFormat.MP3, durationMs = 120_000L)
+            val entry2 = PlaylistTrackEntry(id = 2L, playlistId = 100L, serverId = 1L, remotePath = "/song2.mp3", sortOrder = 1, title = "Song 2", format = AudioFormat.MP3, durationMs = 180_000L)
+            val entry3 = PlaylistTrackEntry(id = 3L, playlistId = 100L, serverId = 1L, remotePath = "/song3.mp3", sortOrder = 2, title = "Song 3", format = AudioFormat.MP3, durationMs = 200_000L)
+            val playlistRepo = TestPlaylistRepository(mutableListOf(entry1, entry2, entry3))
+            val serverRepo = TestServerRepository(listOf(testServer))
+
+            val playlistSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = serverRepo,
+                    playlistRepository = playlistRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            playlistSession.playPlaylist(playlist, startIndex = 1)
+            advanceUntilIdle()
+
+            val state = playlistSession.sessionState.value
+            assertEquals(3, state.queue.size)
+            assertEquals(QueueOrigin.PLAYLIST, state.queue.origin)
+            assertTrue(state.queue.isPlaylistQueue)
+            assertEquals(1, state.queue.currentIndex)
+            assertEquals("Song 2", state.currentTrack?.title)
+            assertEquals("Song 2", fakeEngine.loadedTrack?.title)
+            assertEquals(testServer, fakeEngine.lastServer)
+
+            playlistSession.release()
+        }
+
+    @Test
+    fun crossServerPlayback_dynamicallySwitchesServerContextOnTransition() =
+        runTest(testDispatcher) {
+            val server2 =
+                WebDavServer(
+                    id = 2L,
+                    name = "Work Cloud",
+                    url = "https://cloud.work.com:443/dav",
+                    port = 443,
+                    pathPrefix = "/dav",
+                    username = "work_user",
+                    password = "work_password",
+                )
+            val playlist = Playlist(id = 200L, name = "跨服混排", createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 2)
+            val entry1 = PlaylistTrackEntry(id = 10L, playlistId = 200L, serverId = testServer.id, remotePath = "/home.mp3", sortOrder = 0, title = "Home Track", format = AudioFormat.MP3)
+            val entry2 = PlaylistTrackEntry(id = 20L, playlistId = 200L, serverId = server2.id, remotePath = "/work.flac", sortOrder = 1, title = "Work Track", format = AudioFormat.FLAC)
+            val playlistRepo = TestPlaylistRepository(mutableListOf(entry1, entry2))
+            val serverRepo = TestServerRepository(listOf(testServer, server2))
+
+            val playlistSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = serverRepo,
+                    playlistRepository = playlistRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            playlistSession.playPlaylist(playlist, startIndex = 0)
+            advanceUntilIdle()
+
+            assertEquals(testServer, playlistSession.sessionState.value.activeServer)
+            assertEquals(testServer, fakeEngine.lastServer)
+            assertEquals("Home Track", fakeEngine.loadedTrack?.title)
+
+            // Transition to track 2 belonging to server 2
+            playlistSession.skipToNext()
+            advanceUntilIdle()
+
+            assertEquals(server2, playlistSession.sessionState.value.activeServer)
+            assertEquals(server2, fakeEngine.lastServer)
+            assertEquals("Work Track", fakeEngine.loadedTrack?.title)
+
+            playlistSession.release()
+        }
+
+    @Test
+    fun serverUnavailable_gracefullyAutoSkipsToNextValidTrack() =
+        runTest(testDispatcher) {
+            val playlist = Playlist(id = 300L, name = "容错歌单", createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 2)
+            val missingServerEntry = PlaylistTrackEntry(id = 31L, playlistId = 300L, serverId = 9999L, remotePath = "/offline.mp3", sortOrder = 0, title = "Offline Server Song", format = AudioFormat.MP3)
+            val validServerEntry = PlaylistTrackEntry(id = 32L, playlistId = 300L, serverId = testServer.id, remotePath = "/online.mp3", sortOrder = 1, title = "Online Server Song", format = AudioFormat.MP3)
+            val playlistRepo = TestPlaylistRepository(mutableListOf(missingServerEntry, validServerEntry))
+            val serverRepo = TestServerRepository(listOf(testServer)) // Only testServer exists, 9999 is missing!
+
+            val playlistSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = serverRepo,
+                    playlistRepository = playlistRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            playlistSession.playPlaylist(playlist, startIndex = 0)
+            advanceUntilIdle()
+
+            // Missing server 9999 is automatically skipped, player loaded the valid server track!
+            assertEquals(1, playlistSession.sessionState.value.queue.currentIndex)
+            assertEquals("Online Server Song", playlistSession.sessionState.value.currentTrack?.title)
+            assertEquals("Online Server Song", fakeEngine.loadedTrack?.title)
+            assertEquals(testServer, fakeEngine.lastServer)
+
+            playlistSession.release()
+        }
+
+    @Test
+    fun stream404Error_autoSkipsToNextValidTrack_andMarksTrackInactive() =
+        runTest(testDispatcher) {
+            session.release()
+            val playlist = Playlist(id = 400L, name = "404歌单", createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 2)
+            val notFoundEntry = PlaylistTrackEntry(id = 41L, playlistId = 400L, serverId = testServer.id, remotePath = "/deleted.mp3", sortOrder = 0, title = "Deleted Song", format = AudioFormat.MP3)
+            val normalEntry = PlaylistTrackEntry(id = 42L, playlistId = 400L, serverId = testServer.id, remotePath = "/normal.mp3", sortOrder = 1, title = "Normal Song", format = AudioFormat.MP3)
+            val playlistRepo = TestPlaylistRepository(mutableListOf(notFoundEntry, normalEntry))
+            val serverRepo = TestServerRepository(listOf(testServer))
+
+            val playlistSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = serverRepo,
+                    playlistRepository = playlistRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            playlistSession.playPlaylist(playlist, startIndex = 0)
+            advanceUntilIdle()
+
+            assertEquals("Deleted Song", fakeEngine.loadedTrack?.title)
+
+            // Simulate 404 error
+            val http404Exception = java.io.FileNotFoundException("HTTP 404: Remote file not found")
+            fakeEngine._playbackState.value = PlaybackState.Error("HTTP 404 error", http404Exception)
+            advanceUntilIdle()
+
+            // Verify track 1 was marked inactive as FILE_NOT_FOUND in repo
+            assertTrue(playlistRepo.markedInactive.contains(testServer.id to "/deleted.mp3"))
+
+            // Verify smoothly skipped to track 2 ("Normal Song") without hanging
+            assertEquals(1, playlistSession.sessionState.value.queue.currentIndex)
+            assertEquals("Normal Song", playlistSession.sessionState.value.currentTrack?.title)
+            assertEquals("Normal Song", fakeEngine.loadedTrack?.title)
+
+            playlistSession.release()
+        }
+
+    @Test
+    fun stream404Error_allTracksFail_stopsWithoutInfiniteLoop() =
+        runTest(testDispatcher) {
+            session.release()
+            val playlist = Playlist(id = 500L, name = "全失效歌单", createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 2)
+            val notFoundEntry1 = PlaylistTrackEntry(id = 51L, playlistId = 500L, serverId = testServer.id, remotePath = "/del1.mp3", sortOrder = 0, title = "Del 1", format = AudioFormat.MP3)
+            val notFoundEntry2 = PlaylistTrackEntry(id = 52L, playlistId = 500L, serverId = testServer.id, remotePath = "/del2.mp3", sortOrder = 1, title = "Del 2", format = AudioFormat.MP3)
+            val playlistRepo = TestPlaylistRepository(mutableListOf(notFoundEntry1, notFoundEntry2))
+            val serverRepo = TestServerRepository(listOf(testServer))
+
+            val playlistSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = serverRepo,
+                    playlistRepository = playlistRepo,
+                    coroutineScope = sessionScope,
+                )
+
+            playlistSession.playPlaylist(playlist, startIndex = 0)
+            advanceUntilIdle()
+
+            // Track 1 fails with 404
+            fakeEngine._playbackState.value = PlaybackState.Error("404", java.io.FileNotFoundException("File not found 404"))
+            advanceUntilIdle()
+
+            // Auto-skipped to Track 2
+            assertEquals(1, playlistSession.sessionState.value.queue.currentIndex)
+
+            // Track 2 also fails with 404
+            fakeEngine._playbackState.value = PlaybackState.Error("404", java.io.FileNotFoundException("File not found 404"))
+            advanceUntilIdle()
+
+            // Both tracks failed: session stops gracefully at Error without infinite loop
+            assertTrue(playlistSession.sessionState.value.playbackState is PlaybackState.Error)
+            assertEquals("404", playlistSession.sessionState.value.errorMessage)
+
+            playlistSession.release()
+        }
+
+    private class TestPlaylistRepository(
+        private val tracks: MutableList<PlaylistTrackEntry> = mutableListOf(),
+    ) : PlaylistRepository {
+        val markedInactive = mutableListOf<Pair<Long, String>>()
+
+        override fun getAllPlaylistsFlow(): Flow<List<Playlist>> = kotlinx.coroutines.flow.flowOf(emptyList())
+        override suspend fun getAllPlaylists(): List<Playlist> = emptyList()
+        override fun getPlaylistFlow(playlistId: Long): Flow<Playlist?> = kotlinx.coroutines.flow.flowOf(null)
+        override suspend fun getPlaylist(playlistId: Long): Playlist? = null
+        override suspend fun createPlaylist(name: String): Long = 1L
+        override suspend fun renamePlaylist(playlistId: Long, newName: String) {}
+        override suspend fun deletePlaylist(playlistId: Long) {}
+        override suspend fun isPlaylistNameExists(name: String, excludePlaylistId: Long?): Boolean = false
+        override fun getTracksForPlaylistFlow(playlistId: Long): Flow<List<PlaylistTrackEntry>> = kotlinx.coroutines.flow.flowOf(tracks)
+        override suspend fun getTracksForPlaylist(playlistId: Long): List<PlaylistTrackEntry> = tracks
+        override suspend fun addTrackToPlaylist(playlistId: Long, track: AudioTrack, cuePath: String?): Long = 1L
+        override suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<AudioTrack>): List<Long> = emptyList()
+        override suspend fun removeTrackFromPlaylist(playlistId: Long, trackEntryId: Long) {}
+        override suspend fun removeTrackFromPlaylist(trackEntryId: Long) {}
+        override suspend fun updateTrackOrders(playlistId: Long, orderedTrackIds: List<Long>) {}
+        override suspend fun updateTrackOrder(playlistId: Long, trackEntries: List<PlaylistTrackEntry>) {}
+        override fun markTrackInactive(serverId: Long, remotePath: String, reason: InactiveReason) {
+            markedInactive.add(serverId to remotePath)
+        }
+    }
 
     private class TestServerRepository(
         private val servers: List<WebDavServer> = emptyList(),

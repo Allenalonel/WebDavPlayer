@@ -5,12 +5,15 @@ import com.webdav.player.data.cue.CueTextCache
 import com.webdav.player.data.player.UnsupportedRangeReconnectionException
 import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.domain.model.Playlist
+import com.webdav.player.domain.model.QueueOrigin
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
@@ -19,6 +22,7 @@ import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.PlaybackSessionStore
+import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineDispatcher
@@ -47,6 +51,7 @@ class MusicPlayerAppSessionImpl(
     private val lyricsRepository: LyricsRepository? = null,
     private val sessionStore: PlaybackSessionStore? = null,
     private val webDavClient: WebDavClient? = null,
+    private val playlistRepository: PlaylistRepository? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
     private val progressDispatcher: CoroutineDispatcher =
         (coroutineScope.coroutineContext[kotlin.coroutines.ContinuationInterceptor] as? CoroutineDispatcher)?.takeIf {
@@ -72,17 +77,111 @@ class MusicPlayerAppSessionImpl(
     private var activeParentAudioTrack: AudioTrack? = null
     private var activeCuePath: String? = null
     private var hasStreamLoaded = false
+    private val failedTrackIdsInCurrentCycle = mutableSetOf<String>()
 
     private fun loadTrackIntoEngine(
-        server: WebDavServer,
+        server: WebDavServer?,
         track: AudioTrack,
         startPositionMs: Long = 0L,
     ) {
         clearKilledBySystemFlag()
         clearTransientAudioFocusFlag()
-        hasStreamLoaded = true
-        playerEngine.loadTrack(server, track, startPositionMs)
-        coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = false) }
+
+        fun dispatchLoad(targetServer: WebDavServer) {
+            _sessionState.update { it.copy(activeServer = targetServer) }
+            hasStreamLoaded = true
+            try {
+                playerEngine.loadTrack(targetServer, track, startPositionMs)
+            } catch (e: Throwable) {
+                if (is404Exception(e)) {
+                    handle404Failure(track)
+                    return
+                } else {
+                    throw e
+                }
+            }
+            coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = false) }
+        }
+
+        if (server != null && server.id == track.serverId) {
+            dispatchLoad(server)
+        } else if (serverRepository != null) {
+            coroutineScope.launch {
+                val resolved = serverRepository.getServerById(track.serverId)
+                if (resolved != null) {
+                    dispatchLoad(resolved)
+                } else {
+                    handleServerUnavailable(track)
+                }
+            }
+        } else if (server != null) {
+            dispatchLoad(server)
+        } else {
+            coroutineScope.launch {
+                handleServerUnavailable(track)
+            }
+        }
+    }
+
+    private fun handleServerUnavailable(track: AudioTrack) {
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_UNREACHABLE)
+        failedTrackIdsInCurrentCycle.add(track.id)
+        val queueSize = _sessionState.value.queue.size
+        if (queueSize > 1 && failedTrackIdsInCurrentCycle.size < queueSize) {
+            skipToNext()
+        } else {
+            failedTrackIdsInCurrentCycle.clear()
+            _sessionState.update {
+                it.copy(
+                    playbackState = PlaybackState.Error("所属服务器无法连接"),
+                    errorMessage = "所属服务器无法连接",
+                    canManualRetry = false,
+                    isWeakNetwork = false,
+                )
+            }
+        }
+    }
+
+    private fun handle404Failure(track: AudioTrack?, errorMessage: String? = null) {
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        if (track != null) {
+            playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.FILE_NOT_FOUND)
+            failedTrackIdsInCurrentCycle.add(track.id)
+        }
+        val queueSize = _sessionState.value.queue.size
+        if (queueSize > 1 && failedTrackIdsInCurrentCycle.size < queueSize) {
+            skipToNext()
+        } else {
+            failedTrackIdsInCurrentCycle.clear()
+            val msg = errorMessage ?: "音频文件已被重命名或删除"
+            _sessionState.update {
+                it.copy(
+                    playbackState = PlaybackState.Error(msg),
+                    errorMessage = msg,
+                    canManualRetry = false,
+                    isWeakNetwork = false,
+                )
+            }
+        }
+    }
+
+    private fun is404Exception(e: Throwable): Boolean {
+        val causes = generateSequence<Throwable>(e) { it.cause }
+        return causes.any { cause ->
+            (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException && cause.responseCode == 404) ||
+                (cause is java.io.FileNotFoundException) ||
+                (cause.message?.contains("404") == true)
+        } || (e.message?.contains("404") == true)
+    }
+
+    private fun is404Error(state: PlaybackState.Error): Boolean {
+        val causes = generateSequence<Throwable>(state.cause) { it.cause }
+        return causes.any { cause ->
+            (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException && cause.responseCode == 404) ||
+                (cause is java.io.FileNotFoundException) ||
+                (cause.message?.contains("404") == true)
+        } || state.message.contains("404")
     }
 
     private val bufferingWatchdogJobRef =
@@ -137,7 +236,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     private fun transitionToQueueIndex(
-        server: WebDavServer,
+        server: WebDavServer?,
         targetIndex: Int,
     ) {
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
@@ -248,6 +347,9 @@ class MusicPlayerAppSessionImpl(
                                 )
                             }
                             stopPeriodicFlush()
+                            return@collect
+                        } else if (is404Error(state)) {
+                            handle404Failure(_sessionState.value.currentTrack, state.message)
                             return@collect
                         } else {
                             _sessionState.update {
@@ -697,7 +799,9 @@ class MusicPlayerAppSessionImpl(
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
         activeCuePath = null
-        val server = _sessionState.value.activeServer ?: return
+        failedTrackIdsInCurrentCycle.clear()
+        val server = _sessionState.value.activeServer
+        if (server == null && serverRepository == null) return
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
         _playbackProgress.value =
             PlaybackProgress(
@@ -710,13 +814,14 @@ class MusicPlayerAppSessionImpl(
 
         if (trackMetadataRepository != null) {
             coroutineScope.launch {
-                val cachedMeta = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
+                val effectiveServer = server ?: serverRepository?.getServerById(track.serverId) ?: return@launch
+                val cachedMeta = trackMetadataRepository.getCachedMetadata(effectiveServer.id, track.remotePath)
                 val meta =
                     if (cachedMeta != null) {
                         cachedMeta
                     } else {
                         val file = RemoteFile(name = track.fileName, path = track.remotePath)
-                        trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                        trackMetadataRepository.resolveSingleTrackMetadata(effectiveServer, file)
                     }
                 var enrichedTrack: AudioTrack? = null
 
@@ -1092,6 +1197,61 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
+    override fun playPlaylist(
+        playlist: Playlist,
+        startIndex: Int,
+    ) {
+        clearKilledBySystemFlag()
+        clearTransientAudioFocusFlag()
+        _isRestored.value = true
+        virtualTimelineEngine.clear()
+        activeParentAudioTrack = null
+        activeCuePath = null
+        failedTrackIdsInCurrentCycle.clear()
+
+        coroutineScope.launch {
+            val entries = playlistRepository?.getTracksForPlaylist(playlist.id) ?: emptyList()
+            if (entries.isEmpty()) {
+                _sessionState.update { it.copy(queue = PlaybackQueue.EMPTY, errorMessage = null) }
+                return@launch
+            }
+
+            val tracks = entries.map { it.toAudioTrack() }
+            val safeStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
+            val queue =
+                PlaybackQueue.fromTracks(
+                    tracks = tracks,
+                    selectedIndex = safeStartIndex,
+                    origin = QueueOrigin.PLAYLIST,
+                )
+
+            val currentTrack = queue.currentTrack ?: tracks[safeStartIndex]
+            _playbackProgress.value =
+                PlaybackProgress(
+                    currentPositionMs = 0L,
+                    durationMs = currentTrack.durationMs,
+                    bufferedPositionMs = 0L,
+                )
+            _sessionState.update {
+                it.copy(
+                    queue = queue,
+                    durationMs = currentTrack.durationMs,
+                    errorMessage = null,
+                    isUnsupportedRange = false,
+                    isWeakNetwork = false,
+                    canManualRetry = false,
+                    isReconnecting = false,
+                )
+            }
+
+            loadTrackIntoEngine(
+                server = _sessionState.value.activeServer,
+                track = currentTrack,
+                startPositionMs = 0L,
+            )
+        }
+    }
+
     override fun skipToNext() {
         clearTransientAudioFocusFlag()
         clearPrerollIfActive()
@@ -1102,11 +1262,16 @@ class MusicPlayerAppSessionImpl(
             }
             return
         }
-        val server = _sessionState.value.activeServer ?: return
         val queue = _sessionState.value.queue
         if (queue.isEmpty) return
+        val server = _sessionState.value.activeServer
 
-        val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
+        val nextIndex =
+            if (failedTrackIdsInCurrentCycle.isNotEmpty() && _sessionState.value.playbackMode == PlaybackMode.SINGLE_LOOP) {
+                (queue.currentIndex + 1) % queue.tracks.size
+            } else {
+                calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
+            }
         transitionToQueueIndex(server, nextIndex)
     }
 
@@ -1124,9 +1289,9 @@ class MusicPlayerAppSessionImpl(
             }
             return
         }
-        val server = _sessionState.value.activeServer ?: return
         val queue = _sessionState.value.queue
         if (queue.isEmpty) return
+        val server = _sessionState.value.activeServer
 
         val currentPos = playerEngine.currentPositionMs.value
         if (currentPos > 3000L) {
@@ -1148,10 +1313,10 @@ class MusicPlayerAppSessionImpl(
             }
             return
         }
-        val server = _sessionState.value.activeServer ?: return
         val queue = _sessionState.value.queue
         if (index !in queue.tracks.indices) return
-
+        val server = _sessionState.value.activeServer
+        failedTrackIdsInCurrentCycle.clear()
         transitionToQueueIndex(server, index)
     }
 
@@ -1733,7 +1898,13 @@ class MusicPlayerAppSessionImpl(
                             _sessionState.value.playbackState is PlaybackState.Playing &&
                             _sessionState.value.currentTrack?.id == currentTrackId
                         ) {
-                            playerEngine.prerollTrack(server, nextTrack)
+                            val nextServer =
+                                if (server.id == nextTrack.serverId) {
+                                    server
+                                } else {
+                                    serverRepository?.getServerById(nextTrack.serverId) ?: server
+                                }
+                            playerEngine.prerollTrack(nextServer, nextTrack)
                         } else {
                             isPrerollAppended.set(false)
                         }

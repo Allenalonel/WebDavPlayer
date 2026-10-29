@@ -6,6 +6,8 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.domain.model.Playlist
+import com.webdav.player.domain.model.QueueOrigin
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
@@ -76,6 +78,8 @@ class FakeMusicPlayerAppSession(
 
     var lastPlayTrack: AudioTrack? = null
     var lastPlayNextTrack: AudioTrack? = null
+    var lastPlayPlaylist: Playlist? = null
+    var lastPlayPlaylistStartIndex: Int? = null
     var lastPlayInitialMetadata: Map<String, TrackMetadata> = emptyMap()
     var lastPlayVirtualTracksByAudioPath: Map<String, List<com.webdav.player.domain.model.VirtualTrack>> = emptyMap()
 
@@ -98,6 +102,15 @@ class FakeMusicPlayerAppSession(
         lastPlaySelectedFile = selectedFile
         lastPlayInitialMetadata = initialMetadata
         lastPlayVirtualTracksByAudioPath = virtualTracksByAudioPath
+    }
+
+    override fun playPlaylist(
+        playlist: Playlist,
+        startIndex: Int,
+    ) {
+        pausedByTransientAudioFocusInternal = false
+        lastPlayPlaylist = playlist
+        lastPlayPlaylistStartIndex = startIndex
     }
 
     override fun playTrack(track: AudioTrack) {

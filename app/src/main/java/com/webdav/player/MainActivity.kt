@@ -254,14 +254,11 @@ class MainActivity : ComponentActivity() {
                                     PlaylistDetailScreen(
                                         viewModel = detailViewModel,
                                         onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
-                                        onTrackClick = { track, _ ->
-                                            musicSession?.playTrack(track.toAudioTrack())
+                                        onTrackClick = { track, index ->
+                                            detailViewModel.onTrackClick(track, index)
                                         },
                                         onPlayAll = {
-                                            val tracks = detailViewModel.uiState.value.tracks
-                                            if (tracks.isNotEmpty()) {
-                                                musicSession?.playTrack(tracks.first().toAudioTrack())
-                                            }
+                                            detailViewModel.playAll()
                                         },
                                     )
                                 } else {

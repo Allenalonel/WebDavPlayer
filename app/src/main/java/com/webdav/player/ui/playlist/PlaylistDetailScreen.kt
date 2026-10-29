@@ -125,17 +125,20 @@ class DragDropState(
 fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel,
     onBackClick: () -> Unit,
-    onTrackClick: (PlaylistTrackEntry, Int) -> Unit = { track, _ -> viewModel.playTrack(track) },
-    onPlayAll: () -> Unit = {
-        val tracks = viewModel.uiState.value.tracks
-        if (tracks.isNotEmpty()) {
-            viewModel.playTrack(tracks.first())
-        }
-    },
+    onTrackClick: (PlaylistTrackEntry, Int) -> Unit = { track, index -> viewModel.onTrackClick(track, index) },
+    onPlayAll: () -> Unit = { viewModel.playAll() },
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showSortMenu by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(viewModel) {
+        viewModel.toastEvent.collect { message ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     BackHandler(onBack = onBackClick)
 
@@ -249,6 +252,35 @@ fun PlaylistDetailScreen(
                                 onClick = {
                                     showSortMenu = false
                                     viewModel.sortTracks(PlaylistSortOption.ARTIST_ASC)
+                                },
+                            )
+                        }
+                    }
+
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(
+                                imageVector = AppIcons.MoreVert,
+                                contentDescription = "更多操作",
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("清理失效歌曲") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = AppIcons.DeleteOutline,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                },
+                                onClick = {
+                                    showMoreMenu = false
+                                    viewModel.cleanInactiveTracks()
                                 },
                             )
                         }
