@@ -16,6 +16,8 @@
 - [01 resolved] Implemented SWR instant search and ad-hoc queue insertion. Added `LibrarySearchRepository`, integrated M3 SearchBar in `DirectoryBrowserScreen`, and verified tests. (See `.scratch/global-search-and-cross-server-playlists/issues/01-swr-instant-search-and-ad-hoc-queue-insertion.md`)
 - [02 resolved] Implemented Room migration 4->5 (`playlists` and `playlist_tracks`), `PlaylistRepository`, 3-tab navigation with "歌单" tab, `PlaylistListScreen`, and unified "添加到歌单" dialog. (See `.scratch/global-search-and-cross-server-playlists/issues/02-cross-server-playlist-persistence-and-management.md`)
 - [03 resolved] Implemented `PlaylistDetailScreen` with LazyColumn drag reordering, multi-dimensional sorting, track removal, and verified tests. (See `.scratch/global-search-and-cross-server-playlists/issues/03-playlist-detail-drag-reordering-and-sorting.md`)
+- [04 resolved] Implemented cross-server playlist playback (`playPlaylist`), dynamic server authentication context, 404 auto-skip self-healing, and inactive track diagnosis Toast. (See `.scratch/global-search-and-cross-server-playlists/issues/04-cross-server-playback-and-inactive-track-fault-tolerance.md`)
+
 
 
 

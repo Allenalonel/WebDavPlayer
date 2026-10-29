@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Playlist Detail, Drag Reordering and Sorting)
 
-**Status:** ready-for-review
+**Status:** resolved
 
 - [x] 歌单详情页提供“播放全部”与单曲点播操作，调用会话层 `playPlaylist(playlist, startIndex)` 装载整张歌单为 `PlaybackQueue`，设置来源为 `PlaylistQueue`
 - [x] 会话层在加载跨服务器音轨时，根据 `track.serverId` 动态提取对应的 `Server Context`，由 `WebDavMediaSourceAdapter` 动态生成携带对应 Basic/Digest 凭证与 SSL 配置的媒体源
@@ -13,3 +13,11 @@
 - [x] 回放流转（自然播放结束或主动切歌）遇到置灰音轨或底层流式 404 响应时，由会话层统一拦截并静默平滑跳过下一首有效歌曲，杜绝看门狗挂死或应用崩溃
 - [x] 歌单详情顶部更多菜单提供“清理失效歌曲”选项，可一键批量从歌单中清除当前无法访问的条目
 - [x] 编写针对跨服务器凭据动态切换、失效曲目置灰判定、点击诊断 Toast 派发及 404 静默自愈跳过的自动化测试
+
+## Answer
+- 扩展了 `MusicPlayerAppSession` 增加 `playPlaylist(playlist, startIndex)`，在 `PlaybackQueue` 中引入 `QueueOrigin.PLAYLIST`，切歌时遵循歌单闭环流转。
+- 会话层加载音轨时动态根据 `track.serverId` 检索对应服务器并装配媒体源认证与 SSL 上下文，无缝支持跨服务器连续播放与预加载。
+- 实现了失效音轨容错机制：当服务器离线或音轨遭遇 404 时，条目自动响应式置灰，点击弹出诊断 Toast 告知具体原因（`SERVER_UNREACHABLE` / `FILE_NOT_FOUND`）；播放流转中遇到失效音轨或 404 时静默平滑跳至下一首有效曲目。
+- 歌单详情页提供“清理失效歌曲”菜单选项，支持一键移除不可用曲目。
+- 编写并通过了跨服务器凭证动态切换、404 静默跳过、置灰与 Toast 触发的全部自动化测试。
+
