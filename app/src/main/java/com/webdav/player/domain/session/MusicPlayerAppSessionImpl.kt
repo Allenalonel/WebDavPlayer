@@ -285,7 +285,7 @@ class MusicPlayerAppSessionImpl(
                     try {
                         serverRepository.getActiveServer().collect { server ->
                             val current = _sessionState.value
-                            if (current.activeServer?.id != server?.id) {
+                            if (current.activeServer?.id != server?.id && !current.queue.isPlaylistQueue) {
                                 setActiveServer(server)
                             }
                         }
@@ -578,6 +578,11 @@ class MusicPlayerAppSessionImpl(
                         activeServer = server,
                         currentDirectoryPath = path,
                     )
+                }
+
+                // If currently playing a cross-server playlist, do not destroy the playlist queue
+                if (current.queue.isPlaylistQueue) {
+                    return@update current.copy(activeServer = server)
                 }
 
                 if (current.playbackState !is PlaybackState.Idle) {
@@ -1720,10 +1725,15 @@ class MusicPlayerAppSessionImpl(
         activeParentAudioTrack = null
         activeCuePath = null
 
+        val isPlaylist =
+            savedSession.queueOrigin == QueueOrigin.PLAYLIST.name ||
+                savedSession.queueTracks.map { it.serverId }.distinct().size > 1
+        val origin = if (isPlaylist) QueueOrigin.PLAYLIST else QueueOrigin.DIRECTORY
         val restoredQueue =
             PlaybackQueue(
                 tracks = savedSession.queueTracks,
                 currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
+                origin = origin,
             )
         val restoredTrack = restoredQueue.currentTrack
         val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
@@ -1738,6 +1748,7 @@ class MusicPlayerAppSessionImpl(
                 PlaybackQueue(
                     tracks = updatedTracks,
                     currentIndex = savedSession.currentTrackIndex.coerceIn(-1, updatedTracks.lastIndex),
+                    origin = origin,
                 )
             } else {
                 restoredQueue
@@ -1850,6 +1861,7 @@ class MusicPlayerAppSessionImpl(
                 virtualTrackNumber = virtualTrackNumber,
                 virtualPositionMs = virtualPosMs,
                 cleanExit = isCleanExit,
+                queueOrigin = current.queue.origin.name,
             )
         store.saveSession(sessionData)
     }

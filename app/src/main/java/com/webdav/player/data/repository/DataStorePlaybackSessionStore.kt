@@ -45,6 +45,7 @@ class DataStorePlaybackSessionStore(
         private val KEY_VIRTUAL_TRACK_NUMBER = intPreferencesKey("virtual_track_number")
         private val KEY_VIRTUAL_POSITION_MS = longPreferencesKey("virtual_position_ms")
         private val KEY_CLEAN_EXIT = booleanPreferencesKey("clean_exit")
+        private val KEY_QUEUE_ORIGIN = stringPreferencesKey("queue_origin")
     }
 
     override suspend fun saveSession(sessionData: PlaybackSessionData) {
@@ -79,6 +80,7 @@ class DataStorePlaybackSessionStore(
                 prefs.remove(KEY_VIRTUAL_POSITION_MS)
             }
             prefs[KEY_CLEAN_EXIT] = sessionData.cleanExit
+            prefs[KEY_QUEUE_ORIGIN] = sessionData.queueOrigin
         }
     }
 
@@ -138,6 +140,7 @@ class DataStorePlaybackSessionStore(
         val virtualTrackNumber = prefs[KEY_VIRTUAL_TRACK_NUMBER]
         val virtualPositionMs = prefs[KEY_VIRTUAL_POSITION_MS]
         val cleanExit = prefs[KEY_CLEAN_EXIT] ?: true
+        val queueOrigin = prefs[KEY_QUEUE_ORIGIN] ?: "DIRECTORY"
 
         return PlaybackSessionData(
             activeServerId = serverId,
@@ -151,6 +154,7 @@ class DataStorePlaybackSessionStore(
             virtualTrackNumber = virtualTrackNumber,
             virtualPositionMs = virtualPositionMs,
             cleanExit = cleanExit,
+            queueOrigin = queueOrigin,
         )
     }
 

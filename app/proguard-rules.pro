@@ -28,7 +28,6 @@
 # Media3 (Session, ExoPlayer, Renderers, MediaItem, Metadata)
 # --------------------------------------------------------------------------- #
 # Media3 Session callback & background service components
--keep class com.webdav.player.data.service.** { *; }
 -keep class * extends androidx.media3.session.MediaSession$Callback { *; }
 -keep class * extends androidx.media3.session.MediaSessionService { *; }
 
@@ -45,13 +44,7 @@
 -keep class * extends androidx.room.EntityDeletionOrUpdateAdapter { *; }
 -keep class * extends androidx.room.SharedSQLiteStatement { *; }
 -keep class * extends androidx.room.TypeConverter { *; }
--keep class com.webdav.player.data.local.** { *; }
 -dontwarn androidx.room.paging.**
-
-# --------------------------------------------------------------------------- #
-# Domain Models (Playback state, AudioTrack, Server configuration)
-# --------------------------------------------------------------------------- #
--keep class com.webdav.player.domain.model.** { *; }
 
 # --------------------------------------------------------------------------- #
 # Network & OkHttp / WebSocket / Okio
@@ -75,6 +68,41 @@
 -dontwarn org.openjsse.**
 -dontwarn org.codehaus.mojo.animal_sniffer.*
 -dontwarn javax.annotation.**
+
+# Repackage all obfuscated classes into the root package to shrink DEX string pool
+-repackageclasses ''
+
+# --------------------------------------------------------------------------- #
+# Kotlin Optimization & Thinning
+# --------------------------------------------------------------------------- #
+-assumenosideeffects class kotlin.jvm.internal.Intrinsics {
+    public static void checkNotNullParameter(java.lang.Object, java.lang.String);
+    public static void checkNotNullExpressionValue(java.lang.Object, java.lang.String);
+    public static void checkNotNull(java.lang.Object);
+    public static void checkNotNull(java.lang.Object, java.lang.String);
+    public static void checkExpressionValueIsNotNull(java.lang.Object, java.lang.String);
+    public static void checkParameterIsNotNull(java.lang.Object, java.lang.String);
+    public static void checkReturnedValueIsNotNull(java.lang.Object, java.lang.String);
+    public static void checkReturnedValueIsNotNull(java.lang.Object, java.lang.String, java.lang.String);
+    public static void checkFieldIsNotNull(java.lang.Object, java.lang.String);
+    public static void checkFieldIsNotNull(java.lang.Object, java.lang.String, java.lang.String);
+    public static void checkHasReturned(java.lang.Object, java.lang.String);
+}
+
+# Strip debug and verbose logging
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
+-assumenosideeffects class androidx.media3.common.util.Log {
+    public static void d(...);
+    public static void v(...);
+    public static void i(...);
+    public static void w(...);
+}
 
 # --------------------------------------------------------------------------- #
 # Kotlin Coroutines
