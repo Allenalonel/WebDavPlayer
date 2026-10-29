@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Playlist Detail, Drag Reordering and Sorting)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 歌单详情页提供“播放全部”与单曲点播操作，调用会话层 `playPlaylist(playlist, startIndex)` 装载整张歌单为 `PlaybackQueue`，设置来源为 `PlaylistQueue`
 - [ ] 会话层在加载跨服务器音轨时，根据 `track.serverId` 动态提取对应的 `Server Context`，由 `WebDavMediaSourceAdapter` 动态生成携带对应 Basic/Digest 凭证与 SSL 配置的媒体源
