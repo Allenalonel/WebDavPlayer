@@ -143,7 +143,10 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
-    private fun handle404Failure(track: AudioTrack?, errorMessage: String? = null) {
+    private fun handle404Failure(
+        track: AudioTrack?,
+        errorMessage: String? = null,
+    ) {
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         if (track != null) {
             playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.FILE_NOT_FOUND)
@@ -1074,7 +1077,9 @@ class MusicPlayerAppSessionImpl(
         clearTransientAudioFocusFlag()
         val current = _sessionState.value
         if (current.isPaused) {
-            if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null && current.activeServer != null) {
+            if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null &&
+                current.activeServer != null
+            ) {
                 if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
                     val resumePos =
                         (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) +
