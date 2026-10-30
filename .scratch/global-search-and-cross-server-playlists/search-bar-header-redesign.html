@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>搜索栏头部重新设计 - 原型对比</title>
+  <style>
+    :root {
+      --primary: #006495;
+      --primary-container: #cbe6ff;
+      --on-primary: #ffffff;
+      --on-primary-container: #001e30;
+      --surface: #f8fafc;
+      --surface-container-low: #f1f5f9;
+      --surface-container: #e2e8f0;
+      --surface-container-high: #cbd5e1;
+      --surface-container-highest: #e2e8f0;
+      --on-surface: #0f172a;
+      --on-surface-variant: #64748b;
+      --secondary-container: #e2e8f0;
+      --on-secondary-container: #1e293b;
+      --tertiary-container: #f1f5f9;
+      --on-tertiary-container: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: #090d12;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 60px;
+    }
+
+    header {
+      text-align: center;
+      max-width: 860px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #93c5fd;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    /* 视图切换控制器 */
+    .view-controls {
+      display: flex;
+      gap: 8px;
+      background: #151d26;
+      padding: 6px;
+      border-radius: 100px;
+      border: 1px solid #283543;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    .btn-toggle {
+      padding: 8px 18px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      transition: all 0.2s;
+    }
+
+    .btn-toggle.active {
+      background: #38bdf8;
+      color: #082f49;
+      box-shadow: 0 2px 10px rgba(56,189,248,0.3);
+    }
+
+    /* 手机展示容器 */
+    .mockups-grid {
+      display: flex;
+      gap: 28px;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 1300px;
+    }
+
+    .phone-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 380px;
+    }
+
+    .badge-label {
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-1 { background: #075985; color: #bae6fd; border: 1px solid #0284c7; }
+    .badge-2 { background: #3730a3; color: #e0e7ff; border: 1px solid #6366f1; }
+    .badge-3 { background: #065f46; color: #d1fae5; border: 1px solid #10b981; }
+
+    .phone-body {
+      width: 380px;
+      height: 760px;
+      background: var(--surface);
+      border-radius: 44px;
+      border: 9px solid #1e2631;
+      box-shadow: 0 20px 48px rgba(0,0,0,0.6), 0 0 0 1px #334155;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .status-bar {
+      height: 38px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .status-camera {
+      width: 12px;
+      height: 12px;
+      background: #000;
+      border-radius: 50%;
+    }
+
+    /* ========================================================
+       方案 1：悬浮大圆角胶囊药丸 (Floating Capsule Pill)
+       特点：四周留白、大圆角、带轻柔阴影、绝对无底部横线！
+       ======================================================== */
+    .header-style-1 {
+      padding: 6px 16px 12px;
+      background: transparent;
+      /* 无任何 border-bottom 横线！ */
+    }
+
+    .capsule-searchbar {
+      background: #ffffff;
+      height: 52px;
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .capsule-searchbar input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 15px;
+      color: #0f172a;
+    }
+
+    /* ========================================================
+       方案 2：全通透极简沉浸条 (Borderless Minimalist Expressive)
+       特点：一体化通透背景、右侧带“取消”按钮、完全无多余边框与横线
+       ======================================================== */
+    .header-style-2 {
+      padding: 8px 16px 12px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .borderless-input-wrap {
+      flex: 1;
+      height: 48px;
+      background: #eef2f6;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+
+    .borderless-input-wrap:focus-within {
+      background: #ffffff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+
+    .borderless-input-wrap input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 15px;
+      color: #0f172a;
+    }
+
+    .btn-cancel-text {
+      background: none;
+      border: none;
+      color: var(--primary);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 6px 2px;
+      white-space: nowrap;
+    }
+
+    /* ========================================================
+       方案 3：顶部色块集成式卡片 (Integrated Header Block)
+       特点：顶部大圆角柔色块容器整体包裹，取消横线，用自然卡片形态过渡
+       ======================================================== */
+    .header-style-3 {
+      background: #edf2f7;
+      border-radius: 0 0 24px 24px;
+      padding: 8px 16px 16px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.03);
+    }
+
+    .integrated-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .integrated-topbar-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1e293b;
+      flex: 1;
+    }
+
+    .integrated-search-box {
+      background: #ffffff;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .integrated-search-box input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 14.5px;
+      color: #0f172a;
+    }
+
+    /* 结果列表通用样式 */
+    .content-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0 24px;
+    }
+
+    .content-scroll::-webkit-scrollbar { width: 4px; }
+    .content-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    .group-pill {
+      display: inline-block;
+      margin: 8px 20px 6px;
+      padding: 4px 12px;
+      background: #e2e8f0;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 100px;
+    }
+
+    .list-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 20px;
+      gap: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .list-row:hover {
+      background: rgba(0,0,0,0.03);
+    }
+
+    .row-icon-box {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .icon-folder { background: #e2e8f0; color: #334155; }
+    .icon-song { background: #cbe6ff; color: #001e30; }
+    .icon-cue { background: #e0e7ff; color: #3730a3; }
+
+    .row-main {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .row-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .row-sub {
+      font-size: 12.5px;
+      color: #64748b;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cue-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+
+    .btn-more {
+      padding: 6px;
+      font-size: 16px;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+
+    /* 历史记录项 */
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 20px 4px;
+    }
+
+    .history-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #64748b;
+    }
+
+    .history-clear {
+      font-size: 12px;
+      color: #94a3b8;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .history-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 20px;
+      gap: 14px;
+      cursor: pointer;
+    }
+
+    .history-text {
+      flex: 1;
+      font-size: 14.5px;
+      color: #1e293b;
+    }
+
+    /* 底栏 */
+    .bottom-bar {
+      height: 60px;
+      background: #edf2f7;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 16px;
+      border-top: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .tab-item.active {
+      color: #006495;
+    }
+
+    .tab-icon {
+      font-size: 17px;
+    }
+
+    /* 分析卡片 */
+    .analysis-container {
+      margin-top: 36px;
+      max-width: 1000px;
+      width: 100%;
+      background: #131b24;
+      border: 1px solid #233140;
+      border-radius: 20px;
+      padding: 24px 28px;
+    }
+
+    .analysis-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #93c5fd;
+      margin-bottom: 16px;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .analysis-card {
+      background: #0d131a;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    .analysis-card h4 {
+      color: #38bdf8;
+      margin-bottom: 8px;
+      font-size: 14.5px;
+    }
+
+    .analysis-card ul {
+      padding-left: 16px;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>搜索栏头部重新设计：彻底告别生硬横线</h1>
+    <p class="subtitle">针对你指出的“顶部搜索栏一条横线很难看”，重新设计了 3 款完全没有横线、视觉呼吸感极佳的现代移动端设计方案。支持并排实时对比与输入互动。</p>
+  </header>
+
+  <div class="view-controls">
+    <button class="btn-toggle active" id="btnAll" onclick="showOption('all')">📱 全部并排对比</button>
+    <button class="btn-toggle" id="btn1" onclick="showOption('1')">方案 1：悬浮胶囊药丸</button>
+    <button class="btn-toggle" id="btn2" onclick="showOption('2')">方案 2：全通透极简沉浸</button>
+    <button class="btn-toggle" id="btn3" onclick="showOption('3')">方案 3：双层顶栏内嵌卡片</button>
+  </div>
+
+  <div class="mockups-grid" id="gridContainer">
+
+    <!-- 方案 1: 悬浮大圆角胶囊药丸 -->
+    <div class="phone-card" id="card1">
+      <div class="badge-label badge-1">方案 1：悬浮胶囊药丸 (Floating Capsule)</div>
+      <div class="phone-body">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <!-- 方案1 头部：无任何横线，悬浮圆角药丸框 -->
+        <div class="header-style-1">
+          <div class="capsule-searchbar">
+            <span style="color: #64748b; font-size: 16px; cursor: pointer;">←</span>
+            <input type="text" placeholder="搜索歌曲、歌手、专辑..." value="周杰伦" oninput="syncAllInputs(this.value)">
+            <span style="color: #94a3b8; font-size: 14px; cursor: pointer;" onclick="clearAllInputs()">✕</span>
+          </div>
+        </div>
+
+        <div class="content-scroll">
+          <div class="history-header">
+            <span class="history-title">最近搜索</span>
+            <button class="history-clear">全部清空</button>
+          </div>
+          <div class="history-row">
+            <span style="color: #94a3b8;">🕒</span>
+            <span class="history-text">周杰伦</span>
+            <span style="color: #94a3b8; font-size: 12px;">✕</span>
+          </div>
+
+          <span class="group-pill">文件夹 (1)</span>
+          <div class="list-row">
+            <div class="row-icon-box icon-folder">📁</div>
+            <div class="row-main">
+              <div class="row-title">周杰伦精选集</div>
+              <div class="row-sub">/Music/JayChou/</div>
+            </div>
+            <span style="color: #94a3b8;">›</span>
+          </div>
+
+          <span class="group-pill" style="margin-top: 10px;">单曲与分轨 (2)</span>
+          <div class="list-row">
+            <div class="row-icon-box icon-song">🎵</div>
+            <div class="row-main">
+              <div class="row-title">晴天</div>
+              <div class="row-sub">周杰伦 · 叶惠美 · 4:29</div>
+            </div>
+            <span class="btn-more">⋮</span>
+          </div>
+
+          <div class="list-row">
+            <div class="row-icon-box icon-cue">💿</div>
+            <div class="row-main">
+              <div class="row-title">
+                <span>夜曲</span>
+                <span class="cue-badge">CUE</span>
+              </div>
+              <div class="row-sub">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="btn-more">⋮</span>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="tab-item"><span class="tab-icon">📑</span><span>歌单</span></div>
+          <div class="tab-item active"><span class="tab-icon">📂</span><span>媒体库</span></div>
+          <div class="tab-item"><span class="tab-icon">🖧</span><span>服务器</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 方案 2: 全通透极简沉浸条 -->
+    <div class="phone-card" id="card2">
+      <div class="badge-label badge-2">方案 2：全通透极简沉浸 (Borderless Pure)</div>
+      <div class="phone-body">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <!-- 方案2 头部：极致通透，无横线，带优雅“取消”文字按钮 -->
+        <div class="header-style-2">
+          <div class="borderless-input-wrap">
+            <span style="color: #64748b; font-size: 15px;">🔍</span>
+            <input type="text" placeholder="搜索曲库..." value="周杰伦" oninput="syncAllInputs(this.value)">
+            <span style="color: #94a3b8; font-size: 13px; cursor: pointer;" onclick="clearAllInputs()">✕</span>
+          </div>
+          <button class="btn-cancel-text" onclick="alert('退出搜索')">取消</button>
+        </div>
+
+        <div class="content-scroll">
+          <div class="history-header">
+            <span class="history-title">最近搜索</span>
+            <button class="history-clear">全部清空</button>
+          </div>
+          <div class="history-row">
+            <span style="color: #94a3b8;">🕒</span>
+            <span class="history-text">周杰伦</span>
+            <span style="color: #94a3b8; font-size: 12px;">✕</span>
+          </div>
+
+          <span class="group-pill">文件夹 (1)</span>
+          <div class="list-row">
+            <div class="row-icon-box icon-folder">📁</div>
+            <div class="row-main">
+              <div class="row-title">周杰伦精选集</div>
+              <div class="row-sub">/Music/JayChou/</div>
+            </div>
+            <span style="color: #94a3b8;">›</span>
+          </div>
+
+          <span class="group-pill" style="margin-top: 10px;">单曲与分轨 (2)</span>
+          <div class="list-row">
+            <div class="row-icon-box icon-song">🎵</div>
+            <div class="row-main">
+              <div class="row-title">晴天</div>
+              <div class="row-sub">周杰伦 · 叶惠美 · 4:29</div>
+            </div>
+            <span class="btn-more">⋮</span>
+          </div>
+
+          <div class="list-row">
+            <div class="row-icon-box icon-cue">💿</div>
+            <div class="row-main">
+              <div class="row-title">
+                <span>夜曲</span>
+                <span class="cue-badge">CUE</span>
+              </div>
+              <div class="row-sub">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="btn-more">⋮</span>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="tab-item"><span class="tab-icon">📑</span><span>歌单</span></div>
+          <div class="tab-item active"><span class="tab-icon">📂</span><span>媒体库</span></div>
+          <div class="tab-item"><span class="tab-icon">🖧</span><span>服务器</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 方案 3: 双层顶栏内嵌式搜索 -->
+    <div class="phone-card" id="card3">
+      <div class="badge-label badge-3">方案 3：双层顶栏内嵌卡片 (Integrated Header)</div>
+      <div class="phone-body">
+        <div class="status-bar" style="background: #edf2f7;">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <!-- 方案3 头部：浅色容器色块自然包覆，用色块过渡取代单调横线 -->
+        <div class="header-style-3">
+          <div class="integrated-topbar">
+            <span style="font-size: 16px; color: #1e293b; cursor: pointer; padding-right: 6px;">←</span>
+            <span class="integrated-topbar-title">曲库搜索</span>
+          </div>
+          <div class="integrated-search-box">
+            <span style="color: #64748b; font-size: 15px;">🔍</span>
+            <input type="text" placeholder="歌曲 / 歌手 / 文件夹..." value="周杰伦" oninput="syncAllInputs(this.value)">
+            <span style="color: #94a3b8; font-size: 13px; cursor: pointer;" onclick="clearAllInputs()">✕</span>
+          </div>
+        </div>
+
+        <div class="content-scroll">
+          <div class="history-header" style="margin-top: 4px;">
+            <span class="history-title">最近搜索</span>
+            <button class="history-clear">全部清空</button>
+          </div>
+          <div class="history-row">
+            <span style="color: #94a3b8;">🕒</span>
+            <span class="history-text">周杰伦</span>
+            <span style="color: #94a3b8; font-size: 12px;">✕</span>
+          </div>
+
+          <span class="group-pill">文件夹 (1)</span>
+          <div class="list-row">
+            <div class="row-icon-box icon-folder">📁</div>
+            <div class="row-main">
+              <div class="row-title">周杰伦精选集</div>
+              <div class="row-sub">/Music/JayChou/</div>
+            </div>
+            <span style="color: #94a3b8;">›</span>
+          </div>
+
+          <span class="group-pill" style="margin-top: 10px;">单曲与分轨 (2)</span>
+          <div class="list-row">
+            <div class="row-icon-box icon-song">🎵</div>
+            <div class="row-main">
+              <div class="row-title">晴天</div>
+              <div class="row-sub">周杰伦 · 叶惠美 · 4:29</div>
+            </div>
+            <span class="btn-more">⋮</span>
+          </div>
+
+          <div class="list-row">
+            <div class="row-icon-box icon-cue">💿</div>
+            <div class="row-main">
+              <div class="row-title">
+                <span>夜曲</span>
+                <span class="cue-badge">CUE</span>
+              </div>
+              <div class="row-sub">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="btn-more">⋮</span>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="tab-item"><span class="tab-icon">📑</span><span>歌单</span></div>
+          <div class="tab-item active"><span class="tab-icon">📂</span><span>媒体库</span></div>
+          <div class="tab-item"><span class="tab-icon">🖧</span><span>服务器</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 优缺点与设计理念分析 -->
+  <div class="analysis-container">
+    <div class="analysis-title">✨ 3 款新方案的设计解析（全部取消底部分割横线）：</div>
+    <div class="analysis-grid">
+      <div class="analysis-card">
+        <h4>方案 1：悬浮胶囊药丸 (推荐)</h4>
+        <ul>
+          <li><strong>去横线方式</strong>：左右留白 16dp，采用 28dp 大圆角胶囊药丸，带微弱阴影浮动于界面上方。</li>
+          <li><strong>视觉感受</strong>：轻盈、现代、呼吸感最强，完全消除了原来从屏幕左边缘切到右边缘的生硬横线。</li>
+          <li><strong>适合偏好</strong>：喜欢精致无边界浮动感的用户。</li>
+        </ul>
+      </div>
+
+      <div class="analysis-card">
+        <h4>方案 2：全通透极简沉浸</h4>
+        <ul>
+          <li><strong>去横线方式</strong>：背景完全一色到底，浅灰色输入框内嵌，右侧带有清晰的“取消”文字。</li>
+          <li><strong>视觉感受</strong>：类似 Apple Music、Spotify 等主流音乐软件的无界设计，简单纯粹。</li>
+          <li><strong>适合偏好</strong>：喜欢极简、无任何多余线条与阴影的用户。</li>
+        </ul>
+      </div>
+
+      <div class="analysis-card">
+        <h4>方案 3：双层顶栏内嵌卡片</h4>
+        <ul>
+          <li><strong>去横线方式</strong>：顶部使用浅灰容器色块整体包裹，底部使用 24dp 大圆角收尾。</li>
+          <li><strong>视觉感受</strong>：结构稳重，上方有“曲库搜索”标题，下方为圆角搜索框，层次清晰。</li>
+          <li><strong>适合偏好</strong>：喜欢有明确顶栏结构与标题感的用户。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function syncAllInputs(val) {
+      document.querySelectorAll('input[type="text"]').forEach(input => {
+        input.value = val;
+      });
+    }
+
+    function clearAllInputs() {
+      syncAllInputs('');
+    }
+
+    function showOption(opt) {
+      const card1 = document.getElementById('card1');
+      const card2 = document.getElementById('card2');
+      const card3 = document.getElementById('card3');
+      const btns = document.querySelectorAll('.btn-toggle');
+      btns.forEach(b => b.classList.remove('active'));
+
+      if (opt === 'all') {
+        card1.style.display = 'flex';
+        card2.style.display = 'flex';
+        card3.style.display = 'flex';
+        document.getElementById('btnAll').classList.add('active');
+      } else if (opt === '1') {
+        card1.style.display = 'flex';
+        card2.style.display = 'none';
+        card3.style.display = 'none';
+        document.getElementById('btn1').classList.add('active');
+      } else if (opt === '2') {
+        card1.style.display = 'none';
+        card2.style.display = 'flex';
+        card3.style.display = 'none';
+        document.getElementById('btn2').classList.add('active');
+      } else if (opt === '3') {
+        card1.style.display = 'none';
+        card2.style.display = 'none';
+        card3.style.display = 'flex';
+        document.getElementById('btn3').classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>

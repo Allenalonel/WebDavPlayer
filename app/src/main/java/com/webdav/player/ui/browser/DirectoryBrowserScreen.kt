@@ -1,16 +1,23 @@
 package com.webdav.player.ui.browser
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -18,8 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
@@ -31,6 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,54 +99,133 @@ fun DirectoryBrowserScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            if (uiState.isSearchActive) {
-                SearchBar(
-                    query = uiState.searchQuery,
-                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                    onSearch = { viewModel.onSearchSubmitted(it) },
-                    active = true,
-                    onActiveChange = { viewModel.onSearchActiveChanged(it) },
-                    placeholder = { Text("搜索歌曲、歌手、专辑或文件夹...") },
-                    leadingIcon = {
-                        IconButton(onClick = { viewModel.onSearchActiveChanged(false) }) {
-                            Icon(
-                                imageVector = AppIcons.ArrowBack,
-                                contentDescription = "退出搜索",
-                            )
+    if (uiState.isSearchActive) {
+        // 方案 2：全通透极简沉浸条（完全去除生硬的分割横线）
+        Column(
+            modifier =
+                modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .background(MaterialTheme.colorScheme.surface),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val focusRequester = remember { FocusRequester() }
+                        LaunchedEffect(Unit) {
+                            focusRequester.requestFocus()
                         }
-                    },
-                    trailingIcon = {
+                        BasicTextField(
+                            value = uiState.searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            singleLine = true,
+                            textStyle =
+                                MaterialTheme.typography.bodyLarge.copy(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .focusRequester(focusRequester),
+                            decorationBox = { innerTextField ->
+                                if (uiState.searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "搜索歌曲、歌手、专辑或文件夹...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                innerTextField()
+                            },
+                        )
                         if (uiState.searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.onClearSearchQuery() }) {
+                            IconButton(
+                                onClick = { viewModel.onClearSearchQuery() },
+                                modifier = Modifier.size(28.dp),
+                            ) {
                                 Icon(
                                     imageVector = AppIcons.Close,
                                     contentDescription = "清空输入",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                TextButton(
+                    onClick = { viewModel.onSearchActiveChanged(false) },
+                    contentPadding = PaddingValues(horizontal = 8.dp),
                 ) {
-                    SearchResultsContent(
-                        query = uiState.searchQuery,
-                        isSearching = uiState.isSearching,
-                        searchResult = uiState.searchResult,
-                        searchHistory = uiState.searchHistory,
-                        onSelectHistoryQuery = {
-                            viewModel.onSearchQueryChanged(it)
-                            viewModel.onSearchSubmitted(it)
-                        },
-                        onClearHistory = { viewModel.onClearSearchHistory() },
-                        onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
-                        onDirectoryClick = { viewModel.onSearchResultDirectoryClicked(it) },
-                        onTrackClick = { viewModel.onSearchResultTrackClicked(it) },
-                        onAddToPlaylist = onAddToPlaylist,
+                    Text(
+                        text = "取消",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
-            } else {
+            }
+
+            // 下方搜索内容区域，无任何生硬分割横线
+            Box(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+            ) {
+                SearchResultsContent(
+                    query = uiState.searchQuery,
+                    isSearching = uiState.isSearching,
+                    searchResult = uiState.searchResult,
+                    searchHistory = uiState.searchHistory,
+                    onSelectHistoryQuery = {
+                        viewModel.onSearchQueryChanged(it)
+                        viewModel.onSearchSubmitted(it)
+                    },
+                    onClearHistory = { viewModel.onClearSearchHistory() },
+                    onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
+                    onDirectoryClick = { viewModel.onSearchResultDirectoryClicked(it) },
+                    onTrackClick = { viewModel.onSearchResultTrackClicked(it) },
+                    onAddToPlaylist = onAddToPlaylist,
+                )
+            }
+        }
+    } else {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
                 TopAppBar(
                     title = {
                         val titleText = uiState.headerTitle
@@ -170,105 +260,105 @@ fun DirectoryBrowserScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceContainer,
                         ),
                 )
-            }
-        },
-    ) { innerPadding ->
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-        ) {
-            if (!uiState.isInitializing && uiState.activeServer != null) {
-                // Breadcrumb navigation bar (MD3 AssistChip Strip)
-                DirectoryBreadcrumbStrip(
-                    breadcrumbs = uiState.breadcrumbs,
-                    currentPath = uiState.currentPath,
-                    onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) },
-                )
-
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            }
-
-            // Content Area with Pull-to-Refresh
-            Box(
+            },
+        ) { innerPadding ->
+            Column(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .nestedScroll(pullRefreshState.nestedScrollConnection)
-                        .clipToBounds(),
+                        .padding(innerPadding),
             ) {
-                when {
-                    uiState.isInitializing -> {
-                        // Cold-start initialization in progress: wait quietly without flashing NoActiveServerState
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            // Clean background during the brief cold-start initialization
-                        }
-                    }
+                if (!uiState.isInitializing && uiState.activeServer != null) {
+                    // Breadcrumb navigation bar (MD3 AssistChip Strip)
+                    DirectoryBreadcrumbStrip(
+                        breadcrumbs = uiState.breadcrumbs,
+                        currentPath = uiState.currentPath,
+                        onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) },
+                    )
 
-                    uiState.activeServer == null -> {
-                        NoActiveServerState(onNavigateToServerManagement = onNavigateToServerManagement)
-                    }
-
-                    uiState.isLoading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "正在加载远程目录...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-
-                    uiState.errorMessage != null -> {
-                        ErrorState(
-                            message = uiState.errorMessage ?: "加载失败",
-                            onRetry = { viewModel.onRetry() },
-                            onGoBack = { viewModel.onNavigateUp() },
-                            canGoBack = uiState.canNavigateUp,
-                        )
-                    }
-
-                    uiState.isEmpty -> {
-                        EmptyFolderState(onRefresh = { viewModel.onRefresh() })
-                    }
-
-                    else -> {
-                        DirectoryContentList(
-                            directories = uiState.subDirectories,
-                            files = uiState.files,
-                            metadataMap = uiState.metadataMap,
-                            activeTrackPath = uiState.activeTrackPath,
-                            activeTrackId = uiState.activeTrackId,
-                            cueAlbums = uiState.cueAlbums,
-                            isPlaying = uiState.isPlaying,
-                            activeServer = uiState.activeServer,
-                            onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                            onFileClicked = onFileClicked,
-                            onPlayNext = { viewModel.playNext(it) },
-                            onAddToPlaylist = onAddToPlaylist,
-                            onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
-                            onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
-                            onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
-                        )
-                    }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
-                if (pullRefreshState.verticalOffset > 0f || pullRefreshState.isRefreshing) {
-                    PullToRefreshContainer(
-                        state = pullRefreshState,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
+                // Content Area with Pull-to-Refresh
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .nestedScroll(pullRefreshState.nestedScrollConnection)
+                            .clipToBounds(),
+                ) {
+                    when {
+                        uiState.isInitializing -> {
+                            // Cold-start initialization in progress: wait quietly without flashing NoActiveServerState
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                // Clean background during the brief cold-start initialization
+                            }
+                        }
+
+                        uiState.activeServer == null -> {
+                            NoActiveServerState(onNavigateToServerManagement = onNavigateToServerManagement)
+                        }
+
+                        uiState.isLoading -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator()
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "正在加载远程目录...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+
+                        uiState.errorMessage != null -> {
+                            ErrorState(
+                                message = uiState.errorMessage ?: "加载失败",
+                                onRetry = { viewModel.onRetry() },
+                                onGoBack = { viewModel.onNavigateUp() },
+                                canGoBack = uiState.canNavigateUp,
+                            )
+                        }
+
+                        uiState.isEmpty -> {
+                            EmptyFolderState(onRefresh = { viewModel.onRefresh() })
+                        }
+
+                        else -> {
+                            DirectoryContentList(
+                                directories = uiState.subDirectories,
+                                files = uiState.files,
+                                metadataMap = uiState.metadataMap,
+                                activeTrackPath = uiState.activeTrackPath,
+                                activeTrackId = uiState.activeTrackId,
+                                cueAlbums = uiState.cueAlbums,
+                                isPlaying = uiState.isPlaying,
+                                activeServer = uiState.activeServer,
+                                onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
+                                onFileClicked = onFileClicked,
+                                onPlayNext = { viewModel.playNext(it) },
+                                onAddToPlaylist = onAddToPlaylist,
+                                onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
+                                onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
+                                onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
+                            )
+                        }
+                    }
+
+                    if (pullRefreshState.verticalOffset > 0f || pullRefreshState.isRefreshing) {
+                        PullToRefreshContainer(
+                            state = pullRefreshState,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
                 }
             }
         }
