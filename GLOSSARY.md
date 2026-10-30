@@ -121,6 +121,10 @@ _Avoid_: Manual Sync, Cold Cache, Static Database
 由同目录 `.cue` 文件描述、映射在单一长音频物理文件内部的时间区间切片。在底层播放器内核中不作为独立的物理 `MediaItem` 重复实例化，完全依托于会话层的时间轴换算与内联元数据广播，确保纯流式下的绝对无缝体验。
 _Avoid_: Split Audio, Cut Track, Clipped MediaItem
 
+**Cue Sheet Resolver**:
+负责统筹远程 WebDAV 目录内 `.cue` 文件的探测提取、内存 LRU 文本缓存、与同级物理音频文件启发式关联以及时间轴分轨解析的深层领域模块。向上层（UI、播放会话与曲库搜索）提供统一确定性的虚拟分轨模型输出，彻底对外部调用方屏蔽底层网络请求、AST 词法解析与缓存调度细节。
+_Avoid_: Cue Helper, Cue Cache, Cue Downloader
+
 **Folder Ring Playback**:
 播放队列以当前所处 Remote Directory 的曲目集合为唯一严格边界。列表循环模式下最后一首播完自动回流至当前目录首曲，严禁跨越父级或同级兄弟目录。
 _Avoid_: Infinite Cross-Folder Playback, Auto Next Folder, Directory Hop
