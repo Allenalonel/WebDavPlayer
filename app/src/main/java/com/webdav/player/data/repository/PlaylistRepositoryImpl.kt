@@ -7,25 +7,70 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.PlaylistRepository
+import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackKey
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class PlaylistRepositoryImpl(
     private val playlistDao: PlaylistDao,
+    private val serverRepository: ServerRepository? = null,
+    private val trackMetadataRepository: TrackMetadataRepository? = null,
     private val timeProvider: () -> Long = { System.currentTimeMillis() },
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : PlaylistRepository {
     private val _inactiveTracksFlow = MutableStateFlow<Map<TrackKey, InactiveReason>>(emptyMap())
+    private val inFlightCoverHealing = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+
+    private fun triggerBackgroundCoverHealing(
+        trackEntryId: Long,
+        serverId: Long,
+        remotePath: String,
+    ) {
+        if (trackMetadataRepository == null || serverRepository == null) return
+        val activeJob = inFlightCoverHealing[trackEntryId]
+        if (activeJob != null && activeJob.isActive) return
+
+        val job =
+            coroutineScope.launch {
+                try {
+                    val cached = trackMetadataRepository.getCachedMetadata(serverId, remotePath)
+                    if (cached?.coverThumbnailPath != null) {
+                        playlistDao.updateTrackCover(trackEntryId, cached.coverThumbnailPath)
+                        return@launch
+                    }
+                    val server = serverRepository.getServerById(serverId)
+                    if (server != null && server.url.isNotBlank()) {
+                        val fileName = remotePath.substringAfterLast('/').ifBlank { "track" }
+                        val file = RemoteFile(name = fileName, path = remotePath)
+                        val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                        if (resolved.coverThumbnailPath != null) {
+                            playlistDao.updateTrackCover(trackEntryId, resolved.coverThumbnailPath)
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Ignore transient errors during background self-healing
+                } finally {
+                    inFlightCoverHealing.remove(trackEntryId)
+                }
+            }
+        inFlightCoverHealing[trackEntryId] = job
+    }
 
     override fun getAllPlaylistsFlow(): Flow<List<Playlist>> =
         playlistDao.getAllPlaylistsWithTrackCountFlow().map { list ->
@@ -85,32 +130,112 @@ class PlaylistRepositoryImpl(
         return existing != null && (excludePlaylistId == null || existing.id != excludePlaylistId)
     }
 
-    override fun getTracksForPlaylistFlow(playlistId: Long): Flow<List<PlaylistTrackEntry>> =
-        combine(
+    override fun getTracksForPlaylistFlow(playlistId: Long): Flow<List<PlaylistTrackEntry>> {
+        val serversFlow: Flow<List<WebDavServer>?> = serverRepository?.getAllServers() ?: flowOf(null)
+
+        return combine(
             playlistDao.getTracksForPlaylistFlow(playlistId),
             _inactiveTracksFlow,
-        ) { entities, inactiveMap ->
-            entities.map { entity ->
-                val domain = entity.toDomain()
-                val reason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
-                if (reason != null || domain.isInactive) {
-                    domain.copy(isInactive = true, inactiveReason = reason)
-                } else {
-                    domain
+            serversFlow,
+        ) { entities, inactiveMap, servers ->
+            val serverMap = servers?.associateBy { it.id }
+
+            val reconciled =
+                entities.map { entity ->
+                    val domain = entity.toDomain()
+                    val manualReason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
+                    val server = serverMap?.get(domain.serverId)
+                    val isServerUnreachable = servers != null && (server == null || server.url.isBlank())
+
+                    when {
+                        manualReason != null || domain.isInactive -> {
+                            domain.copy(isInactive = true, inactiveReason = manualReason)
+                        }
+
+                        isServerUnreachable -> {
+                            domain.copy(isInactive = true, inactiveReason = InactiveReason.SERVER_UNREACHABLE)
+                        }
+
+                        else -> {
+                            domain
+                        }
+                    }
                 }
+
+            if (trackMetadataRepository != null) {
+                reconciled.map { track ->
+                    if (track.coverThumbnailPath.isNullOrBlank()) {
+                        val cachedMeta = trackMetadataRepository.getCachedMetadata(track.serverId, track.remotePath)
+                        if (cachedMeta?.coverThumbnailPath != null) {
+                            coroutineScope.launch {
+                                playlistDao.updateTrackCover(track.id, cachedMeta.coverThumbnailPath)
+                            }
+                            track.copy(coverThumbnailPath = cachedMeta.coverThumbnailPath)
+                        } else {
+                            if (!track.isInactive) {
+                                triggerBackgroundCoverHealing(track.id, track.serverId, track.remotePath)
+                            }
+                            track
+                        }
+                    } else {
+                        track
+                    }
+                }
+            } else {
+                reconciled
             }
         }
+    }
 
     override suspend fun getTracksForPlaylist(playlistId: Long): List<PlaylistTrackEntry> {
+        val entities = playlistDao.getTracksForPlaylist(playlistId)
         val inactiveMap = _inactiveTracksFlow.value
-        return playlistDao.getTracksForPlaylist(playlistId).map { entity ->
-            val domain = entity.toDomain()
-            val reason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
-            if (reason != null || domain.isInactive) {
-                domain.copy(isInactive = true, inactiveReason = reason)
-            } else {
-                domain
+        val servers = serverRepository?.getAllServers()?.firstOrNull()
+        val serverMap = servers?.associateBy { it.id }
+
+        val reconciled =
+            entities.map { entity ->
+                val domain = entity.toDomain()
+                val manualReason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
+                val server = serverMap?.get(domain.serverId)
+                val isServerUnreachable = servers != null && (server == null || server.url.isBlank())
+
+                when {
+                    manualReason != null || domain.isInactive -> {
+                        domain.copy(isInactive = true, inactiveReason = manualReason)
+                    }
+
+                    isServerUnreachable -> {
+                        domain.copy(isInactive = true, inactiveReason = InactiveReason.SERVER_UNREACHABLE)
+                    }
+
+                    else -> {
+                        domain
+                    }
+                }
             }
+
+        return if (trackMetadataRepository != null) {
+            reconciled.map { track ->
+                if (track.coverThumbnailPath.isNullOrBlank()) {
+                    val cachedMeta = trackMetadataRepository.getCachedMetadata(track.serverId, track.remotePath)
+                    if (cachedMeta?.coverThumbnailPath != null) {
+                        coroutineScope.launch {
+                            playlistDao.updateTrackCover(track.id, cachedMeta.coverThumbnailPath)
+                        }
+                        track.copy(coverThumbnailPath = cachedMeta.coverThumbnailPath)
+                    } else {
+                        if (!track.isInactive) {
+                            triggerBackgroundCoverHealing(track.id, track.serverId, track.remotePath)
+                        }
+                        track
+                    }
+                } else {
+                    track
+                }
+            }
+        } else {
+            reconciled
         }
     }
 

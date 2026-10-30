@@ -111,6 +111,8 @@ class WebDavApplication : Application() {
         playlistRepository =
             PlaylistRepositoryImpl(
                 playlistDao = database.playlistDao(),
+                serverRepository = serverRepository,
+                trackMetadataRepository = trackMetadataRepository,
             )
 
         musicPlayerAppSession =

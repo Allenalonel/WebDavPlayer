@@ -5,13 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
-import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.repository.PlaylistRepository
-import com.webdav.player.domain.repository.ServerRepository
-import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -19,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -49,8 +43,6 @@ class PlaylistDetailViewModel(
     val playlistId: Long,
     private val playlistRepository: PlaylistRepository,
     private val musicPlayerAppSession: MusicPlayerAppSession? = null,
-    private val serverRepository: ServerRepository? = null,
-    private val trackMetadataRepository: TrackMetadataRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlaylistDetailUiState(isLoading = true))
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
@@ -71,91 +63,27 @@ class PlaylistDetailViewModel(
                 _uiState.update { it.copy(errorMessage = e.message ?: "加载歌单失败") }
             }.launchIn(viewModelScope)
 
-        val rawTracksFlow = playlistRepository.getTracksForPlaylistFlow(playlistId)
-        val tracksFlow: Flow<List<PlaylistTrackEntry>> =
-            if (serverRepository != null) {
-                combine(rawTracksFlow, serverRepository.getAllServers()) { tracks, servers ->
-                    val serverMap = servers.associateBy { it.id }
-                    tracks.map { track ->
-                        val server = serverMap[track.serverId]
-                        when {
-                            server == null || server.url.isBlank() -> {
-                                track.copy(isInactive = true, inactiveReason = InactiveReason.SERVER_UNREACHABLE)
-                            }
-                            track.isInactive -> {
-                                track
-                            }
-                            else -> {
-                                track
-                            }
-                        }
-                    }
-                }
-            } else {
-                rawTracksFlow
-            }
-
-        tracksFlow
+        playlistRepository
+            .getTracksForPlaylistFlow(playlistId)
             .onEach { tracks ->
-                val enrichedTracks =
-                    if (trackMetadataRepository != null) {
-                        tracks.map { track ->
-                            if (track.coverThumbnailPath.isNullOrBlank()) {
-                                val cachedMeta = trackMetadataRepository.getCachedMetadata(track.serverId, track.remotePath)
-                                if (cachedMeta?.coverThumbnailPath != null) {
-                                    track.copy(coverThumbnailPath = cachedMeta.coverThumbnailPath)
-                                } else {
-                                    track
-                                }
-                            } else {
-                                track
-                            }
-                        }
-                    } else {
-                        tracks
-                    }
                 _uiState.update { current ->
                     if (current.isReordering) {
                         current.copy(isLoading = false)
                     } else {
                         val currentIds = current.tracks.map { it.id }
-                        val newIds = enrichedTracks.map { it.id }
+                        val newIds = tracks.map { it.id }
                         if (currentIds == newIds) {
                             val needsUpdate =
-                                current.tracks.zip(enrichedTracks).any { (a, b) ->
+                                current.tracks.zip(tracks).any { (a, b) ->
                                     a.coverThumbnailPath != b.coverThumbnailPath || a.isInactive != b.isInactive
                                 }
                             if (needsUpdate) {
-                                current.copy(tracks = enrichedTracks, isLoading = false)
+                                current.copy(tracks = tracks, isLoading = false)
                             } else {
                                 current.copy(isLoading = false)
                             }
                         } else {
-                            current.copy(tracks = enrichedTracks, isLoading = false)
-                        }
-                    }
-                }
-
-                if (trackMetadataRepository != null && serverRepository != null) {
-                    val missingTracks = enrichedTracks.filter { it.coverThumbnailPath.isNullOrBlank() && !it.isInactive }
-                    if (missingTracks.isNotEmpty()) {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            for (missing in missingTracks) {
-                                val cached = trackMetadataRepository.getCachedMetadata(missing.serverId, missing.remotePath)
-                                if (cached?.coverThumbnailPath != null) {
-                                    playlistRepository.updateTrackCover(missing.id, cached.coverThumbnailPath)
-                                } else {
-                                    val server = serverRepository.getServerById(missing.serverId)
-                                    if (server != null) {
-                                        val fileName = missing.remotePath.substringAfterLast('/')
-                                        val file = RemoteFile(name = fileName, path = missing.remotePath)
-                                        val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
-                                        if (resolved?.coverThumbnailPath != null) {
-                                            playlistRepository.updateTrackCover(missing.id, resolved.coverThumbnailPath)
-                                        }
-                                    }
-                                }
-                            }
+                            current.copy(tracks = tracks, isLoading = false)
                         }
                     }
                 }
@@ -303,7 +231,10 @@ class PlaylistDetailViewModel(
     }
 
     fun playTrack(track: PlaylistTrackEntry) {
-        val index = _uiState.value.tracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+        val index =
+            _uiState.value.tracks
+                .indexOfFirst { it.id == track.id }
+                .coerceAtLeast(0)
         onTrackClick(track, index)
     }
 
@@ -323,7 +254,10 @@ class PlaylistDetailViewModel(
 
     fun onTrackClick(
         track: PlaylistTrackEntry,
-        index: Int = _uiState.value.tracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0),
+        index: Int =
+            _uiState.value.tracks
+                .indexOfFirst { it.id == track.id }
+                .coerceAtLeast(0),
     ) {
         if (track.isInactive) {
             val message =
@@ -346,7 +280,10 @@ class PlaylistDetailViewModel(
     }
 
     fun cleanInactiveTracks() {
-        val inactiveTrackIds = _uiState.value.tracks.filter { it.isInactive }.map { it.id }
+        val inactiveTrackIds =
+            _uiState.value.tracks
+                .filter { it.isInactive }
+                .map { it.id }
         if (inactiveTrackIds.isEmpty()) return
         viewModelScope.launch {
             try {

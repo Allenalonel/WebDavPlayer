@@ -9,7 +9,18 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -438,5 +449,167 @@ class PlaylistRepositoryTest {
             assertEquals(1, tracks.size)
             assertTrue(tracks[0].isInactive)
             assertEquals(InactiveReason.FILE_NOT_FOUND, tracks[0].inactiveReason)
+        }
+
+    private class TestServerRepository(
+        initialServers: List<WebDavServer> = emptyList(),
+    ) : ServerRepository {
+        val serversFlow = MutableStateFlow(initialServers)
+
+        override fun getAllServers(): Flow<List<WebDavServer>> = serversFlow.asStateFlow()
+
+        override fun getActiveServer(): Flow<WebDavServer?> = serversFlow.map { it.firstOrNull() }
+
+        override suspend fun getServerById(id: Long): WebDavServer? = serversFlow.value.firstOrNull { it.id == id }
+
+        override suspend fun saveServer(server: WebDavServer): Long = server.id
+
+        override suspend fun deleteServer(id: Long) {
+            serversFlow.update { list -> list.filterNot { it.id == id } }
+        }
+
+        override suspend fun setActiveServer(id: Long) {}
+    }
+
+    private class TestTrackMetadataRepository : TrackMetadataRepository {
+        val cachedMap = mutableMapOf<String, TrackMetadata>()
+        val singleResolvedMap = mutableMapOf<String, TrackMetadata>()
+        var singleResolveCalls = 0
+
+        override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> = emptyFlow()
+
+        override fun getMetadataForPathsFlow(
+            serverId: Long,
+            remotePaths: List<String>,
+        ): Flow<List<TrackMetadata>> = emptyFlow()
+
+        override fun getMetadataFlow(
+            serverId: Long,
+            remotePath: String,
+        ): Flow<TrackMetadata?> = emptyFlow()
+
+        override suspend fun getCachedMetadata(
+            serverId: Long,
+            remotePath: String,
+        ): TrackMetadata? = cachedMap["$serverId:$remotePath"]
+
+        override suspend fun resolveMetadata(
+            server: WebDavServer,
+            files: List<RemoteFile>,
+            forceRefresh: Boolean,
+        ) {}
+
+        override suspend fun resolveSingleTrackMetadata(
+            server: WebDavServer,
+            file: RemoteFile,
+        ): TrackMetadata {
+            singleResolveCalls++
+            return singleResolvedMap["${server.id}:${file.path}"] ?: TrackMetadata(serverId = server.id, remotePath = file.path)
+        }
+    }
+
+    @Test
+    fun getTracksForPlaylistFlow_withServerRepository_marksUnreachableServersInactive() =
+        runBlocking {
+            val server1 = WebDavServer(id = 1L, name = "Active NAS", url = "http://192.168.1.100")
+            val serverRepo = TestServerRepository(listOf(server1))
+
+            val repoWithServer =
+                PlaylistRepositoryImpl(
+                    playlistDao = dao,
+                    serverRepository = serverRepo,
+                    timeProvider = { simulatedTime },
+                )
+
+            val playlistId = repoWithServer.createPlaylist("跨服连通性测试")
+            val track1 =
+                AudioTrack(id = "1:/online.mp3", serverId = 1L, remotePath = "/online.mp3", title = "Online", format = AudioFormat.MP3)
+            val track2 =
+                AudioTrack(
+                    id = "2:/offline.mp3",
+                    serverId = 2L,
+                    remotePath = "/offline.mp3",
+                    title = "Offline Server",
+                    format = AudioFormat.MP3,
+                )
+
+            repoWithServer.addTrackToPlaylist(playlistId, track1)
+            repoWithServer.addTrackToPlaylist(playlistId, track2)
+
+            val tracks = repoWithServer.getTracksForPlaylistFlow(playlistId).first()
+            assertEquals(2, tracks.size)
+
+            val online = tracks.first { it.remotePath == "/online.mp3" }
+            assertFalse(online.isInactive)
+            assertNull(online.inactiveReason)
+
+            val offline = tracks.first { it.remotePath == "/offline.mp3" }
+            assertTrue(offline.isInactive)
+            assertEquals(InactiveReason.SERVER_UNREACHABLE, offline.inactiveReason)
+
+            // Also verify suspend getTracksForPlaylist
+            val snapshotTracks = repoWithServer.getTracksForPlaylist(playlistId)
+            val snapshotOffline = snapshotTracks.first { it.remotePath == "/offline.mp3" }
+            assertTrue(snapshotOffline.isInactive)
+            assertEquals(InactiveReason.SERVER_UNREACHABLE, snapshotOffline.inactiveReason)
+        }
+
+    @Test
+    fun getTracksForPlaylistFlow_withTrackMetadataRepository_enrichesCachedCoverAndTriggersSelfHealing() =
+        runBlocking {
+            val server1 = WebDavServer(id = 1L, name = "Active NAS", url = "http://192.168.1.100")
+            val serverRepo = TestServerRepository(listOf(server1))
+            val metadataRepo = TestTrackMetadataRepository()
+
+            // /cached.mp3 has cached cover in Room metadata table
+            metadataRepo.cachedMap["1:/cached.mp3"] =
+                TrackMetadata(
+                    serverId = 1L,
+                    remotePath = "/cached.mp3",
+                    title = "Cached Song",
+                    coverThumbnailPath = "/covers/cached_thumb.jpg",
+                )
+
+            // /resolve.mp3 needs on-demand resolve
+            metadataRepo.singleResolvedMap["1:/resolve.mp3"] =
+                TrackMetadata(
+                    serverId = 1L,
+                    remotePath = "/resolve.mp3",
+                    title = "Resolved Song",
+                    coverThumbnailPath = "/covers/resolved_thumb.jpg",
+                )
+
+            val repo =
+                PlaylistRepositoryImpl(
+                    playlistDao = dao,
+                    serverRepository = serverRepo,
+                    trackMetadataRepository = metadataRepo,
+                    timeProvider = { simulatedTime },
+                )
+
+            val playlistId = repo.createPlaylist("自愈测试")
+            val trackCached =
+                AudioTrack(id = "1:/cached.mp3", serverId = 1L, remotePath = "/cached.mp3", title = "Cached", format = AudioFormat.MP3)
+            val trackResolve =
+                AudioTrack(id = "1:/resolve.mp3", serverId = 1L, remotePath = "/resolve.mp3", title = "Resolve", format = AudioFormat.MP3)
+
+            val entryCachedId = repo.addTrackToPlaylist(playlistId, trackCached)
+            val entryResolveId = repo.addTrackToPlaylist(playlistId, trackResolve)
+
+            val tracks = repo.getTracksForPlaylistFlow(playlistId).first()
+            assertEquals(2, tracks.size)
+
+            val cachedTrack = tracks.first { it.remotePath == "/cached.mp3" }
+            assertEquals("/covers/cached_thumb.jpg", cachedTrack.coverThumbnailPath)
+
+            // Wait for background self-healing coroutine to complete
+            kotlinx.coroutines.delay(200)
+
+            // Verify the resolved track has been healed and saved to DB
+            val updatedResolveEntry = dao.getTrackById(entryResolveId)
+            assertEquals("/covers/resolved_thumb.jpg", updatedResolveEntry?.coverThumbnailPath)
+
+            val updatedCachedEntry = dao.getTrackById(entryCachedId)
+            assertEquals("/covers/cached_thumb.jpg", updatedCachedEntry?.coverThumbnailPath)
         }
 }

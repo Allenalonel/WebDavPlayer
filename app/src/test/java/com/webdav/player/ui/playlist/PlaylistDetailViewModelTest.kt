@@ -184,6 +184,26 @@ class DetailFakePlaylistRepository : PlaylistRepository {
         }
         syncTracksFlow(playlistId)
     }
+
+    override fun markTrackInactive(
+        serverId: Long,
+        remotePath: String,
+        reason: InactiveReason,
+    ) {
+        for ((pId, list) in tracksMap) {
+            val updated =
+                list.map {
+                    if (it.serverId == serverId && it.remotePath == remotePath) {
+                        it.copy(isInactive = true, inactiveReason = reason)
+                    } else {
+                        it
+                    }
+                }
+            list.clear()
+            list.addAll(updated)
+            syncTracksFlow(pId)
+        }
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -447,12 +467,8 @@ class PlaylistDetailViewModelTest {
         }
 
     @Test
-    fun inactiveTrackDetection_whenServerMissing_marksServerUnreachable() =
+    fun inactiveTrackDetection_rendersInactiveTracksFromRepository() =
         runTest(testDispatcher) {
-            val server1 = WebDavServer(id = 1L, name = "Server 1", url = "http://1.1.1.1")
-            val serverRepo = DetailFakeServerRepository(listOf(server1))
-
-            // Add track on server 2 (missing from serverRepo)
             val trackOnMissingServer =
                 AudioTrack(
                     id = "2:/missing.mp3",
@@ -462,13 +478,13 @@ class PlaylistDetailViewModelTest {
                     format = AudioFormat.MP3,
                 )
             fakeRepo.addTrackToPlaylist(playlistId, trackOnMissingServer)
+            fakeRepo.markTrackInactive(2L, "/missing.mp3", InactiveReason.SERVER_UNREACHABLE)
 
             val vmWithServerRepo =
                 PlaylistDetailViewModel(
                     playlistId = playlistId,
                     playlistRepository = fakeRepo,
                     musicPlayerAppSession = fakeSession,
-                    serverRepository = serverRepo,
                 )
             advanceUntilIdle()
 
@@ -481,10 +497,6 @@ class PlaylistDetailViewModelTest {
     @Test
     fun onTrackClick_inactiveTrack_triggersToastAndBlocksPlayback() =
         runTest(testDispatcher) {
-            val server1 = WebDavServer(id = 1L, name = "Server 1", url = "http://1.1.1.1")
-            val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://2.2.2.2")
-            val serverRepo = DetailFakeServerRepository(listOf(server1, server2))
-
             val offlineTrackEntry =
                 AudioTrack(
                     id = "999:/offline.mp3",
@@ -494,13 +506,13 @@ class PlaylistDetailViewModelTest {
                     format = AudioFormat.MP3,
                 )
             fakeRepo.addTrackToPlaylist(playlistId, offlineTrackEntry)
+            fakeRepo.markTrackInactive(999L, "/offline.mp3", InactiveReason.SERVER_UNREACHABLE)
 
             val vm =
                 PlaylistDetailViewModel(
                     playlistId = playlistId,
                     playlistRepository = fakeRepo,
                     musicPlayerAppSession = fakeSession,
-                    serverRepository = serverRepo,
                 )
             advanceUntilIdle()
 
@@ -544,23 +556,20 @@ class PlaylistDetailViewModelTest {
     @Test
     fun cleanInactiveTracks_removesAllInactiveTracks() =
         runTest(testDispatcher) {
-            val server1 = WebDavServer(id = 1L, name = "Server 1", url = "http://1.1.1.1")
-            val server2 = WebDavServer(id = 2L, name = "Server 2", url = "http://2.2.2.2")
-            val serverRepo = DetailFakeServerRepository(listOf(server1, server2))
-
             val offline1 =
                 AudioTrack(id = "888:/off1.mp3", serverId = 888L, remotePath = "/off1.mp3", title = "Off 1", format = AudioFormat.MP3)
             val offline2 =
                 AudioTrack(id = "999:/off2.mp3", serverId = 999L, remotePath = "/off2.mp3", title = "Off 2", format = AudioFormat.MP3)
             fakeRepo.addTrackToPlaylist(playlistId, offline1)
             fakeRepo.addTrackToPlaylist(playlistId, offline2)
+            fakeRepo.markTrackInactive(888L, "/off1.mp3", InactiveReason.SERVER_UNREACHABLE)
+            fakeRepo.markTrackInactive(999L, "/off2.mp3", InactiveReason.SERVER_UNREACHABLE)
 
             val vm =
                 PlaylistDetailViewModel(
                     playlistId = playlistId,
                     playlistRepository = fakeRepo,
                     musicPlayerAppSession = fakeSession,
-                    serverRepository = serverRepo,
                 )
             advanceUntilIdle()
 

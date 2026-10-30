@@ -67,8 +67,7 @@ class MusicPlayerAppSessionTest {
     private class FakeCueWebDavClient : WebDavClient {
         val textResponses = mutableMapOf<String, String>()
 
-        override suspend fun testConnection(server: WebDavServer): ConnectionResult =
-            ConnectionResult.Success
+        override suspend fun testConnection(server: WebDavServer): ConnectionResult = ConnectionResult.Success
 
         override suspend fun listDirectory(
             server: WebDavServer,
