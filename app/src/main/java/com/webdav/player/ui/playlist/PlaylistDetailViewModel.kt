@@ -40,6 +40,7 @@ data class PlaylistDetailUiState(
     val tracks: List<PlaylistTrackEntry> = emptyList(),
     val isLoading: Boolean = false,
     val isReordering: Boolean = false,
+    val isCustomReorderMode: Boolean = false,
     val activeSortOption: PlaylistSortOption = PlaylistSortOption.CUSTOM,
     val errorMessage: String? = null,
 )
@@ -161,6 +162,19 @@ class PlaylistDetailViewModel(
             }.catch { e ->
                 _uiState.update { it.copy(errorMessage = e.message ?: "加载歌曲失败", isLoading = false) }
             }.launchIn(viewModelScope)
+    }
+
+    fun enterCustomReorderMode() {
+        _uiState.update { it.copy(isCustomReorderMode = true, activeSortOption = PlaylistSortOption.CUSTOM) }
+    }
+
+    fun saveCustomReorder() {
+        _uiState.update { it.copy(isCustomReorderMode = false) }
+        onDragEnd()
+    }
+
+    fun cancelCustomReorder() {
+        _uiState.update { it.copy(isCustomReorderMode = false) }
     }
 
     fun moveTrack(

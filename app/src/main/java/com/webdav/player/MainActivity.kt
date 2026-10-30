@@ -1,6 +1,7 @@
 package com.webdav.player
 
 import android.content.ComponentCallbacks2
+import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -104,11 +105,28 @@ class MainActivity : ComponentActivity() {
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
                 val playlistState by playlistViewModel.uiState.collectAsStateWithLifecycle()
-                val coordinator = remember(musicSession) { MainNavigationCoordinator(musicSession) }
+
+                val context = LocalContext.current
+                val navPrefs = remember { context.getSharedPreferences("webdav_nav_prefs", Context.MODE_PRIVATE) }
+                val savedTab = remember {
+                    navPrefs.getString("last_active_tab", null)?.let {
+                        runCatching { AppDestination.valueOf(it) }.getOrNull()
+                    }
+                }
+                val coordinator =
+                    remember(musicSession) {
+                        MainNavigationCoordinator(
+                            musicPlayerAppSession = musicSession,
+                            initialDestination = savedTab ?: AppDestination.SERVER_LIST,
+                            hasExplicitInitialDestination = (savedTab != null),
+                            onDestinationChanged = { destination ->
+                                navPrefs.edit().putString("last_active_tab", destination.name).apply()
+                            },
+                        )
+                    }
                 val navState by coordinator.uiState.collectAsStateWithLifecycle()
 
                 var trackToAddToPlaylist by remember { mutableStateOf<AudioTrack?>(null) }
-                val context = LocalContext.current
 
                 LaunchedEffect(serverState.activeServer) {
                     coordinator.onActiveServerLoaded(serverState.activeServer)

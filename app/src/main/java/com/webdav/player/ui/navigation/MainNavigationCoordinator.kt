@@ -23,7 +23,9 @@ data class MainNavigationUiState(
 
 class MainNavigationCoordinator(
     private val musicPlayerAppSession: MusicPlayerAppSession? = null,
-    initialDestination: AppDestination = AppDestination.SERVER_LIST
+    initialDestination: AppDestination = AppDestination.SERVER_LIST,
+    private val hasExplicitInitialDestination: Boolean = false,
+    private val onDestinationChanged: ((AppDestination) -> Unit)? = null,
 ) {
     private val _uiState = MutableStateFlow(
         MainNavigationUiState(
@@ -33,7 +35,7 @@ class MainNavigationCoordinator(
     )
     val uiState: StateFlow<MainNavigationUiState> = _uiState.asStateFlow()
 
-    private var hasCheckedInitialActiveServer = false
+    private var hasCheckedInitialActiveServer = hasExplicitInitialDestination
 
     fun onActiveServerLoaded(activeServer: WebDavServer?) {
         if (!hasCheckedInitialActiveServer) {
@@ -56,6 +58,7 @@ class MainNavigationCoordinator(
                 it.copy(currentDestination = destination)
             }
         }
+        onDestinationChanged?.invoke(destination)
     }
 
     fun navigateToPlaylistDetail(playlistId: Long) {

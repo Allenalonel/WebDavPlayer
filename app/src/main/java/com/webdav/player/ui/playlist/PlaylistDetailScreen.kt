@@ -26,11 +26,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -44,10 +42,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -62,14 +62,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import com.webdav.player.ui.common.CoverThumbnailImage
@@ -142,14 +143,19 @@ fun PlaylistDetailScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-    androidx.compose.runtime.LaunchedEffect(viewModel) {
+    val context = LocalContext.current
+    LaunchedEffect(viewModel) {
         viewModel.toastEvent.collect { message ->
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast
+                .makeText(context, message, android.widget.Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
-    BackHandler(onBack = onBackClick)
+    BackHandler(enabled = uiState.isCustomReorderMode) {
+        viewModel.saveCustomReorder()
+    }
+    BackHandler(enabled = !uiState.isCustomReorderMode, onBack = onBackClick)
 
     val listState = rememberLazyListState()
     val dragDropState =
@@ -165,15 +171,7 @@ fun PlaylistDetailScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = uiState.playlist?.name ?: "歌单详情",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
+                title = { },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -183,115 +181,152 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showSortMenu = true }) {
-                            Icon(
-                                imageVector = AppIcons.Sort,
-                                contentDescription = "排序",
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false },
+                    if (uiState.isCustomReorderMode) {
+                        TextButton(
+                            onClick = { viewModel.saveCustomReorder() },
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("添加时间（最新优先）") },
-                                trailingIcon = {
-                                    if (uiState.activeSortOption == PlaylistSortOption.DATE_ADDED_DESC) {
-                                        Icon(
-                                            imageVector = AppIcons.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    showSortMenu = false
-                                    viewModel.sortTracks(PlaylistSortOption.DATE_ADDED_DESC)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("添加时间（最早优先）") },
-                                trailingIcon = {
-                                    if (uiState.activeSortOption == PlaylistSortOption.DATE_ADDED_ASC) {
-                                        Icon(
-                                            imageVector = AppIcons.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    showSortMenu = false
-                                    viewModel.sortTracks(PlaylistSortOption.DATE_ADDED_ASC)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("歌曲标题（A-Z）") },
-                                trailingIcon = {
-                                    if (uiState.activeSortOption == PlaylistSortOption.TITLE_ASC) {
-                                        Icon(
-                                            imageVector = AppIcons.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    showSortMenu = false
-                                    viewModel.sortTracks(PlaylistSortOption.TITLE_ASC)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("艺术家（A-Z）") },
-                                trailingIcon = {
-                                    if (uiState.activeSortOption == PlaylistSortOption.ARTIST_ASC) {
-                                        Icon(
-                                            imageVector = AppIcons.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    showSortMenu = false
-                                    viewModel.sortTracks(PlaylistSortOption.ARTIST_ASC)
-                                },
+                            Text(
+                                text = "保存",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
-                    }
+                    } else {
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(
+                                    imageVector = AppIcons.Sort,
+                                    contentDescription = "排序",
+                                )
+                            }
 
-                    Box {
-                        IconButton(onClick = { showMoreMenu = true }) {
-                            Icon(
-                                imageVector = AppIcons.MoreVert,
-                                contentDescription = "更多操作",
-                            )
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("自定义排序") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = AppIcons.DragHandle,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        if (uiState.activeSortOption == PlaylistSortOption.CUSTOM) {
+                                            Icon(
+                                                imageVector = AppIcons.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showSortMenu = false
+                                        viewModel.enterCustomReorderMode()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("添加时间（最新优先）") },
+                                    trailingIcon = {
+                                        if (uiState.activeSortOption == PlaylistSortOption.DATE_ADDED_DESC) {
+                                            Icon(
+                                                imageVector = AppIcons.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showSortMenu = false
+                                        viewModel.sortTracks(PlaylistSortOption.DATE_ADDED_DESC)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("添加时间（最早优先）") },
+                                    trailingIcon = {
+                                        if (uiState.activeSortOption == PlaylistSortOption.DATE_ADDED_ASC) {
+                                            Icon(
+                                                imageVector = AppIcons.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showSortMenu = false
+                                        viewModel.sortTracks(PlaylistSortOption.DATE_ADDED_ASC)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("歌曲标题（A-Z）") },
+                                    trailingIcon = {
+                                        if (uiState.activeSortOption == PlaylistSortOption.TITLE_ASC) {
+                                            Icon(
+                                                imageVector = AppIcons.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showSortMenu = false
+                                        viewModel.sortTracks(PlaylistSortOption.TITLE_ASC)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("艺术家（A-Z）") },
+                                    trailingIcon = {
+                                        if (uiState.activeSortOption == PlaylistSortOption.ARTIST_ASC) {
+                                            Icon(
+                                                imageVector = AppIcons.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showSortMenu = false
+                                        viewModel.sortTracks(PlaylistSortOption.ARTIST_ASC)
+                                    },
+                                )
+                            }
                         }
 
-                        DropdownMenu(
-                            expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("清理失效歌曲") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = AppIcons.DeleteOutline,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                },
-                                onClick = {
-                                    showMoreMenu = false
-                                    viewModel.cleanInactiveTracks()
-                                },
-                            )
+                        Box {
+                            IconButton(onClick = { showMoreMenu = true }) {
+                                Icon(
+                                    imageVector = AppIcons.MoreVert,
+                                    contentDescription = "更多操作",
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showMoreMenu,
+                                onDismissRequest = { showMoreMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("清理失效歌曲") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = AppIcons.DeleteOutline,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        viewModel.cleanInactiveTracks()
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -308,7 +343,7 @@ fun PlaylistDetailScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
         ) {
-            // Header Area (方案 B-1: 纯大字标题 + 药丸动作栏，无大方块海报)
+            // Header Area (大字标题 + 药丸动作栏，无大方块海报)
             PlaylistHeaderArea(
                 playlist = uiState.playlist,
                 trackCount = uiState.tracks.size,
@@ -374,6 +409,7 @@ fun PlaylistDetailScreen(
                                 track = track,
                                 index = index,
                                 dragDropState = dragDropState,
+                                showDragHandle = uiState.isCustomReorderMode,
                                 onClick = { onTrackClick(track, index) },
                                 onRemove = { viewModel.removeTrack(track.id) },
                                 modifier =
@@ -490,6 +526,7 @@ fun PlaylistTrackRow(
     track: PlaylistTrackEntry,
     index: Int,
     dragDropState: DragDropState,
+    showDragHandle: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -505,7 +542,7 @@ fun PlaylistTrackRow(
 
     val durationText =
         remember(track.durationMs) {
-            com.webdav.player.domain.model.PlaybackProgress.formatMs(track.durationMs)
+            PlaybackProgress.formatMs(track.durationMs)
         }
 
     val subtitle =
@@ -563,8 +600,8 @@ fun PlaylistTrackRow(
             }
         },
     ) {
-        Surface(
-            modifier =
+        val rowSurfaceModifier =
+            if (showDragHandle) {
                 Modifier
                     .fillMaxWidth()
                     .pointerInput(dragDropState, index) {
@@ -580,7 +617,13 @@ fun PlaylistTrackRow(
                             onDragEnd = { dragDropState.onDragStopped() },
                             onDragCancel = { dragDropState.onDragStopped() },
                         )
-                    },
+                    }
+            } else {
+                Modifier.fillMaxWidth()
+            }
+
+        Surface(
+            modifier = rowSurfaceModifier,
             color =
                 if (isDragging) {
                     MaterialTheme.colorScheme.surfaceContainerHigh
@@ -600,33 +643,35 @@ fun PlaylistTrackRow(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            // 拖拽手把
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .size(28.dp)
-                                        .pointerInput(dragDropState, index) {
-                                            detectVerticalDragGestures(
-                                                onDragStart = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    dragDropState.onDragStart(index)
-                                                },
-                                                onVerticalDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    dragDropState.onDrag(dragAmount)
-                                                },
-                                                onDragEnd = { dragDropState.onDragStopped() },
-                                                onDragCancel = { dragDropState.onDragStopped() },
-                                            )
-                                        },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = AppIcons.DragHandle,
-                                    contentDescription = "拖拽排序",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(18.dp),
-                                )
+                            if (showDragHandle) {
+                                // 拖拽手把（仅在自定义排序模式下显示）
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .size(28.dp)
+                                            .pointerInput(dragDropState, index) {
+                                                detectVerticalDragGestures(
+                                                    onDragStart = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        dragDropState.onDragStart(index)
+                                                    },
+                                                    onVerticalDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        dragDropState.onDrag(dragAmount)
+                                                    },
+                                                    onDragEnd = { dragDropState.onDragStopped() },
+                                                    onDragCancel = { dragDropState.onDragStopped() },
+                                                )
+                                            },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.DragHandle,
+                                        contentDescription = "拖拽排序",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
                             }
 
                             // 序号
@@ -769,7 +814,7 @@ fun PlaylistTrackRow(
                 HorizontalDivider(
                     modifier =
                         Modifier
-                            .padding(start = 100.dp, end = 16.dp)
+                            .padding(start = if (showDragHandle) 136.dp else 100.dp, end = 16.dp)
                             .align(Alignment.BottomCenter),
                     thickness = 0.5.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
