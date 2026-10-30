@@ -1,6 +1,6 @@
 # Spec: 全局即时搜索与跨服务器自定义本地歌单 (Global Instant Search & Cross-Server Playlists)
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
