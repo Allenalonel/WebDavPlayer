@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +82,8 @@ import com.webdav.player.ui.theme.AppIcons
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.compose.runtime.snapshotFlow
 
 class DragDropState(
     val lazyListState: LazyListState,
@@ -573,37 +576,55 @@ fun PlaylistTrackRow(
             parts.joinToString(" · ")
         }
 
-    // 细化滑动操作：右滑删除，左滑下一首播放（增大滑动触发阈值至 65%，避免误触）
+    val itemWidthPx = remember { mutableFloatStateOf(0f) }
+    val isPastThreshold = remember { mutableStateOf(false) }
+
+    // 细化滑动操作：右滑删除，左滑下一首播放（严格以50%最大宽度为触发阈值，滑回则取消）
     val dismissState =
         key(track.id) {
             rememberSwipeToDismissBoxState(
                 confirmValueChange = { value ->
-                    when (value) {
-                        SwipeToDismissBoxValue.StartToEnd -> {
-                            // 右滑：从歌单中删除
-                            onRemove()
-                            true
-                        }
+                    if (!isPastThreshold.value) {
+                        false
+                    } else {
+                        when (value) {
+                            SwipeToDismissBoxValue.StartToEnd -> {
+                                // 右滑：从歌单中删除
+                                onRemove()
+                                true
+                            }
 
-                        SwipeToDismissBoxValue.EndToStart -> {
-                            // 左滑：添加到下一首播放，弹性回位
-                            onPlayNext()
-                            false
-                        }
+                            SwipeToDismissBoxValue.EndToStart -> {
+                                // 左滑：添加到下一首播放，弹性回位
+                                onPlayNext()
+                                false
+                            }
 
-                        else -> {
-                            false
+                            else -> {
+                                false
+                            }
                         }
                     }
                 },
-                positionalThreshold = { totalDistance -> totalDistance * 0.65f },
+                positionalThreshold = { totalDistance -> totalDistance * 0.5f },
             )
         }
 
-    // 到达临界阈值位置触发震动反馈
-    LaunchedEffect(dismissState.targetValue) {
-        if (dismissState.targetValue != SwipeToDismissBoxValue.Settled) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    // 监听实时位移：严格到达 50% 宽度触发震动，滑回小于 50% 则重置
+    LaunchedEffect(dismissState) {
+        snapshotFlow {
+            val offset = runCatching { dismissState.requireOffset() }.getOrDefault(0f)
+            val width = itemWidthPx.floatValue
+            if (width > 0f) {
+                kotlin.math.abs(offset) >= (width * 0.5f)
+            } else {
+                false
+            }
+        }.distinctUntilChanged().collect { past ->
+            isPastThreshold.value = past
+            if (past) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
         }
     }
 
@@ -616,6 +637,7 @@ fun PlaylistTrackRow(
         modifier =
             modifier
                 .fillMaxWidth()
+                .onSizeChanged { itemWidthPx.floatValue = it.width.toFloat() }
                 .zIndex(if (isDragging) 2f else 1f)
                 .graphicsLayer {
                     translationY = if (isDragging) dragDropState.dragOffset else 0f
@@ -626,10 +648,11 @@ fun PlaylistTrackRow(
             val isDelete = direction == SwipeToDismissBoxValue.StartToEnd
             val isPlayNext = direction == SwipeToDismissBoxValue.EndToStart
 
+            val alpha = if (isPastThreshold.value) 1f else 0.45f
             val bgColor =
                 when {
-                    isDelete -> MaterialTheme.colorScheme.errorContainer
-                    isPlayNext -> MaterialTheme.colorScheme.primaryContainer
+                    isDelete -> MaterialTheme.colorScheme.errorContainer.copy(alpha = alpha)
+                    isPlayNext -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha)
                     else -> Color.Transparent
                 }
 
