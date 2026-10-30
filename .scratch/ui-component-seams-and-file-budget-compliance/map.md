@@ -4,9 +4,9 @@
 Decomposing monolithic Compose screen files into focused component seams under their respective `components/` subdirectories to ensure 100% of non-asset executable files in the codebase comply with the 600-line budget in `AGENTS.md`.
 
 ## Issues Graph
-- [ ] **01-decompose-playlist-detail-screen** (Unblocked & ready)
+- [x] **01-decompose-playlist-detail-screen** (Completed)
 - [x] **02-decompose-server-list-screen** (Completed)
-- [ ] **03-decompose-full-player-view** (Unblocked & ready)
+- [x] **03-decompose-full-player-view** (Completed)
 
 ## Decisions So Far
 - **Decision 1 (Pure Structural Refactor)**: Zero visual or behavioral changes; existing composable signatures, states, test tags, and gestures are preserved verbatim.
