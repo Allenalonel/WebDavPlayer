@@ -4,11 +4,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Create `DirectoryContent` domain model in `domain/model/DirectoryContent.kt`
-- [ ] Add `observeDirectoryContent(server: WebDavServer, path: String, forceRefresh: Boolean = false): Flow<DirectoryContent>` to `DirectoryRepository`
-- [ ] Implement `observeDirectoryContent` in `DirectoryRepositoryImpl`, orchestrating `CueSheetResolver` and `TrackMetadataRepository`
-- [ ] Support SWR lifecycle: emit cached content immediately (0ms), emit remote file update with `isEnriching = true`, and emit enriched snapshot with `isEnriching = false` once background CUE & metadata resolution completes
-- [ ] Add unit tests in `DirectoryRepositoryTest` verifying SWR emissions, CUE album integration, and metadata population
-- [ ] Ensure all `DirectoryRepositoryTest` tests pass cleanly
+- [x] Create `DirectoryContent` domain model in `domain/model/DirectoryContent.kt`
+- [x] Add `observeDirectoryContent(server: WebDavServer, path: String, forceRefresh: Boolean = false): Flow<DirectoryContent>` to `DirectoryRepository`
+- [x] Implement `observeDirectoryContent` in `DirectoryRepositoryImpl`, orchestrating `CueSheetResolver` and `TrackMetadataRepository`
+- [x] Support SWR lifecycle: emit cached content immediately (0ms), emit remote file update with `isEnriching = true`, and emit enriched snapshot with `isEnriching = false` once background CUE & metadata resolution completes
+- [x] Add unit tests in `DirectoryRepositoryTest` verifying SWR emissions, CUE album integration, and metadata population
+- [x] Ensure all `DirectoryRepositoryTest` tests pass cleanly
+
+## Answer
+Deepened `DirectoryRepository` by adding `observeDirectoryContent(server, path, forceRefresh): Flow<DirectoryContent>` seam. Introduced the unified domain model `DirectoryContent` aggregating files, CUE albums, track metadata tags, and the `isEnriching` flag. `DirectoryRepositoryImpl` encapsulates `CueSheetResolver` and `TrackMetadataRepository` as internal collaborators, managing the complete SWR lifecycle (0ms cached hit -> remote update -> enriched completion with `isEnriching = false`). Comprehensive unit tests in `DirectoryRepositoryTest` verify the entire lifecycle and pass cleanly.

@@ -98,6 +98,8 @@ class WebDavApplication : Application() {
             DirectoryRepositoryImpl(
                 webDavClient = webDavClient,
                 directoryCacheDao = database.directoryCacheDao(),
+                cueSheetResolver = cueSheetResolver,
+                trackMetadataRepository = trackMetadataRepository,
             )
         this.directoryRepository = directoryRepository
 

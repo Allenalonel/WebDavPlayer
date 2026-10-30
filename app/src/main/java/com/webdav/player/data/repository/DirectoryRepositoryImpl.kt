@@ -1,13 +1,19 @@
 package com.webdav.player.data.repository
 
+import com.webdav.player.data.cue.CueAssociationHelper
 import com.webdav.player.data.local.DirectoryCacheDao
 import com.webdav.player.data.local.DirectoryCacheEntity
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
 import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.cue.CueSheetResolver
+import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.DirectoryContent
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
+import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.DirectoryRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -15,6 +21,8 @@ import kotlinx.coroutines.flow.flow
 class DirectoryRepositoryImpl(
     private val webDavClient: WebDavClient,
     private val directoryCacheDao: DirectoryCacheDao? = null,
+    private val cueSheetResolver: CueSheetResolver? = null,
+    private val trackMetadataRepository: TrackMetadataRepository? = null,
 ) : DirectoryRepository {
     companion object {
         private const val MAX_DIRECTORY_CACHE_SIZE = 50
@@ -99,6 +107,162 @@ class DirectoryRepositoryImpl(
                 }
             }
         }
+
+    override fun observeDirectoryContent(
+        server: WebDavServer,
+        path: String,
+        forceRefresh: Boolean,
+    ): Flow<DirectoryContent> =
+        flow {
+            val normalizedPath = RemoteDirectory.normalizePath(path)
+            val cachedDir = if (!forceRefresh) getCachedDirectory(server, normalizedPath) else null
+
+            // 1. Cache hit (0ms)
+            if (cachedDir != null) {
+                val initialMeta = getCachedMetadataMap(server.id, cachedDir)
+                val initialCue = getInitialCueAlbums(cachedDir)
+                emit(
+                    DirectoryContent(
+                        directory = cachedDir,
+                        cueAlbums = initialCue,
+                        metadataMap = initialMeta,
+                        isEnriching = true,
+                    ),
+                )
+            }
+
+            // 2. Network query
+            val remoteResult =
+                try {
+                    webDavClient.listDirectory(server, normalizedPath)
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (e: Exception) {
+                    ListDirectoryResult.Failure(e.message ?: "Unknown error")
+                }
+
+            when (remoteResult) {
+                is ListDirectoryResult.Success -> {
+                    val remoteDir = remoteResult.directory
+                    val remoteDiffersFromCache = (cachedDir == null || remoteDir != cachedDir)
+
+                    if (remoteDiffersFromCache) {
+                        persistCache(server.id, normalizedPath, remoteDir)
+                        val currentMeta = getCachedMetadataMap(server.id, remoteDir)
+                        val currentCue = getInitialCueAlbums(remoteDir)
+                        emit(
+                            DirectoryContent(
+                                directory = remoteDir,
+                                cueAlbums = currentCue,
+                                metadataMap = currentMeta,
+                                isEnriching = true,
+                            ),
+                        )
+                    }
+
+                    // 3. Background enrichment
+                    val enriched = enrichDirectoryContent(server, remoteDir, forceRefresh)
+                    emit(enriched)
+                }
+
+                is ListDirectoryResult.Failure -> {
+                    if (cachedDir != null && !forceRefresh) {
+                        // Suppress transient network failure and finish enrichment lifecycle cleanly
+                        val finalMeta = getCachedMetadataMap(server.id, cachedDir)
+                        val finalCue = getInitialCueAlbums(cachedDir)
+                        emit(
+                            DirectoryContent(
+                                directory = cachedDir,
+                                cueAlbums = finalCue,
+                                metadataMap = finalMeta,
+                                isEnriching = false,
+                            ),
+                        )
+                    } else {
+                        throw IllegalStateException(remoteResult.message)
+                    }
+                }
+            }
+        }
+
+    private suspend fun getCachedMetadataMap(
+        serverId: Long,
+        directory: RemoteDirectory,
+    ): Map<String, TrackMetadata> {
+        val audioFiles = directory.files.filter { it.isAudio }
+        if (audioFiles.isEmpty() || trackMetadataRepository == null) return emptyMap()
+        val metaMap = mutableMapOf<String, TrackMetadata>()
+        for (file in audioFiles) {
+            val meta = trackMetadataRepository.getCachedMetadata(serverId, file.path)
+            if (meta != null) {
+                metaMap[file.path] = meta
+            }
+        }
+        return metaMap
+    }
+
+    private fun getInitialCueAlbums(
+        directory: RemoteDirectory,
+    ): List<CueAlbumItem> {
+        val cueFiles = directory.files.filter { it.isCue }
+        val audioFiles = directory.files.filter { it.isAudio }
+        if (cueFiles.isEmpty()) return emptyList()
+
+        return cueFiles.map { cueFile ->
+            val matchedAudio =
+                CueAssociationHelper.findMatchingAudioFile(
+                    cueFile = cueFile,
+                    audioFiles = audioFiles,
+                    totalCueFilesCount = cueFiles.size,
+                )
+            CueAlbumItem(
+                cueFile = cueFile,
+                audioFile = matchedAudio,
+                tracks = emptyList(),
+                isExpanded = false,
+                isLoading = cueSheetResolver != null,
+                errorMessage = if (cueSheetResolver == null && matchedAudio == null) "未找到对应的目标音频文件" else null,
+            )
+        }
+    }
+
+    private suspend fun enrichDirectoryContent(
+        server: WebDavServer,
+        directory: RemoteDirectory,
+        forceRefresh: Boolean,
+    ): DirectoryContent {
+        val audioFiles = directory.files.filter { it.isAudio }
+        val cueFiles = directory.files.filter { it.isCue }
+
+        if (audioFiles.isNotEmpty() && trackMetadataRepository != null) {
+            trackMetadataRepository.resolveMetadata(
+                server = server,
+                files = audioFiles,
+                forceRefresh = forceRefresh,
+            )
+        }
+
+        val metadataMap = getCachedMetadataMap(server.id, directory)
+
+        val cueAlbums =
+            if (cueFiles.isNotEmpty() && cueSheetResolver != null) {
+                val parentDurations = metadataMap.mapValues { it.value.durationMs }
+                cueSheetResolver.resolveDirectoryCueAlbums(
+                    server = server,
+                    directory = directory,
+                    parentDurationsByPath = parentDurations,
+                )
+            } else {
+                getInitialCueAlbums(directory)
+            }
+
+        return DirectoryContent(
+            directory = directory,
+            cueAlbums = cueAlbums,
+            metadataMap = metadataMap,
+            isEnriching = false,
+        )
+    }
 
     override suspend fun listDirectory(
         server: WebDavServer,

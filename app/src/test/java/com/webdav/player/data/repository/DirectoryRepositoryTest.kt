@@ -5,16 +5,27 @@ import com.webdav.player.data.local.DirectoryCacheEntity
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.cue.CueSheetResolver
+import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.DirectoryContent
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
+import com.webdav.player.domain.model.TrackMetadata
+import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.repository.TrackMetadataRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +35,8 @@ import org.robolectric.RobolectricTestRunner
 class DirectoryRepositoryTest {
     private lateinit var fakeClient: FakeWebDavClient
     private lateinit var fakeDao: FakeDirectoryCacheDao
+    private lateinit var fakeCueSheetResolver: FakeCueSheetResolver
+    private lateinit var fakeTrackMetadataRepository: FakeTrackMetadataRepository
     private lateinit var repository: DirectoryRepositoryImpl
 
     private val testServer =
@@ -46,7 +59,15 @@ class DirectoryRepositoryTest {
     fun setUp() {
         fakeClient = FakeWebDavClient()
         fakeDao = FakeDirectoryCacheDao()
-        repository = DirectoryRepositoryImpl(fakeClient, fakeDao)
+        fakeCueSheetResolver = FakeCueSheetResolver()
+        fakeTrackMetadataRepository = FakeTrackMetadataRepository()
+        repository =
+            DirectoryRepositoryImpl(
+                webDavClient = fakeClient,
+                directoryCacheDao = fakeDao,
+                cueSheetResolver = fakeCueSheetResolver,
+                trackMetadataRepository = fakeTrackMetadataRepository,
+            )
     }
 
     @Test
@@ -514,4 +535,251 @@ class DirectoryRepositoryTest {
             endByte: Long,
         ): ByteArray? = null
     }
+
+    private class FakeTrackMetadataRepository : TrackMetadataRepository {
+        val metadataStore = mutableMapOf<String, TrackMetadata>()
+        var resolveCount = 0
+
+        override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> =
+            flowOf(metadataStore.values.filter { it.serverId == serverId })
+
+        override fun getMetadataForPathsFlow(
+            serverId: Long,
+            remotePaths: List<String>,
+        ): Flow<List<TrackMetadata>> =
+            flowOf(remotePaths.mapNotNull { metadataStore["$serverId:$it"] })
+
+        override fun getMetadataFlow(
+            serverId: Long,
+            remotePath: String,
+        ): Flow<TrackMetadata?> = flowOf(metadataStore["$serverId:$remotePath"])
+
+        override suspend fun getCachedMetadata(
+            serverId: Long,
+            remotePath: String,
+        ): TrackMetadata? = metadataStore["$serverId:$remotePath"]
+
+        override suspend fun resolveMetadata(
+            server: WebDavServer,
+            files: List<RemoteFile>,
+            forceRefresh: Boolean,
+        ) {
+            resolveCount++
+            for (file in files) {
+                if (file.isAudio && !metadataStore.containsKey("${server.id}:${file.path}")) {
+                    metadataStore["${server.id}:${file.path}"] =
+                        TrackMetadata(
+                            serverId = server.id,
+                            remotePath = file.path,
+                            title = file.name.substringBeforeLast('.'),
+                            artist = "Resolved Artist",
+                            album = "Resolved Album",
+                            durationMs = 180000L,
+                        )
+                }
+            }
+        }
+
+        override suspend fun resolveSingleTrackMetadata(
+            server: WebDavServer,
+            file: RemoteFile,
+        ): TrackMetadata =
+            TrackMetadata(
+                serverId = server.id,
+                remotePath = file.path,
+                title = file.name,
+                durationMs = 180000L,
+            )
+    }
+
+    private class FakeCueSheetResolver : CueSheetResolver {
+        val resolvedAlbums = mutableListOf<CueAlbumItem>()
+
+        override suspend fun resolveDirectoryCueAlbums(
+            server: WebDavServer,
+            directory: RemoteDirectory,
+            parentDurationsByPath: Map<String, Long>,
+        ): List<CueAlbumItem> = resolvedAlbums
+
+        override suspend fun resolveVirtualTracks(
+            server: WebDavServer,
+            cuePath: String,
+            parentAudioPath: String,
+            totalDurationMs: Long?,
+        ): List<VirtualTrack> = emptyList()
+
+        override fun clearCache() {}
+    }
+
+    @Test
+    fun observeDirectoryContent_withCacheMiss_emitsInitialEnriching_thenEmitsEnrichedFinished() =
+        runTest {
+            val audioFile = RemoteFile(name = "song.mp3", path = "/Music/song.mp3", size = 1000)
+            val dir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(audioFile))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(dir)
+
+            val emissions = repository.observeDirectoryContent(testServer, "/Music/").toList()
+
+            assertEquals(2, emissions.size)
+            // First emission: remote directory fetched, isEnriching = true
+            assertTrue(emissions[0].isEnriching)
+            assertEquals(dir, emissions[0].directory)
+            assertTrue(emissions[0].metadataMap.isEmpty())
+
+            // Second emission: background metadata enriched, isEnriching = false
+            assertFalse(emissions[1].isEnriching)
+            assertEquals(dir, emissions[1].directory)
+            assertEquals(1, emissions[1].metadataMap.size)
+            assertEquals("song", emissions[1].metadataMap["/Music/song.mp3"]?.title)
+            assertEquals(1, fakeTrackMetadataRepository.resolveCount)
+        }
+
+    @Test
+    fun observeDirectoryContent_withCacheHitAndDiff_emitsCached_thenRemoteUpdate_thenEnrichedSnapshot() =
+        runTest {
+            val cachedFile = RemoteFile(name = "old.mp3", path = "/Music/old.mp3", size = 100)
+            val cachedDir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(cachedFile))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(cachedDir)
+            repository.listDirectory(testServer, "/Music/")
+
+            val freshFile1 = RemoteFile(name = "old.mp3", path = "/Music/old.mp3", size = 100)
+            val freshFile2 = RemoteFile(name = "new.mp3", path = "/Music/new.mp3", size = 200)
+            val freshDir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(freshFile1, freshFile2))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(freshDir)
+
+            val emissions = repository.observeDirectoryContent(testServer, "/Music/").toList()
+
+            assertEquals(3, emissions.size)
+            // 1st emission: cached dir at 0ms (isEnriching = true)
+            assertTrue(emissions[0].isEnriching)
+            assertEquals(cachedDir, emissions[0].directory)
+
+            // 2nd emission: remote update received (isEnriching = true)
+            assertTrue(emissions[1].isEnriching)
+            assertEquals(freshDir, emissions[1].directory)
+
+            // 3rd emission: enrichment finished (isEnriching = false)
+            assertFalse(emissions[2].isEnriching)
+            assertEquals(freshDir, emissions[2].directory)
+            assertEquals(2, emissions[2].metadataMap.size)
+        }
+
+    @Test
+    fun observeDirectoryContent_withCacheHitIdentical_emitsCached_thenEnrichedSnapshot() =
+        runTest {
+            val file = RemoteFile(name = "track.mp3", path = "/Music/track.mp3", size = 500)
+            val dir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(file))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(dir)
+            repository.listDirectory(testServer, "/Music/")
+
+            val emissions = repository.observeDirectoryContent(testServer, "/Music/").toList()
+
+            assertEquals(2, emissions.size)
+            assertTrue(emissions[0].isEnriching)
+            assertEquals(dir, emissions[0].directory)
+
+            assertFalse(emissions[1].isEnriching)
+            assertEquals(dir, emissions[1].directory)
+            assertEquals(1, emissions[1].metadataMap.size)
+        }
+
+    @Test
+    fun observeDirectoryContent_withCacheHit_whenRemoteFails_emitsCachedAndSuppressesError() =
+        runTest {
+            val file = RemoteFile(name = "offline.mp3", path = "/Music/offline.mp3", size = 800)
+            val cachedDir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(file))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(cachedDir)
+            repository.listDirectory(testServer, "/Music/")
+
+            // Remote now fails with network error
+            fakeClient.results["/Music/"] = ListDirectoryResult.Failure("Network timeout", 408)
+
+            val emissions = repository.observeDirectoryContent(testServer, "/Music/").toList()
+
+            assertEquals(2, emissions.size)
+            // 1st emission: cached directory (isEnriching = true)
+            assertTrue(emissions[0].isEnriching)
+            assertEquals(cachedDir, emissions[0].directory)
+
+            // 2nd emission: cached directory retained, isEnriching set to false to dismiss spinner cleanly!
+            assertFalse(emissions[1].isEnriching)
+            assertEquals(cachedDir, emissions[1].directory)
+        }
+
+    @Test
+    fun observeDirectoryContent_withCacheMiss_whenRemoteFails_throwsException() =
+        runTest {
+            fakeClient.results["/Music/"] = ListDirectoryResult.Failure("404 Not Found", 404)
+
+            var caughtError: Throwable? = null
+            repository
+                .observeDirectoryContent(testServer, "/Music/")
+                .catch { caughtError = it }
+                .collect {}
+
+            assertNotNull(caughtError)
+            assertTrue(caughtError?.message?.contains("404") == true)
+        }
+
+    @Test
+    fun observeDirectoryContent_withForceRefresh_bypassesCacheAndEnriches() =
+        runTest {
+            val cachedDir = RemoteDirectory(path = "/Music/", name = "Cached Music")
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(cachedDir)
+            repository.listDirectory(testServer, "/Music/")
+
+            val freshFile = RemoteFile(name = "fresh.mp3", path = "/Music/fresh.mp3", size = 123)
+            val freshDir = RemoteDirectory(path = "/Music/", name = "Fresh Music", files = listOf(freshFile))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(freshDir)
+
+            val emissions = repository.observeDirectoryContent(testServer, "/Music/", forceRefresh = true).toList()
+
+            // Does not emit cachedDir; emits freshDir with isEnriching = true then false
+            assertEquals(2, emissions.size)
+            assertTrue(emissions[0].isEnriching)
+            assertEquals(freshDir, emissions[0].directory)
+
+            assertFalse(emissions[1].isEnriching)
+            assertEquals(freshDir, emissions[1].directory)
+            assertEquals(1, emissions[1].metadataMap.size)
+        }
+
+    @Test
+    fun observeDirectoryContent_withCueFile_populatesCueAlbums() =
+        runTest {
+            val cueFile = RemoteFile(name = "album.cue", path = "/Music/album.cue", size = 100)
+            val audioFile = RemoteFile(name = "album.flac", path = "/Music/album.flac", size = 5000)
+            val dir = RemoteDirectory(path = "/Music/", name = "Music", files = listOf(cueFile, audioFile))
+            fakeClient.results["/Music/"] = ListDirectoryResult.Success(dir)
+
+            val cueItem =
+                CueAlbumItem(
+                    cueFile = cueFile,
+                    audioFile = audioFile,
+                    tracks =
+                        listOf(
+                            VirtualTrack(
+                                trackNumber = 1,
+                                title = "Track 1",
+                                performer = "Artist",
+                                startTimeMs = 0L,
+                                endTimeMs = 180000L,
+                                parentAudioPath = audioFile.path,
+                            ),
+                        ),
+                    isExpanded = false,
+                    isLoading = false,
+                )
+            fakeCueSheetResolver.resolvedAlbums.add(cueItem)
+
+            val emissions = repository.observeDirectoryContent(testServer, "/Music/").toList()
+
+            assertEquals(2, emissions.size)
+            val finalContent = emissions[1]
+            assertFalse(finalContent.isEnriching)
+            assertEquals(1, finalContent.cueAlbums.size)
+            assertEquals("album.cue", finalContent.cueAlbums.first().cueFile.name)
+            assertEquals(1, finalContent.cueAlbums.first().tracks.size)
+            assertEquals("Track 1", finalContent.cueAlbums.first().tracks.first().title)
+        }
 }

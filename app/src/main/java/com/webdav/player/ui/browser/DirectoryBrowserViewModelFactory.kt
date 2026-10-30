@@ -26,15 +26,7 @@ class DirectoryBrowserViewModelFactory(
                     ServerRepositoryImpl(database.webDavServerDao(), storage)
                 }
             val client = app?.webDavClient ?: OkHttpWebDavClient()
-            val directoryRepository =
-                app?.directoryRepository ?: run {
-                    val database = AppDatabase.getInstance(context)
-                    DirectoryRepositoryImpl(
-                        webDavClient = client,
-                        directoryCacheDao = database.directoryCacheDao(),
-                    )
-                }
-            val session = app?.musicPlayerAppSession
+            val cueSheetResolver = app?.cueSheetResolver ?: DefaultCueSheetResolver(client)
             val metadataRepository =
                 app?.trackMetadataRepository ?: run {
                     val database = AppDatabase.getInstance(context)
@@ -48,16 +40,27 @@ class DirectoryBrowserViewModelFactory(
                         webDavServerDao = database.webDavServerDao(),
                     )
                 }
+            val directoryRepository =
+                app?.directoryRepository ?: run {
+                    val database = AppDatabase.getInstance(context)
+                    DirectoryRepositoryImpl(
+                        webDavClient = client,
+                        directoryCacheDao = database.directoryCacheDao(),
+                        cueSheetResolver = cueSheetResolver,
+                        trackMetadataRepository = metadataRepository,
+                    )
+                }
+            val session = app?.musicPlayerAppSession
             val searchRepository =
                 app?.librarySearchRepository ?: run {
                     val database = AppDatabase.getInstance(context)
                     com.webdav.player.data.repository.LibrarySearchRepositoryImpl(
                         directoryCacheDao = database.directoryCacheDao(),
                         trackMetadataDao = database.trackMetadataDao(),
+                        cueSheetResolver = cueSheetResolver,
                         context = context,
                     )
                 }
-            val cueSheetResolver = app?.cueSheetResolver ?: DefaultCueSheetResolver(client)
 
             return DirectoryBrowserViewModel(
                 serverRepository = serverRepository,
