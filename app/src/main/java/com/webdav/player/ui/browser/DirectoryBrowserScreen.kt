@@ -238,19 +238,19 @@ fun DirectoryBrowserScreen(
                         )
                     },
                     actions = {
-                        if (!uiState.isInitializing && uiState.activeServer != null) {
-                            IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {
-                                Icon(
-                                    imageVector = AppIcons.Search,
-                                    contentDescription = "搜索曲库",
-                                )
-                            }
-                        }
                         if (!uiState.isInitializing) {
                             IconButton(onClick = { viewModel.onRefresh() }) {
                                 Icon(
                                     imageVector = AppIcons.Refresh,
                                     contentDescription = "刷新目录",
+                                )
+                            }
+                        }
+                        if (!uiState.isInitializing && uiState.activeServer != null) {
+                            IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {
+                                Icon(
+                                    imageVector = AppIcons.Search,
+                                    contentDescription = "搜索曲库",
                                 )
                             }
                         }
