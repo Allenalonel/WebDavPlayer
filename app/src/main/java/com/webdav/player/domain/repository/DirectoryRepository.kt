@@ -14,7 +14,7 @@ interface DirectoryRepository {
      */
     suspend fun getCachedDirectory(
         server: WebDavServer,
-        path: String
+        path: String,
     ): RemoteDirectory? = null
 
     /**
@@ -27,7 +27,7 @@ interface DirectoryRepository {
     fun observeDirectory(
         server: WebDavServer,
         path: String,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
     ): Flow<ListDirectoryResult>
 
     /**
@@ -54,7 +54,7 @@ interface DirectoryRepository {
     suspend fun listDirectory(
         server: WebDavServer,
         path: String,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
     ): ListDirectoryResult
 
     /**

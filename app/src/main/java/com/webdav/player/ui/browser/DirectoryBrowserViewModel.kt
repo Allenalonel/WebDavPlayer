@@ -345,9 +345,10 @@ class DirectoryBrowserViewModel(
     fun toggleCueAlbumExpanded(cuePath: String) {
         _uiState.update { current ->
             current.copy(
-                cueAlbums = current.cueAlbums.map {
-                    if (it.cueFile.path == cuePath) it.copy(isExpanded = !it.isExpanded) else it
-                },
+                cueAlbums =
+                    current.cueAlbums.map {
+                        if (it.cueFile.path == cuePath) it.copy(isExpanded = !it.isExpanded) else it
+                    },
             )
         }
     }
@@ -383,6 +384,8 @@ class DirectoryBrowserViewModel(
         return if (matches) Triple(track?.remotePath, track?.id, isPlaying) else Triple(null, null, false)
     }
 
-    private fun buildBreadcrumbs(server: WebDavServer?, path: String): List<Breadcrumb> =
-        RemoteDirectory.buildBreadcrumbs(server, path)
+    private fun buildBreadcrumbs(
+        server: WebDavServer?,
+        path: String,
+    ): List<Breadcrumb> = RemoteDirectory.buildBreadcrumbs(server, path)
 }
