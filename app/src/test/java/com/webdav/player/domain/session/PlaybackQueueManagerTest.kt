@@ -220,4 +220,31 @@ class PlaybackQueueManagerTest {
         assertTrue(queueClearedCalled)
         assertTrue(flushRequested)
     }
+
+    @Test
+    fun shufflePermutation_remainsStableAcrossQueueProgressionAndSettingMode() {
+        queueManager.setPlaybackMode(PlaybackMode.SHUFFLE)
+        val initialOrder = sessionStateFlow.value.queue.shuffleOrder
+        assertEquals(3, initialOrder.size)
+
+        // Advancing next index under shuffle maintains the permutation order
+        val nextIdx = queueManager.calculateNextQueueIndex(sessionStateFlow.value.queue, PlaybackMode.SHUFFLE)
+        val targetOrderIndex = (initialOrder.indexOf(sessionStateFlow.value.queue.currentIndex) + 1) % initialOrder.size
+        assertEquals(initialOrder[targetOrderIndex], nextIdx)
+
+        // Setting same mode does not regenerate/reshuffle the order
+        queueManager.setPlaybackMode(PlaybackMode.SHUFFLE)
+        assertEquals(initialOrder, sessionStateFlow.value.queue.shuffleOrder)
+    }
+
+    @Test
+    fun playNext_whenQueueEmptyAndActiveServerNull_delegatesToPlayTrackIfServerRepoPresent() {
+        sessionStateFlow.value = sessionStateFlow.value.copy(activeServer = null, queue = PlaybackQueue.EMPTY)
+        val insert = createTrack("fallback")
+        var playedTrack: AudioTrack? = null
+
+        queueManager.playNext(insert, hasServerOrRepo = true, onPlayTrack = { playedTrack = it })
+
+        assertEquals(insert, playedTrack)
+    }
 }

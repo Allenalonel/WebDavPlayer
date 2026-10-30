@@ -8,12 +8,13 @@ While ADR-0018 successfully consolidated external intent routing into a unified 
 
 ## Solution
 
-Decompose the monolithic playback session implementation behind its existing, stable domain interface into three package-private (`internal`) collaborators:
+Decompose the monolithic playback session implementation behind its existing, stable domain interface into package-private (`internal`) collaborators:
 1. A session persistence coordinator handling state serialization, periodic flushing, cold restoration, and CUE session reconstruction.
 2. A playback queue manager handling queue state machine transitions, index calculations, list/single loop rules, shuffle order generation, ad-hoc insertions, and inactive track skip cycles.
 3. A playback fault tolerance guard handling buffering watchdog delays, EOF detection, 404/auth failure recovery, and unsupported range replay arbitration.
+4. A playback metadata coordinator handling reactive track metadata enrichment, lyrics observation, and physical audio duration preservation across queue mutations.
 
-The primary session implementation retains its role as a lean orchestrator (< 700 lines) delegating to these collaborators while keeping the external intent interface 100% unchanged.
+The primary session implementation retains its role as a lean orchestrator (< 700 lines, target ~550 lines, and strictly <= 600 lines per AGENTS.md) delegating to these collaborators while keeping the external intent interface 100% unchanged.
 
 ## User Stories
 
@@ -30,11 +31,12 @@ The primary session implementation retains its role as a lean orchestrator (< 70
 ## Implementation Decisions
 
 1. **Preserve External Seam**: The public domain interface `MusicPlayerAppSession` remains completely unchanged. All public methods, properties, StateFlow emissions, and intent contracts are preserved verbatim.
-2. **Package-Private Collaborators**: Three new collaborators are created inside the `domain.session` package with `internal` visibility:
+2. **Package-Private Collaborators**: Four focused collaborators are created inside the `domain.session` package with `internal` visibility:
    - `SessionPersistenceCoordinator`: Encapsulates DataStore operations, periodic flushing coroutines, last visited directory memory, and cold session reconstruction.
    - `PlaybackQueueManager`: Encapsulates immutable queue transitions, next/previous index calculations, list loop/single loop/shuffle ordering, ad-hoc insertions, track removal, and failed-track cycle guardrails.
    - `PlaybackFaultTolerance`: Encapsulates buffering watchdog coroutine jobs, weak network state tracking, HTTP 404/credential failure categorization, and unsupported HTTP Range dialogue confirmations.
-3. **Lean Orchestrator Composition**: The session implementation maintains references to the three internal collaborators alongside the underlying player engine and virtual timeline engine, delegating specific domain tasks and combining their outputs into the unified `PlayerSessionState` and `PlaybackProgress` flows.
+   - `PlaybackMetadataCoordinator`: Encapsulates reactive track metadata enrichment from cache, active server metadata observation, and lyrics resolution without polluting the session orchestrator.
+3. **Lean Orchestrator Composition**: The session implementation maintains references to the internal collaborators alongside the underlying player engine and virtual timeline engine, delegating specific domain tasks and combining their outputs into the unified `PlayerSessionState` and `PlaybackProgress` flows.
 4. **Step-by-Step Expand-Contract Migration**: Refactoring proceeds in discrete vertical slices:
    - Slice 1: Extract and integrate `SessionPersistenceCoordinator` with dedicated unit tests.
    - Slice 2: Extract and integrate `PlaybackQueueManager` with dedicated unit tests.

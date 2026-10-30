@@ -270,7 +270,14 @@ internal class PlaybackFaultTolerance(
         } else if (isServerUnreachableException(e)) {
             handleServerUnavailable(track, onSkipToNext = onSkipToNext)
         } else {
-            throw e
+            sessionStateFlow.update {
+                it.copy(
+                    playbackState = PlaybackState.Error(e.message ?: "加载音频失败"),
+                    errorMessage = e.message ?: "加载音频失败",
+                    canManualRetry = false,
+                    isWeakNetwork = false,
+                )
+            }
         }
     }
 

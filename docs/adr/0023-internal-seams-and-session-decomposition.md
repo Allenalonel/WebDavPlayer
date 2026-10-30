@@ -19,8 +19,8 @@
 - `MusicPlayerAppSession` 顶级领域接口**保持 100% 稳定，不增删或修改任何方法签名**；
 - 外部所有调用方（Compose UI、`WebDavMediaSessionCallback`、`WebDavMediaService`、`PlaybackSessionHost`）调用代码**零破坏、零改动**。
 
-### 2. 建立三大包级私有（`internal`）协作者（Internal Seams）
-在 `domain.session` 包内建立三大职责高度专注的私有协作者类，对外部包完全不可见：
+### 2. 建立四大包级私有（`internal`）协作者（Internal Seams）
+在 `domain.session` 包内建立四大职责高度专注的私有协作者类，对外部包完全不可见：
 
 1. **`SessionPersistenceCoordinator`（会话持久化与冷恢复协调器）**：
    - 专职负责会话快照落盘与冷启动会话重建；
@@ -35,12 +35,15 @@
    - 管控弱网 15 秒提示与 30 秒自动暂停看门狗（`bufferingWatchdogJob`）；
    - 集中处理 HTTP 404 文件丢失、服务器凭证失效与服务器不可达异常的判定与安全跳跃；
    - 仲裁不支持 HTTP Range 的重试对话框确认与忽略状态。
+4. **`PlaybackMetadataCoordinator`（元数据富化与歌词协调器）**：
+   - 专职负责响应式监听服务器元数据更新、歌词异步加载，以及队列音轨元数据同步缓存富化；
+   - 彻底隔离元数据与歌词处理管道，杜绝逻辑反向浸润到核心调度器。
 
 ### 3. 主类纯化为轻量总调度器（Lean Orchestrator）
 - `MusicPlayerAppSessionImpl` 不再直接编写持久化序列化代码或队列算法，转为作为轻量中枢协调器：
-  - 持有底层的 `AudioPlayerEngine`、`VirtualTimelineEngine` 以及上述 3 个内部协作者；
+  - 持有底层的 `AudioPlayerEngine`、`VirtualTimelineEngine` 以及上述 4 个内部协作者；
   - 专职做意图派发与底层事件到 `PlayerSessionState` / `PlaybackProgress` 的响应式映射；
-  - 核心实现类代码行数由 2,149 行削减至 **700 行以内**。
+  - 核心实现类代码行数由 2,149 行削减至 **600 行以内**（目标 ~550 行）。
 
 ### 4. 确立内部接缝规范（Internal Seam Discipline）
 - 正式在项目规范中设立铁律：深模块是对外接口属性，绝非单文件膨胀的借口；

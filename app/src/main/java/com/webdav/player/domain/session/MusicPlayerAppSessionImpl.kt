@@ -78,7 +78,7 @@ class MusicPlayerAppSessionImpl(
     )
     override val isRestored: StateFlow<Boolean> = persistenceCoordinator.isRestored
 
-    private val queueManager = PlaybackQueueManager(_sessionState) { coroutineScope.launch { flushSession() } }
+    private val queueManager = PlaybackQueueManager(_sessionState, serverRepository, cueSheetResolver) { coroutineScope.launch { flushSession() } }
     private val faultTolerance = PlaybackFaultTolerance(_sessionState, playerEngine, playlistRepository, queueManager, coroutineScope)
     private val metadataCoordinator = PlaybackMetadataCoordinator(trackMetadataRepository, lyricsRepository, playerEngine, _sessionState, coroutineScope)
 
@@ -146,7 +146,7 @@ class MusicPlayerAppSessionImpl(
             it.copy(queue = queue.copy(currentIndex = targetIndex), durationMs = targetTrack.durationMs, isUnsupportedRange = false, isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
         }
         coroutineScope.launch {
-            val (vt, startMs) = queueManager.resolveVirtualTrackOffset(targetTrack, server, serverRepository, cueSheetResolver)
+            val (vt, startMs) = queueManager.resolveVirtualTrackOffset(targetTrack, server)
             val parent = if (vt != null) targetTrack.copy(id = targetTrack.id.substringBefore("#cue_")) else null
             val cue = if (vt != null) targetTrack.cuePath ?: (targetTrack.remotePath.substringBeforeLast('.') + ".cue") else null
             val finalStartMs = applyCueContextAndGetStartMs(vt?.let { listOf(it) }, parent, cue, startMs)
@@ -287,7 +287,7 @@ class MusicPlayerAppSessionImpl(
         virtualTracksByAudioPath: Map<String, List<VirtualTrack>>,
     ) {
         val server = _sessionState.value.activeServer ?: return
-        val request = queueManager.buildDirectoryQueue(directory, selectedFile, initialMetadata, virtualTracksByAudioPath, server, cueSheetResolver) ?: return
+        val request = queueManager.buildDirectoryQueue(directory, selectedFile, initialMetadata, virtualTracksByAudioPath, server) ?: return
         dispatchQueueLoad(server, request, directory.path)
         metadataCoordinator.enrichQueueTracksFromCache(server, request.queue)
     }
@@ -296,7 +296,7 @@ class MusicPlayerAppSessionImpl(
         val server = _sessionState.value.activeServer
         if (server == null && serverRepository == null) return
         coroutineScope.launch {
-            val request = queueManager.buildTrackQueue(track, server, serverRepository, cueSheetResolver)
+            val request = queueManager.buildTrackQueue(track, server)
             val effectiveServer = server ?: serverRepository?.getServerById(track.serverId) ?: return@launch
             dispatchQueueLoad(effectiveServer, request)
             metadataCoordinator.enrichSingleTrackMetadata(effectiveServer, track)
@@ -341,7 +341,8 @@ class MusicPlayerAppSessionImpl(
         coroutineScope.launch { flushSession() }
     }
 
-    override fun playNext(track: AudioTrack) = queueManager.playNext(track) { playTrack(it) }
+    override fun playNext(track: AudioTrack) =
+        queueManager.playNext(track, _sessionState.value.activeServer != null || serverRepository != null) { playTrack(it) }
 
     override fun playNextAndAdvance(track: AudioTrack) {
         queueManager.playNextAndAdvance(
@@ -425,7 +426,7 @@ class MusicPlayerAppSessionImpl(
     override fun playPlaylist(playlist: Playlist, startIndex: Int) {
         coroutineScope.launch {
             val entries = playlistRepository?.getTracksForPlaylist(playlist.id) ?: emptyList()
-            val request = queueManager.buildPlaylistQueue(entries, startIndex, _sessionState.value.activeServer, serverRepository, cueSheetResolver)
+            val request = queueManager.buildPlaylistQueue(entries, startIndex, _sessionState.value.activeServer)
             if (request == null) {
                 _sessionState.update { it.copy(queue = PlaybackQueue.EMPTY, errorMessage = null) }
                 return@launch
@@ -532,13 +533,6 @@ class MusicPlayerAppSessionImpl(
     override suspend fun restoreSession() = persistenceCoordinator.restoreSession()
     override suspend fun flushSession() = persistenceCoordinator.flushSession()
     suspend fun flushSessionWithCleanExit(isCleanExit: Boolean) = persistenceCoordinator.flushSessionWithCleanExit(isCleanExit)
-
-    companion object {
-        const val DURATION_COMPLETION_TOLERANCE_MS: Long = 5000L
-        const val COMPLETION_PROGRESS_THRESHOLD: Double = 0.95
-        const val PREROLL_TRIGGER_WINDOW_MS: Long = 10_000L
-        const val HEALTHY_NETWORK_QUIET_PERIOD_MS: Long = 30_000L
-    }
 
     @VisibleForTesting
     fun setShuffleOrder(order: List<Int>) = queueManager.setShuffleOrder(order)
