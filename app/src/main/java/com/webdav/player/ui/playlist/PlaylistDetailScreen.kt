@@ -55,6 +55,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,17 +105,17 @@ class DragDropState(
         val currentItemInfo = visibleItems.firstOrNull { it.index == currentIndex } ?: return
         val currentMidY = currentItemInfo.offset + dragOffset + currentItemInfo.size / 2f
 
-        for (item in visibleItems) {
+                for (item in visibleItems) {
             if (item.index != currentIndex) {
                 val itemMidY = item.offset + item.size / 2f
                 if (dragOffset > 0 && currentMidY > itemMidY && item.index > currentIndex) {
                     onMove(currentIndex, item.index)
-                    dragOffset -= item.size
+                    dragOffset -= (item.offset - currentItemInfo.offset)
                     draggedIndex = item.index
                     break
                 } else if (dragOffset < 0 && currentMidY < itemMidY && item.index < currentIndex) {
                     onMove(currentIndex, item.index)
-                    dragOffset += item.size
+                    dragOffset -= (item.offset - currentItemInfo.offset)
                     draggedIndex = item.index
                     break
                 }
@@ -572,7 +573,7 @@ fun PlaylistTrackRow(
             parts.joinToString(" · ")
         }
 
-    // 细化滑动操作：右滑删除，左滑下一首播放
+    // 细化滑动操作：右滑删除，左滑下一首播放（增大滑动触发阈值至 65%，避免误触）
     val dismissState =
         key(track.id) {
             rememberSwipeToDismissBoxState(
@@ -595,6 +596,7 @@ fun PlaylistTrackRow(
                         }
                     }
                 },
+                positionalThreshold = { totalDistance -> totalDistance * 0.65f },
             )
         }
 
@@ -604,6 +606,8 @@ fun PlaylistTrackRow(
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
+
+    val currentIdx by rememberUpdatedState(index)
 
     SwipeToDismissBox(
         state = dismissState,
@@ -677,30 +681,8 @@ fun PlaylistTrackRow(
             }
         },
     ) {
-        val rowSurfaceModifier =
-            if (showDragHandle) {
-                Modifier
-                    .fillMaxWidth()
-                    .pointerInput(dragDropState, index) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                dragDropState.onDragStart(index)
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                dragDropState.onDrag(dragAmount.y)
-                            },
-                            onDragEnd = { dragDropState.onDragStopped() },
-                            onDragCancel = { dragDropState.onDragStopped() },
-                        )
-                    }
-            } else {
-                Modifier.fillMaxWidth()
-            }
-
         Surface(
-            modifier = rowSurfaceModifier,
+            modifier = Modifier.fillMaxWidth(),
             color =
                 if (isDragging) {
                     MaterialTheme.colorScheme.surfaceContainerHigh
@@ -725,12 +707,12 @@ fun PlaylistTrackRow(
                                 Box(
                                     modifier =
                                         Modifier
-                                            .size(28.dp)
-                                            .pointerInput(dragDropState, index) {
+                                            .size(36.dp)
+                                            .pointerInput(dragDropState) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
                                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                        dragDropState.onDragStart(index)
+                                                        dragDropState.onDragStart(currentIdx)
                                                     },
                                                     onVerticalDrag = { change, dragAmount ->
                                                         change.consume()
