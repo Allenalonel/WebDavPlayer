@@ -4,12 +4,20 @@
 
 **Blocked by:** 01: Extract SessionPersistenceCoordinator
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Create internal `PlaybackQueueManager` in `domain.session` package
-- [ ] Move `calculateNextQueueIndex`, `calculatePreviousQueueIndex`, and shuffle order generation into the queue manager
-- [ ] Move ad-hoc queue insertion (`playNext`, `playNextAndAdvance`), queue track removal (`removeQueueTrack`), and `setPlaybackMode` / `cyclePlaybackMode` into the queue manager
-- [ ] Move `failedTrackIdsInCurrentCycle` and inactive track skipping protection into the queue manager
-- [ ] Add dedicated `PlaybackQueueManagerTest` covering all playback modes (list loop, single loop, shuffle), ad-hoc insertions, and skip cycles
-- [ ] Update `MusicPlayerAppSessionImpl` to delegate queue management to `PlaybackQueueManager`
-- [ ] Verify full test suite passes cleanly
+- [x] Create internal `PlaybackQueueManager` in `domain.session` package
+- [x] Move `calculateNextQueueIndex`, `calculatePreviousQueueIndex`, and shuffle order generation into the queue manager
+- [x] Move ad-hoc queue insertion (`playNext`, `playNextAndAdvance`), queue track removal (`removeQueueTrack`), and `setPlaybackMode` / `cyclePlaybackMode` into the queue manager
+- [x] Move `failedTrackIdsInCurrentCycle` and inactive track skipping protection into the queue manager
+- [x] Add dedicated `PlaybackQueueManagerTest` covering all playback modes (list loop, single loop, shuffle), ad-hoc insertions, and skip cycles
+- [x] Update `MusicPlayerAppSessionImpl` to delegate queue management to `PlaybackQueueManager`
+- [x] Verify full test suite passes cleanly
+
+## Answer
+
+Extracted `PlaybackQueueManager` as an internal collaborator in `domain.session`:
+1. Encapsulated `PlaybackQueue` state transitions, next/previous index calculations under all playback modes (`LIST_LOOP`, `SINGLE_LOOP`, `SHUFFLE`), lazy shuffle order generation, and ad-hoc insertions (`playNext`, `playNextAndAdvance`) and removals (`removeQueueTrack`).
+2. Encapsulated `failedTrackIdsInCurrentCycle` and dead-track cycle prevention: when tracks fail, SINGLE_LOOP automatically advances to prevent infinite spin, and when all queue tracks have failed, it safely halts skipping.
+3. Created `PlaybackQueueManagerTest` with 11 targeted unit tests verifying queue index math, SINGLE_LOOP error advances, cycle exhaustion protection, shuffle ordering, ad-hoc insertions, and track removals without player engine dependencies.
+4. Refactored `MusicPlayerAppSessionImpl` to delegate all queue manipulations to `PlaybackQueueManager`, keeping test suites 100% green.

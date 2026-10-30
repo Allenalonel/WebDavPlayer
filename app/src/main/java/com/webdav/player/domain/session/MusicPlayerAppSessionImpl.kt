@@ -78,8 +78,13 @@ class MusicPlayerAppSessionImpl(
     private var activeParentAudioTrack: AudioTrack? = null
     private var activeCuePath: String? = null
     private var hasStreamLoaded = false
-    private val failedTrackIdsInCurrentCycle = mutableSetOf<String>()
     private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
+
+    private val queueManager =
+        PlaybackQueueManager(
+            sessionStateFlow = _sessionState,
+            onFlushRequested = { coroutineScope.launch { flushSession() } },
+        )
 
     private val persistenceCoordinator =
         SessionPersistenceCoordinator(
@@ -160,12 +165,10 @@ class MusicPlayerAppSessionImpl(
     private fun handleServerUnavailable(track: AudioTrack) {
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
         playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_UNREACHABLE)
-        failedTrackIdsInCurrentCycle.add(track.id)
         val queueSize = _sessionState.value.queue.size
-        if (queueSize > 1 && failedTrackIdsInCurrentCycle.size < queueSize) {
+        if (queueManager.recordFailedTrack(track.id, queueSize)) {
             skipToNext()
         } else {
-            failedTrackIdsInCurrentCycle.clear()
             _sessionState.update {
                 it.copy(
                     playbackState = PlaybackState.Error("所属服务器无法连接"),
@@ -182,15 +185,17 @@ class MusicPlayerAppSessionImpl(
         errorMessage: String? = null,
     ) {
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-        if (track != null) {
-            playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.FILE_NOT_FOUND)
-            failedTrackIdsInCurrentCycle.add(track.id)
-        }
         val queueSize = _sessionState.value.queue.size
-        if (queueSize > 1 && failedTrackIdsInCurrentCycle.size < queueSize) {
+        val shouldSkip =
+            if (track != null) {
+                playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.FILE_NOT_FOUND)
+                queueManager.recordFailedTrack(track.id, queueSize)
+            } else {
+                false
+            }
+        if (shouldSkip) {
             skipToNext()
         } else {
-            failedTrackIdsInCurrentCycle.clear()
             val msg = errorMessage ?: "音频文件已被重命名或删除"
             _sessionState.update {
                 it.copy(
@@ -208,15 +213,17 @@ class MusicPlayerAppSessionImpl(
         errorMessage: String? = null,
     ) {
         bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-        if (track != null) {
-            playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_CREDENTIAL_INVALID)
-            failedTrackIdsInCurrentCycle.add(track.id)
-        }
         val queueSize = _sessionState.value.queue.size
-        if (queueSize > 1 && failedTrackIdsInCurrentCycle.size < queueSize) {
+        val shouldSkip =
+            if (track != null) {
+                playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_CREDENTIAL_INVALID)
+                queueManager.recordFailedTrack(track.id, queueSize)
+            } else {
+                false
+            }
+        if (shouldSkip) {
             skipToNext()
         } else {
-            failedTrackIdsInCurrentCycle.clear()
             val msg = errorMessage ?: "服务器认证凭据失效"
             _sessionState.update {
                 it.copy(
@@ -946,7 +953,7 @@ class MusicPlayerAppSessionImpl(
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
         activeCuePath = null
-        failedTrackIdsInCurrentCycle.clear()
+        queueManager.clearFailedTracks()
         val server = _sessionState.value.activeServer
         if (server == null && serverRepository == null) return
         val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0, origin = QueueOrigin.AD_HOC)
@@ -1174,29 +1181,18 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun playNext(track: AudioTrack) {
-        if (_sessionState.value.activeServer == null) return
-        val currentQueue = _sessionState.value.queue
-        if (currentQueue.isEmpty) {
-            playTrack(track)
-            return
-        }
-        val updatedQueue = currentQueue.insertNext(track)
-        _sessionState.update { it.copy(queue = updatedQueue) }
-        coroutineScope.launch { flushSession() }
+        queueManager.playNext(track) { playTrack(it) }
     }
 
     override fun playNextAndAdvance(track: AudioTrack) {
-        if (_sessionState.value.activeServer == null && serverRepository == null) return
-        val currentQueue = _sessionState.value.queue
-        if (currentQueue.isEmpty) {
-            playTrack(track)
-            return
-        }
-        val targetIndex = (currentQueue.currentIndex + 1).coerceAtMost(currentQueue.tracks.size)
-        val updatedQueue = currentQueue.insertNext(track)
-        _sessionState.update { it.copy(queue = updatedQueue) }
-        val server = _sessionState.value.activeServer
-        transitionToQueueIndex(server, targetIndex)
+        queueManager.playNextAndAdvance(
+            track = track,
+            hasServerOrRepo = (_sessionState.value.activeServer != null || serverRepository != null),
+            onPlayTrack = { playTrack(it) },
+            onTransitionToIndex = { targetIndex ->
+                transitionToQueueIndex(_sessionState.value.activeServer, targetIndex)
+            },
+        )
     }
 
     override fun togglePlayPause() {
@@ -1397,7 +1393,7 @@ class MusicPlayerAppSessionImpl(
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
         activeCuePath = null
-        failedTrackIdsInCurrentCycle.clear()
+        queueManager.clearFailedTracks()
 
         coroutineScope.launch {
             val entries = playlistRepository?.getTracksForPlaylist(playlist.id) ?: emptyList()
@@ -1470,12 +1466,7 @@ class MusicPlayerAppSessionImpl(
         if (queue.isEmpty) return
         val server = _sessionState.value.activeServer
 
-        val nextIndex =
-            if (failedTrackIdsInCurrentCycle.isNotEmpty() && _sessionState.value.playbackMode == PlaybackMode.SINGLE_LOOP) {
-                (queue.currentIndex + 1) % queue.tracks.size
-            } else {
-                calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-            }
+        val nextIndex = queueManager.calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
         transitionToQueueIndex(server, nextIndex)
     }
 
@@ -1503,7 +1494,7 @@ class MusicPlayerAppSessionImpl(
             return
         }
 
-        val prevIndex = queue.getPreviousIndex(_sessionState.value.playbackMode) ?: 0
+        val prevIndex = queueManager.calculatePreviousQueueIndex(queue, _sessionState.value.playbackMode)
         transitionToQueueIndex(server, prevIndex)
     }
 
@@ -1520,70 +1511,35 @@ class MusicPlayerAppSessionImpl(
         val queue = _sessionState.value.queue
         if (index !in queue.tracks.indices) return
         val server = _sessionState.value.activeServer
-        failedTrackIdsInCurrentCycle.clear()
+        queueManager.clearFailedTracks()
         transitionToQueueIndex(server, index)
     }
 
     override fun cyclePlaybackMode() {
-        val nextMode = _sessionState.value.playbackMode.next()
-        setPlaybackMode(nextMode)
+        queueManager.cyclePlaybackMode()
     }
 
     override fun setPlaybackMode(mode: PlaybackMode) {
-        _sessionState.update { current ->
-            val updatedQueue =
-                if (mode == PlaybackMode.SHUFFLE && current.queue.shuffleOrder.isEmpty() && current.queue.tracks.isNotEmpty()) {
-                    current.queue.withGeneratedShuffleOrder()
-                } else {
-                    current.queue
-                }
-            current.copy(playbackMode = mode, queue = updatedQueue)
-        }
-        coroutineScope.launch { flushSession() }
+        queueManager.setPlaybackMode(mode)
     }
 
     override fun removeQueueTrack(index: Int) {
         clearPrerollIfActive()
-        val currentQueue = _sessionState.value.queue
-        if (index !in currentQueue.tracks.indices) return
-
-        val wasCurrentTrack = (index == currentQueue.currentIndex)
-        val updatedQueue = currentQueue.removeTrackAt(index)
-
-        if (updatedQueue.isEmpty) {
-            hasStreamLoaded = false
-            playerEngine.stop()
-            _playbackProgress.value = PlaybackProgress.ZERO
-            _sessionState.update {
-                it.copy(
-                    queue = PlaybackQueue.EMPTY,
-                    playbackState = PlaybackState.Idle,
-                    durationMs = 0L,
-                    lyrics = null,
-                    isLoadingLyrics = false,
-                )
-            }
-        } else {
-            val nextTrack = updatedQueue.currentTrack
-            if (wasCurrentTrack && nextTrack != null) {
+        queueManager.removeQueueTrack(
+            index = index,
+            onQueueCleared = {
+                hasStreamLoaded = false
+                playerEngine.stop()
+                _playbackProgress.value = PlaybackProgress.ZERO
+            },
+            onCurrentTrackChanged = { nextTrack ->
                 _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
-                _sessionState.update {
-                    it.copy(
-                        queue = updatedQueue,
-                        durationMs = nextTrack.durationMs,
-                    )
-                }
                 val server = _sessionState.value.activeServer
                 if (server != null) {
                     loadTrackIntoEngine(server, nextTrack, 0L)
                 }
-            } else {
-                _sessionState.update {
-                    it.copy(queue = updatedQueue)
-                }
-            }
-        }
-        coroutineScope.launch { flushSession() }
+            },
+        )
     }
 
     override fun retryPlayback() {
@@ -1742,16 +1698,13 @@ class MusicPlayerAppSessionImpl(
 
     @androidx.annotation.VisibleForTesting
     fun setShuffleOrder(order: List<Int>) {
-        _sessionState.update { it.copy(queue = it.queue.copy(shuffleOrder = order)) }
+        queueManager.setShuffleOrder(order)
     }
 
     private fun calculateNextQueueIndex(
         queue: PlaybackQueue,
         mode: PlaybackMode,
-    ): Int {
-        if (queue.tracks.size <= 1) return 0
-        return queue.getNextIndex(mode) ?: 0
-    }
+    ): Int = queueManager.calculateNextQueueIndex(queue, mode)
 
     private fun checkAndTriggerAdaptivePreroll(progress: PlaybackProgress) {
         if (virtualTimelineEngine.isActive || isPrerollAppended.get()) return

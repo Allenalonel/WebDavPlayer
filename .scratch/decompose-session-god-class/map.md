@@ -21,10 +21,11 @@ flowchart TD
 ## Tickets
 
 - [x] [01: Extract SessionPersistenceCoordinator](./issues/01-extract-session-persistence-coordinator.md)
+- [x] [02: Extract PlaybackQueueManager](./issues/02-extract-playback-queue-manager.md)
+- [ ] [03: Extract PlaybackFaultTolerance](./issues/03-extract-playback-fault-tolerance.md)
+- [ ] [04: Consolidate Session Orchestrator & Verify Budget](./issues/04-consolidate-session-orchestrator-and-verify-budget.md)
 
 ## Decisions so far
 
 - **Ticket 01 (Extract SessionPersistenceCoordinator)**: Extracted `SessionPersistenceCoordinator` to encapsulate `PlaybackSessionStore`, cold restoration, periodic flushing, and per-server directory memory. See [01-extract-session-persistence-coordinator.md](./issues/01-extract-session-persistence-coordinator.md).
-- [ ] [02: Extract PlaybackQueueManager](./issues/02-extract-playback-queue-manager.md)
-- [ ] [03: Extract PlaybackFaultTolerance](./issues/03-extract-playback-fault-tolerance.md)
-- [ ] [04: Consolidate Session Orchestrator & Verify Budget](./issues/04-consolidate-session-orchestrator-and-verify-budget.md)
+- **Ticket 02 (Extract PlaybackQueueManager)**: Extracted `PlaybackQueueManager` to encapsulate queue calculations, loop/shuffle algorithms, ad-hoc insertions, and dead-track cycle prevention. See [02-extract-playback-queue-manager.md](./issues/02-extract-playback-queue-manager.md).
