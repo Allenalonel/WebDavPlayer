@@ -10,7 +10,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Create `ui/playlist/components/PlaylistTrackRow.kt` and move `PlaylistTrackRow` and related row animations
 - [ ] Create `ui/playlist/components/PlaylistTrackDetailDialog.kt` and move `PlaylistTrackDetailDialog`, `PlaylistInfoRow`, and `formatTrackFileSize`

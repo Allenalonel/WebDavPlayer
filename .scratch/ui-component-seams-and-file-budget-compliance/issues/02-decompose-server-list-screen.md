@@ -8,7 +8,7 @@
 
 **Blocked by:** None (can run independently or after 01)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Create `ui/server/components/ServerCardItem.kt` and move `ServerCardItem` and private card helpers
 - [ ] Update `ServerListScreen.kt` imports and call the extracted `ServerCardItem`

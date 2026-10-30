@@ -10,7 +10,7 @@
 
 **Blocked by:** None (can run independently or after 01, 02)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Create `ui/player/components/PlayerVinylArtwork.kt` and move `ArtworkPage` and vinyl disc rotation animations
 - [ ] Create `ui/player/components/PlayerTransportControls.kt` and move `PlaybackModeButton`, transport controls, and slider logic
