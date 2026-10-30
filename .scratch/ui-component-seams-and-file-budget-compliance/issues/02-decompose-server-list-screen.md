@@ -8,9 +8,9 @@
 
 **Blocked by:** None (can run independently or after 01)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] Create `ui/server/components/ServerCardItem.kt` and move `ServerCardItem` and private card helpers
-- [ ] Update `ServerListScreen.kt` imports and call the extracted `ServerCardItem`
-- [ ] Verify `ServerListScreen.kt` line count is under 220 lines (strictly complying with 600-line budget)
-- [ ] Verify all server management tests pass cleanly (`./gradlew testDebugUnitTest`)
+- [x] Create `ui/server/components/ServerCardItem.kt` and move `ServerCardItem` and private card helpers
+- [x] Update `ServerListScreen.kt` imports and call the extracted `ServerCardItem`
+- [x] Verify `ServerListScreen.kt` line count is under 220 lines (strictly complying with 600-line budget)
+- [x] Verify all server management tests pass cleanly (`./gradlew testDebugUnitTest`)

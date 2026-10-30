@@ -5,7 +5,7 @@ Decomposing monolithic Compose screen files into focused component seams under t
 
 ## Issues Graph
 - [ ] **01-decompose-playlist-detail-screen** (Unblocked & ready)
-- [ ] **02-decompose-server-list-screen** (Unblocked & ready)
+- [x] **02-decompose-server-list-screen** (Completed)
 - [ ] **03-decompose-full-player-view** (Unblocked & ready)
 
 ## Decisions So Far
