@@ -4,15 +4,17 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Create `CueSheetResolver` interface under `domain/cue/CueSheetResolver.kt` with methods:
+- [x] Create `CueSheetResolver` interface under `domain/cue/CueSheetResolver.kt` with methods:
   - `suspend fun resolveDirectoryCueAlbums(server: WebDavServer, directory: RemoteDirectory, parentDurationsByPath: Map<String, Long> = emptyMap()): List<CueAlbumItem>`
   - `suspend fun resolveVirtualTracks(server: WebDavServer, cuePath: String, parentAudioPath: String, totalDurationMs: Long? = null): List<VirtualTrack>`
   - `fun clearCache()`
-- [ ] Implement `DefaultCueSheetResolver` under `data/cue/DefaultCueSheetResolver.kt` taking `WebDavClient` and optional `CoroutineDispatcher`.
-- [ ] Internalize a thread-safe, bounded in-memory LRU cache (capacity 50) for transient CUE text, strictly adhering to ADR-0002 zero-disk persistence.
-- [ ] Internalize `CueAssociationHelper` and `CueParser` within the resolver's pipeline, handling CUE FILE directives, base name matching, single-pair directory fallback, and duration calculation.
-- [ ] Write comprehensive unit tests in `DefaultCueSheetResolverTest` verifying directory album resolution, virtual track resolution, LRU eviction, and network fallback.
+- [x] Implement `DefaultCueSheetResolver` under `data/cue/DefaultCueSheetResolver.kt` taking `WebDavClient` and optional `CoroutineDispatcher`.
+- [x] Internalize a thread-safe, bounded in-memory LRU cache (capacity 50) for transient CUE text, strictly adhering to ADR-0002 zero-disk persistence.
+- [x] Internalize `CueAssociationHelper` and `CueParser` within the resolver's pipeline, handling CUE FILE directives, base name matching, single-pair directory fallback, and duration calculation.
+- [x] Write comprehensive unit tests in `DefaultCueSheetResolverTest` verifying directory album resolution, virtual track resolution, LRU eviction, and network fallback.
 
 ## Comments
+
+Built `CueSheetResolver` domain interface and `DefaultCueSheetResolver` with internal 50-item synchronized bounded LRU cache, encapsulating network fetching, association heuristics, and AST virtual track parsing. Verified with 14 unit tests in `DefaultCueSheetResolverTest`.
