@@ -18,6 +18,8 @@
 - [03 resolved] Implemented `PlaylistDetailScreen` with LazyColumn drag reordering, multi-dimensional sorting, track removal, and verified tests. (See `.scratch/global-search-and-cross-server-playlists/issues/03-playlist-detail-drag-reordering-and-sorting.md`)
 - [04 resolved] Implemented cross-server playlist playback (`playPlaylist`), dynamic server authentication context, 404 auto-skip self-healing, and inactive track diagnosis Toast. (See `.scratch/global-search-and-cross-server-playlists/issues/04-cross-server-playback-and-inactive-track-fault-tolerance.md`)
 - [05 resolved] Added end-to-end integration test `EndToEndPlaylistAndSearchPipelineTest`, preserved playlist queue origin across session persistence and cold restart, and passed size budget gate (APK <= 7.5 MB, DEX <= 4.0 MB). (See `.scratch/global-search-and-cross-server-playlists/issues/05-end-to-end-pipeline-and-packaging-budget-gate.md`)
+- [code-review P1 resolved] Added Room indices for track_metadata & directory_cache in MIGRATION_4_5, switched to indexed SQLite search, persisted search history via SearchHistoryStore, made search global across servers, and integrated auth & reachability fault-tolerance.
+
 
 
 
