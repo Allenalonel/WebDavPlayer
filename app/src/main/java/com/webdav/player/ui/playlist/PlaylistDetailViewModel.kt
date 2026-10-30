@@ -117,7 +117,21 @@ class PlaylistDetailViewModel(
                     if (current.isReordering) {
                         current.copy(isLoading = false)
                     } else {
-                        current.copy(tracks = enrichedTracks, isLoading = false)
+                        val currentIds = current.tracks.map { it.id }
+                        val newIds = enrichedTracks.map { it.id }
+                        if (currentIds == newIds) {
+                            val needsUpdate =
+                                current.tracks.zip(enrichedTracks).any { (a, b) ->
+                                    a.coverThumbnailPath != b.coverThumbnailPath || a.isInactive != b.isInactive
+                                }
+                            if (needsUpdate) {
+                                current.copy(tracks = enrichedTracks, isLoading = false)
+                            } else {
+                                current.copy(isLoading = false)
+                            }
+                        } else {
+                            current.copy(tracks = enrichedTracks, isLoading = false)
+                        }
                     }
                 }
 
@@ -170,13 +184,15 @@ class PlaylistDetailViewModel(
 
     fun onDragEnd() {
         val currentTracks = _uiState.value.tracks
-        _uiState.update { it.copy(isReordering = false) }
         viewModelScope.launch {
             try {
                 val orderedIds = currentTracks.map { it.id }
                 playlistRepository.updateTrackOrders(playlistId, orderedIds)
             } catch (e: Exception) {
                 _uiState.update { it.copy(errorMessage = e.message ?: "保存排序失败") }
+            } finally {
+                kotlinx.coroutines.delay(150)
+                _uiState.update { it.copy(isReordering = false) }
             }
         }
     }

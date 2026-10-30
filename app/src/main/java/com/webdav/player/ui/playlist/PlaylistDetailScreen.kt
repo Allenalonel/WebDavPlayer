@@ -363,20 +363,25 @@ fun PlaylistDetailScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp),
                     ) {
                         itemsIndexed(
                             items = uiState.tracks,
                             key = { _, item -> item.id },
                         ) { index, track ->
+                            val isDragging = dragDropState.draggedIndex == index
                             PlaylistTrackRow(
                                 track = track,
                                 index = index,
                                 dragDropState = dragDropState,
                                 onClick = { onTrackClick(track, index) },
                                 onRemove = { viewModel.removeTrack(track.id) },
-                                modifier = Modifier.animateItemPlacement(),
+                                modifier =
+                                    if (isDragging) {
+                                        Modifier.zIndex(3f)
+                                    } else {
+                                        Modifier.animateItemPlacement()
+                                    },
                             )
                         }
                     }
@@ -494,7 +499,7 @@ fun PlaylistTrackRow(
 
     val isDragging = dragDropState.draggedIndex == index
     val elevation by animateDpAsState(
-        targetValue = if (isDragging) 8.dp else 1.dp,
+        targetValue = if (isDragging) 6.dp else 0.dp,
         label = "drag_elevation",
     )
 
@@ -541,7 +546,6 @@ fun PlaylistTrackRow(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
                         .background(color)
                         .padding(horizontal = 20.dp),
                 contentAlignment =
@@ -559,7 +563,7 @@ fun PlaylistTrackRow(
             }
         },
     ) {
-        ElevatedCard(
+        Surface(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -576,184 +580,200 @@ fun PlaylistTrackRow(
                             onDragEnd = { dragDropState.onDragStopped() },
                             onDragCancel = { dragDropState.onDragStopped() },
                         )
-                    }
-                    .clickable(onClick = onClick)
-                    .alpha(if (track.isInactive) 0.38f else 1f),
-            shape = RoundedCornerShape(16.dp),
-            colors =
-                CardDefaults.elevatedCardColors(
-                    containerColor =
-                        if (isDragging) {
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerLowest
-                        },
-                ),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = elevation),
+                    },
+            color =
+                if (isDragging) {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
         ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // 拖拽手把
-                Box(
+            Box(modifier = Modifier.fillMaxWidth()) {
+                ListItem(
                     modifier =
                         Modifier
-                            .size(28.dp)
-                            .pointerInput(dragDropState, index) {
-                                detectVerticalDragGestures(
-                                    onDragStart = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        dragDropState.onDragStart(index)
-                                    },
-                                    onVerticalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        dragDropState.onDrag(dragAmount)
-                                    },
-                                    onDragEnd = { dragDropState.onDragStopped() },
-                                    onDragCancel = { dragDropState.onDragStopped() },
-                                )
-                            },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = AppIcons.DragHandle,
-                        contentDescription = "拖拽排序",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                // 48×48dp 方形圆角专辑封面海报
-                Box(
-                    modifier =
-                        Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CoverThumbnailImage(
-                        thumbnailPath = track.coverThumbnailPath,
-                        contentDescription = "封面",
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color =
-                                if (track.isVirtualTrack) {
-                                    MaterialTheme.colorScheme.tertiaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                },
-                            modifier = Modifier.fillMaxSize(),
+                            .fillMaxWidth()
+                            .clickable(onClick = onClick)
+                            .alpha(if (track.isInactive) 0.38f else 1f),
+                    leadingContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (track.isVirtualTrack) AppIcons.QueueMusic else AppIcons.Audiotrack,
-                                    contentDescription = null,
-                                    tint =
-                                        if (track.isVirtualTrack) {
-                                            MaterialTheme.colorScheme.onTertiaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.onPrimaryContainer
+                            // 拖拽手把
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(28.dp)
+                                        .pointerInput(dragDropState, index) {
+                                            detectVerticalDragGestures(
+                                                onDragStart = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    dragDropState.onDragStart(index)
+                                                },
+                                                onVerticalDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragDropState.onDrag(dragAmount)
+                                                },
+                                                onDragEnd = { dragDropState.onDragStopped() },
+                                                onDragCancel = { dragDropState.onDragStopped() },
+                                            )
                                         },
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // 歌曲信息
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = track.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        if (track.isVirtualTrack) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Text(
-                                    text = "分轨",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                Icon(
+                                    imageVector = AppIcons.DragHandle,
+                                    contentDescription = "拖拽排序",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(18.dp),
                                 )
                             }
+
+                            // 序号
+                            Text(
+                                text = "${index + 1}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(20.dp),
+                                textAlign = TextAlign.Center,
+                            )
+
+                            // 44×44dp 歌曲专辑海报封面
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CoverThumbnailImage(
+                                    thumbnailPath = track.coverThumbnailPath,
+                                    contentDescription = "封面",
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color =
+                                            if (track.isVirtualTrack) {
+                                                MaterialTheme.colorScheme.tertiaryContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.secondaryContainer
+                                            },
+                                        modifier = Modifier.fillMaxSize(),
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (track.isVirtualTrack) AppIcons.QueueMusic else AppIcons.Audiotrack,
+                                                contentDescription = null,
+                                                tint =
+                                                    if (track.isVirtualTrack) {
+                                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                                    },
+                                                modifier = Modifier.size(22.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }
-                    if (subtitle.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                if (track.durationMs > 0L) {
-                    Text(
-                        text = durationText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(horizontal = 6.dp),
-                    )
-                }
-
-                // 三点操作菜单
-                Box {
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.MoreVert,
-                            contentDescription = "更多操作",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = AppIcons.DeleteOutline,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp),
+                    },
+                    headlineContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = track.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (track.isVirtualTrack) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                                ) {
+                                    Text(
+                                        text = "分轨",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    supportingContent = {
+                        if (subtitle.isNotBlank()) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (track.durationMs > 0L) {
+                                Text(
+                                    text = durationText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(end = 4.dp),
                                 )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onRemove()
-                            },
-                        )
-                    }
-                }
+                            }
+                            Box {
+                                IconButton(
+                                    onClick = { showMenu = true },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.MoreVert,
+                                        contentDescription = "更多操作",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.DeleteOutline,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        },
+                                        onClick = {
+                                            showMenu = false
+                                            onRemove()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                )
+
+                HorizontalDivider(
+                    modifier =
+                        Modifier
+                            .padding(start = 100.dp, end = 16.dp)
+                            .align(Alignment.BottomCenter),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                )
             }
         }
     }
