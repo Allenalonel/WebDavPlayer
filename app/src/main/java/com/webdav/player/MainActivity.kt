@@ -359,11 +359,17 @@ class MainActivity : ComponentActivity() {
                             onDismissRequest = { trackToAddToPlaylist = null },
                             onSelectPlaylist = { playlist ->
                                 val trackName = track.title
-                                playlistViewModel.addTrackToPlaylist(playlist.id, track) {
+                                playlistViewModel.addTrackToPlaylist(playlist.id, track) { isAdded ->
+                                    val message =
+                                        if (isAdded) {
+                                            "已将 “$trackName” 添加到歌单 “${playlist.name}”"
+                                        } else {
+                                            "“$trackName” 已在歌单 “${playlist.name}” 中"
+                                        }
                                     Toast
                                         .makeText(
                                             context,
-                                            "已将 “$trackName” 添加到歌单 “${playlist.name}”",
+                                            message,
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                 }

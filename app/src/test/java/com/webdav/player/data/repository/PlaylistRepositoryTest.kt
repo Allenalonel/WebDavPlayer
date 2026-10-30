@@ -168,6 +168,83 @@ class PlaylistRepositoryTest {
         }
 
     @Test
+    fun addTrackToPlaylist_duplicateTrackReturnsMinusOneAndDoesNotDuplicate() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("防重测试歌单")
+            val track =
+                AudioTrack(
+                    id = "1:/i_do.mp3",
+                    serverId = 1L,
+                    remotePath = "/i_do.mp3",
+                    title = "I Do",
+                    artist = "911",
+                    format = AudioFormat.MP3,
+                )
+
+            val firstInsertId = repository.addTrackToPlaylist(playlistId, track)
+            assertTrue(firstInsertId > 0L)
+
+            val secondInsertId = repository.addTrackToPlaylist(playlistId, track)
+            assertEquals(-1L, secondInsertId)
+
+            val tracks = repository.getTracksForPlaylist(playlistId)
+            assertEquals(1, tracks.size)
+            assertEquals("I Do", tracks[0].title)
+        }
+
+    @Test
+    fun addTracksToPlaylist_filtersDuplicates() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("批量防重歌单")
+            val track1 = AudioTrack(id = "1:/1.mp3", serverId = 1L, remotePath = "/1.mp3", title = "T1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/2.mp3", serverId = 1L, remotePath = "/2.mp3", title = "T2", format = AudioFormat.MP3)
+
+            repository.addTrackToPlaylist(playlistId, track1)
+
+            // Batch adding track1 and track2: track1 is duplicate, only track2 should be inserted
+            val insertedIds = repository.addTracksToPlaylist(playlistId, listOf(track1, track2))
+            assertEquals(1, insertedIds.size)
+
+            val tracks = repository.getTracksForPlaylist(playlistId)
+            assertEquals(2, tracks.size)
+        }
+
+    @Test
+    fun getTracksForPlaylist_selfHealsExistingDuplicates() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("自愈重复歌单")
+            val track = AudioTrack(id = "1:/i_do.mp3", serverId = 1L, remotePath = "/i_do.mp3", title = "I Do", format = AudioFormat.MP3)
+
+            // Manually insert duplicate rows directly into DAO to simulate existing legacy duplicates
+            val entity1 = com.webdav.player.data.local.PlaylistTrackEntity(
+                playlistId = playlistId,
+                serverId = track.serverId,
+                remotePath = track.remotePath,
+                sortOrder = 0,
+                title = track.title,
+                format = "MP3",
+            )
+            val entity2 = com.webdav.player.data.local.PlaylistTrackEntity(
+                playlistId = playlistId,
+                serverId = track.serverId,
+                remotePath = track.remotePath,
+                sortOrder = 1,
+                title = track.title,
+                format = "MP3",
+            )
+            database.playlistDao().insertTrack(entity1)
+            database.playlistDao().insertTrack(entity2)
+
+            // Direct DAO count has 2
+            assertEquals(2, database.playlistDao().getTracksForPlaylist(playlistId).size)
+
+            // Repository query self-heals: filters duplicate in return list and launches background cleanup
+            val tracks = repository.getTracksForPlaylist(playlistId)
+            assertEquals(1, tracks.size)
+            assertEquals("I Do", tracks[0].title)
+        }
+
+    @Test
     fun addTrackToPlaylist_crossServerTracksPersistedCorrectly() =
         runBlocking {
             val playlistId = repository.createPlaylist("跨服务器歌单")
@@ -421,7 +498,7 @@ class PlaylistRepositoryTest {
             val track3 = AudioTrack(id = "1:/3.mp3", serverId = 1L, remotePath = "/3.mp3", title = "T3", format = AudioFormat.MP3)
 
             val id1 = repository.addTrackToPlaylist(playlistId, track1)
-            val id2 = repository.addTrackToPlaylist(playlistId, track2)
+            repository.addTrackToPlaylist(playlistId, track2)
             val id3 = repository.addTrackToPlaylist(playlistId, track3)
 
             assertEquals(3, repository.getPlaylist(playlistId)?.trackCount)

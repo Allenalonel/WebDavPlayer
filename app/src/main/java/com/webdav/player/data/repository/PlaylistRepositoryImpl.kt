@@ -138,10 +138,26 @@ class PlaylistRepositoryImpl(
             _inactiveTracksFlow,
             serversFlow,
         ) { entities, inactiveMap, servers ->
+            val seenKeys = mutableSetOf<String>()
+            val duplicateIds = mutableListOf<Long>()
+            val uniqueEntities = mutableListOf<PlaylistTrackEntity>()
+            for (entity in entities) {
+                val key = "${entity.serverId}:${entity.remotePath}:${entity.virtualTrackId ?: ""}"
+                if (seenKeys.add(key)) {
+                    uniqueEntities.add(entity)
+                } else {
+                    duplicateIds.add(entity.id)
+                }
+            }
+            if (duplicateIds.isNotEmpty()) {
+                coroutineScope.launch {
+                    playlistDao.deleteTracksByIds(duplicateIds)
+                }
+            }
             val serverMap = servers?.associateBy { it.id }
 
             val reconciled =
-                entities.map { entity ->
+                uniqueEntities.map { entity ->
                     val domain = entity.toDomain()
                     val manualReason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
                     val server = serverMap?.get(domain.serverId)
@@ -189,12 +205,28 @@ class PlaylistRepositoryImpl(
 
     override suspend fun getTracksForPlaylist(playlistId: Long): List<PlaylistTrackEntry> {
         val entities = playlistDao.getTracksForPlaylist(playlistId)
+        val seenKeys = mutableSetOf<String>()
+        val duplicateIds = mutableListOf<Long>()
+        val uniqueEntities = mutableListOf<PlaylistTrackEntity>()
+        for (entity in entities) {
+            val key = "${entity.serverId}:${entity.remotePath}:${entity.virtualTrackId ?: ""}"
+            if (seenKeys.add(key)) {
+                uniqueEntities.add(entity)
+            } else {
+                duplicateIds.add(entity.id)
+            }
+        }
+        if (duplicateIds.isNotEmpty()) {
+            coroutineScope.launch {
+                playlistDao.deleteTracksByIds(duplicateIds)
+            }
+        }
         val inactiveMap = _inactiveTracksFlow.value
         val servers = serverRepository?.getAllServers()?.firstOrNull()
         val serverMap = servers?.associateBy { it.id }
 
         val reconciled =
-            entities.map { entity ->
+            uniqueEntities.map { entity ->
                 val domain = entity.toDomain()
                 val manualReason = inactiveMap[TrackKey(domain.serverId, domain.remotePath)] ?: domain.inactiveReason
                 val server = serverMap?.get(domain.serverId)
@@ -244,6 +276,17 @@ class PlaylistRepositoryImpl(
         track: AudioTrack,
         cuePath: String?,
     ): Long {
+        val virtualTrackId = if (track.isVirtualTrack) track.id else null
+        val existing =
+            playlistDao.findTrackInPlaylist(
+                playlistId = playlistId,
+                serverId = track.serverId,
+                remotePath = track.remotePath,
+                virtualTrackId = virtualTrackId,
+            )
+        if (existing != null) {
+            return -1L
+        }
         val currentMaxSort = playlistDao.getMaxSortOrder(playlistId) ?: -1
         val newSortOrder = currentMaxSort + 1
         val entry =
@@ -263,15 +306,23 @@ class PlaylistRepositoryImpl(
         tracks: List<AudioTrack>,
     ): List<Long> {
         if (tracks.isEmpty()) return emptyList()
-        val currentMaxSort = playlistDao.getMaxSortOrder(playlistId) ?: -1
-        var nextSort = currentMaxSort + 1
+        val existing = playlistDao.getTracksForPlaylist(playlistId)
+        val seenKeys = existing.map { "${it.serverId}:${it.remotePath}:${it.virtualTrackId ?: ""}" }.toMutableSet()
+        val distinctNewTracks =
+            tracks.filter { track ->
+                val virtualTrackId = if (track.isVirtualTrack) track.id else null
+                seenKeys.add("${track.serverId}:${track.remotePath}:${virtualTrackId ?: ""}")
+            }
+        if (distinctNewTracks.isEmpty()) return emptyList()
+
+        val startSort = (playlistDao.getMaxSortOrder(playlistId) ?: -1) + 1
         val entities =
-            tracks.map { track ->
+            distinctNewTracks.mapIndexed { index, track ->
                 val entry =
                     PlaylistTrackEntry.fromAudioTrack(
                         playlistId = playlistId,
                         track = track,
-                        sortOrder = nextSort++,
+                        sortOrder = startSort + index,
                         cuePath = track.cuePath,
                     )
                 PlaylistTrackEntity.fromDomain(entry)

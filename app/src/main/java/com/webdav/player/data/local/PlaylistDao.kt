@@ -125,4 +125,21 @@ interface PlaylistDao {
 
     @Query("SELECT MAX(sortOrder) FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun getMaxSortOrder(playlistId: Long): Int?
+
+    @Query(
+        """
+        SELECT * FROM playlist_tracks 
+        WHERE playlistId = :playlistId 
+          AND serverId = :serverId 
+          AND remotePath = :remotePath 
+          AND ((virtualTrackId IS NULL AND :virtualTrackId IS NULL) OR virtualTrackId = :virtualTrackId)
+        LIMIT 1
+        """,
+    )
+    suspend fun findTrackInPlaylist(
+        playlistId: Long,
+        serverId: Long,
+        remotePath: String,
+        virtualTrackId: String?,
+    ): PlaylistTrackEntity?
 }

@@ -109,13 +109,13 @@ class PlaylistListViewModel(
         playlistId: Long,
         track: AudioTrack,
         cuePath: String? = null,
-        onSuccess: (() -> Unit)? = null,
+        onResult: ((Boolean) -> Unit)? = null,
     ) {
         viewModelScope.launch {
             try {
                 val effectiveCue = cuePath ?: track.cuePath
-                playlistRepository.addTrackToPlaylist(playlistId, track, cuePath = effectiveCue)
-                onSuccess?.invoke()
+                val insertedId = playlistRepository.addTrackToPlaylist(playlistId, track, cuePath = effectiveCue)
+                onResult?.invoke(insertedId > 0L)
             } catch (e: Exception) {
                 _uiState.update { it.copy(errorMessage = e.message ?: "添加歌曲失败") }
             }

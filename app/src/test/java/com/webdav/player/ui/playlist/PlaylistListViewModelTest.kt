@@ -87,6 +87,10 @@ class FakePlaylistRepository : PlaylistRepository {
         cuePath: String?,
     ): Long {
         val list = tracksMap.getOrPut(playlistId) { mutableListOf() }
+        val vId = if (track.isVirtualTrack) track.id else null
+        if (list.any { it.serverId == track.serverId && it.remotePath == track.remotePath && it.virtualTrackId == vId }) {
+            return -1L
+        }
         val id = nextTrackId++
         val entry = PlaylistTrackEntry.fromAudioTrack(playlistId, track, list.size, cuePath).copy(id = id)
         list.add(entry)
@@ -309,12 +313,40 @@ class PlaylistListViewModelTest {
 
             var successCalled = false
             viewModel.addTrackToPlaylist(playlist.id, sampleTrack) {
-                successCalled = true
+                successCalled = it
             }
             advanceUntilIdle()
 
             assertTrue(successCalled)
             val state = viewModel.uiState.value
             assertEquals(1, state.playlists[0].trackCount)
+        }
+
+    @Test
+    fun addTrackToPlaylist_duplicateTrack_returnsFalseAndDoesNotIncrementCount() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("已有歌单")
+            advanceUntilIdle()
+            val playlist = viewModel.uiState.value.playlists.first()
+            val sampleTrack =
+                AudioTrack(
+                    id = "1:/song.flac",
+                    serverId = 1L,
+                    remotePath = "/song.flac",
+                    title = "Song",
+                    format = AudioFormat.FLAC,
+                )
+
+            var firstAdded: Boolean? = null
+            viewModel.addTrackToPlaylist(playlist.id, sampleTrack) { firstAdded = it }
+            advanceUntilIdle()
+            assertEquals(true, firstAdded)
+            assertEquals(1, viewModel.uiState.value.playlists[0].trackCount)
+
+            var secondAdded: Boolean? = null
+            viewModel.addTrackToPlaylist(playlist.id, sampleTrack) { secondAdded = it }
+            advanceUntilIdle()
+            assertEquals(false, secondAdded)
+            assertEquals(1, viewModel.uiState.value.playlists[0].trackCount)
         }
 }
