@@ -10,11 +10,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** completed
 
-- [ ] Create `ui/playlist/components/PlaylistTrackRow.kt` and move `PlaylistTrackRow` and related row animations
-- [ ] Create `ui/playlist/components/PlaylistTrackDetailDialog.kt` and move `PlaylistTrackDetailDialog`, `PlaylistInfoRow`, and `formatTrackFileSize`
-- [ ] Create `ui/playlist/components/PlaylistHeaderArea.kt` and move `PlaylistHeaderArea`
-- [ ] Update imports in `PlaylistDetailScreen.kt` and verify clean compilation
-- [ ] Verify `PlaylistDetailScreen.kt` line count is under 450 lines (strictly complying with 600-line budget)
-- [ ] Verify all playlist tests pass cleanly (`./gradlew testDebugUnitTest`)
+- [x] Create `ui/playlist/components/PlaylistTrackRow.kt` and move `PlaylistTrackRow` and related row animations
+- [x] Create `ui/playlist/components/PlaylistTrackDetailDialog.kt` and move `PlaylistTrackDetailDialog`, `PlaylistInfoRow`, and `formatTrackFileSize`
+- [x] Create `ui/playlist/components/PlaylistHeaderArea.kt` and move `PlaylistHeaderArea`
+- [x] Update imports in `PlaylistDetailScreen.kt` and verify clean compilation
+- [x] Verify `PlaylistDetailScreen.kt` line count is under 450 lines (strictly complying with 600-line budget)
+- [x] Verify all playlist tests pass cleanly (`./gradlew testDebugUnitTest`)
