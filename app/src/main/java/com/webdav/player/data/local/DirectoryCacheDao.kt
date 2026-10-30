@@ -17,6 +17,22 @@ interface DirectoryCacheDao {
     @Query("SELECT * FROM directory_cache")
     fun getAllFlow(): Flow<List<DirectoryCacheEntity>>
 
+    @Query(
+        """
+        SELECT * FROM directory_cache 
+        WHERE (:serverId IS NULL OR serverId = :serverId)
+          AND (
+              path LIKE '%' || :query || '%' 
+              OR dataJson LIKE '%' || :query || '%' 
+              OR dataJson LIKE '%.cue%'
+          )
+        """,
+    )
+    fun searchDirectoryCacheFlow(
+        query: String,
+        serverId: Long? = null,
+    ): Flow<List<DirectoryCacheEntity>>
+
     @Query("SELECT * FROM directory_cache WHERE serverId = :serverId")
     fun getAllByServerIdFlow(serverId: Long): Flow<List<DirectoryCacheEntity>>
 

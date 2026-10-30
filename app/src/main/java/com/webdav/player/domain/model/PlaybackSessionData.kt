@@ -12,7 +12,7 @@ data class PlaybackSessionData(
     val virtualTrackNumber: Int? = null,
     val virtualPositionMs: Long? = null,
     val cleanExit: Boolean = true,
-    val queueOrigin: String = "DIRECTORY",
+    val queueOrigin: QueueOrigin = QueueOrigin.DIRECTORY,
 ) {
     companion object {
         val EMPTY = PlaybackSessionData(
@@ -27,6 +27,7 @@ data class PlaybackSessionData(
             virtualTrackNumber = null,
             virtualPositionMs = null,
             cleanExit = true,
+            queueOrigin = QueueOrigin.DIRECTORY,
         )
     }
 }

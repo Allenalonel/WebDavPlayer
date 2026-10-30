@@ -492,7 +492,7 @@ fun PlaylistTrackRow(
 
     val durationText =
         remember(track.durationMs) {
-            formatDuration(track.durationMs)
+            com.webdav.player.domain.model.PlaybackProgress.formatMs(track.durationMs)
         }
 
     val subtitle =
@@ -692,12 +692,4 @@ fun PlaylistTrackRow(
             }
         }
     }
-}
-
-private fun formatDuration(durationMs: Long): String {
-    if (durationMs <= 0) return "--:--"
-    val totalSeconds = durationMs / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
 }

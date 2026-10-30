@@ -70,10 +70,11 @@ class PlaylistDetailViewModel(
         val tracksFlow: Flow<List<PlaylistTrackEntry>> =
             if (serverRepository != null) {
                 combine(rawTracksFlow, serverRepository.getAllServers()) { tracks, servers ->
-                    val serverIds = servers.map { it.id }.toSet()
+                    val serverMap = servers.associateBy { it.id }
                     tracks.map { track ->
+                        val server = serverMap[track.serverId]
                         when {
-                            track.serverId !in serverIds -> {
+                            server == null || server.url.isBlank() -> {
                                 track.copy(isInactive = true, inactiveReason = InactiveReason.SERVER_UNREACHABLE)
                             }
                             track.isInactive -> {

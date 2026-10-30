@@ -106,6 +106,12 @@ class MusicPlayerAppSessionImpl(
                 if (e.is404Exception()) {
                     handle404Failure(track)
                     return
+                } else if (isAuthException(e)) {
+                    handleAuthFailure(track)
+                    return
+                } else if (isServerUnreachableException(e)) {
+                    handleServerUnavailable(track)
+                    return
                 } else {
                     throw e
                 }
@@ -179,8 +185,72 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
+    private fun handleAuthFailure(
+        track: AudioTrack?,
+        errorMessage: String? = null,
+    ) {
+        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        if (track != null) {
+            playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_CREDENTIAL_INVALID)
+            failedTrackIdsInCurrentCycle.add(track.id)
+        }
+        val queueSize = _sessionState.value.queue.size
+        if (queueSize > 1 && failedTrackIdsInCurrentCycle.size < queueSize) {
+            skipToNext()
+        } else {
+            failedTrackIdsInCurrentCycle.clear()
+            val msg = errorMessage ?: "服务器认证凭据失效"
+            _sessionState.update {
+                it.copy(
+                    playbackState = PlaybackState.Error(msg),
+                    errorMessage = msg,
+                    canManualRetry = false,
+                    isWeakNetwork = false,
+                )
+            }
+        }
+    }
+
+    private fun isAuthException(e: Throwable): Boolean {
+        val causes = generateSequence(e) { it.cause }
+        return causes.any { c ->
+            (c is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException && (c.responseCode == 401 || c.responseCode == 403)) ||
+                c.message?.contains("401") == true ||
+                c.message?.contains("403") == true ||
+                c.message?.contains("Unauthorized", ignoreCase = true) == true ||
+                c.message?.contains("Forbidden", ignoreCase = true) == true
+        }
+    }
+
+    private fun isServerUnreachableException(e: Throwable): Boolean {
+        val causes = generateSequence(e) { it.cause }
+        return causes.any { c ->
+            c is java.net.ConnectException ||
+                c is java.net.UnknownHostException ||
+                c is java.net.SocketTimeoutException ||
+                c.message?.contains("Connection refused", ignoreCase = true) == true ||
+                c.message?.contains("Failed to connect", ignoreCase = true) == true
+        }
+    }
+
     private fun is404Error(state: PlaybackState.Error): Boolean =
         state.cause.is404Exception() || state.message.contains("404")
+
+    private fun isAuthError(state: PlaybackState.Error): Boolean {
+        val cause = state.cause
+        if (cause != null && isAuthException(cause)) return true
+        return state.message.contains("401") ||
+            state.message.contains("403") ||
+            state.message.contains("Unauthorized", ignoreCase = true) ||
+            state.message.contains("Forbidden", ignoreCase = true)
+    }
+
+    private fun isServerUnreachableError(state: PlaybackState.Error): Boolean {
+        val cause = state.cause
+        if (cause != null && isServerUnreachableException(cause)) return true
+        return state.message.contains("ConnectException") ||
+            state.message.contains("Connection refused", ignoreCase = true)
+    }
 
     private val bufferingWatchdogJobRef =
         java.util.concurrent.atomic
@@ -408,6 +478,15 @@ class MusicPlayerAppSessionImpl(
                             return@collect
                         } else if (is404Error(state)) {
                             handle404Failure(_sessionState.value.currentTrack, state.message)
+                            return@collect
+                        } else if (isAuthError(state)) {
+                            handleAuthFailure(_sessionState.value.currentTrack, state.message)
+                            return@collect
+                        } else if (isServerUnreachableError(state)) {
+                            val track = _sessionState.value.currentTrack
+                            if (track != null) {
+                                handleServerUnavailable(track)
+                            }
                             return@collect
                         } else {
                             _sessionState.update {
@@ -1816,7 +1895,7 @@ class MusicPlayerAppSessionImpl(
         activeCuePath = null
 
         val isPlaylist =
-            savedSession.queueOrigin == QueueOrigin.PLAYLIST.name ||
+            savedSession.queueOrigin == QueueOrigin.PLAYLIST ||
                 savedSession.queueTracks.map { it.serverId }.distinct().size > 1
         val origin = if (isPlaylist) QueueOrigin.PLAYLIST else QueueOrigin.DIRECTORY
         val restoredQueue =
@@ -1951,7 +2030,7 @@ class MusicPlayerAppSessionImpl(
                 virtualTrackNumber = virtualTrackNumber,
                 virtualPositionMs = virtualPosMs,
                 cleanExit = isCleanExit,
-                queueOrigin = current.queue.origin.name,
+                queueOrigin = current.queue.origin,
             )
         store.saveSession(sessionData)
     }

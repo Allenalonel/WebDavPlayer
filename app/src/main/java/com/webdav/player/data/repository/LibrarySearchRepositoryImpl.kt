@@ -32,19 +32,8 @@ class LibrarySearchRepositoryImpl(
             return flowOf(LibrarySearchResult())
         }
 
-        val dirFlow =
-            if (serverId != null) {
-                directoryCacheDao.getAllByServerIdFlow(serverId)
-            } else {
-                directoryCacheDao.getAllFlow()
-            }
-
-        val metaFlow =
-            if (serverId != null) {
-                trackMetadataDao.getAllMetadataForServerFlow(serverId)
-            } else {
-                trackMetadataDao.getAllMetadataFlow()
-            }
+        val dirFlow = directoryCacheDao.searchDirectoryCacheFlow(cleanQuery, serverId)
+        val metaFlow = trackMetadataDao.searchMetadataFlow(cleanQuery, serverId)
 
         return combine(dirFlow, metaFlow) { dirEntities, metaEntities ->
             val metadataMap = metaEntities.associateBy { "${it.serverId}:${it.remotePath}" }

@@ -80,7 +80,7 @@ class DataStorePlaybackSessionStore(
                 prefs.remove(KEY_VIRTUAL_POSITION_MS)
             }
             prefs[KEY_CLEAN_EXIT] = sessionData.cleanExit
-            prefs[KEY_QUEUE_ORIGIN] = sessionData.queueOrigin
+            prefs[KEY_QUEUE_ORIGIN] = sessionData.queueOrigin.name
         }
     }
 
@@ -140,7 +140,17 @@ class DataStorePlaybackSessionStore(
         val virtualTrackNumber = prefs[KEY_VIRTUAL_TRACK_NUMBER]
         val virtualPositionMs = prefs[KEY_VIRTUAL_POSITION_MS]
         val cleanExit = prefs[KEY_CLEAN_EXIT] ?: true
-        val queueOrigin = prefs[KEY_QUEUE_ORIGIN] ?: "DIRECTORY"
+        val queueOriginStr = prefs[KEY_QUEUE_ORIGIN]
+        val queueOrigin =
+            try {
+                if (queueOriginStr != null) {
+                    com.webdav.player.domain.model.QueueOrigin.valueOf(queueOriginStr)
+                } else {
+                    com.webdav.player.domain.model.QueueOrigin.DIRECTORY
+                }
+            } catch (e: Exception) {
+                com.webdav.player.domain.model.QueueOrigin.DIRECTORY
+            }
 
         return PlaybackSessionData(
             activeServerId = serverId,

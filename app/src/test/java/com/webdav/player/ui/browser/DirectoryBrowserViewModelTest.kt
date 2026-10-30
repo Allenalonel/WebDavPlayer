@@ -1663,7 +1663,7 @@ class DirectoryBrowserViewModelTest {
             advanceUntilIdle()
 
             assertEquals("rock", fakeLibrarySearchRepository.lastSearchQuery)
-            assertEquals(1L, fakeLibrarySearchRepository.lastSearchServerId)
+            assertNull("Global search passes null serverId", fakeLibrarySearchRepository.lastSearchServerId)
 
             val matchedDir = RemoteDirectory(path = "/Music/Rock/", name = "Rock")
             val matchedTrack =
@@ -1823,5 +1823,52 @@ class DirectoryBrowserViewModelTest {
 
             viewModel.playNext(track)
             assertEquals(track, fakeMusicPlayerAppSession.lastPlayNextTrack)
+        }
+
+    @Test
+    fun searchHistory_persistsAcrossViewModelInstances_viaSearchHistoryStore() =
+        runTest {
+            class FakeSearchHistoryStore : com.webdav.player.data.repository.SearchHistoryStore {
+                val list = mutableListOf<String>()
+                override fun getSearchHistory(): List<String> = list.toList()
+                override fun addQuery(query: String): List<String> {
+                    list.remove(query)
+                    list.add(0, query)
+                    return list.toList()
+                }
+                override fun removeQuery(query: String): List<String> {
+                    list.remove(query)
+                    return list.toList()
+                }
+                override fun clear() {
+                    list.clear()
+                }
+            }
+
+            val fakeStore = FakeSearchHistoryStore()
+            val vm1 =
+                DirectoryBrowserViewModel(
+                    serverRepository = fakeServerRepository,
+                    directoryRepository = fakeDirectoryRepository,
+                    musicPlayerAppSession = fakeMusicPlayerAppSession,
+                    librarySearchRepository = fakeLibrarySearchRepository,
+                    searchHistoryStore = fakeStore,
+                )
+            vm1.onSearchSubmitted("Beethoven")
+            vm1.onSearchSubmitted("Mozart")
+
+            assertEquals(listOf("Mozart", "Beethoven"), vm1.uiState.value.searchHistory)
+            assertEquals(listOf("Mozart", "Beethoven"), fakeStore.getSearchHistory())
+
+            // Create a second VM instance with the same store
+            val vm2 =
+                DirectoryBrowserViewModel(
+                    serverRepository = fakeServerRepository,
+                    directoryRepository = fakeDirectoryRepository,
+                    musicPlayerAppSession = fakeMusicPlayerAppSession,
+                    librarySearchRepository = fakeLibrarySearchRepository,
+                    searchHistoryStore = fakeStore,
+                )
+            assertEquals(listOf("Mozart", "Beethoven"), vm2.uiState.value.searchHistory)
         }
 }

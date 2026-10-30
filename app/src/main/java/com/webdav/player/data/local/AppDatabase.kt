@@ -90,6 +90,11 @@ abstract class AppDatabase : RoomDatabase() {
                     db.execSQL(
                         "CREATE INDEX IF NOT EXISTS `index_playlist_tracks_playlistId_sortOrder` ON `playlist_tracks` (`playlistId`, `sortOrder`)",
                     )
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_directory_cache_path` ON `directory_cache` (`path`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_track_metadata_title` ON `track_metadata` (`title`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_track_metadata_artist` ON `track_metadata` (`artist`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_track_metadata_album` ON `track_metadata` (`album`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_track_metadata_remotePath` ON `track_metadata` (`remotePath`)")
                 }
             }
 

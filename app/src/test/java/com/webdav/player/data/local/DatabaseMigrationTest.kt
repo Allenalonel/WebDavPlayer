@@ -122,6 +122,25 @@ class DatabaseMigrationTest {
         assertEquals("FLAC", cursorTracks.getString(1))
         cursorTracks.close()
 
+        // Verify B-tree indices on directory_cache and track_metadata
+        val cursorMetaIndices = db.query("PRAGMA index_list('track_metadata')")
+        val metaIndices = mutableListOf<String>()
+        while (cursorMetaIndices.moveToNext()) {
+            metaIndices.add(cursorMetaIndices.getString(1))
+        }
+        cursorMetaIndices.close()
+        assertTrue("Index on title exists", metaIndices.contains("index_track_metadata_title"))
+        assertTrue("Index on artist exists", metaIndices.contains("index_track_metadata_artist"))
+        assertTrue("Index on album exists", metaIndices.contains("index_track_metadata_album"))
+
+        val cursorDirIndices = db.query("PRAGMA index_list('directory_cache')")
+        val dirIndices = mutableListOf<String>()
+        while (cursorDirIndices.moveToNext()) {
+            dirIndices.add(cursorDirIndices.getString(1))
+        }
+        cursorDirIndices.close()
+        assertTrue("Index on path exists", dirIndices.contains("index_directory_cache_path"))
+
         db.close()
     }
 }

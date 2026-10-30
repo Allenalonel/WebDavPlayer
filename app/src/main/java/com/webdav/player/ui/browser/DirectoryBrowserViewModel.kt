@@ -38,6 +38,7 @@ class DirectoryBrowserViewModel(
     val trackMetadataRepository: TrackMetadataRepository? = null,
     val webDavClient: WebDavClient? = null,
     val librarySearchRepository: LibrarySearchRepository? = null,
+    val searchHistoryStore: com.webdav.player.data.repository.SearchHistoryStore? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DirectoryBrowserUiState())
     val uiState: StateFlow<DirectoryBrowserUiState> = _uiState.asStateFlow()
@@ -51,6 +52,10 @@ class DirectoryBrowserViewModel(
     private var activeMetadataPath: String? = null
 
     init {
+        val initialHistory = searchHistoryStore?.getSearchHistory() ?: emptyList()
+        if (initialHistory.isNotEmpty()) {
+            _uiState.update { it.copy(searchHistory = initialHistory) }
+        }
         if (musicPlayerAppSession != null) {
             viewModelScope.launch {
                 musicPlayerAppSession.isRestored.first { it }
@@ -235,8 +240,7 @@ class DirectoryBrowserViewModel(
         _uiState.update { it.copy(isSearching = true) }
         searchJob =
             viewModelScope.launch {
-                val serverId = _uiState.value.activeServer?.id
-                librarySearchRepository?.search(trimmed, serverId)?.collect { result ->
+                librarySearchRepository?.search(trimmed, serverId = null)?.collect { result ->
                     _uiState.update { it.copy(searchResult = result, isSearching = false) }
                 } ?: run {
                     _uiState.update { it.copy(isSearching = false) }
@@ -274,21 +278,23 @@ class DirectoryBrowserViewModel(
     fun onSearchSubmitted(query: String) {
         val trimmed = query.trim()
         if (trimmed.isNotBlank()) {
-            _uiState.update { current ->
-                val updatedHistory = (listOf(trimmed) + current.searchHistory.filter { it != trimmed }).take(10)
-                current.copy(searchHistory = updatedHistory)
-            }
+            val updated =
+                searchHistoryStore?.addQuery(trimmed)
+                    ?: (listOf(trimmed) + _uiState.value.searchHistory.filter { it != trimmed }).take(20)
+            _uiState.update { it.copy(searchHistory = updated) }
         }
     }
 
     fun onClearSearchHistory() {
+        searchHistoryStore?.clear()
         _uiState.update { it.copy(searchHistory = emptyList()) }
     }
 
     fun onRemoveSearchHistoryItem(item: String) {
-        _uiState.update { current ->
-            current.copy(searchHistory = current.searchHistory.filter { it != item })
-        }
+        val updated =
+            searchHistoryStore?.removeQuery(item)
+                ?: _uiState.value.searchHistory.filter { it != item }
+        _uiState.update { it.copy(searchHistory = updated) }
     }
 
     fun onSearchResultDirectoryClicked(directory: RemoteDirectory) {

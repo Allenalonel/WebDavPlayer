@@ -8,7 +8,8 @@ import androidx.room.Index
     primaryKeys = ["serverId", "path"],
     indices = [
         Index(value = ["serverId"]),
-        Index(value = ["serverId", "path"])
+        Index(value = ["serverId", "path"]),
+        Index(value = ["path"]),
     ]
 )
 data class DirectoryCacheEntity(

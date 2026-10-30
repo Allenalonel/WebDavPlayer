@@ -55,6 +55,9 @@ class DirectoryBrowserViewModelFactory(
                         trackMetadataDao = database.trackMetadataDao(),
                     )
                 }
+            val searchHistoryStore =
+                com.webdav.player.data.repository.SharedPreferencesSearchHistoryStore(context)
+
             return DirectoryBrowserViewModel(
                 serverRepository = serverRepository,
                 directoryRepository = directoryRepository,
@@ -62,6 +65,7 @@ class DirectoryBrowserViewModelFactory(
                 trackMetadataRepository = metadataRepository,
                 webDavClient = client,
                 librarySearchRepository = searchRepository,
+                searchHistoryStore = searchHistoryStore,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

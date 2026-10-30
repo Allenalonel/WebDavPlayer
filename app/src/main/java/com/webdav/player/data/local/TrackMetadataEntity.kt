@@ -9,7 +9,11 @@ import com.webdav.player.domain.model.TrackMetadata
     primaryKeys = ["serverId", "remotePath"],
     indices = [
         Index(value = ["serverId"]),
-        Index(value = ["serverId", "remotePath"])
+        Index(value = ["serverId", "remotePath"]),
+        Index(value = ["title"]),
+        Index(value = ["artist"]),
+        Index(value = ["album"]),
+        Index(value = ["remotePath"]),
     ]
 )
 data class TrackMetadataEntity(

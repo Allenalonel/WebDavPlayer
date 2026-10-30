@@ -26,6 +26,23 @@ interface TrackMetadataDao {
     @Query("SELECT * FROM track_metadata")
     fun getAllMetadataFlow(): Flow<List<TrackMetadataEntity>>
 
+    @Query(
+        """
+        SELECT * FROM track_metadata 
+        WHERE (:serverId IS NULL OR serverId = :serverId)
+          AND (
+              title LIKE '%' || :query || '%' 
+              OR artist LIKE '%' || :query || '%' 
+              OR album LIKE '%' || :query || '%' 
+              OR remotePath LIKE '%' || :query || '%'
+          )
+        """,
+    )
+    fun searchMetadataFlow(
+        query: String,
+        serverId: Long? = null,
+    ): Flow<List<TrackMetadataEntity>>
+
     @Query("SELECT * FROM track_metadata")
     suspend fun getAllMetadata(): List<TrackMetadataEntity>
 

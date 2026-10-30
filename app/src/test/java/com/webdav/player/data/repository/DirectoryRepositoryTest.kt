@@ -471,6 +471,19 @@ class DirectoryRepositoryTest {
         override fun getAllFlow(): kotlinx.coroutines.flow.Flow<List<DirectoryCacheEntity>> =
             kotlinx.coroutines.flow.flowOf(cacheMap.values.toList())
 
+        override fun searchDirectoryCacheFlow(
+            query: String,
+            serverId: Long?,
+        ): kotlinx.coroutines.flow.Flow<List<DirectoryCacheEntity>> =
+            kotlinx.coroutines.flow.flowOf(
+                cacheMap.values.filter { entity ->
+                    (serverId == null || entity.serverId == serverId) &&
+                        (entity.path.contains(query, ignoreCase = true) ||
+                            entity.dataJson.contains(query, ignoreCase = true) ||
+                            entity.dataJson.contains(".cue", ignoreCase = true))
+                },
+            )
+
         override fun getAllByServerIdFlow(serverId: Long): kotlinx.coroutines.flow.Flow<List<DirectoryCacheEntity>> =
             kotlinx.coroutines.flow.flowOf(cacheMap.values.filter { it.serverId == serverId })
 
