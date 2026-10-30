@@ -189,6 +189,23 @@ _Avoid_: Bluetooth Monitor, Device Tracker, Headset Listener
 对齐主流流媒体播放器的音频管道防御规范：在进入系统 `AudioTrack` 之前，由播放引擎对低于 `44,100 Hz` 的音频流（如 22050Hz 评书）统一升采样至标准 `44,100 Hz` 双声道 PCM，彻底规避各厂商 Android HAL/DSP 软重采样器在路由切换时的时钟错位与硬件假死缺陷。
 _Avoid_: Audio Upsampling, System Resample, Driver Convert
 
+**Session Persistence Coordinator**:
+专职负责将运行时回放状态（活跃服务器、播放队列、毫秒级进度、服务器最后访问目录）定时落盘至持久层，并在冷启动或异常查杀后无缝重建普通音轨与 CUE 虚拟时间轴会话的内部私有协调器。对外不设立独立公共接缝，完全内化在会话层内部。
+_Avoid_: Session Saver, History Service, State Manager
+
+**Playback Queue Manager**:
+专职维护运行时播放队列状态机流转的内部私有控制器，集中仲裁列表循环、单曲循环、随机洗牌拓扑、失效曲目平滑跳跃以及单曲即时插队起播，确保队列状态转移的纯粹性与可测性。
+_Avoid_: Playlist Manager, Queue Service, Song Switcher
+
+**Playback Fault Tolerance Guard**:
+专职负责纯在线流式异常自愈与防御的内部私有卫兵，集中管控弱网 15 秒/30 秒看门狗定时器、HTTP 404 与认证凭据失效熔断防死循环，以及不支持 HTTP Range 重建提示等容错状态。
+_Avoid_: Error Handler, Network Retry Helper, Watchdog Service
+
+**Internal Seam Discipline**:
+针对高内聚深层模块的架构防御规范：当单一对外接缝背后承载多项正交子领域逻辑时，必须通过包级私有协作者进行内部接缝化解耦，严格防范单文件代码堆砌膨胀与引力黑洞效应。
+_Avoid_: Single File Monolith, Mega Class, Massive File
+
+
 ### UI & Navigation
 
 **Primary Navigation Bar**:
