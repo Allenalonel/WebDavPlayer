@@ -74,18 +74,38 @@ class MusicPlayerAppSessionImpl(
     private val _playbackProgress = MutableStateFlow(PlaybackProgress.ZERO)
     override val playbackProgress: StateFlow<PlaybackProgress> = _playbackProgress.asStateFlow()
 
-    private val _isRestored = MutableStateFlow(sessionStore == null)
-    override val isRestored: StateFlow<Boolean> = _isRestored.asStateFlow()
-
-    private val serverLastDirectories = java.util.concurrent.ConcurrentHashMap<Long, String>()
-    private var periodicFlushJob: Job? = null
-    private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
-
     private val virtualTimelineEngine = VirtualTimelineEngine()
     private var activeParentAudioTrack: AudioTrack? = null
     private var activeCuePath: String? = null
     private var hasStreamLoaded = false
     private val failedTrackIdsInCurrentCycle = mutableSetOf<String>()
+    private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
+
+    private val persistenceCoordinator =
+        SessionPersistenceCoordinator(
+            sessionStore = sessionStore,
+            serverRepository = serverRepository,
+            trackMetadataRepository = trackMetadataRepository,
+            cueSheetResolver = cueSheetResolver,
+            playerEngine = playerEngine,
+            virtualTimelineEngine = virtualTimelineEngine,
+            sessionStateFlow = _sessionState,
+            playbackProgressFlow = _playbackProgress,
+            coroutineScope = coroutineScope,
+            periodicDispatcher = periodicDispatcher,
+            getActiveParentAudioTrack = { activeParentAudioTrack },
+            getActiveCuePath = { activeCuePath },
+            onCueSessionRestored = { parentTrack, cuePath ->
+                activeParentAudioTrack = parentTrack
+                activeCuePath = cuePath
+            },
+            onOrdinarySessionRestored = {
+                activeParentAudioTrack = null
+                activeCuePath = null
+            },
+        )
+
+    override val isRestored: StateFlow<Boolean> = persistenceCoordinator.isRestored
 
     private fun loadTrackIntoEngine(
         server: WebDavServer?,
@@ -231,8 +251,7 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
-    private fun is404Error(state: PlaybackState.Error): Boolean =
-        state.cause.is404Exception() || state.message.contains("404")
+    private fun is404Error(state: PlaybackState.Error): Boolean = state.cause.is404Exception() || state.message.contains("404")
 
     private fun isAuthError(state: PlaybackState.Error): Boolean {
         val cause = state.cause
@@ -384,10 +403,10 @@ class MusicPlayerAppSessionImpl(
                     try {
                         restoreSession()
                     } finally {
-                        _isRestored.value = true
+                        persistenceCoordinator.markRestored()
                     }
                 } else {
-                    _isRestored.value = true
+                    persistenceCoordinator.markRestored()
                 }
 
                 // Observe active server from repository after initial restoration
@@ -686,7 +705,7 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
-    override fun getLastDirectoryForServer(serverId: Long): String = serverLastDirectories[serverId] ?: "/"
+    override fun getLastDirectoryForServer(serverId: Long): String = persistenceCoordinator.getLastDirectoryForServer(serverId)
 
     override fun setActiveServer(server: WebDavServer?) {
         _sessionState.update { current ->
@@ -744,7 +763,7 @@ class MusicPlayerAppSessionImpl(
     ) {
         clearKilledBySystemFlag()
         clearTransientAudioFocusFlag()
-        _isRestored.value = true
+        persistenceCoordinator.markRestored()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
         activeCuePath = null
@@ -923,7 +942,7 @@ class MusicPlayerAppSessionImpl(
     override fun playTrack(track: AudioTrack) {
         clearKilledBySystemFlag()
         clearTransientAudioFocusFlag()
-        _isRestored.value = true
+        persistenceCoordinator.markRestored()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
         activeCuePath = null
@@ -1020,7 +1039,7 @@ class MusicPlayerAppSessionImpl(
     ) {
         clearKilledBySystemFlag()
         clearTransientAudioFocusFlag()
-        _isRestored.value = true
+        persistenceCoordinator.markRestored()
         val server = _sessionState.value.activeServer ?: return
         if (virtualTracks.isEmpty()) return
 
@@ -1299,7 +1318,7 @@ class MusicPlayerAppSessionImpl(
             playerEngine.pause()
         }
         coroutineScope.launch {
-            if (_isRestored.value) {
+            if (isRestored.value) {
                 val pos = playerEngine.currentPositionMs.value
                 if (pos > 0L) {
                     if (virtualTimelineEngine.isActive) {
@@ -1351,7 +1370,7 @@ class MusicPlayerAppSessionImpl(
                 playerEngine.seekTo(globalTargetMs)
             }
             coroutineScope.launch {
-                if (_isRestored.value) {
+                if (isRestored.value) {
                     sessionStore?.savePosition(globalTargetMs, clamped)
                 }
             }
@@ -1361,7 +1380,7 @@ class MusicPlayerAppSessionImpl(
                 playerEngine.seekTo(clamped)
             }
             coroutineScope.launch {
-                if (_isRestored.value) {
+                if (isRestored.value) {
                     sessionStore?.savePosition(clamped)
                 }
             }
@@ -1374,7 +1393,7 @@ class MusicPlayerAppSessionImpl(
     ) {
         clearKilledBySystemFlag()
         clearTransientAudioFocusFlag()
-        _isRestored.value = true
+        persistenceCoordinator.markRestored()
         virtualTimelineEngine.clear()
         activeParentAudioTrack = null
         activeCuePath = null
@@ -1687,339 +1706,31 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun flushSessionAsync() {
-        coroutineScope.launch {
-            flushSession()
-        }
+        persistenceCoordinator.flushSessionAsync()
     }
 
     private fun startPeriodicFlush() {
-        if (sessionStore == null || periodicFlushJob?.isActive == true) return
-        periodicFlushJob =
-            coroutineScope.launch(periodicDispatcher) {
-                while (isActive) {
-                    delay(1000L)
-                    if (_isRestored.value && playerEngine.playbackState.value is PlaybackState.Playing) {
-                        val pos = playerEngine.currentPositionMs.value
-                        if (pos > 0L) {
-                            if (virtualTimelineEngine.isActive) {
-                                val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
-                                val relPos = (pos - startMs).coerceAtLeast(0L)
-                                sessionStore.savePosition(pos, relPos, isCleanExit = false)
-                            } else {
-                                sessionStore.savePosition(pos, null, isCleanExit = false)
-                            }
-                        }
-                    }
-                }
-            }
+        persistenceCoordinator.startPeriodicFlush()
     }
 
     private fun stopPeriodicFlush() {
-        periodicFlushJob?.cancel()
-        periodicFlushJob = null
+        persistenceCoordinator.stopPeriodicFlush()
     }
 
     override fun setCurrentDirectoryPath(path: String) {
-        val serverId = _sessionState.value.activeServer?.id
-        if (serverId != null) {
-            serverLastDirectories[serverId] = path
-        }
-        _sessionState.update { it.copy(currentDirectoryPath = path) }
-        coroutineScope.launch { flushSession() }
+        persistenceCoordinator.setCurrentDirectoryPath(path)
     }
 
     override suspend fun restoreSession() {
-        val store = sessionStore ?: return
-        try {
-            val savedSession = store.getSavedSession() ?: return
-            savedSession.serverLastDirectories.forEach { (id, path) ->
-                serverLastDirectories[id] = path
-            }
-            val serverId = savedSession.activeServerId
-            if (serverId != null && savedSession.currentDirectoryPath.isNotBlank()) {
-                serverLastDirectories[serverId] = savedSession.currentDirectoryPath
-            }
-
-            val server =
-                if (serverId != null) {
-                    serverRepository?.getServerById(serverId)
-                } else {
-                    null
-                }
-
-            // If server ID was specified but server no longer exists in repository, gracefully do not restore
-            if (serverId != null && server == null) {
-                return
-            }
-
-            val current = _sessionState.value
-            val active = current.activeServer
-            // If active server is already different from saved server, don't overwrite
-            if (active != null && server != null && active.id != server.id) {
-                return
-            }
-
-            // Don't overwrite if playback is actively happening
-            if (current.hasTrack && current.isPlaying) {
-                return
-            }
-
-            // If CUE virtual track session is saved, attempt to reconstruct virtual queue
-            if (savedSession.cuePath != null && savedSession.queueTracks.isNotEmpty()) {
-                val restoredVirtual = restoreVirtualTrackSession(server, savedSession)
-                if (restoredVirtual) {
-                    return
-                }
-                // Fall back cleanly to ordinary playback
-            }
-
-            restoreOrdinarySession(server, savedSession)
-        } finally {
-            _isRestored.value = true
-        }
-    }
-
-    private suspend fun restoreVirtualTrackSession(
-        server: WebDavServer?,
-        savedSession: PlaybackSessionData,
-    ): Boolean {
-        val cuePath = savedSession.cuePath ?: return false
-        val parentTrack = savedSession.queueTracks.firstOrNull() ?: return false
-        val normalizedParentTrack = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
-
-        val targetServer =
-            server
-                ?: _sessionState.value.activeServer?.takeIf { it.id == savedSession.activeServerId }
-                ?: savedSession.activeServerId?.let { serverRepository?.getServerById(it) }
-                ?: return false
-
-        val virtualTracks =
-            cueSheetResolver?.resolveVirtualTracks(
-                server = targetServer,
-                cuePath = cuePath,
-                parentAudioPath = normalizedParentTrack.remotePath,
-                totalDurationMs = normalizedParentTrack.durationMs,
-            ) ?: emptyList()
-
-        // If CUE parsing failed or returned no tracks, fallback safely
-        if (virtualTracks.isEmpty()) {
-            return false
-        }
-
-        // 5. Identify the target virtual track index
-        val targetIndex =
-            if (savedSession.virtualTrackNumber != null) {
-                virtualTracks
-                    .indexOfFirst { it.trackNumber == savedSession.virtualTrackNumber }
-                    .takeIf { it >= 0 } ?: 0
-            } else {
-                savedSession.currentTrackIndex.coerceIn(0, virtualTracks.lastIndex)
-            }
-
-        val targetVirtualTrack = virtualTracks[targetIndex]
-
-        val mappedTracks =
-            virtualTracks.map { vt ->
-                AudioTrack(
-                    id = "${normalizedParentTrack.id}#cue_${vt.trackNumber}",
-                    serverId = normalizedParentTrack.serverId,
-                    remotePath = normalizedParentTrack.remotePath,
-                    title = vt.title,
-                    artist = vt.performer?.takeIf { it.isNotBlank() } ?: normalizedParentTrack.artist,
-                    album = normalizedParentTrack.album,
-                    durationMs = vt.durationMs,
-                    size = normalizedParentTrack.size,
-                    format = normalizedParentTrack.format,
-                    coverThumbnailPath = normalizedParentTrack.coverThumbnailPath,
-                )
-            }
-
-        val targetTrack = mappedTracks[targetIndex]
-
-        virtualTimelineEngine.loadTracks(virtualTracks, targetIndex)
-        activeParentAudioTrack = normalizedParentTrack
-        activeCuePath = cuePath
-
-        val relPositionMs =
-            (
-                savedSession.virtualPositionMs
-                    ?: (savedSession.positionMs - targetVirtualTrack.startTimeMs).coerceAtLeast(0L)
-            ).coerceIn(0L, if (targetVirtualTrack.durationMs > 0L) targetVirtualTrack.durationMs else Long.MAX_VALUE)
-
-        val queue = PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex)
-
-        val wasKilled = !savedSession.cleanExit && savedSession.currentTrackIndex >= 0 && savedSession.queueTracks.isNotEmpty()
-        _sessionState.update {
-            it.copy(
-                activeServer = server ?: it.activeServer,
-                queue = queue,
-                playbackState = PlaybackState.Paused,
-                playbackMode = savedSession.playbackMode,
-                durationMs = targetVirtualTrack.durationMs,
-                currentDirectoryPath = savedSession.currentDirectoryPath,
-                errorMessage = null,
-                wasKilledBySystem = wasKilled,
-            )
-        }
-
-        _playbackProgress.value =
-            PlaybackProgress(
-                currentPositionMs = relPositionMs,
-                durationMs = targetVirtualTrack.durationMs,
-                bufferedPositionMs = 0L,
-            )
-
-        playerEngine.updateTrackMetadata(targetTrack)
-        return true
-    }
-
-    private suspend fun restoreOrdinarySession(
-        server: WebDavServer?,
-        savedSession: PlaybackSessionData,
-    ) {
-        virtualTimelineEngine.clear()
-        activeParentAudioTrack = null
-        activeCuePath = null
-
-        val isPlaylist =
-            savedSession.queueOrigin == QueueOrigin.PLAYLIST ||
-                savedSession.queueTracks.map { it.serverId }.distinct().size > 1
-        val origin = if (isPlaylist) QueueOrigin.PLAYLIST else QueueOrigin.DIRECTORY
-        val restoredQueue =
-            PlaybackQueue(
-                tracks = savedSession.queueTracks,
-                currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
-                origin = origin,
-            )
-        val restoredTrack = restoredQueue.currentTrack
-        val restoredPlaybackState = if (restoredTrack != null) PlaybackState.Paused else PlaybackState.Idle
-
-        val finalQueue =
-            if (server != null) {
-                val updatedTracks =
-                    savedSession.queueTracks.map { track ->
-                        val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, track.remotePath)
-                        if (cachedMeta != null) track.withMetadata(cachedMeta) else track
-                    }
-                PlaybackQueue(
-                    tracks = updatedTracks,
-                    currentIndex = savedSession.currentTrackIndex.coerceIn(-1, updatedTracks.lastIndex),
-                    origin = origin,
-                )
-            } else {
-                restoredQueue
-            }
-        val durationMs = finalQueue.currentTrack?.durationMs ?: restoredTrack?.durationMs ?: 0L
-
-        val wasKilled = !savedSession.cleanExit && savedSession.currentTrackIndex >= 0 && savedSession.queueTracks.isNotEmpty()
-        _sessionState.update {
-            it.copy(
-                activeServer = server ?: it.activeServer,
-                queue = finalQueue,
-                playbackState = restoredPlaybackState,
-                playbackMode = savedSession.playbackMode,
-                durationMs = durationMs,
-                currentDirectoryPath = savedSession.currentDirectoryPath,
-                errorMessage = null,
-                wasKilledBySystem = wasKilled,
-            )
-        }
-        _playbackProgress.value =
-            PlaybackProgress(
-                currentPositionMs = savedSession.positionMs,
-                durationMs = durationMs,
-                bufferedPositionMs = 0L,
-            )
+        persistenceCoordinator.restoreSession()
     }
 
     override suspend fun flushSession() {
-        val isActivelyPlaying =
-            playerEngine.playbackState.value is PlaybackState.Playing ||
-                playerEngine.playbackState.value is PlaybackState.Buffering
-        flushSessionWithCleanExit(isCleanExit = !isActivelyPlaying)
+        persistenceCoordinator.flushSession()
     }
 
     suspend fun flushSessionWithCleanExit(isCleanExit: Boolean) {
-        if (!_isRestored.value) return
-        val store = sessionStore ?: return
-        val current = _sessionState.value
-        val currentServerId = current.activeServer?.id
-        if (currentServerId != null && current.currentDirectoryPath.isNotBlank()) {
-            serverLastDirectories[currentServerId] = current.currentDirectoryPath
-        }
-        if (current.activeServer == null && current.queue.isEmpty && serverLastDirectories.isEmpty()) {
-            store.clearSession()
-            return
-        }
-
-        val isVirtual = virtualTimelineEngine.isActive
-        val activeVirtualTrack = virtualTimelineEngine.activeTrack
-
-        // Query live engine position if active
-        val livePositionMs =
-            if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                val enginePos = playerEngine.currentPositionMs.value
-                if (enginePos > 0L) {
-                    enginePos
-                } else if (isVirtual) {
-                    (activeVirtualTrack?.startTimeMs ?: 0L) + _playbackProgress.value.currentPositionMs
-                } else {
-                    _playbackProgress.value.currentPositionMs
-                }
-            } else if (isVirtual) {
-                (activeVirtualTrack?.startTimeMs ?: 0L) + _playbackProgress.value.currentPositionMs
-            } else {
-                _playbackProgress.value.currentPositionMs
-            }
-
-        val virtualPosMs =
-            if (isVirtual) {
-                if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                    val enginePos = playerEngine.currentPositionMs.value
-                    val startMs = activeVirtualTrack?.startTimeMs ?: 0L
-                    if (enginePos >= startMs) {
-                        (enginePos - startMs)
-                    } else {
-                        _playbackProgress.value.currentPositionMs
-                    }
-                } else {
-                    _playbackProgress.value.currentPositionMs
-                }
-            } else {
-                null
-            }
-
-        val cuePath = if (isVirtual) activeCuePath else null
-        val virtualTrackNumber = if (isVirtual) activeVirtualTrack?.trackNumber else null
-
-        val queueTracksToSave =
-            if (isVirtual && activeParentAudioTrack != null) {
-                listOf(activeParentAudioTrack!!)
-            } else if (isVirtual && current.queue.currentTrack != null) {
-                val ct = current.queue.currentTrack!!
-                listOf(ct.copy(id = ct.id.substringBefore("#cue_"), title = ct.fileName))
-            } else {
-                current.queue.tracks
-            }
-
-        val currentTrackIndexToSave = if (isVirtual) 0 else current.queue.currentIndex
-
-        val sessionData =
-            PlaybackSessionData(
-                activeServerId = current.activeServer?.id,
-                currentDirectoryPath = current.currentDirectoryPath,
-                queueTracks = queueTracksToSave,
-                currentTrackIndex = currentTrackIndexToSave,
-                positionMs = livePositionMs,
-                playbackMode = current.playbackMode,
-                serverLastDirectories = serverLastDirectories.toMap(),
-                cuePath = cuePath,
-                virtualTrackNumber = virtualTrackNumber,
-                virtualPositionMs = virtualPosMs,
-                cleanExit = isCleanExit,
-                queueOrigin = current.queue.origin,
-            )
-        store.saveSession(sessionData)
+        persistenceCoordinator.flushSessionWithCleanExit(isCleanExit)
     }
 
     companion object {
