@@ -232,5 +232,56 @@ class MainNavigationCoordinatorTest {
         assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
         assertEquals(null, coordinator.uiState.value.selectedPlaylistId)
     }
+
+    @Test
+    fun explicitInitialDestination_browser_persistsAcrossNullServerEmission() {
+        val restoredCoordinator =
+            MainNavigationCoordinator(
+                musicPlayerAppSession = fakeSession,
+                initialDestination = AppDestination.DIRECTORY_BROWSER,
+                hasExplicitInitialDestination = true,
+            )
+
+        assertEquals(AppDestination.DIRECTORY_BROWSER, restoredCoordinator.uiState.value.currentDestination)
+
+        // Transient null emission while database is loading
+        restoredCoordinator.onActiveServerLoaded(null)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, restoredCoordinator.uiState.value.currentDestination)
+
+        // Then server loaded
+        restoredCoordinator.onActiveServerLoaded(sampleServer)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, restoredCoordinator.uiState.value.currentDestination)
+    }
+
+    @Test
+    fun explicitInitialDestination_playlists_persistsAcrossActiveServerLoaded() {
+        val restoredCoordinator =
+            MainNavigationCoordinator(
+                musicPlayerAppSession = fakeSession,
+                initialDestination = AppDestination.PLAYLISTS,
+                hasExplicitInitialDestination = true,
+            )
+
+        assertEquals(AppDestination.PLAYLISTS, restoredCoordinator.uiState.value.currentDestination)
+
+        restoredCoordinator.onActiveServerLoaded(sampleServer)
+        assertEquals(AppDestination.PLAYLISTS, restoredCoordinator.uiState.value.currentDestination)
+    }
+
+    @Test
+    fun onServerCardClicked_notifiesDestinationChanged() {
+        var notifiedDestination: AppDestination? = null
+        val testCoordinator =
+            MainNavigationCoordinator(
+                musicPlayerAppSession = fakeSession,
+                initialDestination = AppDestination.SERVER_LIST,
+                hasExplicitInitialDestination = true,
+                onDestinationChanged = { notifiedDestination = it },
+            )
+
+        testCoordinator.onServerCardClicked(sampleServer)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, testCoordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, notifiedDestination)
+    }
 }
 

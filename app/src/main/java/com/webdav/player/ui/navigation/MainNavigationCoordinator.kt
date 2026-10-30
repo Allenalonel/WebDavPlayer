@@ -42,9 +42,11 @@ class MainNavigationCoordinator(
             hasCheckedInitialActiveServer = true
             if (activeServer != null) {
                 _uiState.update { it.copy(currentDestination = AppDestination.DIRECTORY_BROWSER) }
+                onDestinationChanged?.invoke(AppDestination.DIRECTORY_BROWSER)
             }
-        } else if (activeServer == null && _uiState.value.currentDestination == AppDestination.DIRECTORY_BROWSER) {
+        } else if (!hasExplicitInitialDestination && activeServer == null && _uiState.value.currentDestination == AppDestination.DIRECTORY_BROWSER) {
             _uiState.update { it.copy(currentDestination = AppDestination.SERVER_LIST) }
+            onDestinationChanged?.invoke(AppDestination.SERVER_LIST)
         }
     }
 
@@ -71,7 +73,7 @@ class MainNavigationCoordinator(
 
     fun onServerCardClicked(@Suppress("UNUSED_PARAMETER") server: WebDavServer, onResetToRoot: (() -> Unit)? = null) {
         onResetToRoot?.invoke()
-        _uiState.update { it.copy(currentDestination = AppDestination.DIRECTORY_BROWSER) }
+        selectDestination(AppDestination.DIRECTORY_BROWSER)
     }
 
     fun onSessionStateChanged(sessionState: PlayerSessionState) {

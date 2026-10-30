@@ -128,8 +128,10 @@ class MainActivity : ComponentActivity() {
 
                 var trackToAddToPlaylist by remember { mutableStateOf<AudioTrack?>(null) }
 
-                LaunchedEffect(serverState.activeServer) {
-                    coordinator.onActiveServerLoaded(serverState.activeServer)
+                LaunchedEffect(serverState.activeServer, serverState.isLoading) {
+                    if (!serverState.isLoading) {
+                        coordinator.onActiveServerLoaded(serverState.activeServer)
+                    }
                 }
 
                 LaunchedEffect(playerSessionState) {
