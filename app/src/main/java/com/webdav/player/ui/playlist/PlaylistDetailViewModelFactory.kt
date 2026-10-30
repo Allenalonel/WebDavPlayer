@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.webdav.player.WebDavApplication
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
 
 class PlaylistDetailViewModelFactory(
@@ -13,6 +14,7 @@ class PlaylistDetailViewModelFactory(
     private val playlistRepository: PlaylistRepository? = null,
     private val musicPlayerAppSession: MusicPlayerAppSession? = null,
     private val serverRepository: ServerRepository? = null,
+    private val trackMetadataRepository: TrackMetadataRepository? = null,
     private val context: Context? = null,
 ) : ViewModelProvider.Factory {
     constructor(context: Context, playlistId: Long) : this(
@@ -20,6 +22,7 @@ class PlaylistDetailViewModelFactory(
         playlistRepository = null,
         musicPlayerAppSession = null,
         serverRepository = null,
+        trackMetadataRepository = null,
         context = context,
     )
 
@@ -28,11 +31,13 @@ class PlaylistDetailViewModelFactory(
         playlistRepository: PlaylistRepository,
         musicPlayerAppSession: MusicPlayerAppSession? = null,
         serverRepository: ServerRepository? = null,
+        trackMetadataRepository: TrackMetadataRepository? = null,
     ) : this(
         playlistId = playlistId,
         playlistRepository = playlistRepository,
         musicPlayerAppSession = musicPlayerAppSession,
         serverRepository = serverRepository,
+        trackMetadataRepository = trackMetadataRepository,
         context = null,
     )
 
@@ -55,11 +60,17 @@ class PlaylistDetailViewModelFactory(
                 val app = context?.applicationContext as? WebDavApplication
                 app?.serverRepository
             }
+        val metadataRepo =
+            trackMetadataRepository ?: run {
+                val app = context?.applicationContext as? WebDavApplication
+                app?.trackMetadataRepository
+            }
         return PlaylistDetailViewModel(
             playlistId = playlistId,
             playlistRepository = repo,
             musicPlayerAppSession = session,
             serverRepository = serverRepo,
+            trackMetadataRepository = metadataRepo,
         ) as T
     }
 }

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>歌单界面重构：无头部海报 · 现代卡片流</title>
+  <style>
+    :root {
+      --primary: #006495;
+      --primary-container: #cbe6ff;
+      --on-primary: #ffffff;
+      --on-primary-container: #001e30;
+      --surface: #f8fafc;
+      --surface-container-low: #f1f5f9;
+      --surface-container: #edf2f7;
+      --surface-container-high: #e2e8f0;
+      --on-surface: #0f172a;
+      --on-surface-variant: #64748b;
+      --outline-variant: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: #090d12;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 60px;
+    }
+
+    header {
+      text-align: center;
+      max-width: 900px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #93c5fd;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    /* 视图切换控制器 */
+    .view-controls {
+      display: flex;
+      gap: 8px;
+      background: #151d26;
+      padding: 6px;
+      border-radius: 100px;
+      border: 1px solid #283543;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    .btn-toggle {
+      padding: 8px 18px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      transition: all 0.2s;
+    }
+
+    .btn-toggle.active {
+      background: #38bdf8;
+      color: #082f49;
+      box-shadow: 0 2px 10px rgba(56,189,248,0.3);
+    }
+
+    /* 手机展示容器 */
+    .mockups-grid {
+      display: flex;
+      gap: 28px;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 1300px;
+    }
+
+    .phone-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 380px;
+    }
+
+    .badge-label {
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-b1 { background: #075985; color: #bae6fd; border: 1px solid #0284c7; }
+    .badge-b2 { background: #3730a3; color: #e0e7ff; border: 1px solid #6366f1; }
+    .badge-b3 { background: #065f46; color: #d1fae5; border: 1px solid #10b981; }
+
+    .phone-body {
+      width: 380px;
+      height: 770px;
+      background: var(--surface);
+      border-radius: 44px;
+      border: 9px solid #1e2631;
+      box-shadow: 0 20px 48px rgba(0,0,0,0.6), 0 0 0 1px #334155;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .status-bar {
+      height: 38px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+      z-index: 5;
+    }
+
+    .status-camera {
+      width: 12px;
+      height: 12px;
+      background: #000;
+      border-radius: 50%;
+    }
+
+    .app-topbar {
+      height: 48px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #0f172a;
+    }
+
+    .topbar-title {
+      font-size: 16px;
+      font-weight: 700;
+      flex: 1;
+      margin-left: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .topbar-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    /* 滚动区域 */
+    .content-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 20px;
+    }
+
+    .content-scroll::-webkit-scrollbar { width: 4px; }
+    .content-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* ========================================================
+       顶部头部（完全无大海报）：3种不同排版
+       ======================================================== */
+    /* 子方案 B1: 极简大字标题 + 药丸动作栏 (推荐) */
+    .header-b1 {
+      padding: 8px 20px 14px;
+    }
+
+    .b1-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+
+    .b1-meta {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .b1-actions-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+    }
+
+    .btn-play-primary {
+      background: #006495;
+      color: #ffffff;
+      padding: 8px 18px;
+      border-radius: 100px;
+      font-size: 13.5px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(0, 100, 149, 0.25);
+    }
+
+    .btn-play-secondary {
+      background: #e2e8f0;
+      color: #1e293b;
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 13.5px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    /* 子方案 B2: 紧凑胶囊统计卡片条 */
+    .header-b2 {
+      margin: 8px 16px 14px;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .b2-meta-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .b2-meta-sub {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* 子方案 B3: 超紧凑顶栏（歌曲直接顶到最上） */
+    .header-b3 {
+      padding: 4px 20px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .b3-stats {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    /* ========================================================
+       你喜欢的方案 B：独立现代卡片列表（包含真实专辑海报）
+       ======================================================== */
+    .track-card-b {
+      margin: 7px 16px;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .track-card-b:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 14px rgba(0,0,0,0.08);
+    }
+
+    .drag-handle {
+      color: #94a3b8;
+      font-size: 16px;
+      cursor: grab;
+      padding: 4px 2px;
+    }
+
+    /* 每首歌的高清专辑封面海报 */
+    .track-poster-b {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: #e2e8f0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      position: relative;
+    }
+
+    .track-poster-b img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .track-main {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .track-name {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cue-chip {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+
+    .track-artist {
+      font-size: 12.5px;
+      color: #64748b;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .duration-text {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #64748b;
+      margin-right: 2px;
+    }
+
+    .btn-more-track {
+      color: #94a3b8;
+      font-size: 18px;
+      padding: 6px;
+      cursor: pointer;
+    }
+
+    /* 底栏 */
+    .bottom-bar {
+      height: 60px;
+      background: #edf2f7;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 16px;
+      border-top: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .tab-item.active {
+      color: #006495;
+    }
+
+    .tab-icon {
+      font-size: 17px;
+    }
+
+    /* 分析卡片 */
+    .analysis-container {
+      margin-top: 36px;
+      max-width: 960px;
+      width: 100%;
+      background: #131b24;
+      border: 1px solid #233140;
+      border-radius: 20px;
+      padding: 24px 28px;
+    }
+
+    .analysis-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #93c5fd;
+      margin-bottom: 16px;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .analysis-card {
+      background: #0d131a;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    .analysis-card h4 {
+      color: #38bdf8;
+      margin-bottom: 8px;
+      font-size: 14.5px;
+    }
+
+    .analysis-card ul {
+      padding-left: 16px;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>歌单界面重构：无头部海报 · 现代卡片流</h1>
+    <p class="subtitle">根据你的反馈：保留你喜欢的“方案 B 独立现代卡片列表”，但<strong>完全去除顶部大方块歌单海报</strong>。为你呈现 3 种顶部交互布局。</p>
+  </header>
+
+  <div class="view-controls">
+    <button class="btn-toggle active" id="btnBoth" onclick="setViewMode('all')">📱 全部并排对比</button>
+    <button class="btn-toggle" id="btnB1" onclick="setViewMode('b1')">子方案 B-1：大字标题+药丸动作栏 (推荐)</button>
+    <button class="btn-toggle" id="btnB2" onclick="setViewMode('b2')">子方案 B-2：紧凑统计卡片条</button>
+    <button class="btn-toggle" id="btnB3" onclick="setViewMode('b3')">子方案 B-3：超紧凑直出流</button>
+  </div>
+
+  <div class="mockups-grid" id="gridWrap">
+
+    <!-- 子方案 B-1: 大字标题 + 药丸动作栏 -->
+    <div class="phone-card" id="cardB1">
+      <div class="badge-label badge-b1">方案 B-1：大字标题 + 药丸动作栏 (推荐)</div>
+      <div class="phone-body">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <div class="app-topbar">
+          <span style="font-size: 18px; cursor: pointer;">←</span>
+          <span style="flex: 1;"></span>
+          <div class="topbar-actions">
+            <span class="topbar-btn">⇅</span>
+            <span class="topbar-btn">⋮</span>
+          </div>
+        </div>
+
+        <div class="content-scroll">
+          <!-- 头部：完全无大封面海报，采用大标题与药丸操控栏 -->
+          <div class="header-b1">
+            <div class="b1-title">车载精选 2026</div>
+            <div class="b1-meta">共 4 首歌曲 · 包含无损分轨 · 更新于 2026-10-30</div>
+            <div class="b1-actions-row">
+              <div class="btn-play-primary" onclick="alert('起播整张歌单！')">
+                <span>▶</span>
+                <span>播放全部</span>
+              </div>
+              <div class="btn-play-secondary" onclick="alert('开启随机播放！')">
+                <span>🔀</span>
+                <span>随机播放</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 方案B的现代卡片列表，每首歌均有封面海报 -->
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80" alt="晴天">
+            </div>
+            <div class="track-main">
+              <div class="track-name">晴天</div>
+              <div class="track-artist">周杰伦 · 叶惠美</div>
+            </div>
+            <span class="duration-text">04:29</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&auto=format&fit=crop&q=80" alt="七里香">
+            </div>
+            <div class="track-main">
+              <div class="track-name">七里香</div>
+              <div class="track-artist">周杰伦 · 七里香</div>
+            </div>
+            <span class="duration-text">04:58</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80" alt="夜曲">
+            </div>
+            <div class="track-main">
+              <div class="track-name">
+                <span>夜曲</span>
+                <span class="cue-chip">CUE</span>
+              </div>
+              <div class="track-artist">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="duration-text">03:46</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&auto=format&fit=crop&q=80" alt="贝多芬第九交响曲">
+            </div>
+            <div class="track-main">
+              <div class="track-name">Symphony No. 9 in D minor</div>
+              <div class="track-artist">卡拉扬 & 柏林爱乐乐团</div>
+            </div>
+            <span class="duration-text">15:30</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="tab-item active"><span class="tab-icon">📑</span><span>歌单</span></div>
+          <div class="tab-item"><span class="tab-icon">📂</span><span>媒体库</span></div>
+          <div class="tab-item"><span class="tab-icon">🖧</span><span>服务器</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 子方案 B-2: 紧凑统计卡片条 -->
+    <div class="phone-card" id="cardB2">
+      <div class="badge-label badge-b2">方案 B-2：紧凑统计卡片条</div>
+      <div class="phone-body">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <div class="app-topbar">
+          <span style="font-size: 18px; cursor: pointer;">←</span>
+          <span class="topbar-title">车载精选 2026</span>
+          <div class="topbar-actions">
+            <span class="topbar-btn">⇅</span>
+            <span class="topbar-btn">⋮</span>
+          </div>
+        </div>
+
+        <div class="content-scroll">
+          <!-- 头部：无海报，仅一行精致统计卡片 -->
+          <div class="header-b2">
+            <div>
+              <div class="b2-meta-title">共 4 首歌曲</div>
+              <div class="b2-meta-sub">总时长 28:43 · 更新于今日</div>
+            </div>
+            <div class="btn-play-primary" style="padding: 7px 16px; font-size: 13px;" onclick="alert('起播！')">
+              <span>▶</span>
+              <span>播放全部</span>
+            </div>
+          </div>
+
+          <!-- 卡片歌曲列表 -->
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80" alt="晴天">
+            </div>
+            <div class="track-main">
+              <div class="track-name">晴天</div>
+              <div class="track-artist">周杰伦 · 叶惠美</div>
+            </div>
+            <span class="duration-text">04:29</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&auto=format&fit=crop&q=80" alt="七里香">
+            </div>
+            <div class="track-main">
+              <div class="track-name">七里香</div>
+              <div class="track-artist">周杰伦 · 七里香</div>
+            </div>
+            <span class="duration-text">04:58</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80" alt="夜曲">
+            </div>
+            <div class="track-main">
+              <div class="track-name">
+                <span>夜曲</span>
+                <span class="cue-chip">CUE</span>
+              </div>
+              <div class="track-artist">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="duration-text">03:46</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&auto=format&fit=crop&q=80" alt="贝多芬第九交响曲">
+            </div>
+            <div class="track-main">
+              <div class="track-name">Symphony No. 9 in D minor</div>
+              <div class="track-artist">卡拉扬 & 柏林爱乐乐团</div>
+            </div>
+            <span class="duration-text">15:30</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="tab-item active"><span class="tab-icon">📑</span><span>歌单</span></div>
+          <div class="tab-item"><span class="tab-icon">📂</span><span>媒体库</span></div>
+          <div class="tab-item"><span class="tab-icon">🖧</span><span>服务器</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 子方案 B-3: 超紧凑直出流 -->
+    <div class="phone-card" id="cardB3">
+      <div class="badge-label badge-b3">方案 B-3：超紧凑直出流</div>
+      <div class="phone-body">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <div class="app-topbar">
+          <span style="font-size: 18px; cursor: pointer;">←</span>
+          <span class="topbar-title">车载精选 2026</span>
+          <div class="topbar-actions">
+            <span class="topbar-btn" onclick="alert('起播！')">▶</span>
+            <span class="topbar-btn">⇅</span>
+            <span class="topbar-btn">⋮</span>
+          </div>
+        </div>
+
+        <div class="content-scroll">
+          <!-- 头部：极简无海报，仅一行小字统计，歌曲卡片立即顶上 -->
+          <div class="header-b3">
+            <span class="b3-stats">共 4 首曲目 · 28:43</span>
+            <span style="font-size: 12px; color: #006495; font-weight: 700; cursor: pointer;">一键连播</span>
+          </div>
+
+          <!-- 卡片歌曲列表 -->
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80" alt="晴天">
+            </div>
+            <div class="track-main">
+              <div class="track-name">晴天</div>
+              <div class="track-artist">周杰伦 · 叶惠美</div>
+            </div>
+            <span class="duration-text">04:29</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&auto=format&fit=crop&q=80" alt="七里香">
+            </div>
+            <div class="track-main">
+              <div class="track-name">七里香</div>
+              <div class="track-artist">周杰伦 · 七里香</div>
+            </div>
+            <span class="duration-text">04:58</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80" alt="夜曲">
+            </div>
+            <div class="track-main">
+              <div class="track-name">
+                <span>夜曲</span>
+                <span class="cue-chip">CUE</span>
+              </div>
+              <div class="track-artist">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="duration-text">03:46</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+
+          <div class="track-card-b">
+            <span class="drag-handle">≡</span>
+            <div class="track-poster-b">
+              <img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&auto=format&fit=crop&q=80" alt="贝多芬第九交响曲">
+            </div>
+            <div class="track-main">
+              <div class="track-name">Symphony No. 9 in D minor</div>
+              <div class="track-artist">卡拉扬 & 柏林爱乐乐团</div>
+            </div>
+            <span class="duration-text">15:30</span>
+            <span class="btn-more-track">⋮</span>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="tab-item active"><span class="tab-icon">📑</span><span>歌单</span></div>
+          <div class="tab-item"><span class="tab-icon">📂</span><span>媒体库</span></div>
+          <div class="tab-item"><span class="tab-icon">🖧</span><span>服务器</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 分析说明 -->
+  <div class="analysis-container">
+    <div class="analysis-title">💡 3 种子方案设计重点（均完全去除顶部大方块歌单海报）：</div>
+    <div class="analysis-grid">
+      <div class="analysis-card">
+        <h4>子方案 B-1：大字标题 + 药丸动作栏</h4>
+        <ul>
+          <li><strong>特点</strong>：去掉了笨重的大海报，采用大号字体呈现歌单名与统计。</li>
+          <li><strong>操控</strong>：提供了吸睛的「▶ 播放全部」和「🔀 随机播放」药丸按钮。</li>
+          <li><strong>歌曲</strong>：每首歌均使用现代卡片包装，展示清晰海报封面与时长。</li>
+        </ul>
+      </div>
+
+      <div class="analysis-card">
+        <h4>子方案 B-2：紧凑统计卡片条</h4>
+        <ul>
+          <li><strong>特点</strong>：顶部是一行精致紧凑的白底统计卡片。</li>
+          <li><strong>操控</strong>：左侧统计曲目总数与时长，右侧内嵌快捷播放键。</li>
+          <li><strong>歌曲</strong>：屏幕空间大幅释放，卡片列表上提。</li>
+        </ul>
+      </div>
+
+      <div class="analysis-card">
+        <h4>子方案 B-3：超紧凑直出流</h4>
+        <ul>
+          <li><strong>特点</strong>：极致精简，歌单名称直接位于顶栏标题。</li>
+          <li><strong>操控</strong>：播放键置于右上角，内容区仅有一行小字统计。</li>
+          <li><strong>歌曲</strong>：首张卡片几乎顶格显示，一屏能多展示 1~2 首歌曲。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setViewMode(mode) {
+      const c1 = document.getElementById('cardB1');
+      const c2 = document.getElementById('cardB2');
+      const c3 = document.getElementById('cardB3');
+      const btns = document.querySelectorAll('.btn-toggle');
+      btns.forEach(b => b.classList.remove('active'));
+
+      if (mode === 'all') {
+        c1.style.display = 'flex';
+        c2.style.display = 'flex';
+        c3.style.display = 'flex';
+        document.getElementById('btnBoth').classList.add('active');
+      } else if (mode === 'b1') {
+        c1.style.display = 'flex';
+        c2.style.display = 'none';
+        c3.style.display = 'none';
+        document.getElementById('btnB1').classList.add('active');
+      } else if (mode === 'b2') {
+        c1.style.display = 'none';
+        c2.style.display = 'flex';
+        c3.style.display = 'none';
+        document.getElementById('btnB2').classList.add('active');
+      } else if (mode === 'b3') {
+        c1.style.display = 'none';
+        c2.style.display = 'none';
+        c3.style.display = 'flex';
+        document.getElementById('btnB3').classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>

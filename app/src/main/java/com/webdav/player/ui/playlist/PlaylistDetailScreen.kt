@@ -26,10 +26,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -68,6 +72,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -303,16 +308,12 @@ fun PlaylistDetailScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
         ) {
-            // Header Area
+            // Header Area (方案 B-1: 纯大字标题 + 药丸动作栏，无大方块海报)
             PlaylistHeaderArea(
                 playlist = uiState.playlist,
                 trackCount = uiState.tracks.size,
                 onPlayAll = onPlayAll,
-            )
-
-            HorizontalDivider(
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                onShufflePlay = { viewModel.playShuffle() },
             )
 
             when {
@@ -362,7 +363,8 @@ fun PlaylistDetailScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         itemsIndexed(
                             items = uiState.tracks,
@@ -389,6 +391,7 @@ fun PlaylistHeaderArea(
     playlist: Playlist?,
     trackCount: Int,
     onPlayAll: () -> Unit,
+    onShufflePlay: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val createdFormatted =
@@ -401,72 +404,77 @@ fun PlaylistHeaderArea(
             }
         }
 
-    Row(
+    Column(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 20.dp, vertical = 12.dp),
     ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(64.dp),
+        Text(
+            text = playlist?.name ?: "",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "共 $trackCount 首歌曲 · 创建于 $createdFormatted",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Button(
+                onClick = onPlayAll,
+                enabled = trackCount > 0,
+                shape = RoundedCornerShape(100.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+            ) {
                 Icon(
-                    imageVector = AppIcons.QueueMusic,
+                    imageVector = AppIcons.PlayArrow,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "播放全部",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.width(14.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist?.name ?: "",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "共 $trackCount 首 · 创建于 $createdFormatted",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Button(
-            onClick = onPlayAll,
-            enabled = trackCount > 0,
-            shape = RoundedCornerShape(20.dp),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-        ) {
-            Icon(
-                imageVector = AppIcons.PlayArrow,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = "播放全部",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            FilledTonalButton(
+                onClick = onShufflePlay,
+                enabled = trackCount > 0,
+                shape = RoundedCornerShape(100.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+            ) {
+                Icon(
+                    imageVector = AppIcons.Shuffle,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "随机播放",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }
@@ -486,7 +494,7 @@ fun PlaylistTrackRow(
 
     val isDragging = dragDropState.draggedIndex == index
     val elevation by animateDpAsState(
-        targetValue = if (isDragging) 8.dp else 0.dp,
+        targetValue = if (isDragging) 8.dp else 1.dp,
         label = "drag_elevation",
     )
 
@@ -496,11 +504,10 @@ fun PlaylistTrackRow(
         }
 
     val subtitle =
-        remember(track.artist, track.album, durationText) {
+        remember(track.artist, track.album) {
             val parts = mutableListOf<String>()
             if (!track.artist.isNullOrBlank()) parts.add(track.artist)
             if (!track.album.isNullOrBlank()) parts.add(track.album)
-            parts.add(durationText)
             parts.joinToString(" · ")
         }
 
@@ -534,6 +541,7 @@ fun PlaylistTrackRow(
                 modifier =
                     Modifier
                         .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp))
                         .background(color)
                         .padding(horizontal = 20.dp),
                 contentAlignment =
@@ -551,7 +559,7 @@ fun PlaylistTrackRow(
             }
         },
     ) {
-        Surface(
+        ElevatedCard(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -568,75 +576,130 @@ fun PlaylistTrackRow(
                             onDragEnd = { dragDropState.onDragStopped() },
                             onDragCancel = { dragDropState.onDragStopped() },
                         )
-                    },
-            color =
-                if (isDragging) {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                } else {
-                    MaterialTheme.colorScheme.surface
-                },
+                    }
+                    .clickable(onClick = onClick)
+                    .alpha(if (track.isInactive) 0.38f else 1f),
+            shape = RoundedCornerShape(16.dp),
+            colors =
+                CardDefaults.elevatedCardColors(
+                    containerColor =
+                        if (isDragging) {
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerLowest
+                        },
+                ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = elevation),
         ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                ListItem(
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // 拖拽手把
+                Box(
                     modifier =
                         Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onClick)
-                            .alpha(if (track.isInactive) 0.38f else 1f),
-                    leadingContent = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .size(28.dp)
+                            .pointerInput(dragDropState, index) {
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        dragDropState.onDragStart(index)
+                                    },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragDropState.onDrag(dragAmount)
+                                    },
+                                    onDragEnd = { dragDropState.onDragStopped() },
+                                    onDragCancel = { dragDropState.onDragStopped() },
+                                )
+                            },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = AppIcons.DragHandle,
+                        contentDescription = "拖拽排序",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // 48×48dp 方形圆角专辑封面海报
+                Box(
+                    modifier =
+                        Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CoverThumbnailImage(
+                        thumbnailPath = track.coverThumbnailPath,
+                        contentDescription = "封面",
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color =
+                                if (track.isVirtualTrack) {
+                                    MaterialTheme.colorScheme.tertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                },
+                            modifier = Modifier.fillMaxSize(),
                         ) {
-                            // Drag Handle
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .size(32.dp)
-                                        .pointerInput(dragDropState, index) {
-                                            detectVerticalDragGestures(
-                                                onDragStart = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    dragDropState.onDragStart(index)
-                                                },
-                                                onVerticalDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    dragDropState.onDrag(dragAmount)
-                                                },
-                                                onDragEnd = { dragDropState.onDragStopped() },
-                                                onDragCancel = { dragDropState.onDragStopped() },
-                                            )
-                                        },
-                                contentAlignment = Alignment.Center,
-                            ) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = AppIcons.DragHandle,
-                                    contentDescription = "拖拽排序",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(20.dp),
+                                    imageVector = if (track.isVirtualTrack) AppIcons.QueueMusic else AppIcons.Audiotrack,
+                                    contentDescription = null,
+                                    tint =
+                                        if (track.isVirtualTrack) {
+                                            MaterialTheme.colorScheme.onTertiaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        },
+                                    modifier = Modifier.size(22.dp),
                                 )
                             }
-
-                            // Track index
-                            Text(
-                                text = "${index + 1}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(22.dp),
-                                textAlign = TextAlign.Center,
-                            )
                         }
-                    },
-                    headlineContent = {
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // 歌曲信息
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = track.title,
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
-                    },
-                    supportingContent = {
+                        if (track.isVirtualTrack) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                            ) {
+                                Text(
+                                    text = "分轨",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                )
+                            }
+                        }
+                    }
+                    if (subtitle.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = subtitle,
                             style = MaterialTheme.typography.bodySmall,
@@ -644,51 +707,53 @@ fun PlaylistTrackRow(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                    },
-                    trailingContent = {
-                        Box {
-                            IconButton(
-                                onClick = { showMenu = true },
-                                modifier = Modifier.size(36.dp),
-                            ) {
+                    }
+                }
+
+                if (track.durationMs > 0L) {
+                    Text(
+                        text = durationText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                    )
+                }
+
+                // 三点操作菜单
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.MoreVert,
+                            contentDescription = "更多操作",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = {
                                 Icon(
-                                    imageVector = AppIcons.MoreVert,
-                                    contentDescription = "更多操作",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    imageVector = AppIcons.DeleteOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(20.dp),
                                 )
-                            }
-
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = AppIcons.DeleteOutline,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    },
-                                    onClick = {
-                                        showMenu = false
-                                        onRemove()
-                                    },
-                                )
-                            }
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                )
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 72.dp, end = 16.dp).align(Alignment.BottomCenter),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onRemove()
+                            },
+                        )
+                    }
+                }
             }
         }
     }

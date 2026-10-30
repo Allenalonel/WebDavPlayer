@@ -7,6 +7,7 @@ import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
+import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -46,6 +47,7 @@ class PlaylistDetailViewModel(
     private val playlistRepository: PlaylistRepository,
     private val musicPlayerAppSession: MusicPlayerAppSession? = null,
     private val serverRepository: ServerRepository? = null,
+    private val trackMetadataRepository: TrackMetadataRepository? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlaylistDetailUiState(isLoading = true))
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
@@ -92,11 +94,28 @@ class PlaylistDetailViewModel(
 
         tracksFlow
             .onEach { tracks ->
+                val enrichedTracks =
+                    if (trackMetadataRepository != null) {
+                        tracks.map { track ->
+                            if (track.coverThumbnailPath.isNullOrBlank()) {
+                                val cachedMeta = trackMetadataRepository.getCachedMetadata(track.serverId, track.remotePath)
+                                if (cachedMeta?.coverThumbnailPath != null) {
+                                    track.copy(coverThumbnailPath = cachedMeta.coverThumbnailPath)
+                                } else {
+                                    track
+                                }
+                            } else {
+                                track
+                            }
+                        }
+                    } else {
+                        tracks
+                    }
                 _uiState.update { current ->
                     if (current.isReordering) {
                         current.copy(isLoading = false)
                     } else {
-                        current.copy(tracks = tracks, isLoading = false)
+                        current.copy(tracks = enrichedTracks, isLoading = false)
                     }
                 }
             }.catch { e ->
@@ -236,6 +255,14 @@ class PlaylistDetailViewModel(
         val playlist = _uiState.value.playlist ?: return
         if (_uiState.value.tracks.isEmpty()) return
         musicPlayerAppSession?.playPlaylist(playlist, 0)
+    }
+
+    fun playShuffle() {
+        val playlist = _uiState.value.playlist ?: return
+        val currentTracks = _uiState.value.tracks
+        if (currentTracks.isEmpty()) return
+        musicPlayerAppSession?.setPlaybackMode(com.webdav.player.domain.model.PlaybackMode.SHUFFLE)
+        musicPlayerAppSession?.playPlaylist(playlist, (0 until currentTracks.size).random())
     }
 
     fun onTrackClick(
