@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
@@ -142,6 +144,7 @@ fun PlaylistDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var trackForDetails by remember { mutableStateOf<PlaylistTrackEntry?>(null) }
 
     val context = LocalContext.current
     LaunchedEffect(viewModel) {
@@ -207,13 +210,6 @@ fun PlaylistDetailScreen(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("自定义排序") },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = AppIcons.DragHandle,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    },
                                     trailingIcon = {
                                         if (uiState.activeSortOption == PlaylistSortOption.CUSTOM) {
                                             Icon(
@@ -412,6 +408,16 @@ fun PlaylistDetailScreen(
                                 showDragHandle = uiState.isCustomReorderMode,
                                 onClick = { onTrackClick(track, index) },
                                 onRemove = { viewModel.removeTrack(track.id) },
+                                onPlayNext = {
+                                    viewModel.playNext(track)
+                                    android.widget.Toast
+                                        .makeText(
+                                            context,
+                                            "已将 “${track.title}” 添加到下一首播放",
+                                            android.widget.Toast.LENGTH_SHORT,
+                                        ).show()
+                                },
+                                onShowDetails = { trackForDetails = it },
                                 modifier =
                                     if (isDragging) {
                                         Modifier.zIndex(3f)
@@ -424,6 +430,17 @@ fun PlaylistDetailScreen(
                 }
             }
         }
+    }
+
+    if (trackForDetails != null) {
+        PlaylistTrackDetailDialog(
+            track = trackForDetails!!,
+            onDismiss = { trackForDetails = null },
+            onPlay = {
+                viewModel.playTrack(trackForDetails!!)
+                trackForDetails = null
+            },
+        )
     }
 }
 
@@ -529,6 +546,8 @@ fun PlaylistTrackRow(
     showDragHandle: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onPlayNext: () -> Unit,
+    onShowDetails: (PlaylistTrackEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -553,22 +572,43 @@ fun PlaylistTrackRow(
             parts.joinToString(" · ")
         }
 
+    // 细化滑动操作：右滑删除，左滑下一首播放
     val dismissState =
         key(track.id) {
             rememberSwipeToDismissBoxState(
                 confirmValueChange = { value ->
-                    if (value == SwipeToDismissBoxValue.EndToStart || value == SwipeToDismissBoxValue.StartToEnd) {
-                        onRemove()
-                        true
-                    } else {
-                        false
+                    when (value) {
+                        SwipeToDismissBoxValue.StartToEnd -> {
+                            // 右滑：从歌单中删除
+                            onRemove()
+                            true
+                        }
+
+                        SwipeToDismissBoxValue.EndToStart -> {
+                            // 左滑：添加到下一首播放，弹性回位
+                            onPlayNext()
+                            false
+                        }
+
+                        else -> {
+                            false
+                        }
                     }
                 },
             )
         }
 
+    // 到达临界阈值位置触发震动反馈
+    LaunchedEffect(dismissState.targetValue) {
+        if (dismissState.targetValue != SwipeToDismissBoxValue.Settled) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
+
     SwipeToDismissBox(
         state = dismissState,
+        enableDismissFromStartToEnd = !showDragHandle,
+        enableDismissFromEndToStart = !showDragHandle,
         modifier =
             modifier
                 .fillMaxWidth()
@@ -578,25 +618,62 @@ fun PlaylistTrackRow(
                     shadowElevation = elevation.toPx()
                 },
         backgroundContent = {
-            val color = MaterialTheme.colorScheme.errorContainer
+            val direction = dismissState.dismissDirection
+            val isDelete = direction == SwipeToDismissBoxValue.StartToEnd
+            val isPlayNext = direction == SwipeToDismissBoxValue.EndToStart
+
+            val bgColor =
+                when {
+                    isDelete -> MaterialTheme.colorScheme.errorContainer
+                    isPlayNext -> MaterialTheme.colorScheme.primaryContainer
+                    else -> Color.Transparent
+                }
+
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .background(color)
+                        .background(bgColor)
                         .padding(horizontal = 20.dp),
-                contentAlignment =
-                    if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
-                        Alignment.CenterStart
-                    } else {
-                        Alignment.CenterEnd
-                    },
+                contentAlignment = if (isDelete) Alignment.CenterStart else Alignment.CenterEnd,
             ) {
-                Icon(
-                    imageVector = AppIcons.DeleteOutline,
-                    contentDescription = "从歌单移除",
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                )
+                if (isDelete) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.DeleteOutline,
+                            contentDescription = "从歌单删除",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Text(
+                            text = "从歌单中删除",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                } else if (isPlayNext) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "下一首播放",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Icon(
+                            imageVector = AppIcons.QueueMusic,
+                            contentDescription = "下一首播放",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
             }
         },
     ) {
@@ -790,18 +867,17 @@ fun PlaylistTrackRow(
                                     onDismissRequest = { showMenu = false },
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("从歌单移除", color = MaterialTheme.colorScheme.error) },
+                                        text = { Text("详细信息") },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = AppIcons.DeleteOutline,
+                                                imageVector = AppIcons.Info,
                                                 contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error,
                                                 modifier = Modifier.size(20.dp),
                                             )
                                         },
                                         onClick = {
                                             showMenu = false
-                                            onRemove()
+                                            onShowDetails(track)
                                         },
                                     )
                                 }
@@ -822,4 +898,107 @@ fun PlaylistTrackRow(
             }
         }
     }
+}
+
+@Composable
+fun PlaylistTrackDetailDialog(
+    track: PlaylistTrackEntry,
+    onDismiss: () -> Unit,
+    onPlay: () -> Unit,
+) {
+    val directoryPath =
+        remember(track.remotePath) {
+            val slashIdx = track.remotePath.lastIndexOf('/')
+            if (slashIdx > 0) track.remotePath.substring(0, slashIdx + 1) else "/"
+        }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = AppIcons.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "音频详细信息",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PlaylistInfoRow(label = "歌曲标题", value = track.title)
+                if (!track.artist.isNullOrBlank()) {
+                    PlaylistInfoRow(label = "艺术家", value = track.artist)
+                }
+                if (!track.album.isNullOrBlank()) {
+                    PlaylistInfoRow(label = "专辑名称", value = track.album)
+                }
+                PlaylistInfoRow(label = "音频格式", value = track.format.name)
+                if (track.durationMs > 0L) {
+                    PlaylistInfoRow(label = "曲目时长", value = PlaybackProgress.formatMs(track.durationMs))
+                }
+                if (track.size > 0L) {
+                    PlaylistInfoRow(label = "文件大小", value = formatTrackFileSize(track.size))
+                }
+                PlaylistInfoRow(label = "来源目录", value = directoryPath)
+                PlaylistInfoRow(label = "远程完整路径", value = track.remotePath)
+                PlaylistInfoRow(label = "所属服务器 ID", value = "${track.serverId}")
+                if (track.isVirtualTrack) {
+                    PlaylistInfoRow(label = "CUE 分轨标识", value = track.virtualTrackId ?: "分轨")
+                    if (!track.cuePath.isNullOrBlank()) {
+                        PlaylistInfoRow(label = "CUE 文件路径", value = track.cuePath)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onPlay) {
+                Text("立即播放")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        },
+    )
+}
+
+@Composable
+private fun PlaylistInfoRow(
+    label: String,
+    value: String,
+) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+private fun formatTrackFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+    return String.format(Locale.getDefault(), "%.2f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
