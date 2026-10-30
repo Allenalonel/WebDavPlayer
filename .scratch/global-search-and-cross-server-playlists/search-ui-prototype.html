@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebDavPlayer 搜索界面 Material 3 原型对比</title>
+  <style>
+    :root {
+      --md-sys-color-primary: #006495;
+      --md-sys-color-on-primary: #ffffff;
+      --md-sys-color-primary-container: #cbe6ff;
+      --md-sys-color-on-primary-container: #001e30;
+      --md-sys-color-secondary: #50606e;
+      --md-sys-color-secondary-container: #d3e5f5;
+      --md-sys-color-on-secondary-container: #0c1d29;
+      --md-sys-color-tertiary: #65587b;
+      --md-sys-color-tertiary-container: #ecdcff;
+      --md-sys-color-on-tertiary-container: #211634;
+      --md-sys-color-surface: #f7f9fe;
+      --md-sys-color-on-surface: #181c20;
+      --md-sys-color-surface-variant: #dee3ea;
+      --md-sys-color-on-surface-variant: #41474d;
+      --md-sys-color-surface-container: #edf0f7;
+      --md-sys-color-surface-container-high: #e7ebf1;
+      --md-sys-color-surface-container-highest: #e1e5eb;
+      --md-sys-color-outline: #72787e;
+      --md-sys-color-outline-variant: #c1c7ce;
+      --md-sys-color-error: #ba1a1a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: #0e141a;
+      color: #e1e5eb;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 60px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+      max-width: 900px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #cbe6ff;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: #9aa3ab;
+      line-height: 1.5;
+    }
+
+    /* 顶部切换控制器 */
+    .controls-banner {
+      display: flex;
+      gap: 12px;
+      background: #1c242c;
+      padding: 6px;
+      border-radius: 100px;
+      border: 1px solid #323b44;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+
+    .btn-view-mode {
+      padding: 8px 20px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #9aa3ab;
+      transition: all 0.2s ease;
+    }
+
+    .btn-view-mode.active {
+      background: #cbe6ff;
+      color: #001e30;
+      box-shadow: 0 2px 8px rgba(0,100,149,0.3);
+    }
+
+    /* 模拟手机容器 */
+    .preview-container {
+      display: flex;
+      gap: 36px;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    .phone-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .phone-title-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .badge-a {
+      background: #004d73;
+      color: #cbe6ff;
+      border: 1px solid #006495;
+    }
+
+    .badge-b {
+      background: #4a3e5f;
+      color: #ecdcff;
+      border: 1px solid #65587b;
+    }
+
+    .phone-frame {
+      width: 380px;
+      height: 780px;
+      background: var(--md-sys-color-surface);
+      border-radius: 44px;
+      border: 10px solid #232a32;
+      box-shadow: 0 20px 48px rgba(0,0,0,0.6), 0 0 0 1px #3a444f;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* 手机状态栏 */
+    .status-bar {
+      height: 38px;
+      background: transparent;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+      z-index: 10;
+    }
+
+    .status-camera {
+      width: 12px;
+      height: 12px;
+      background: #111;
+      border-radius: 50%;
+    }
+
+    /* 搜索栏区 */
+    .search-bar-wrap {
+      padding: 4px 16px 12px;
+    }
+
+    /* 方案A：原生沉浸SearchBar */
+    .searchbar-a {
+      background: var(--md-sys-color-surface-container-high);
+      height: 52px;
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .searchbar-a input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 15px;
+      color: var(--md-sys-color-on-surface);
+      width: 100%;
+    }
+
+    .searchbar-a input::placeholder {
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    /* 方案B：悬浮现代卡片SearchBar */
+    .searchbar-b {
+      background: #ffffff;
+      height: 54px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      border: 1.5px solid var(--md-sys-color-primary);
+      box-shadow: 0 6px 16px rgba(0,100,149,0.12);
+    }
+
+    .searchbar-b input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 15px;
+      color: var(--md-sys-color-on-surface);
+      width: 100%;
+    }
+
+    /* 内容滚动区 */
+    .screen-content {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+
+    .screen-content::-webkit-scrollbar {
+      width: 4px;
+    }
+    .screen-content::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    /* 历史记录标题行 */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px 8px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--md-sys-color-primary);
+    }
+
+    .btn-clear {
+      font-size: 12px;
+      color: var(--md-sys-color-outline);
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    /* 方案A：垂直列表历史 */
+    .history-list-a {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .history-item-a {
+      display: flex;
+      align-items: center;
+      padding: 11px 20px;
+      gap: 16px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .history-item-a:hover {
+      background: rgba(0,0,0,0.03);
+    }
+
+    .history-text-a {
+      flex: 1;
+      font-size: 14.5px;
+      color: var(--md-sys-color-on-surface);
+    }
+
+    /* 方案B：流式气泡标签云 */
+    .chips-cloud-b {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 4px 16px 14px;
+    }
+
+    .chip-bubble-b {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      background: var(--md-sys-color-surface-container-high);
+      border-radius: 100px;
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip-bubble-b:hover {
+      background: #d9e1ea;
+    }
+
+    .chip-del {
+      font-size: 11px;
+      color: #72787e;
+      cursor: pointer;
+    }
+
+    /* 分类标签胶囊 */
+    .category-label {
+      padding: 12px 20px 6px;
+      display: flex;
+    }
+
+    .category-capsule-a {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 100px;
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+
+    .category-capsule-b {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--md-sys-color-secondary);
+    }
+
+    /* 方案A：标准 MD3 ListItem 结果 */
+    .list-item-a {
+      display: flex;
+      align-items: center;
+      padding: 10px 20px;
+      gap: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .list-item-a:hover {
+      background: rgba(0,0,0,0.04);
+    }
+
+    .icon-box-a {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .icon-folder {
+      background: var(--md-sys-color-secondary-container);
+      color: var(--md-sys-color-on-secondary-container);
+    }
+
+    .icon-audio {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .icon-cue {
+      background: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+    }
+
+    .item-body {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .item-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .item-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cue-tag {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--md-sys-color-tertiary-container);
+      color: var(--md-sys-color-on-tertiary-container);
+    }
+
+    .item-subtitle {
+      font-size: 12.5px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .action-dots {
+      padding: 8px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    /* 方案B：卡片容器结果 */
+    .card-list-b {
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .result-card-b {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .result-card-b:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+    }
+
+    .duration-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 3px 6px;
+      border-radius: 6px;
+      margin-right: 4px;
+    }
+
+    /* 底部导航栏 */
+    .bottom-nav {
+      height: 64px;
+      background: var(--md-sys-color-surface-container);
+      border-top: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 12px;
+    }
+
+    .nav-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .nav-tab.active {
+      color: var(--md-sys-color-primary);
+    }
+
+    .nav-icon {
+      font-size: 18px;
+    }
+
+    /* 决策评价面板 */
+    .decision-footer {
+      margin-top: 36px;
+      background: #182029;
+      border: 1px solid #2e3844;
+      border-radius: 16px;
+      padding: 20px 24px;
+      max-width: 860px;
+      width: 100%;
+    }
+
+    .decision-footer h3 {
+      font-size: 16px;
+      color: #cbe6ff;
+      margin-bottom: 12px;
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    .decision-col {
+      background: #10151c;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid #26313d;
+    }
+
+    .decision-col h4 {
+      margin-bottom: 6px;
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>WebDavPlayer 搜索界面 MD3 原型对比</h1>
+    <p class="subtitle">根据你的反馈生成的高保真交互原型。支持双机并排对比，测试不同关键词的展示效果。</p>
+  </header>
+
+  <div class="controls-banner">
+    <button class="btn-view-mode active" id="btnBoth" onclick="setViewMode('both')">📱 左右并排对比</button>
+    <button class="btn-view-mode" id="btnOnlyA" onclick="setViewMode('onlyA')">方案 A 专注视图</button>
+    <button class="btn-view-mode" id="btnOnlyB" onclick="setViewMode('onlyB')">方案 B 专注视图</button>
+  </div>
+
+  <div class="preview-container" id="previewContainer">
+    <!-- 方案 A: 原生沉浸式 MD3 规范 -->
+    <div class="phone-wrapper" id="wrapA">
+      <div class="phone-title-badge badge-a">方案 A：原生沉浸式 MD3 规范（Google Pixel 风格）</div>
+      <div class="phone-frame">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <div class="search-bar-wrap">
+          <div class="searchbar-a">
+            <span style="font-size: 16px; color: #41474d; cursor: pointer;">←</span>
+            <input type="text" id="inputA" placeholder="搜索歌曲、歌手、专辑或文件夹..." value="周杰伦" oninput="syncInputs(this.value)">
+            <span style="font-size: 14px; color: #72787e; cursor: pointer;" onclick="clearSearch()">✕</span>
+          </div>
+        </div>
+
+        <div class="screen-content" id="contentA">
+          <!-- 历史记录 -->
+          <div class="section-header">
+            <span class="section-title">最近搜索</span>
+            <button class="btn-clear" onclick="alert('清空历史')">全部清空</button>
+          </div>
+          <div class="history-list-a">
+            <div class="history-item-a" onclick="selectKeyword('周杰伦')">
+              <span style="color: #72787e;">🕒</span>
+              <span class="history-text-a">周杰伦</span>
+              <span style="color: #9aa3ab; font-size: 12px;">✕</span>
+            </div>
+            <div class="history-item-a" onclick="selectKeyword('贝多芬交响曲')">
+              <span style="color: #72787e;">🕒</span>
+              <span class="history-text-a">贝多芬交响曲</span>
+              <span style="color: #9aa3ab; font-size: 12px;">✕</span>
+            </div>
+            <div class="history-item-a" onclick="selectKeyword('车载精选')">
+              <span style="color: #72787e;">🕒</span>
+              <span class="history-text-a">车载精选</span>
+              <span style="color: #9aa3ab; font-size: 12px;">✕</span>
+            </div>
+          </div>
+
+          <!-- 分类：文件夹 -->
+          <div class="category-label">
+            <span class="category-capsule-a">文件夹目录 (1)</span>
+          </div>
+          <div class="list-item-a" onclick="alert('穿梭导航至 /Music/周杰伦全集/')">
+            <div class="icon-box-a icon-folder">📁</div>
+            <div class="item-body">
+              <div class="item-title">周杰伦全集</div>
+              <div class="item-subtitle">/Music/周杰伦全集/</div>
+            </div>
+            <span style="color: #9aa3ab; font-size: 16px;">›</span>
+          </div>
+
+          <!-- 分类：单曲与分轨 -->
+          <div class="category-label" style="margin-top: 8px;">
+            <span class="category-capsule-a">单曲与分轨 (3)</span>
+          </div>
+          <div class="list-item-a" onclick="alert('整行轻触即插队起播：《晴天》')">
+            <div class="icon-box-a icon-audio">🎵</div>
+            <div class="item-body">
+              <div class="item-title-row">
+                <span class="item-title">晴天</span>
+              </div>
+              <div class="item-subtitle">周杰伦 · 叶惠美 · 4:29</div>
+            </div>
+            <span class="action-dots" onclick="event.stopPropagation(); alert('菜单：添加到歌单')">⋮</span>
+          </div>
+
+          <div class="list-item-a" onclick="alert('整行轻触即插队起播：《七里香》')">
+            <div class="icon-box-a icon-audio">🎵</div>
+            <div class="item-body">
+              <div class="item-title-row">
+                <span class="item-title">七里香</span>
+              </div>
+              <div class="item-subtitle">周杰伦 · 七里香 · 4:58</div>
+            </div>
+            <span class="action-dots" onclick="event.stopPropagation(); alert('菜单：添加到歌单')">⋮</span>
+          </div>
+
+          <div class="list-item-a" onclick="alert('整行轻触即插队起播 CUE 分轨：《夜曲 (无损分轨)》')">
+            <div class="icon-box-a icon-cue">💿</div>
+            <div class="item-body">
+              <div class="item-title-row">
+                <span class="item-title">夜曲</span>
+                <span class="cue-tag">CUE</span>
+              </div>
+              <div class="item-subtitle">周杰伦 · 十一月的萧邦 · 01.flac</div>
+            </div>
+            <span class="action-dots" onclick="event.stopPropagation(); alert('菜单：添加到歌单')">⋮</span>
+          </div>
+        </div>
+
+        <!-- 底部导航栏已更新为：歌单 - 媒体库 - 服务器 -->
+        <div class="bottom-nav">
+          <div class="nav-tab">
+            <span class="nav-icon">📑</span>
+            <span>歌单</span>
+          </div>
+          <div class="nav-tab active">
+            <span class="nav-icon">📂</span>
+            <span>媒体库</span>
+          </div>
+          <div class="nav-tab">
+            <span class="nav-icon">🖧</span>
+            <span>服务器</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 方案 B: 现代卡片声学气泡矩阵 -->
+    <div class="phone-wrapper" id="wrapB">
+      <div class="phone-title-badge badge-b">方案 B：现代卡片声学矩阵（Hi-Fi 现代流媒体风格）</div>
+      <div class="phone-frame">
+        <div class="status-bar">
+          <span>09:41</span>
+          <div class="status-camera"></div>
+          <span>5G 95%</span>
+        </div>
+
+        <div class="search-bar-wrap">
+          <div class="searchbar-b">
+            <span style="font-size: 16px; color: var(--md-sys-color-primary); cursor: pointer;">←</span>
+            <input type="text" id="inputB" placeholder="搜索歌曲、歌手、专辑或文件夹..." value="周杰伦" oninput="syncInputs(this.value)">
+            <span style="font-size: 14px; color: #72787e; cursor: pointer;" onclick="clearSearch()">✕</span>
+          </div>
+        </div>
+
+        <div class="screen-content" id="contentB">
+          <!-- 历史记录：流式标签云 -->
+          <div class="section-header">
+            <span class="section-title">搜索热词历史</span>
+            <button class="btn-clear" onclick="alert('清空历史')">清空</button>
+          </div>
+          <div class="chips-cloud-b">
+            <div class="chip-bubble-b" onclick="selectKeyword('周杰伦')">
+              <span>周杰伦</span>
+              <span class="chip-del">✕</span>
+            </div>
+            <div class="chip-bubble-b" onclick="selectKeyword('贝多芬交响曲')">
+              <span>贝多芬交响曲</span>
+              <span class="chip-del">✕</span>
+            </div>
+            <div class="chip-bubble-b" onclick="selectKeyword('车载精选')">
+              <span>车载精选</span>
+              <span class="chip-del">✕</span>
+            </div>
+            <div class="chip-bubble-b" onclick="selectKeyword('无损分轨')">
+              <span>无损分轨</span>
+              <span class="chip-del">✕</span>
+            </div>
+          </div>
+
+          <!-- 分类：文件夹卡片 -->
+          <div class="category-label">
+            <span class="category-capsule-b">匹配文件夹 (1)</span>
+          </div>
+          <div class="card-list-b">
+            <div class="result-card-b" onclick="alert('穿梭导航至 /Music/周杰伦全集/')">
+              <div class="icon-box-a icon-folder" style="border-radius: 50%;">📁</div>
+              <div class="item-body">
+                <div class="item-title">周杰伦全集</div>
+                <div class="item-subtitle">/Music/周杰伦全集/</div>
+              </div>
+              <span style="color: #9aa3ab; font-size: 16px;">›</span>
+            </div>
+          </div>
+
+          <!-- 分类：音频曲目卡片 -->
+          <div class="category-label" style="margin-top: 14px;">
+            <span class="category-capsule-b">匹配音频曲目 (3)</span>
+          </div>
+          <div class="card-list-b">
+            <div class="result-card-b" onclick="alert('点击卡片插队起播：《晴天》')">
+              <div class="icon-box-a icon-audio" style="border-radius: 8px;">🎵</div>
+              <div class="item-body">
+                <div class="item-title-row">
+                  <span class="item-title">晴天</span>
+                </div>
+                <div class="item-subtitle">周杰伦 · 叶惠美</div>
+              </div>
+              <span class="duration-badge">04:29</span>
+              <span class="action-dots" onclick="event.stopPropagation(); alert('菜单：添加到歌单')">⋮</span>
+            </div>
+
+            <div class="result-card-b" onclick="alert('点击卡片插队起播：《七里香》')">
+              <div class="icon-box-a icon-audio" style="border-radius: 8px;">🎵</div>
+              <div class="item-body">
+                <div class="item-title-row">
+                  <span class="item-title">七里香</span>
+                </div>
+                <div class="item-subtitle">周杰伦 · 七里香</div>
+              </div>
+              <span class="duration-badge">04:58</span>
+              <span class="action-dots" onclick="event.stopPropagation(); alert('菜单：添加到歌单')">⋮</span>
+            </div>
+
+            <div class="result-card-b" onclick="alert('点击卡片插队起播 CUE 分轨：《夜曲》')">
+              <div class="icon-box-a icon-cue" style="border-radius: 8px;">💿</div>
+              <div class="item-body">
+                <div class="item-title-row">
+                  <span class="item-title">夜曲</span>
+                  <span class="cue-tag" style="background: #e0e7ff; color: #3730a3;">CUE分轨</span>
+                </div>
+                <div class="item-subtitle">周杰伦 · 十一月的萧邦 · 01.flac</div>
+              </div>
+              <span class="duration-badge">03:46</span>
+              <span class="action-dots" onclick="event.stopPropagation(); alert('菜单：添加到歌单')">⋮</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部导航栏已更新为：歌单 - 媒体库 - 服务器 -->
+        <div class="bottom-nav">
+          <div class="nav-tab">
+            <span class="nav-icon">📑</span>
+            <span>歌单</span>
+          </div>
+          <div class="nav-tab active">
+            <span class="nav-icon">📂</span>
+            <span>媒体库</span>
+          </div>
+          <div class="nav-tab">
+            <span class="nav-icon">🖧</span>
+            <span>服务器</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="decision-footer">
+    <h3>🔍 两套设计方案的核心差异总结：</h3>
+    <div class="decision-grid">
+      <div class="decision-col">
+        <h4>方案 A：原生沉浸式 MD3 规范</h4>
+        <ul>
+          <li><strong>特点</strong>：完全贴合 Google 原生系统应用（如 Google Files、联系人、设置）。</li>
+          <li><strong>历史呈现</strong>：标准纵向列表，左侧带时钟图标，规整清爽。</li>
+          <li><strong>操作密度</strong>：整行轻触即插队起播，右侧仅留一个三点菜单，去除多余重复图标，界面非常整洁。</li>
+          <li><strong>视觉感官</strong>：单行紧凑、信息纯净，适合偏好原生 Android 极简风的用户。</li>
+        </ul>
+      </div>
+      <div class="decision-col">
+        <h4>方案 B：现代卡片声学气泡矩阵</h4>
+        <ul>
+          <li><strong>特点</strong>：更接近现代主流高保真流媒体播放器（如 Apple Music、Spotify）。</li>
+          <li><strong>历史呈现</strong>：多行圆角气泡标签云（Flow Chips），空间利用率高，富有呼吸感。</li>
+          <li><strong>操作密度</strong>：独立圆角卡片包裹，显式展示音轨时长（如 04:29），层次分明。</li>
+          <li><strong>视觉感官</strong>：卡片立体感强、信息更饱满，适合喜欢现代卡片视觉的用户。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function syncInputs(val) {
+      document.getElementById('inputA').value = val;
+      document.getElementById('inputB').value = val;
+    }
+
+    function clearSearch() {
+      syncInputs('');
+    }
+
+    function selectKeyword(kw) {
+      syncInputs(kw);
+    }
+
+    function setViewMode(mode) {
+      const wrapA = document.getElementById('wrapA');
+      const wrapB = document.getElementById('wrapB');
+      const btnBoth = document.getElementById('btnBoth');
+      const btnOnlyA = document.getElementById('btnOnlyA');
+      const btnOnlyB = document.getElementById('btnOnlyB');
+
+      btnBoth.classList.remove('active');
+      btnOnlyA.classList.remove('active');
+      btnOnlyB.classList.remove('active');
+
+      if (mode === 'both') {
+        wrapA.style.display = 'flex';
+        wrapB.style.display = 'flex';
+        btnBoth.classList.add('active');
+      } else if (mode === 'onlyA') {
+        wrapA.style.display = 'flex';
+        wrapB.style.display = 'none';
+        btnOnlyA.classList.add('active');
+      } else if (mode === 'onlyB') {
+        wrapA.style.display = 'none';
+        wrapB.style.display = 'flex';
+        btnOnlyB.classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
