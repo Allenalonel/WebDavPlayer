@@ -70,6 +70,7 @@ class AppIconsTest {
                 AppIcons.PlaylistAdd,
                 AppIcons.DragHandle,
                 AppIcons.Sort,
+                AppIcons.History,
             )
 
         for (icon in extendedIcons) {

@@ -147,16 +147,6 @@ fun DirectoryBrowserScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                     },
-                    navigationIcon = {
-                        if (uiState.canNavigateUp && !uiState.isInitializing) {
-                            IconButton(onClick = { viewModel.onNavigateUp() }) {
-                                Icon(
-                                    imageVector = AppIcons.ArrowBack,
-                                    contentDescription = "返回上级",
-                                )
-                            }
-                        }
-                    },
                     actions = {
                         if (!uiState.isInitializing && uiState.activeServer != null) {
                             IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {

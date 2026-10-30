@@ -1,5 +1,6 @@
 package com.webdav.player
 
+import android.content.ComponentCallbacks2
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
@@ -46,6 +48,7 @@ import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.browser.DirectoryBrowserViewModelFactory
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
+import com.webdav.player.ui.common.ThumbnailMemoryCache
 import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
@@ -63,9 +66,6 @@ import com.webdav.player.ui.server.ServerManagementViewModel
 import com.webdav.player.ui.server.ServerManagementViewModelFactory
 import com.webdav.player.ui.theme.AppIcons
 import com.webdav.player.ui.theme.WebDavPlayerTheme
-import com.webdav.player.data.service.PlaybackSessionHost
-import com.webdav.player.ui.common.ThumbnailMemoryCache
-import android.content.ComponentCallbacks2
 import kotlinx.coroutines.launch
 
 /**
@@ -159,6 +159,17 @@ class MainActivity : ComponentActivity() {
                                     tonalElevation = 3.dp,
                                 ) {
                                     NavigationBarItem(
+                                        selected = navState.currentDestination == AppDestination.PLAYLISTS,
+                                        onClick = { coordinator.selectDestination(AppDestination.PLAYLISTS) },
+                                        icon = {
+                                            Icon(
+                                                imageVector = AppIcons.QueueMusic,
+                                                contentDescription = "歌单",
+                                            )
+                                        },
+                                        label = { Text("歌单") },
+                                    )
+                                    NavigationBarItem(
                                         selected = navState.currentDestination == AppDestination.DIRECTORY_BROWSER,
                                         onClick = { coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER) },
                                         icon = {
@@ -173,17 +184,6 @@ class MainActivity : ComponentActivity() {
                                             )
                                         },
                                         label = { Text("媒体库") },
-                                    )
-                                    NavigationBarItem(
-                                        selected = navState.currentDestination == AppDestination.PLAYLISTS,
-                                        onClick = { coordinator.selectDestination(AppDestination.PLAYLISTS) },
-                                        icon = {
-                                            Icon(
-                                                imageVector = AppIcons.QueueMusic,
-                                                contentDescription = "歌单",
-                                            )
-                                        },
-                                        label = { Text("歌单") },
                                     )
                                     NavigationBarItem(
                                         selected = navState.currentDestination == AppDestination.SERVER_LIST,
@@ -340,22 +340,24 @@ class MainActivity : ComponentActivity() {
                             onSelectPlaylist = { playlist ->
                                 val trackName = track.title
                                 playlistViewModel.addTrackToPlaylist(playlist.id, track) {
-                                    Toast.makeText(
-                                        context,
-                                        "已将 “$trackName” 添加到歌单 “${playlist.name}”",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                    Toast
+                                        .makeText(
+                                            context,
+                                            "已将 “$trackName” 添加到歌单 “${playlist.name}”",
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
                                 }
                                 trackToAddToPlaylist = null
                             },
                             onCreatePlaylistAndAdd = { name ->
                                 val trackName = track.title
                                 playlistViewModel.createPlaylistAndAddTrack(name, track) {
-                                    Toast.makeText(
-                                        context,
-                                        "已新建歌单 “$name” 并添加 “$trackName”",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                    Toast
+                                        .makeText(
+                                            context,
+                                            "已新建歌单 “$name” 并添加 “$trackName”",
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
                                 }
                                 trackToAddToPlaylist = null
                             },
