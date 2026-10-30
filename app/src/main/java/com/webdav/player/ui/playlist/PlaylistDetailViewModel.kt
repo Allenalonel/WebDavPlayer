@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,6 +118,30 @@ class PlaylistDetailViewModel(
                         current.copy(isLoading = false)
                     } else {
                         current.copy(tracks = enrichedTracks, isLoading = false)
+                    }
+                }
+
+                if (trackMetadataRepository != null && serverRepository != null) {
+                    val missingTracks = enrichedTracks.filter { it.coverThumbnailPath.isNullOrBlank() && !it.isInactive }
+                    if (missingTracks.isNotEmpty()) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            for (missing in missingTracks) {
+                                val cached = trackMetadataRepository.getCachedMetadata(missing.serverId, missing.remotePath)
+                                if (cached?.coverThumbnailPath != null) {
+                                    playlistRepository.updateTrackCover(missing.id, cached.coverThumbnailPath)
+                                } else {
+                                    val server = serverRepository.getServerById(missing.serverId)
+                                    if (server != null) {
+                                        val fileName = missing.remotePath.substringAfterLast('/')
+                                        val file = RemoteFile(name = fileName, path = missing.remotePath)
+                                        val resolved = trackMetadataRepository.resolveSingleTrackMetadata(server, file)
+                                        if (resolved?.coverThumbnailPath != null) {
+                                            playlistRepository.updateTrackCover(missing.id, resolved.coverThumbnailPath)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }.catch { e ->

@@ -49,6 +49,11 @@ interface PlaylistRepository {
 
     suspend fun removeTrackFromPlaylist(trackEntryId: Long)
 
+    suspend fun updateTrackCover(
+        trackEntryId: Long,
+        coverThumbnailPath: String?,
+    ) {}
+
     suspend fun removeTracksFromPlaylist(
         playlistId: Long,
         trackEntryIds: List<Long>,

@@ -156,6 +156,20 @@ class DetailFakePlaylistRepository : PlaylistRepository {
         }
     }
 
+    override suspend fun updateTrackCover(
+        trackEntryId: Long,
+        coverThumbnailPath: String?,
+    ) {
+        for ((pId, list) in tracksMap) {
+            val idx = list.indexOfFirst { it.id == trackEntryId }
+            if (idx >= 0) {
+                list[idx] = list[idx].copy(coverThumbnailPath = coverThumbnailPath)
+                syncTracksFlow(pId)
+                break
+            }
+        }
+    }
+
     override suspend fun updateTrackOrders(
         playlistId: Long,
         orderedTrackIds: List<Long>,

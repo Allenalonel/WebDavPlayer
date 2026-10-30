@@ -173,6 +173,13 @@ class PlaylistRepositoryImpl(
         playlistDao.updatePlaylistTimestamp(playlistId, timeProvider())
     }
 
+    override suspend fun updateTrackCover(
+        trackEntryId: Long,
+        coverThumbnailPath: String?,
+    ) {
+        playlistDao.updateTrackCover(trackEntryId, coverThumbnailPath)
+    }
+
     override suspend fun updateTrackOrders(
         playlistId: Long,
         orderedTrackIds: List<Long>,

@@ -100,6 +100,9 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE id IN (:ids)")
     suspend fun deleteTracksByIds(ids: List<Long>): Int
 
+    @Query("UPDATE playlist_tracks SET coverThumbnailPath = :coverThumbnailPath WHERE id = :trackEntryId")
+    suspend fun updateTrackCover(trackEntryId: Long, coverThumbnailPath: String?): Int
+
     @Query("UPDATE playlist_tracks SET isInactive = :isInactive, inactiveReason = :reason WHERE serverId = :serverId AND remotePath = :remotePath")
     suspend fun updateTrackInactiveStatus(
         serverId: Long,
