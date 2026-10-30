@@ -28,11 +28,11 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.PlaybackMode
+import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
-import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.session.FakePlaybackSessionStore
 import com.webdav.player.domain.session.MusicPlayerAppSessionImpl
@@ -119,7 +119,6 @@ class EndToEndCacheResilienceIntegrationTest {
         coverArtStorage = CoverArtStorageImpl(context)
         webDavClient = OkHttpWebDavClient()
         serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
-        directoryRepository = DirectoryRepositoryImpl(webDavClient, database.directoryCacheDao())
         mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, webDavClient)
         sessionStore = FakePlaybackSessionStore()
 
@@ -130,6 +129,12 @@ class EndToEndCacheResilienceIntegrationTest {
                 coverArtStorage = coverArtStorage,
                 webDavServerDao = database.webDavServerDao(),
                 ioDispatcher = testDispatcher,
+            )
+        directoryRepository =
+            DirectoryRepositoryImpl(
+                webDavClient = webDavClient,
+                directoryCacheDao = database.directoryCacheDao(),
+                trackMetadataRepository = trackMetadataRepository,
             )
         lyricsRepository =
             LyricsRepositoryImpl(
@@ -367,7 +372,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     serverRepository = serverRepository,
                     directoryRepository = directoryRepository,
                     musicPlayerAppSession = appSession,
-                    trackMetadataRepository = trackMetadataRepository,
                 )
 
             // Collect UI state updates
@@ -535,7 +539,9 @@ class EndToEndCacheResilienceIntegrationTest {
                                 }
                             }
 
-                            else -> MockResponse().setResponseCode(404)
+                            else -> {
+                                MockResponse().setResponseCode(404)
+                            }
                         }
                     }
                 }
@@ -604,7 +610,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     serverRepository = serverRepository,
                     directoryRepository = directoryRepository,
                     musicPlayerAppSession = appSession,
-                    trackMetadataRepository = trackMetadataRepository,
                 )
 
             val collectedStates = mutableListOf<com.webdav.player.ui.browser.DirectoryBrowserUiState>()
@@ -734,7 +739,9 @@ class EndToEndCacheResilienceIntegrationTest {
                                 createRangeMockResponse(flacBytes, range)
                             }
 
-                            else -> MockResponse().setResponseCode(404)
+                            else -> {
+                                MockResponse().setResponseCode(404)
+                            }
                         }
                     }
                 }
@@ -890,7 +897,9 @@ class EndToEndCacheResilienceIntegrationTest {
             val playerArtworkUri =
                 engine.player.playlistMetadata.artworkUri
                     ?: engine.player.mediaMetadata.artworkUri
-                    ?: engine.player.currentMediaItem?.mediaMetadata?.artworkUri
+                    ?: engine.player.currentMediaItem
+                        ?.mediaMetadata
+                        ?.artworkUri
             assertEquals(Uri.fromFile(healedFile), playerArtworkUri)
 
             // Verify notification now renders the healed artwork without error

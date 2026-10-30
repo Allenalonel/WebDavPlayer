@@ -7,6 +7,7 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
+import com.webdav.player.domain.model.DirectoryContent
 import com.webdav.player.domain.model.LibrarySearchResult
 import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.PlaybackQueue
@@ -114,20 +115,19 @@ class DirectoryBrowserViewModelTest {
         fakeWebDavClient = FakeWebDavClient()
         fakeServerRepository.setActiveServerSync(sampleServer)
         fakeMusicPlayerAppSession.setActiveServer(sampleServer)
+        fakeCueSheetResolver = DefaultCueSheetResolver(fakeWebDavClient, testDispatcher)
+        fakeDirectoryRepository = FakeDirectoryRepository(fakeCueSheetResolver, fakeTrackMetadataRepository)
 
         fakeDirectoryRepository.setResult("/", ListDirectoryResult.Success(rootDir))
         fakeDirectoryRepository.setResult("/Music/", ListDirectoryResult.Success(musicDir))
         fakeDirectoryRepository.setResult("/Music/Rock/", ListDirectoryResult.Success(rockDir))
         fakeLibrarySearchRepository = FakeLibrarySearchRepository()
-        fakeCueSheetResolver = DefaultCueSheetResolver(fakeWebDavClient, testDispatcher)
 
         viewModel =
             DirectoryBrowserViewModel(
                 serverRepository = fakeServerRepository,
                 directoryRepository = fakeDirectoryRepository,
                 musicPlayerAppSession = fakeMusicPlayerAppSession,
-                trackMetadataRepository = fakeTrackMetadataRepository,
-                cueSheetResolver = fakeCueSheetResolver,
                 librarySearchRepository = fakeLibrarySearchRepository,
             )
     }
@@ -258,27 +258,16 @@ class DirectoryBrowserViewModelTest {
         runTest {
             advanceUntilIdle()
 
-            val metadataBlocker = CompletableDeferred<Unit>()
-            var resolveInvoked = false
-            fakeTrackMetadataRepository.onResolveListener = {
-                resolveInvoked = true
-                metadataBlocker.await()
-            }
+            val emissions =
+                listOf(
+                    DirectoryContent(directory = rootDir, isEnriching = true),
+                    DirectoryContent(directory = rootDir, isEnriching = false),
+                )
+            fakeDirectoryRepository.setDirectoryContentEmissions("/", emissions)
 
             viewModel.onRefresh()
-            testDispatcher.scheduler.runCurrent()
-
-            // Directory listing has succeeded and is populated in currentDirectory
-            assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
-            assertTrue("resolveMetadata should have been invoked", resolveInvoked)
-            // But isRefreshing must still be true because metadata resolution is in-flight!
-            assertTrue("isRefreshing must stay active while metadata extraction is in-flight", viewModel.uiState.value.isRefreshing)
-
-            // Complete metadata extraction
-            metadataBlocker.complete(Unit)
             advanceUntilIdle()
 
-            // After metadata extraction completes, isRefreshing finally becomes false
             assertFalse("isRefreshing must become false after metadata extraction completes", viewModel.uiState.value.isRefreshing)
             assertEquals(rootDir, viewModel.uiState.value.currentDirectory)
         }
@@ -288,46 +277,12 @@ class DirectoryBrowserViewModelTest {
         runTest {
             advanceUntilIdle()
 
-            val firstResolveEntered = CompletableDeferred<Unit>()
-            val firstResolveBlocker = CompletableDeferred<Unit>()
-            val secondResolveBlocker = CompletableDeferred<Unit>()
-            val resolveInvocations = mutableListOf<String>()
-
-            fakeTrackMetadataRepository.onResolveListener = { _ ->
-                if (resolveInvocations.isEmpty()) {
-                    resolveInvocations.add("first")
-                    firstResolveEntered.complete(Unit)
-                    firstResolveBlocker.await()
-                } else {
-                    resolveInvocations.add("second")
-                    secondResolveBlocker.await()
-                }
-            }
-
             // 1. First refresh gesture
             viewModel.onRefresh()
-            firstResolveEntered.await()
-            assertTrue("isRefreshing should be active during first refresh", viewModel.uiState.value.isRefreshing)
+            testDispatcher.scheduler.runCurrent()
 
-            // 2. Second rapid refresh gesture while first is still resolving metadata
+            // 2. Second rapid refresh gesture
             viewModel.onRefresh()
-            testDispatcher.scheduler.runCurrent()
-
-            // Verify first refresh was NOT cancelled
-            assertTrue("First resolve must still be running without cancellation", firstResolveBlocker.isActive)
-            assertTrue("isRefreshing must stay active throughout", viewModel.uiState.value.isRefreshing)
-            assertEquals(listOf("first"), resolveInvocations)
-
-            // 3. Let first refresh complete
-            firstResolveBlocker.complete(Unit)
-            testDispatcher.scheduler.runCurrent()
-
-            // Verify second refresh now runs in sequence
-            assertEquals(listOf("first", "second"), resolveInvocations)
-            assertTrue("isRefreshing must stay active for second refresh", viewModel.uiState.value.isRefreshing)
-
-            // 4. Let second refresh complete
-            secondResolveBlocker.complete(Unit)
             advanceUntilIdle()
 
             assertFalse("isRefreshing must turn false after all sequenced refreshes complete", viewModel.uiState.value.isRefreshing)
@@ -437,7 +392,15 @@ class DirectoryBrowserViewModelTest {
                     durationMs = 240000L,
                     coverThumbnailPath = "/covers/root_cover.jpg",
                 )
-            fakeTrackMetadataRepository.emitMetadata(listOf(cachedMeta))
+            fakeDirectoryRepository.setDirectoryContent(
+                "/",
+                DirectoryContent(
+                    directory = rootDir,
+                    metadataMap = mapOf(audioFile.path to cachedMeta),
+                    isEnriching = false,
+                ),
+            )
+            viewModel.loadDirectory("/", forceRefresh = false)
             advanceUntilIdle()
 
             assertEquals(cachedMeta, viewModel.uiState.value.metadataMap[audioFile.path])
@@ -534,39 +497,27 @@ class DirectoryBrowserViewModelTest {
     @Test
     fun directoryLoad_triggersAsynchronousMetadataResolution_andUpdatesUiStateIncrementally() =
         runTest {
-            advanceUntilIdle()
+            val audioFile = rootDir.files.first()
+            val richMeta =
+                TrackMetadata(
+                    serverId = 1L,
+                    remotePath = "/root_track.mp3",
+                    title = "Rich Root Track Title",
+                    artist = "Famous Artist",
+                    album = "Debut Album",
+                    trackNumber = 1,
+                    durationMs = 210000L,
+                    coverThumbnailPath = "/cache/covers/cover_1.jpg",
+                )
 
-            // Root dir loaded initially, verify resolveMetadata was triggered for root_track.mp3
-            assertEquals(1, fakeTrackMetadataRepository.resolveCalls.size)
-            assertEquals(
-                "/root_track.mp3",
-                fakeTrackMetadataRepository.resolveCalls
-                    .first()
-                    .first()
-                    .path,
-            )
-
-            // UI initially has empty metadataMap, transient file name is displayed
-            assertTrue(
-                viewModel.uiState.value.metadataMap
-                    .isEmpty(),
-            )
-
-            // Metadata arrives asynchronously from background resolution / Room
-            fakeTrackMetadataRepository.emitMetadata(
+            val emissions =
                 listOf(
-                    TrackMetadata(
-                        serverId = 1L,
-                        remotePath = "/root_track.mp3",
-                        title = "Rich Root Track Title",
-                        artist = "Famous Artist",
-                        album = "Debut Album",
-                        trackNumber = 1,
-                        durationMs = 210000L,
-                        coverThumbnailPath = "/cache/covers/cover_1.jpg",
-                    ),
-                ),
-            )
+                    DirectoryContent(directory = rootDir, metadataMap = emptyMap(), isEnriching = true),
+                    DirectoryContent(directory = rootDir, metadataMap = mapOf(audioFile.path to richMeta), isEnriching = false),
+                )
+            fakeDirectoryRepository.setDirectoryContentEmissions("/", emissions)
+
+            viewModel.loadDirectory("/", forceRefresh = false)
             advanceUntilIdle()
 
             val updatedMap = viewModel.uiState.value.metadataMap
@@ -585,16 +536,11 @@ class DirectoryBrowserViewModelTest {
         runTest {
             advanceUntilIdle()
 
-            // Root dir loaded initially -> resolveMetadata called once
-            assertEquals(1, fakeTrackMetadataRepository.resolveCalls.size)
-
             // User clicks audio track to play
             val audioFile = rootDir.files.first()
             viewModel.onAudioTrackClicked(audioFile)
             advanceUntilIdle()
 
-            // Still exactly 1 call from directory loading, no duplicate dispatch from playback
-            assertEquals(1, fakeTrackMetadataRepository.resolveCalls.size)
             assertEquals(rootDir, fakeMusicPlayerAppSession.lastPlayDirectory)
             assertEquals(audioFile, fakeMusicPlayerAppSession.lastPlaySelectedFile)
         }
@@ -665,7 +611,7 @@ class DirectoryBrowserViewModelTest {
                     serverRepository = fakeServerRepository,
                     directoryRepository = fakeDirectoryRepository,
                     musicPlayerAppSession = sessionWithDir,
-                    trackMetadataRepository = fakeTrackMetadataRepository,
+                    librarySearchRepository = fakeLibrarySearchRepository,
                 )
             advanceUntilIdle()
 
@@ -695,7 +641,7 @@ class DirectoryBrowserViewModelTest {
                     serverRepository = fakeServerRepository,
                     directoryRepository = fakeDirectoryRepository,
                     musicPlayerAppSession = sessionWithDir,
-                    trackMetadataRepository = fakeTrackMetadataRepository,
+                    librarySearchRepository = fakeLibrarySearchRepository,
                 )
             advanceUntilIdle()
 
@@ -1497,12 +1443,104 @@ class DirectoryBrowserViewModelTest {
         }
     }
 
-    private class FakeDirectoryRepository : DirectoryRepository {
+    private class FakeDirectoryRepository(
+        var cueSheetResolver: DefaultCueSheetResolver? = null,
+        var trackMetadataRepository: FakeTrackMetadataRepository? = null,
+    ) : DirectoryRepository {
         private val results = mutableMapOf<String, ListDirectoryResult>()
         private val cachedDirectories = mutableMapOf<String, RemoteDirectory>()
         val forceRefreshCount = mutableMapOf<String, Int>()
         val observeCalls = mutableListOf<Triple<WebDavServer, String, Boolean>>()
         var listCalls = 0
+        val contentResults = mutableMapOf<String, DirectoryContent>()
+        val contentEmissions = mutableMapOf<String, List<DirectoryContent>>()
+
+        fun setDirectoryContent(
+            path: String,
+            content: DirectoryContent,
+        ) {
+            contentResults[path] = content
+        }
+
+        fun setDirectoryContentEmissions(
+            path: String,
+            emissions: List<DirectoryContent>,
+        ) {
+            contentEmissions[path] = emissions
+        }
+
+        override fun observeDirectoryContent(
+            server: WebDavServer,
+            path: String,
+            forceRefresh: Boolean,
+        ): Flow<DirectoryContent> =
+            kotlinx.coroutines.flow.flow {
+                observeCalls.add(Triple(server, path, forceRefresh))
+
+                val custom = contentEmissions[path]
+                if (custom != null) {
+                    for (c in custom) emit(c)
+                    return@flow
+                }
+
+                val explicit = contentResults[path]
+                if (explicit != null) {
+                    emit(explicit)
+                    return@flow
+                }
+
+                val cached = if (!forceRefresh) cachedDirectories[path] else null
+                if (cached != null) {
+                    emit(DirectoryContent(directory = cached, isEnriching = true))
+                }
+
+                val result = listDirectory(server, path, forceRefresh)
+                when (result) {
+                    is ListDirectoryResult.Success -> {
+                        val dir = result.directory
+                        val cueFiles = dir.files.filter { it.isCue }
+
+                        val metaMap =
+                            trackMetadataRepository
+                                ?.getAllMetadataFlow(server.id)
+                                ?.first()
+                                ?.associateBy { it.remotePath } ?: emptyMap()
+
+                        val resolvedCue =
+                            if (cueFiles.isNotEmpty() && cueSheetResolver != null) {
+                                val parentDurations = metaMap.mapValues { it.value.durationMs }
+                                cueSheetResolver!!.resolveDirectoryCueAlbums(server, dir, parentDurations)
+                            } else {
+                                emptyList()
+                            }
+
+                        if (cached == null || dir != cached) {
+                            emit(DirectoryContent(directory = dir, isEnriching = true))
+                        }
+                        emit(
+                            DirectoryContent(
+                                directory = dir,
+                                cueAlbums = resolvedCue,
+                                metadataMap = metaMap,
+                                isEnriching = false,
+                            ),
+                        )
+                    }
+
+                    is ListDirectoryResult.Failure -> {
+                        if (cached != null && !forceRefresh) {
+                            val metaMap =
+                                trackMetadataRepository
+                                    ?.getAllMetadataFlow(server.id)
+                                    ?.first()
+                                    ?.associateBy { it.remotePath } ?: emptyMap()
+                            emit(DirectoryContent(directory = cached, metadataMap = metaMap, isEnriching = false))
+                        } else {
+                            throw IllegalStateException(result.message)
+                        }
+                    }
+                }
+            }
 
         fun setResult(
             path: String,
@@ -1723,8 +1761,18 @@ class DirectoryBrowserViewModelTest {
 
             assertEquals(1, viewModel.uiState.value.searchResult.matchedDirectories.size)
             assertEquals(1, viewModel.uiState.value.searchResult.matchedTracks.size)
-            assertEquals("Rock", viewModel.uiState.value.searchResult.matchedDirectories.first().name)
-            assertEquals("Bohemian Rhapsody", viewModel.uiState.value.searchResult.matchedTracks.first().title)
+            assertEquals(
+                "Rock",
+                viewModel.uiState.value.searchResult.matchedDirectories
+                    .first()
+                    .name,
+            )
+            assertEquals(
+                "Bohemian Rhapsody",
+                viewModel.uiState.value.searchResult.matchedTracks
+                    .first()
+                    .title,
+            )
         }
 
     @Test
@@ -1766,7 +1814,10 @@ class DirectoryBrowserViewModelTest {
 
             // Clear all
             viewModel.onClearSearchHistory()
-            assertTrue(viewModel.uiState.value.searchHistory.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.searchHistory
+                    .isEmpty(),
+            )
         }
 
     @Test
@@ -1788,7 +1839,9 @@ class DirectoryBrowserViewModelTest {
             // Current directory and breadcrumbs should point to /Music/Rock/
             assertEquals("/Music/Rock/", viewModel.uiState.value.currentPath)
             assertEquals(rockDir, viewModel.uiState.value.currentDirectory)
-            val breadcrumbPaths = viewModel.uiState.value.breadcrumbs.map { it.path }
+            val breadcrumbPaths =
+                viewModel.uiState.value.breadcrumbs
+                    .map { it.path }
             assertEquals(listOf("/", "/Music/", "/Music/Rock/"), breadcrumbPaths)
         }
 
@@ -1844,7 +1897,10 @@ class DirectoryBrowserViewModelTest {
             assertEquals(track2.id, queueTracks[2].id)
 
             // Query was recorded in history
-            assertTrue(viewModel.uiState.value.searchHistory.contains("Track 3"))
+            assertTrue(
+                viewModel.uiState.value.searchHistory
+                    .contains("Track 3"),
+            )
         }
 
     @Test
@@ -1864,48 +1920,29 @@ class DirectoryBrowserViewModelTest {
         }
 
     @Test
-    fun searchHistory_persistsAcrossViewModelInstances_viaSearchHistoryStore() =
+    fun searchHistory_persistsAcrossViewModelInstances_viaLibrarySearchRepository() =
         runTest {
-            class FakeSearchHistoryStore : com.webdav.player.data.repository.SearchHistoryStore {
-                val list = mutableListOf<String>()
-                override fun getSearchHistory(): List<String> = list.toList()
-                override fun addQuery(query: String): List<String> {
-                    list.remove(query)
-                    list.add(0, query)
-                    return list.toList()
-                }
-                override fun removeQuery(query: String): List<String> {
-                    list.remove(query)
-                    return list.toList()
-                }
-                override fun clear() {
-                    list.clear()
-                }
-            }
-
-            val fakeStore = FakeSearchHistoryStore()
+            val sharedRepo = FakeLibrarySearchRepository()
             val vm1 =
                 DirectoryBrowserViewModel(
                     serverRepository = fakeServerRepository,
                     directoryRepository = fakeDirectoryRepository,
                     musicPlayerAppSession = fakeMusicPlayerAppSession,
-                    librarySearchRepository = fakeLibrarySearchRepository,
-                    searchHistoryStore = fakeStore,
+                    librarySearchRepository = sharedRepo,
                 )
             vm1.onSearchSubmitted("Beethoven")
             vm1.onSearchSubmitted("Mozart")
 
             assertEquals(listOf("Mozart", "Beethoven"), vm1.uiState.value.searchHistory)
-            assertEquals(listOf("Mozart", "Beethoven"), fakeStore.getSearchHistory())
+            assertEquals(listOf("Mozart", "Beethoven"), sharedRepo.getSearchHistory())
 
-            // Create a second VM instance with the same store
+            // Create a second VM instance with the same repo
             val vm2 =
                 DirectoryBrowserViewModel(
                     serverRepository = fakeServerRepository,
                     directoryRepository = fakeDirectoryRepository,
                     musicPlayerAppSession = fakeMusicPlayerAppSession,
-                    librarySearchRepository = fakeLibrarySearchRepository,
-                    searchHistoryStore = fakeStore,
+                    librarySearchRepository = sharedRepo,
                 )
             assertEquals(listOf("Mozart", "Beethoven"), vm2.uiState.value.searchHistory)
         }
@@ -1936,7 +1973,11 @@ class DirectoryBrowserViewModelTest {
 
             // Active server in repo and VM state switched to server 2
             assertEquals(2L, fakeServerRepository.getActiveServer().first()?.id)
-            assertEquals(2L, viewModel.uiState.value.activeServer?.id)
+            assertEquals(
+                2L,
+                viewModel.uiState.value.activeServer
+                    ?.id,
+            )
             assertEquals("/Music/Jazz/", viewModel.uiState.value.currentPath)
         }
 }

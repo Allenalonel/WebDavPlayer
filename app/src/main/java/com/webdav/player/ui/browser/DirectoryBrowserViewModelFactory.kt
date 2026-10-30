@@ -66,8 +66,6 @@ class DirectoryBrowserViewModelFactory(
                 serverRepository = serverRepository,
                 directoryRepository = directoryRepository,
                 musicPlayerAppSession = session,
-                trackMetadataRepository = metadataRepository,
-                cueSheetResolver = cueSheetResolver,
                 librarySearchRepository = searchRepository,
             ) as T
         }
