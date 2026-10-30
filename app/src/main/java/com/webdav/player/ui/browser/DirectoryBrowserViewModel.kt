@@ -303,7 +303,21 @@ class DirectoryBrowserViewModel(
             onSearchSubmitted(currentQuery)
         }
         _uiState.update { it.copy(isSearchActive = false, searchQuery = "") }
-        loadDirectory(directory.path, forceRefresh = false)
+        val targetServerId = directory.serverId
+        val currentServer = _uiState.value.activeServer
+        if (targetServerId != null && targetServerId != currentServer?.id) {
+            viewModelScope.launch {
+                val targetServer = serverRepository?.getServerById(targetServerId)
+                if (targetServer != null) {
+                    serverRepository?.setActiveServer(targetServerId)
+                    musicPlayerAppSession?.setActiveServer(targetServer)
+                    _uiState.update { it.copy(activeServer = targetServer) }
+                }
+                loadDirectory(directory.path, forceRefresh = false)
+            }
+        } else {
+            loadDirectory(directory.path, forceRefresh = false)
+        }
     }
 
     fun closeSearchBar() {

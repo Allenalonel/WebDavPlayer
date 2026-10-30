@@ -48,7 +48,8 @@ class LibrarySearchRepositoryImpl(
                 if (remoteDir.name.contains(cleanQuery, ignoreCase = true) ||
                     remoteDir.path.contains(cleanQuery, ignoreCase = true)
                 ) {
-                    matchedDirs["${dirEntity.serverId}:${remoteDir.path}"] = remoteDir
+                    matchedDirs["${dirEntity.serverId}:${remoteDir.path}"] =
+                        remoteDir.copy(serverId = dirEntity.serverId)
                 }
 
                 // Check subdirectories
@@ -56,7 +57,8 @@ class LibrarySearchRepositoryImpl(
                     if (sub.name.contains(cleanQuery, ignoreCase = true) ||
                         sub.path.contains(cleanQuery, ignoreCase = true)
                     ) {
-                        matchedDirs["${dirEntity.serverId}:${sub.path}"] = sub
+                        matchedDirs["${dirEntity.serverId}:${sub.path}"] =
+                            sub.copy(serverId = dirEntity.serverId)
                     }
                 }
 

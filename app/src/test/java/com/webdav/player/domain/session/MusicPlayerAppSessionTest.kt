@@ -40,6 +40,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -2861,6 +2862,102 @@ class MusicPlayerAppSessionTest {
             assertEquals("404", playlistSession.sessionState.value.errorMessage)
 
             playlistSession.release()
+        }
+
+    @Test
+    fun playTrack_singleTrack_setsAdHocQueueOrigin() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            val track =
+                AudioTrack(
+                    id = "1:/search/single.mp3",
+                    serverId = testServer.id,
+                    remotePath = "/search/single.mp3",
+                    title = "Search Single",
+                    format = AudioFormat.MP3,
+                )
+
+            session.playTrack(track)
+            advanceUntilIdle()
+
+            val state = session.sessionState.value
+            assertEquals(1, state.queue.size)
+            assertEquals(QueueOrigin.AD_HOC, state.queue.origin)
+            assertTrue(state.queue.isAdHocQueue)
+        }
+
+    @Test
+    fun insertNext_onEmptyQueue_setsAdHocQueueOrigin() {
+        val emptyQueue = PlaybackQueue.EMPTY
+        val track =
+            AudioTrack(
+                id = "1:/ad_hoc.mp3",
+                serverId = 1L,
+                remotePath = "/ad_hoc.mp3",
+                title = "Ad Hoc",
+                format = AudioFormat.MP3,
+            )
+        val updated = emptyQueue.insertNext(track)
+        assertEquals(QueueOrigin.AD_HOC, updated.origin)
+        assertTrue(updated.isAdHocQueue)
+    }
+
+    @Test
+    fun transitionToQueueIndex_fromVirtualTrackToStandardTrack_clearsVirtualTimelineEngine() =
+        runTest(testDispatcher) {
+            session.setActiveServer(testServer)
+            advanceUntilIdle()
+
+            // Setup CUE cache
+            val cueContent =
+                """
+                FILE "album.flac" WAVE
+                  TRACK 01 AUDIO
+                    TITLE "Track One"
+                    INDEX 01 00:00:00
+                  TRACK 02 AUDIO
+                    TITLE "Track Two"
+                    INDEX 01 02:00:00
+                """.trimIndent()
+            com.webdav.player.data.cue.CueTextCache.put(testServer.id, "/Music/album.cue", cueContent)
+
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files =
+                        listOf(
+                            RemoteFile(name = "album.flac", path = "/Music/album.flac", size = 100000),
+                            RemoteFile(name = "album.cue", path = "/Music/album.cue", size = 200),
+                        ),
+                )
+
+            session.playDirectoryTrack(dir, RemoteFile(name = "album.flac", path = "/Music/album.flac"))
+            advanceUntilIdle()
+
+            // Now ad-hoc insert a standard track and advance to it
+            val standardTrack =
+                AudioTrack(
+                    id = "1:/Music/single.mp3",
+                    serverId = testServer.id,
+                    remotePath = "/Music/single.mp3",
+                    title = "Standard Single",
+                    format = AudioFormat.MP3,
+                )
+            session.playNextAndAdvance(standardTrack)
+            advanceUntilIdle()
+
+            // Playing standard track
+            assertEquals("Standard Single", session.sessionState.value.currentTrack?.title)
+
+            // When skipping next, it should advance in queue, NOT seek within old CUE
+            session.skipToNext()
+            advanceUntilIdle()
+
+            // Verify queue moved to next item or looped without crashing or virtual seeking
+            assertNotEquals("Track One", session.sessionState.value.currentTrack?.title)
         }
 
     private class TestPlaylistRepository(

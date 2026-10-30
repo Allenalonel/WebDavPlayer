@@ -11,6 +11,9 @@ object RemoteDirectoryJsonSerializer {
         val root = JSONObject()
         root.put("path", directory.path)
         root.put("name", directory.name)
+        if (directory.serverId != null) {
+            root.put("serverId", directory.serverId)
+        }
 
         val subDirs = JSONArray()
         for (sub in directory.subDirectories) {
@@ -73,11 +76,14 @@ object RemoteDirectoryJsonSerializer {
                 }
             }
 
+            val serverId = if (root.has("serverId") && !root.isNull("serverId")) root.getLong("serverId") else null
+
             RemoteDirectory(
                 path = path,
                 name = name,
                 subDirectories = subDirsList,
-                files = filesList
+                files = filesList,
+                serverId = serverId,
             )
         } catch (e: Exception) {
             null

@@ -5,6 +5,7 @@ data class RemoteDirectory(
     val name: String,
     val subDirectories: List<RemoteDirectory> = emptyList(),
     val files: List<RemoteFile> = emptyList(),
+    val serverId: Long? = null,
 ) {
     val audioFiles: List<RemoteFile> get() = files.filter { it.isAudio }
     val isEmpty: Boolean get() = subDirectories.isEmpty() && files.isEmpty()

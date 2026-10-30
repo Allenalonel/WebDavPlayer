@@ -27,7 +27,7 @@ data class PlaybackQueue(
 
     fun insertNext(track: AudioTrack): PlaybackQueue {
         if (tracks.isEmpty()) {
-            return PlaybackQueue(listOf(track), 0)
+            return PlaybackQueue(listOf(track), 0, origin = QueueOrigin.AD_HOC)
         }
         val insertIndex = (currentIndex + 1).coerceIn(0, tracks.size)
         val newTracks =

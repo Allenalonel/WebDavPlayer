@@ -360,24 +360,26 @@ class MusicPlayerAppSessionImpl(
         }
 
         coroutineScope.launch {
-            var startPositionMs = 0L
-            if (targetTrack.isVirtualTrack) {
-                val (matchedVt, startMs) = resolveVirtualTrackOffset(targetTrack)
-                startPositionMs = startMs
-                if (matchedVt != null) {
-                    virtualTimelineEngine.loadTracks(listOf(matchedVt), 0)
-                    activeParentAudioTrack = targetTrack.copy(id = targetTrack.id.substringBefore("#cue_"))
-                    activeCuePath = targetTrack.cuePath ?: (targetTrack.remotePath.substringBeforeLast('.') + ".cue")
-                } else if (queue.isPlaylistQueue) {
+            val (_, startPositionMs) =
+                if (targetTrack.isVirtualTrack) {
+                    val (vt, ms) = resolveVirtualTrackOffset(targetTrack)
+                    if (vt != null) {
+                        virtualTimelineEngine.loadTracks(listOf(vt), 0)
+                        activeParentAudioTrack = targetTrack.copy(id = targetTrack.id.substringBefore("#cue_"))
+                        activeCuePath = targetTrack.cuePath ?: (targetTrack.remotePath.substringBeforeLast('.') + ".cue")
+                        vt to ms
+                    } else {
+                        virtualTimelineEngine.clear()
+                        activeParentAudioTrack = null
+                        activeCuePath = null
+                        null to 0L
+                    }
+                } else {
                     virtualTimelineEngine.clear()
                     activeParentAudioTrack = null
                     activeCuePath = null
+                    null to 0L
                 }
-            } else if (queue.isPlaylistQueue) {
-                virtualTimelineEngine.clear()
-                activeParentAudioTrack = null
-                activeCuePath = null
-            }
 
             loadTrackIntoEngine(
                 server = server,
@@ -951,7 +953,7 @@ class MusicPlayerAppSessionImpl(
         failedTrackIdsInCurrentCycle.clear()
         val server = _sessionState.value.activeServer
         if (server == null && serverRepository == null) return
-        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0)
+        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0, origin = QueueOrigin.AD_HOC)
         _playbackProgress.value =
             PlaybackProgress(
                 currentPositionMs = 0L,
@@ -959,18 +961,45 @@ class MusicPlayerAppSessionImpl(
                 bufferedPositionMs = 0L,
             )
         _sessionState.update { it.copy(queue = queue, errorMessage = null) }
-        loadTrackIntoEngine(server = server, track = track, startPositionMs = 0L)
 
-        if (trackMetadataRepository != null) {
-            coroutineScope.launch {
-                val effectiveServer = server ?: serverRepository?.getServerById(track.serverId) ?: return@launch
-                val cachedMeta = trackMetadataRepository.getCachedMetadata(effectiveServer.id, track.remotePath)
+        coroutineScope.launch {
+            val (_, startPositionMs) =
+                if (track.isVirtualTrack) {
+                    val (vt, ms) = resolveVirtualTrackOffset(track)
+                    if (vt != null) {
+                        virtualTimelineEngine.loadTracks(listOf(vt), 0)
+                        activeParentAudioTrack = track.copy(id = track.id.substringBefore("#cue_"))
+                        activeCuePath = track.cuePath ?: (track.remotePath.substringBeforeLast('.') + ".cue")
+                        vt to ms
+                    } else {
+                        virtualTimelineEngine.clear()
+                        activeParentAudioTrack = null
+                        activeCuePath = null
+                        null to 0L
+                    }
+                } else {
+                    virtualTimelineEngine.clear()
+                    activeParentAudioTrack = null
+                    activeCuePath = null
+                    null to 0L
+                }
+
+            val effectiveServer = server ?: serverRepository?.getServerById(track.serverId)
+            loadTrackIntoEngine(server = effectiveServer, track = track, startPositionMs = startPositionMs)
+            if (track.isVirtualTrack) {
+                playerEngine.updateTrackMetadata(track)
+            }
+            flushSession()
+
+            if (trackMetadataRepository != null) {
+                val s = effectiveServer ?: return@launch
+                val cachedMeta = trackMetadataRepository.getCachedMetadata(s.id, track.remotePath)
                 val meta =
                     if (cachedMeta != null) {
                         cachedMeta
                     } else {
                         val file = RemoteFile(name = track.fileName, path = track.remotePath)
-                        trackMetadataRepository.resolveSingleTrackMetadata(effectiveServer, file)
+                        trackMetadataRepository.resolveSingleTrackMetadata(s, file)
                     }
                 var enrichedTrack: AudioTrack? = null
 

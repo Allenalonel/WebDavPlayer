@@ -27,6 +27,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -1463,7 +1464,11 @@ class DirectoryBrowserViewModelTest {
         fun setActiveServerSync(server: WebDavServer?) {
             activeServerFlow.value = server
             if (server != null) {
-                serversFlow.value = listOf(server)
+                val current = serversFlow.value.toMutableList()
+                if (current.none { it.id == server.id }) {
+                    current.add(server)
+                }
+                serversFlow.value = current
             }
         }
 
@@ -1473,11 +1478,20 @@ class DirectoryBrowserViewModelTest {
 
         override suspend fun getServerById(id: Long): WebDavServer? = serversFlow.value.firstOrNull { it.id == id }
 
-        override suspend fun saveServer(server: WebDavServer): Long = 1L
+        override suspend fun saveServer(server: WebDavServer): Long {
+            val current = serversFlow.value.toMutableList()
+            current.removeAll { it.id == server.id }
+            current.add(server)
+            serversFlow.value = current
+            return server.id
+        }
 
         override suspend fun deleteServer(id: Long) {}
 
-        override suspend fun setActiveServer(id: Long) {}
+        override suspend fun setActiveServer(id: Long) {
+            val server = serversFlow.value.firstOrNull { it.id == id }
+            activeServerFlow.value = server
+        }
     }
 
     private class FakeDirectoryRepository : DirectoryRepository {
@@ -1870,5 +1884,35 @@ class DirectoryBrowserViewModelTest {
                     searchHistoryStore = fakeStore,
                 )
             assertEquals(listOf("Mozart", "Beethoven"), vm2.uiState.value.searchHistory)
+        }
+
+    @Test
+    fun searchBar_directoryClick_switchesActiveServer_whenDirectoryBelongsToDifferentServer() =
+        runTest {
+            advanceUntilIdle()
+
+            // Setup second server in fakeServerRepository
+            val server2 =
+                WebDavServer(
+                    id = 2L,
+                    name = "Office NAS",
+                    url = "http://192.168.1.100:8080/",
+                    username = "user",
+                    password = "pwd",
+                )
+            fakeServerRepository.saveServer(server2)
+            advanceUntilIdle()
+
+            val dirOnServer2 = RemoteDirectory(path = "/Music/Jazz/", name = "Jazz", serverId = 2L)
+
+            viewModel.onSearchActiveChanged(true)
+            viewModel.onSearchQueryChanged("Jazz")
+            viewModel.onSearchResultDirectoryClicked(dirOnServer2)
+            advanceUntilIdle()
+
+            // Active server in repo and VM state switched to server 2
+            assertEquals(2L, fakeServerRepository.getActiveServer().first()?.id)
+            assertEquals(2L, viewModel.uiState.value.activeServer?.id)
+            assertEquals("/Music/Jazz/", viewModel.uiState.value.currentPath)
         }
 }
