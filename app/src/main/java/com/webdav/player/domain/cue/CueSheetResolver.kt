@@ -44,6 +44,15 @@ interface CueSheetResolver {
     ): List<VirtualTrack>
 
     /**
+     * Synchronously returns parsed virtual tracks from transient memory cache if present, without network I/O.
+     */
+    fun getCachedVirtualTracks(
+        server: WebDavServer,
+        cuePath: String,
+        parentAudioPath: String,
+    ): List<VirtualTrack>? = null
+
+    /**
      * Clears transient CUE text from the internal in-memory LRU cache.
      */
     fun clearCache()

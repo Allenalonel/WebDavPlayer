@@ -3,8 +3,7 @@ package com.webdav.player.ui.browser
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.webdav.player.data.cue.CueAssociationHelper
-import com.webdav.player.data.cue.CueParser
-import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Breadcrumb
 import com.webdav.player.domain.model.CueAlbumItem
@@ -36,7 +35,7 @@ class DirectoryBrowserViewModel(
     private val directoryRepository: DirectoryRepository,
     val musicPlayerAppSession: MusicPlayerAppSession? = null,
     val trackMetadataRepository: TrackMetadataRepository? = null,
-    val webDavClient: WebDavClient? = null,
+    val cueSheetResolver: CueSheetResolver? = null,
     val librarySearchRepository: LibrarySearchRepository? = null,
     val searchHistoryStore: com.webdav.player.data.repository.SearchHistoryStore? = null,
 ) : ViewModel() {
@@ -641,83 +640,26 @@ class DirectoryBrowserViewModel(
                     audioFile = matchedAudio,
                     tracks = emptyList(),
                     isExpanded = false,
-                    isLoading = webDavClient != null,
-                    errorMessage = if (webDavClient == null && matchedAudio == null) "未找到对应的目标音频文件" else null,
+                    isLoading = cueSheetResolver != null,
+                    errorMessage = if (cueSheetResolver == null && matchedAudio == null) "未找到对应的目标音频文件" else null,
                 )
             }
 
         _uiState.update { it.copy(cueAlbums = initialAlbums) }
 
-        if (webDavClient == null || initialAlbums.isEmpty()) {
+        if (cueSheetResolver == null || initialAlbums.isEmpty()) {
             return
         }
 
         cueResolutionJob =
             viewModelScope.launch {
+                val parentDurations = _uiState.value.metadataMap.mapValues { it.value.durationMs }
                 val resolvedAlbums =
-                    initialAlbums.map { initialAlbum ->
-                        try {
-                            val cachedCue =
-                                com.webdav.player.data.cue.CueTextCache
-                                    .get(server.id, initialAlbum.cueFile.path)
-                            val cueContent =
-                                cachedCue ?: webDavClient.fetchText(server, initialAlbum.cueFile.path)?.also {
-                                    com.webdav.player.data.cue.CueTextCache
-                                        .put(server.id, initialAlbum.cueFile.path, it)
-                                }
-                            if (cueContent.isNullOrBlank()) {
-                                initialAlbum.copy(
-                                    isLoading = false,
-                                    errorMessage = "无法读取 CUE 文件内容",
-                                )
-                            } else {
-                                val referencedFiles = CueParser.extractReferencedFiles(cueContent)
-                                val matchedAudio =
-                                    CueAssociationHelper.findMatchingAudioFile(
-                                        cueFile = initialAlbum.cueFile,
-                                        audioFiles = audioFiles,
-                                        referencedFileNames = referencedFiles,
-                                        totalCueFilesCount = cueFiles.size,
-                                    ) ?: if (referencedFiles.isEmpty()) initialAlbum.audioFile else null
-
-                                if (matchedAudio == null) {
-                                    initialAlbum.copy(
-                                        audioFile = null,
-                                        isLoading = false,
-                                        errorMessage = "未找到 CUE 指向的目标音频文件",
-                                    )
-                                } else {
-                                    val parentDurationMs = _uiState.value.metadataMap[matchedAudio.path]?.durationMs
-                                    val tracks =
-                                        CueParser.parse(
-                                            content = cueContent,
-                                            parentAudioPath = matchedAudio.path,
-                                            totalDurationMs = parentDurationMs,
-                                        )
-
-                                    if (tracks.isEmpty()) {
-                                        initialAlbum.copy(
-                                            audioFile = matchedAudio,
-                                            isLoading = false,
-                                            errorMessage = "CUE 文件未包含有效分轨",
-                                        )
-                                    } else {
-                                        initialAlbum.copy(
-                                            audioFile = matchedAudio,
-                                            tracks = tracks,
-                                            isLoading = false,
-                                            errorMessage = null,
-                                        )
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            initialAlbum.copy(
-                                isLoading = false,
-                                errorMessage = e.message ?: "解析 CUE 文件失败",
-                            )
-                        }
-                    }
+                    cueSheetResolver.resolveDirectoryCueAlbums(
+                        server = server,
+                        directory = directory,
+                        parentDurationsByPath = parentDurations,
+                    )
 
                 _uiState.update { current ->
                     if (current.currentPath == directory.path) {

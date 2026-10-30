@@ -1,8 +1,9 @@
 package com.webdav.player.domain.session
 
 import com.webdav.player.data.cue.CueParser
-import com.webdav.player.data.cue.CueTextCache
+import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
@@ -106,24 +107,30 @@ class PlaybackSessionResumptionTest {
         if (::session.isInitialized) {
             session.release()
         }
-        CueTextCache.clear()
         sessionJob.cancel()
         Dispatchers.resetMain()
+    }
+
+    private val defaultWebDavClient by lazy {
+        TestWebDavClient(mutableMapOf("/Music/PinkFloyd/dark_side.cue" to cueContentSample))
     }
 
     private fun createSession(
         store: FakePlaybackSessionStore = fakeStore,
         metadataRepo: TrackMetadataRepository? = null,
         client: WebDavClient? = null,
-    ): MusicPlayerAppSessionImpl =
-        MusicPlayerAppSessionImpl(
+        cueResolver: CueSheetResolver? = null,
+    ): MusicPlayerAppSessionImpl {
+        val effectiveResolver = cueResolver ?: DefaultCueSheetResolver(client ?: defaultWebDavClient, testDispatcher)
+        return MusicPlayerAppSessionImpl(
             playerEngine = fakeEngine,
             serverRepository = fakeServerRepo,
             trackMetadataRepository = metadataRepo,
             sessionStore = store,
-            webDavClient = client,
+            cueSheetResolver = effectiveResolver,
             coroutineScope = sessionScope,
         )
+    }
 
     private val darkSideTrack =
         AudioTrack(
@@ -966,7 +973,6 @@ class PlaybackSessionResumptionTest {
     @Test
     fun coldStart_withVirtualTrackSession_restoresVirtualQueueAndRelativeProgressInPausedState() =
         runTest(testDispatcher) {
-            CueTextCache.put(1L, "/Music/PinkFloyd/dark_side.cue", cueContentSample)
             val savedSession =
                 PlaybackSessionData(
                     activeServerId = 1L,
@@ -1009,7 +1015,6 @@ class PlaybackSessionResumptionTest {
     @Test
     fun tappingPlayOnRestoredVirtualTrackMiniPlayer_streamsUnderlyingPhysicalAudioFromCalculatedAbsoluteOffset() =
         runTest(testDispatcher) {
-            CueTextCache.put(1L, "/Music/PinkFloyd/dark_side.cue", cueContentSample)
             val savedSession =
                 PlaybackSessionData(
                     activeServerId = 1L,
@@ -1129,7 +1134,6 @@ class PlaybackSessionResumptionTest {
     @Test
     fun seekingWhileInRestoredVirtualTrackPausedState_updatesRelativePositionAndStreamsCorrectAbsoluteOffsetOnPlay() =
         runTest(testDispatcher) {
-            CueTextCache.put(1L, "/Music/PinkFloyd/dark_side.cue", cueContentSample)
             val savedSession =
                 PlaybackSessionData(
                     activeServerId = 1L,
@@ -1209,7 +1213,6 @@ class PlaybackSessionResumptionTest {
     @Test
     fun skipControlsOnRestoredVirtualTrackSession_translatesRelativeToGlobalStream() =
         runTest(testDispatcher) {
-            CueTextCache.put(1L, "/Music/PinkFloyd/dark_side.cue", cueContentSample)
             val savedSession =
                 PlaybackSessionData(
                     activeServerId = 1L,

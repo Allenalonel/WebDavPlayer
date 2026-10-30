@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.webdav.player.WebDavApplication
+import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
@@ -57,13 +58,14 @@ class DirectoryBrowserViewModelFactory(
                 }
             val searchHistoryStore =
                 com.webdav.player.data.repository.SharedPreferencesSearchHistoryStore(context)
+            val cueSheetResolver = app?.cueSheetResolver ?: DefaultCueSheetResolver(client)
 
             return DirectoryBrowserViewModel(
                 serverRepository = serverRepository,
                 directoryRepository = directoryRepository,
                 musicPlayerAppSession = session,
                 trackMetadataRepository = metadataRepository,
-                webDavClient = client,
+                cueSheetResolver = cueSheetResolver,
                 librarySearchRepository = searchRepository,
                 searchHistoryStore = searchHistoryStore,
             ) as T

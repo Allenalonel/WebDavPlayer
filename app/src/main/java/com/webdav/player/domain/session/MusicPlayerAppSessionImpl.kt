@@ -1,9 +1,7 @@
 package com.webdav.player.domain.session
 
-import com.webdav.player.data.cue.CueParser
-import com.webdav.player.data.cue.CueTextCache
 import com.webdav.player.data.player.UnsupportedRangeReconnectionException
-import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaybackMode
@@ -60,7 +58,7 @@ class MusicPlayerAppSessionImpl(
     private val trackMetadataRepository: TrackMetadataRepository? = null,
     private val lyricsRepository: LyricsRepository? = null,
     private val sessionStore: PlaybackSessionStore? = null,
-    private val webDavClient: WebDavClient? = null,
+    private val cueSheetResolver: CueSheetResolver? = null,
     private val playlistRepository: PlaylistRepository? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
     private val progressDispatcher: CoroutineDispatcher =
@@ -307,34 +305,19 @@ class MusicPlayerAppSessionImpl(
         if (!track.isVirtualTrack) return null to 0L
         val trackNum = track.id.substringAfter("#cue_").toIntOrNull() ?: return null to 0L
         val cuePath = track.cuePath ?: (track.remotePath.substringBeforeLast('.') + ".cue")
-        var cueText = CueTextCache.get(track.serverId, cuePath)
-        if (cueText.isNullOrBlank() && webDavClient != null) {
-            val server =
-                _sessionState.value.activeServer?.takeIf { it.id == track.serverId }
-                    ?: serverRepository?.getServerById(track.serverId)
-            if (server != null) {
-                cueText =
-                    try {
-                        webDavClient.fetchText(server, cuePath)
-                    } catch (e: Exception) {
-                        null
-                    }
-                if (!cueText.isNullOrBlank()) {
-                    CueTextCache.put(track.serverId, cuePath, cueText)
-                }
-            }
-        }
-        if (cueText.isNullOrBlank()) return null to 0L
+        val server =
+            _sessionState.value.activeServer?.takeIf { it.id == track.serverId }
+                ?: serverRepository?.getServerById(track.serverId)
+                ?: return null to 0L
+
         val virtualTracks =
-            try {
-                CueParser.parse(
-                    content = cueText,
-                    parentAudioPath = track.remotePath,
-                    allowMissingFileTag = true,
-                )
-            } catch (e: Exception) {
-                emptyList()
-            }
+            cueSheetResolver?.resolveVirtualTracks(
+                server = server,
+                cuePath = cuePath,
+                parentAudioPath = track.remotePath,
+                totalDurationMs = track.durationMs,
+            ) ?: emptyList()
+
         val matched = virtualTracks.firstOrNull { it.trackNumber == trackNum }
         return matched to (matched?.startTimeMs ?: 0L)
     }
@@ -786,30 +769,24 @@ class MusicPlayerAppSessionImpl(
                 virtualTracksByAudioPath
             } else {
                 val cueFiles = directory.files.filter { it.isCue }
-                if (cueFiles.isNotEmpty()) {
+                if (cueFiles.isNotEmpty() && cueSheetResolver != null) {
                     val map = mutableMapOf<String, List<VirtualTrack>>()
                     for (cueFile in cueFiles) {
-                        val cachedText =
-                            com.webdav.player.data.cue.CueTextCache
-                                .get(server.id, cueFile.path)
-                        if (!cachedText.isNullOrBlank()) {
-                            val matchedAudio =
-                                com.webdav.player.data.cue.CueAssociationHelper.findMatchingAudioFile(
-                                    cueFile = cueFile,
-                                    audioFiles = audioFiles,
-                                    totalCueFilesCount = cueFiles.size,
+                        val matchedAudio =
+                            com.webdav.player.data.cue.CueAssociationHelper.findMatchingAudioFile(
+                                cueFile = cueFile,
+                                audioFiles = audioFiles,
+                                totalCueFilesCount = cueFiles.size,
+                            )
+                        if (matchedAudio != null) {
+                            val cachedTracks =
+                                cueSheetResolver.getCachedVirtualTracks(
+                                    server = server,
+                                    cuePath = cueFile.path,
+                                    parentAudioPath = matchedAudio.path,
                                 )
-                            if (matchedAudio != null) {
-                                val parentTrack = tracks.firstOrNull { it.remotePath == matchedAudio.path }
-                                val parsed =
-                                    com.webdav.player.data.cue.CueParser.parse(
-                                        content = cachedText,
-                                        parentAudioPath = matchedAudio.path,
-                                        totalDurationMs = parentTrack?.durationMs,
-                                    )
-                                if (parsed.isNotEmpty()) {
-                                    map[matchedAudio.path] = parsed
-                                }
+                            if (!cachedTracks.isNullOrEmpty()) {
+                                map[matchedAudio.path] = cachedTracks
                             }
                         }
                     }
@@ -1810,38 +1787,19 @@ class MusicPlayerAppSessionImpl(
         val parentTrack = savedSession.queueTracks.firstOrNull() ?: return false
         val normalizedParentTrack = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
 
-        // 1. Check in-memory CUE text cache
-        var cueText = CueTextCache.get(savedSession.activeServerId, cuePath)
+        val targetServer =
+            server
+                ?: _sessionState.value.activeServer?.takeIf { it.id == savedSession.activeServerId }
+                ?: savedSession.activeServerId?.let { serverRepository?.getServerById(it) }
+                ?: return false
 
-        // 2. Fetch from WebDavClient if not cached
-        if (cueText.isNullOrBlank() && server != null && webDavClient != null) {
-            cueText =
-                try {
-                    webDavClient.fetchText(server, cuePath)
-                } catch (e: Exception) {
-                    null
-                }
-            if (!cueText.isNullOrBlank()) {
-                CueTextCache.put(server.id, cuePath, cueText)
-            }
-        }
-
-        // 3. Fallback if CUE text is unavailable (deleted / network fail)
-        if (cueText.isNullOrBlank()) {
-            return false
-        }
-
-        // 4. Parse CUE into virtual tracks
         val virtualTracks =
-            try {
-                CueParser.parse(
-                    content = cueText,
-                    parentAudioPath = normalizedParentTrack.remotePath,
-                    totalDurationMs = normalizedParentTrack.durationMs,
-                )
-            } catch (e: Exception) {
-                emptyList()
-            }
+            cueSheetResolver?.resolveVirtualTracks(
+                server = targetServer,
+                cuePath = cuePath,
+                parentAudioPath = normalizedParentTrack.remotePath,
+                totalDurationMs = normalizedParentTrack.durationMs,
+            ) ?: emptyList()
 
         // If CUE parsing failed or returned no tracks, fallback safely
         if (virtualTracks.isEmpty()) {

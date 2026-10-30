@@ -2,6 +2,7 @@ package com.webdav.player
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
 import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
@@ -14,6 +15,7 @@ import com.webdav.player.data.repository.PlaylistRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
+import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LibrarySearchRepository
@@ -48,6 +50,9 @@ class WebDavApplication : Application() {
         private set
 
     lateinit var playlistRepository: PlaylistRepository
+        private set
+
+    lateinit var cueSheetResolver: CueSheetResolver
         private set
 
     lateinit var playerEngine: AudioPlayerEngine
@@ -86,6 +91,9 @@ class WebDavApplication : Application() {
         val sessionStore = DataStorePlaybackSessionStore(this)
         this.sessionStore = sessionStore
 
+        val cueSheetResolver = DefaultCueSheetResolver(webDavClient)
+        this.cueSheetResolver = cueSheetResolver
+
         val directoryRepository =
             DirectoryRepositoryImpl(
                 webDavClient = webDavClient,
@@ -97,6 +105,7 @@ class WebDavApplication : Application() {
             LibrarySearchRepositoryImpl(
                 directoryCacheDao = database.directoryCacheDao(),
                 trackMetadataDao = database.trackMetadataDao(),
+                cueSheetResolver = cueSheetResolver,
             )
 
         playlistRepository =
@@ -111,7 +120,7 @@ class WebDavApplication : Application() {
                 trackMetadataRepository = trackMetadataRepository,
                 lyricsRepository = lyricsRepository,
                 sessionStore = sessionStore,
-                webDavClient = webDavClient,
+                cueSheetResolver = cueSheetResolver,
                 playlistRepository = playlistRepository,
             )
         (playerEngine as? PlaybackSessionHost)?.bindAppSession(musicPlayerAppSession)

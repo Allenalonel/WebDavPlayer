@@ -3,16 +3,21 @@ package com.webdav.player.data.repository
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.DirectoryCacheDao
 import com.webdav.player.data.local.DirectoryCacheEntity
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
 import com.webdav.player.data.local.TrackMetadataDao
 import com.webdav.player.data.local.TrackMetadataEntity
+import com.webdav.player.data.remote.ConnectionResult
+import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.RemoteFileType
+import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.LibrarySearchRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -34,7 +39,30 @@ class LibrarySearchRepositoryTest {
     private lateinit var trackMetadataDao: TrackMetadataDao
     private lateinit var repository: LibrarySearchRepository
 
-    private val fakeCueStore = mutableMapOf<String, String>()
+    private val fakeWebDavClient =
+        object : WebDavClient {
+            val textResponses = mutableMapOf<String, String>()
+
+            override suspend fun testConnection(server: WebDavServer): ConnectionResult =
+                ConnectionResult.Success
+
+            override suspend fun listDirectory(
+                server: WebDavServer,
+                path: String,
+            ): ListDirectoryResult = ListDirectoryResult.Failure("Not implemented")
+
+            override suspend fun fetchRange(
+                server: WebDavServer,
+                remotePath: String,
+                startByte: Long,
+                endByte: Long,
+            ): ByteArray? = null
+
+            override suspend fun fetchText(
+                server: WebDavServer,
+                remotePath: String,
+            ): String? = textResponses["${server.id}:$remotePath"] ?: textResponses[remotePath]
+        }
 
     @Before
     fun setUp() {
@@ -46,13 +74,15 @@ class LibrarySearchRepositoryTest {
                 .build()
         directoryCacheDao = database.directoryCacheDao()
         trackMetadataDao = database.trackMetadataDao()
-        fakeCueStore.clear()
+        fakeWebDavClient.textResponses.clear()
+
+        val cueSheetResolver = DefaultCueSheetResolver(fakeWebDavClient)
 
         repository =
             LibrarySearchRepositoryImpl(
                 directoryCacheDao = directoryCacheDao,
                 trackMetadataDao = trackMetadataDao,
-                cueTextProvider = { serverId, cuePath -> fakeCueStore["$serverId:$cuePath"] },
+                cueSheetResolver = cueSheetResolver,
             )
     }
 
@@ -312,7 +342,7 @@ class LibrarySearchRepositoryTest {
                     PERFORMER "Berliner Philharmoniker"
                     INDEX 01 15:30:00
                 """.trimIndent()
-            fakeCueStore["1:/Music/Symphony.cue"] = cueContent
+            fakeWebDavClient.textResponses["/Music/Symphony.cue"] = cueContent
 
             // Search by virtual track title
             val vivaceResult = repository.search("vivace").first()

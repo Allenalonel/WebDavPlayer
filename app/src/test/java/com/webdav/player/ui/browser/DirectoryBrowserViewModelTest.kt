@@ -1,5 +1,6 @@
 package com.webdav.player.ui.browser
 
+import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioFormat
@@ -51,6 +52,7 @@ class DirectoryBrowserViewModelTest {
     private lateinit var fakeMusicPlayerAppSession: FakeMusicPlayerAppSession
     private lateinit var fakeTrackMetadataRepository: FakeTrackMetadataRepository
     private lateinit var fakeWebDavClient: FakeWebDavClient
+    private lateinit var fakeCueSheetResolver: DefaultCueSheetResolver
     private lateinit var fakeLibrarySearchRepository: FakeLibrarySearchRepository
     private lateinit var viewModel: DirectoryBrowserViewModel
 
@@ -117,6 +119,7 @@ class DirectoryBrowserViewModelTest {
         fakeDirectoryRepository.setResult("/Music/", ListDirectoryResult.Success(musicDir))
         fakeDirectoryRepository.setResult("/Music/Rock/", ListDirectoryResult.Success(rockDir))
         fakeLibrarySearchRepository = FakeLibrarySearchRepository()
+        fakeCueSheetResolver = DefaultCueSheetResolver(fakeWebDavClient, testDispatcher)
 
         viewModel =
             DirectoryBrowserViewModel(
@@ -124,7 +127,7 @@ class DirectoryBrowserViewModelTest {
                 directoryRepository = fakeDirectoryRepository,
                 musicPlayerAppSession = fakeMusicPlayerAppSession,
                 trackMetadataRepository = fakeTrackMetadataRepository,
-                webDavClient = fakeWebDavClient,
+                cueSheetResolver = fakeCueSheetResolver,
                 librarySearchRepository = fakeLibrarySearchRepository,
             )
     }

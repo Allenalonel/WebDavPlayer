@@ -5,10 +5,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.test.core.app.ApplicationProvider
-import com.webdav.player.data.cue.CueTextCache
+import com.webdav.player.data.cue.DefaultCueSheetResolver
+import com.webdav.player.data.remote.ConnectionResult
+import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.RemoteDirectory
@@ -128,7 +131,6 @@ class ProcessRestartSimulationTest {
         if (dataStoreFile.exists()) {
             dataStoreFile.delete()
         }
-        CueTextCache.clear()
         Dispatchers.resetMain()
     }
 
@@ -423,7 +425,31 @@ class ProcessRestartSimulationTest {
                     TITLE "Movement II"
                     INDEX 01 01:30:00
                 """.trimIndent()
-            CueTextCache.put(100L, "/Music/Rock/02-Solo.cue", cueContent)
+
+            val fakeWebDavClient =
+                object : WebDavClient {
+                    val textResponses = mutableMapOf("/Music/Rock/02-Solo.cue" to cueContent)
+
+                    override suspend fun testConnection(server: WebDavServer) = ConnectionResult.Success
+
+                    override suspend fun listDirectory(
+                        server: WebDavServer,
+                        path: String,
+                    ) = ListDirectoryResult.Failure("Not implemented")
+
+                    override suspend fun fetchRange(
+                        server: WebDavServer,
+                        remotePath: String,
+                        startByte: Long,
+                        endByte: Long,
+                    ): ByteArray? = null
+
+                    override suspend fun fetchText(
+                        server: WebDavServer,
+                        remotePath: String,
+                    ): String? = textResponses[remotePath]
+                }
+            val cueResolver = DefaultCueSheetResolver(fakeWebDavClient, testDispatcher)
 
             val virtualTracks =
                 listOf(
@@ -453,6 +479,7 @@ class ProcessRestartSimulationTest {
                     playerEngine = engine1,
                     serverRepository = serverRepo,
                     sessionStore = sessionStore,
+                    cueSheetResolver = cueResolver,
                     coroutineScope = process1Scope,
                 )
             session1.setActiveServer(testServer)
@@ -495,6 +522,7 @@ class ProcessRestartSimulationTest {
                     playerEngine = engine2,
                     serverRepository = serverRepo,
                     sessionStore = sessionStore,
+                    cueSheetResolver = cueResolver,
                     coroutineScope = process2Scope,
                 )
 

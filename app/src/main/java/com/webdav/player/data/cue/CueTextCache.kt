@@ -6,7 +6,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Thread-safe, in-memory cache for raw CUE sheet text content.
  * Keeps CUE content transiently in memory without writing to persistent disk storage,
  * strictly abiding by zero-disk-retention streaming principles.
+ *
+ * @deprecated Replaced by [com.webdav.player.domain.cue.CueSheetResolver] with bounded LRU cache (ADR-0021).
  */
+@Deprecated(
+    message = "Replaced by CueSheetResolver bounded in-memory LRU cache (ADR-0021). Avoid global static state.",
+    level = DeprecationLevel.WARNING,
+)
 object CueTextCache {
     private val cache = ConcurrentHashMap<String, String>()
 

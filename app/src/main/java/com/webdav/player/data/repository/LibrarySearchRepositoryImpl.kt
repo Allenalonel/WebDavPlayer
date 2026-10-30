@@ -1,16 +1,15 @@
 package com.webdav.player.data.repository
 
-import com.webdav.player.data.cue.CueAssociationHelper
-import com.webdav.player.data.cue.CueParser
-import com.webdav.player.data.cue.CueTextCache
 import com.webdav.player.data.local.DirectoryCacheDao
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
 import com.webdav.player.data.local.TrackMetadataDao
+import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.LibrarySearchResult
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFileType
+import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.LibrarySearchRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -19,9 +18,7 @@ import kotlinx.coroutines.flow.flowOf
 class LibrarySearchRepositoryImpl(
     private val directoryCacheDao: DirectoryCacheDao,
     private val trackMetadataDao: TrackMetadataDao,
-    private val cueTextProvider: ((serverId: Long, cuePath: String) -> String?) = { serverId, cuePath ->
-        CueTextCache.get(serverId, cuePath)
-    },
+    private val cueSheetResolver: CueSheetResolver? = null,
 ) : LibrarySearchRepository {
     override fun search(
         query: String,
@@ -98,26 +95,13 @@ class LibrarySearchRepositoryImpl(
                 }
 
                 // Match CUE virtual tracks
-                if (cueFiles.isNotEmpty() && audioFiles.isNotEmpty()) {
-                    for (cueFile in cueFiles) {
-                        val cueText = cueTextProvider(dirEntity.serverId, cueFile.path) ?: continue
-                        if (cueText.isBlank()) continue
-
-                        val referenced = CueParser.extractReferencedFiles(cueText)
-                        val matchedAudioFile =
-                            CueAssociationHelper.findMatchingAudioFile(
-                                cueFile = cueFile,
-                                audioFiles = audioFiles,
-                                referencedFileNames = referenced,
-                                totalCueFilesCount = cueFiles.size,
-                            ) ?: continue
-
-                        val parsedVirtualTracks =
-                            CueParser.parse(
-                                content = cueText,
-                                parentAudioPath = matchedAudioFile.path,
-                                allowMissingFileTag = true,
-                            )
+                if (cueFiles.isNotEmpty() && audioFiles.isNotEmpty() && cueSheetResolver != null) {
+                    val server = WebDavServer(id = dirEntity.serverId, name = "", url = "", port = 0)
+                    val parentDurations = audioFiles.associate { it.path to (metadataMap["${dirEntity.serverId}:${it.path}"]?.durationMs ?: 0L) }
+                    val albums = cueSheetResolver.resolveDirectoryCueAlbums(server, remoteDir, parentDurations)
+                    for (album in albums) {
+                        val matchedAudioFile = album.audioFile ?: continue
+                        val parsedVirtualTracks = album.tracks
                         if (parsedVirtualTracks.isEmpty()) continue
 
                         val parentMeta = metadataMap["${dirEntity.serverId}:${matchedAudioFile.path}"]
@@ -132,7 +116,7 @@ class LibrarySearchRepositoryImpl(
                                 artist = parentMeta?.artist?.takeIf { it.isNotBlank() },
                                 album =
                                     parentMeta?.album?.takeIf { it.isNotBlank() }
-                                        ?: cueFile.name.substringBeforeLast('.'),
+                                        ?: album.cueFile.name.substringBeforeLast('.'),
                                 durationMs = parentMeta?.durationMs ?: 0L,
                                 size = matchedAudioFile.size,
                                 format = parentFormat,
@@ -140,7 +124,7 @@ class LibrarySearchRepositoryImpl(
                             )
 
                         for (vt in parsedVirtualTracks) {
-                            val vtTrack = vt.toAudioTrack(parentTrack, cuePath = cueFile.path)
+                            val vtTrack = vt.toAudioTrack(parentTrack, cuePath = album.cueFile.path)
                             val vtMatch =
                                 vt.title.contains(cleanQuery, ignoreCase = true) ||
                                     vt.performer?.contains(cleanQuery, ignoreCase = true) == true ||

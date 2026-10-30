@@ -202,6 +202,25 @@ class DefaultCueSheetResolver(
             }
         }
 
+    override fun getCachedVirtualTracks(
+        server: WebDavServer,
+        cuePath: String,
+        parentAudioPath: String,
+    ): List<VirtualTrack>? {
+        val key = cacheKey(server.id, cuePath)
+        val cueText = textCache.get(key) ?: return null
+        if (cueText.isBlank()) return null
+        return try {
+            CueParser.parse(
+                content = cueText,
+                parentAudioPath = parentAudioPath,
+                allowMissingFileTag = true,
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override fun clearCache() {
         textCache.clear()
     }

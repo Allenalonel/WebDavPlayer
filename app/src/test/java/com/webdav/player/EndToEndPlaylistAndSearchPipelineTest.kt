@@ -3,7 +3,7 @@ package com.webdav.player
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.webdav.player.data.cue.CueTextCache
+import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.DirectoryCacheEntity
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
@@ -159,11 +159,39 @@ class EndToEndPlaylistAndSearchPipelineTest {
                 .allowMainThreadQueries()
                 .build()
 
+        val fakeClient =
+            object : com.webdav.player.data.remote.WebDavClient {
+                val textResponses = mutableMapOf<String, String>()
+
+                override suspend fun testConnection(server: WebDavServer) =
+                    com.webdav.player.data.remote.ConnectionResult.Success
+
+                override suspend fun listDirectory(
+                    server: WebDavServer,
+                    path: String,
+                ) = com.webdav.player.domain.model.ListDirectoryResult.Failure("Not implemented")
+
+                override suspend fun fetchRange(
+                    server: WebDavServer,
+                    remotePath: String,
+                    startByte: Long,
+                    endByte: Long,
+                ): ByteArray? = null
+
+                override suspend fun fetchText(
+                    server: WebDavServer,
+                    remotePath: String,
+                ): String? = textResponses[remotePath]
+            }
+        fakeClient.textResponses[server1CueFile.path] = cueContent
+        val cueResolver = DefaultCueSheetResolver(fakeClient, testDispatcher)
+
         playlistRepository = PlaylistRepositoryImpl(database.playlistDao())
         searchRepository =
             LibrarySearchRepositoryImpl(
                 directoryCacheDao = database.directoryCacheDao(),
                 trackMetadataDao = database.trackMetadataDao(),
+                cueSheetResolver = cueResolver,
             )
 
         fakeEngine = FakeAudioPlayerEngine()
@@ -179,6 +207,7 @@ class EndToEndPlaylistAndSearchPipelineTest {
                 serverRepository = fakeServerRepo,
                 sessionStore = fakeStore,
                 playlistRepository = playlistRepository,
+                cueSheetResolver = cueResolver,
                 coroutineScope = sessionScope,
             )
 
@@ -242,14 +271,10 @@ class EndToEndPlaylistAndSearchPipelineTest {
                 ),
             )
         }
-
-        // Cache CUE content
-        CueTextCache.put(server1.id, server1CueFile.path, cueContent)
     }
 
     @After
     fun tearDown() {
-        CueTextCache.clear()
         session.release()
         sessionJob.cancel()
         database.close()
