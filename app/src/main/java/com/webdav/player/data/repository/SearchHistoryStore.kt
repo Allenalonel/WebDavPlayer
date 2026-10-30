@@ -3,6 +3,10 @@ package com.webdav.player.data.repository
 import android.content.Context
 import org.json.JSONArray
 
+@Deprecated(
+    message = "Eliminated in favor of LibrarySearchRepository (ADR-0024)",
+    replaceWith = ReplaceWith("LibrarySearchRepository"),
+)
 interface SearchHistoryStore {
     fun getSearchHistory(): List<String>
     fun addQuery(query: String): List<String>
@@ -10,6 +14,10 @@ interface SearchHistoryStore {
     fun clear()
 }
 
+@Deprecated(
+    message = "Eliminated in favor of LibrarySearchRepositoryImpl (ADR-0024)",
+    replaceWith = ReplaceWith("LibrarySearchRepositoryImpl"),
+)
 class SharedPreferencesSearchHistoryStore(
     context: Context,
     prefsName: String = "webdav_search_history",

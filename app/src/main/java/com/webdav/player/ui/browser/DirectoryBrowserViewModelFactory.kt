@@ -54,10 +54,9 @@ class DirectoryBrowserViewModelFactory(
                     com.webdav.player.data.repository.LibrarySearchRepositoryImpl(
                         directoryCacheDao = database.directoryCacheDao(),
                         trackMetadataDao = database.trackMetadataDao(),
+                        context = context,
                     )
                 }
-            val searchHistoryStore =
-                com.webdav.player.data.repository.SharedPreferencesSearchHistoryStore(context)
             val cueSheetResolver = app?.cueSheetResolver ?: DefaultCueSheetResolver(client)
 
             return DirectoryBrowserViewModel(
@@ -67,7 +66,6 @@ class DirectoryBrowserViewModelFactory(
                 trackMetadataRepository = metadataRepository,
                 cueSheetResolver = cueSheetResolver,
                 librarySearchRepository = searchRepository,
-                searchHistoryStore = searchHistoryStore,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

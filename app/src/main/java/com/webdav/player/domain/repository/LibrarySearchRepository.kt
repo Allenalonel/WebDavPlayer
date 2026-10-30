@@ -15,4 +15,27 @@ interface LibrarySearchRepository {
         query: String,
         serverId: Long? = null,
     ): Flow<LibrarySearchResult>
+
+    /**
+     * Retrieves recent search history queries ordered by most recent first.
+     */
+    fun getSearchHistory(): List<String> = emptyList()
+
+    /**
+     * Records a submitted search query into persistent history.
+     * Trims leading/trailing whitespace, moves existing matching query to the front (LRU),
+     * caps history at 20 queries, and returns the updated history list.
+     * Empty or blank queries are ignored.
+     */
+    fun recordSearchQuery(query: String): List<String> = emptyList()
+
+    /**
+     * Removes a specific query from search history and returns the updated history list.
+     */
+    fun removeSearchHistory(query: String): List<String> = emptyList()
+
+    /**
+     * Clears all search history queries.
+     */
+    fun clearSearchHistory() {}
 }

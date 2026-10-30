@@ -1638,6 +1638,7 @@ class DirectoryBrowserViewModelTest {
         var lastSearchQuery: String? = null
         var lastSearchServerId: Long? = null
         val searchResultFlow = MutableStateFlow(LibrarySearchResult())
+        val historyList = mutableListOf<String>()
 
         fun emitResult(result: LibrarySearchResult) {
             searchResultFlow.value = result
@@ -1650,6 +1651,26 @@ class DirectoryBrowserViewModelTest {
             lastSearchQuery = query
             lastSearchServerId = serverId
             return searchResultFlow
+        }
+
+        override fun getSearchHistory(): List<String> = historyList.toList()
+
+        override fun recordSearchQuery(query: String): List<String> {
+            val trimmed = query.trim()
+            if (trimmed.isNotBlank()) {
+                historyList.remove(trimmed)
+                historyList.add(0, trimmed)
+            }
+            return historyList.toList()
+        }
+
+        override fun removeSearchHistory(query: String): List<String> {
+            historyList.remove(query)
+            return historyList.toList()
+        }
+
+        override fun clearSearchHistory() {
+            historyList.clear()
         }
     }
 

@@ -51,7 +51,10 @@ class DirectoryBrowserViewModel(
     private var activeMetadataPath: String? = null
 
     init {
-        val initialHistory = searchHistoryStore?.getSearchHistory() ?: emptyList()
+        val initialHistory =
+            searchHistoryStore?.getSearchHistory()
+                ?: librarySearchRepository?.getSearchHistory()
+                ?: emptyList()
         if (initialHistory.isNotEmpty()) {
             _uiState.update { it.copy(searchHistory = initialHistory) }
         }
@@ -279,6 +282,7 @@ class DirectoryBrowserViewModel(
         if (trimmed.isNotBlank()) {
             val updated =
                 searchHistoryStore?.addQuery(trimmed)
+                    ?: librarySearchRepository?.recordSearchQuery(trimmed)
                     ?: (listOf(trimmed) + _uiState.value.searchHistory.filter { it != trimmed }).take(20)
             _uiState.update { it.copy(searchHistory = updated) }
         }
@@ -286,12 +290,14 @@ class DirectoryBrowserViewModel(
 
     fun onClearSearchHistory() {
         searchHistoryStore?.clear()
+        librarySearchRepository?.clearSearchHistory()
         _uiState.update { it.copy(searchHistory = emptyList()) }
     }
 
     fun onRemoveSearchHistoryItem(item: String) {
         val updated =
             searchHistoryStore?.removeQuery(item)
+                ?: librarySearchRepository?.removeSearchHistory(item)
                 ?: _uiState.value.searchHistory.filter { it != item }
         _uiState.update { it.copy(searchHistory = updated) }
     }

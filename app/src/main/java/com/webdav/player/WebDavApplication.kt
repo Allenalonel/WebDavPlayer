@@ -106,6 +106,7 @@ class WebDavApplication : Application() {
                 directoryCacheDao = database.directoryCacheDao(),
                 trackMetadataDao = database.trackMetadataDao(),
                 cueSheetResolver = cueSheetResolver,
+                context = this,
             )
 
         playlistRepository =

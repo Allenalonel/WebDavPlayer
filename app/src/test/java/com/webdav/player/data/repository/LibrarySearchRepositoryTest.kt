@@ -83,11 +83,14 @@ class LibrarySearchRepositoryTest {
                 directoryCacheDao = directoryCacheDao,
                 trackMetadataDao = trackMetadataDao,
                 cueSheetResolver = cueSheetResolver,
+                context = context,
             )
+        repository.clearSearchHistory()
     }
 
     @After
     fun tearDown() {
+        repository.clearSearchHistory()
         database.close()
     }
 
@@ -513,5 +516,118 @@ class LibrarySearchRepositoryTest {
             // Deduplicated: should be exactly 1 Rock directory for server 1
             assertEquals(1, result.matchedDirectories.size)
             assertEquals("/Music/Rock/", result.matchedDirectories.first().path)
+        }
+
+    @Test
+    fun recordSearchQuery_persistsAndReturnsHistoryInLruOrder() =
+        runTest {
+            assertTrue(repository.getSearchHistory().isEmpty())
+
+            val history1 = repository.recordSearchQuery("Beethoven")
+            assertEquals(listOf("Beethoven"), history1)
+            assertEquals(listOf("Beethoven"), repository.getSearchHistory())
+
+            val history2 = repository.recordSearchQuery("Mozart")
+            assertEquals(listOf("Mozart", "Beethoven"), history2)
+            assertEquals(listOf("Mozart", "Beethoven"), repository.getSearchHistory())
+
+            val history3 = repository.recordSearchQuery("Bach")
+            assertEquals(listOf("Bach", "Mozart", "Beethoven"), history3)
+            assertEquals(listOf("Bach", "Mozart", "Beethoven"), repository.getSearchHistory())
+        }
+
+    @Test
+    fun recordSearchQuery_withWhitespace_trimsQuery() =
+        runTest {
+            val history = repository.recordSearchQuery("   Chopin   ")
+            assertEquals(listOf("Chopin"), history)
+            assertEquals(listOf("Chopin"), repository.getSearchHistory())
+        }
+
+    @Test
+    fun recordSearchQuery_withEmptyOrBlank_doesNotRecord() =
+        runTest {
+            repository.recordSearchQuery("Brahms")
+
+            val afterEmpty = repository.recordSearchQuery("")
+            assertEquals(listOf("Brahms"), afterEmpty)
+
+            val afterSpaces = repository.recordSearchQuery("   \t  ")
+            assertEquals(listOf("Brahms"), afterSpaces)
+            assertEquals(listOf("Brahms"), repository.getSearchHistory())
+        }
+
+    @Test
+    fun recordSearchQuery_withDuplicates_movesToFrontWithoutDuplication() =
+        runTest {
+            repository.recordSearchQuery("Track A")
+            repository.recordSearchQuery("Track B")
+            repository.recordSearchQuery("Track C")
+            assertEquals(listOf("Track C", "Track B", "Track A"), repository.getSearchHistory())
+
+            // Re-record "Track B", should jump to head
+            val updated = repository.recordSearchQuery("Track B")
+            assertEquals(listOf("Track B", "Track C", "Track A"), updated)
+            assertEquals(listOf("Track B", "Track C", "Track A"), repository.getSearchHistory())
+        }
+
+    @Test
+    fun recordSearchQuery_exceedingCapacity_capsAt20Items() =
+        runTest {
+            for (i in 1..25) {
+                repository.recordSearchQuery("Query $i")
+            }
+
+            val history = repository.getSearchHistory()
+            assertEquals(20, history.size)
+            assertEquals("Query 25", history.first())
+            assertEquals("Query 6", history.last())
+            assertFalse(history.contains("Query 1"))
+            assertFalse(history.contains("Query 5"))
+        }
+
+    @Test
+    fun removeSearchHistory_removesItemAndReturnsUpdated() =
+        runTest {
+            repository.recordSearchQuery("Alpha")
+            repository.recordSearchQuery("Beta")
+            repository.recordSearchQuery("Gamma")
+
+            val updated = repository.removeSearchHistory("Beta")
+            assertEquals(listOf("Gamma", "Alpha"), updated)
+            assertEquals(listOf("Gamma", "Alpha"), repository.getSearchHistory())
+
+            // Removing non-existent query does not modify list
+            val afterNonExistent = repository.removeSearchHistory("Delta")
+            assertEquals(listOf("Gamma", "Alpha"), afterNonExistent)
+        }
+
+    @Test
+    fun clearSearchHistory_removesAllHistory() =
+        runTest {
+            repository.recordSearchQuery("Alpha")
+            repository.recordSearchQuery("Beta")
+            assertEquals(2, repository.getSearchHistory().size)
+
+            repository.clearSearchHistory()
+            assertTrue(repository.getSearchHistory().isEmpty())
+        }
+
+    @Test
+    fun searchHistory_persistsAcrossRepositoryInstancesWithSameContext() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            repository.recordSearchQuery("Persistent Query 1")
+            repository.recordSearchQuery("Persistent Query 2")
+
+            val newRepo =
+                LibrarySearchRepositoryImpl(
+                    directoryCacheDao = directoryCacheDao,
+                    trackMetadataDao = trackMetadataDao,
+                    cueSheetResolver = null,
+                    context = context,
+                )
+
+            assertEquals(listOf("Persistent Query 2", "Persistent Query 1"), newRepo.getSearchHistory())
         }
 }

@@ -1,5 +1,6 @@
 package com.webdav.player.data.repository
 
+import android.content.Context
 import com.webdav.player.data.local.DirectoryCacheDao
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
 import com.webdav.player.data.local.TrackMetadataDao
@@ -14,12 +15,86 @@ import com.webdav.player.domain.repository.LibrarySearchRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
+import org.json.JSONArray
 
 class LibrarySearchRepositoryImpl(
     private val directoryCacheDao: DirectoryCacheDao,
     private val trackMetadataDao: TrackMetadataDao,
     private val cueSheetResolver: CueSheetResolver? = null,
+    private val context: Context? = null,
+    private val prefsName: String = "webdav_search_history",
 ) : LibrarySearchRepository {
+    companion object {
+        private const val MAX_HISTORY_SIZE = 20
+        private const val KEY_HISTORY_JSON = "history_json"
+    }
+
+    private val inMemoryHistory = mutableListOf<String>()
+
+    private val prefs by lazy {
+        context?.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+    }
+
+    override fun getSearchHistory(): List<String> {
+        val sharedPrefs = prefs
+        if (sharedPrefs != null) {
+            val raw = sharedPrefs.getString(KEY_HISTORY_JSON, null) ?: return emptyList()
+            return try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).map { arr.getString(it) }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        return synchronized(inMemoryHistory) {
+            inMemoryHistory.toList()
+        }
+    }
+
+    override fun recordSearchQuery(query: String): List<String> {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return getSearchHistory()
+        val current = getSearchHistory().filter { it != trimmed }
+        val updated = (listOf(trimmed) + current).take(MAX_HISTORY_SIZE)
+
+        val sharedPrefs = prefs
+        if (sharedPrefs != null) {
+            val arr = JSONArray(updated)
+            sharedPrefs.edit().putString(KEY_HISTORY_JSON, arr.toString()).apply()
+        } else {
+            synchronized(inMemoryHistory) {
+                inMemoryHistory.clear()
+                inMemoryHistory.addAll(updated)
+            }
+        }
+        return updated
+    }
+
+    override fun removeSearchHistory(query: String): List<String> {
+        val updated = getSearchHistory().filter { it != query }
+        val sharedPrefs = prefs
+        if (sharedPrefs != null) {
+            val arr = JSONArray(updated)
+            sharedPrefs.edit().putString(KEY_HISTORY_JSON, arr.toString()).apply()
+        } else {
+            synchronized(inMemoryHistory) {
+                inMemoryHistory.clear()
+                inMemoryHistory.addAll(updated)
+            }
+        }
+        return updated
+    }
+
+    override fun clearSearchHistory() {
+        val sharedPrefs = prefs
+        if (sharedPrefs != null) {
+            sharedPrefs.edit().remove(KEY_HISTORY_JSON).apply()
+        } else {
+            synchronized(inMemoryHistory) {
+                inMemoryHistory.clear()
+            }
+        }
+    }
     override fun search(
         query: String,
         serverId: Long?,
