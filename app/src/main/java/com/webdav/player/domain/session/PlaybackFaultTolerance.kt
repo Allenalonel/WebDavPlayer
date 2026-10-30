@@ -223,6 +223,57 @@ internal class PlaybackFaultTolerance(
         }
     }
 
+    fun handlePlaybackError(
+        state: PlaybackState.Error,
+        currentTrack: AudioTrack?,
+        onUnsupportedRange: () -> Unit,
+        onSkipToNext: () -> Unit,
+    ): Boolean {
+        if (isUnsupportedRangeError(state)) {
+            sessionStateFlow.update { it.copy(playbackState = PlaybackState.Paused, isUnsupportedRange = true) }
+            onUnsupportedRange()
+            return true
+        } else if (is404Error(state)) {
+            handle404Failure(currentTrack, state.message, onSkipToNext)
+            return true
+        } else if (isAuthError(state)) {
+            handleAuthFailure(currentTrack, state.message, onSkipToNext)
+            return true
+        } else if (isServerUnreachableError(state)) {
+            if (currentTrack != null) {
+                handleServerUnavailable(currentTrack, onSkipToNext)
+            }
+            return true
+        } else {
+            sessionStateFlow.update {
+                it.copy(
+                    playbackState = state,
+                    errorMessage = state.message,
+                    isWeakNetwork = true,
+                    canManualRetry = true,
+                    isReconnecting = false,
+                )
+            }
+            return false
+        }
+    }
+
+    fun handleLoadException(
+        e: Throwable,
+        track: AudioTrack,
+        onSkipToNext: () -> Unit,
+    ) {
+        if (e.is404Exception()) {
+            handle404Failure(track, onSkipToNext = onSkipToNext)
+        } else if (isAuthException(e)) {
+            handleAuthFailure(track, onSkipToNext = onSkipToNext)
+        } else if (isServerUnreachableException(e)) {
+            handleServerUnavailable(track, onSkipToNext = onSkipToNext)
+        } else {
+            throw e
+        }
+    }
+
     fun dismissUnsupportedRange() {
         sessionStateFlow.update { it.copy(isUnsupportedRange = false) }
     }
@@ -242,7 +293,53 @@ internal class PlaybackFaultTolerance(
         return !isPhysicalMatch && !isProgressMatch
     }
 
+    fun checkAndTriggerAdaptivePreroll(
+        progress: com.webdav.player.domain.model.PlaybackProgress,
+        queue: com.webdav.player.domain.model.PlaybackQueue,
+        playbackMode: com.webdav.player.domain.model.PlaybackMode,
+        activeServer: com.webdav.player.domain.model.WebDavServer?,
+        currentTrackId: String?,
+        isPrerollAppended: java.util.concurrent.atomic.AtomicBoolean,
+        serverRepository: com.webdav.player.domain.repository.ServerRepository?,
+        onPreroll: (server: com.webdav.player.domain.model.WebDavServer, track: AudioTrack) -> Unit,
+    ) {
+        if (isPrerollAppended.get() || queue.tracks.size <= 1) return
+        val remainingMs = progress.durationMs - progress.currentPositionMs
+
+        if (remainingMs in 1..PREROLL_TRIGGER_WINDOW_MS) {
+            val isPlaying = sessionStateFlow.value.playbackState is PlaybackState.Playing
+            if (isPlaying && isHealthyNetwork(HEALTHY_NETWORK_QUIET_PERIOD_MS)) {
+                if (isPrerollAppended.compareAndSet(false, true)) {
+                    val server =
+                        activeServer ?: run {
+                            isPrerollAppended.set(false)
+                            return
+                        }
+                    val nextIndex = queueManager.calculateNextQueueIndex(queue, playbackMode)
+                    val nextTrack = queue.tracks[nextIndex]
+                    coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                        if (isPrerollAppended.get() &&
+                            sessionStateFlow.value.playbackState is PlaybackState.Playing &&
+                            sessionStateFlow.value.currentTrack?.id == currentTrackId
+                        ) {
+                            val nextServer =
+                                if (server.id == nextTrack.serverId) {
+                                    server
+                                } else {
+                                    serverRepository?.getServerById(nextTrack.serverId) ?: server
+                                }
+                            onPreroll(nextServer, nextTrack)
+                        } else {
+                            isPrerollAppended.set(false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
+        const val PREROLL_TRIGGER_WINDOW_MS: Long = 10_000L
         const val WATCHDOG_WEAK_NETWORK_TIMEOUT_MS: Long = 15_000L
         const val WATCHDOG_AUTO_PAUSE_TIMEOUT_MS: Long = 15_000L
         const val DURATION_COMPLETION_TOLERANCE_MS: Long = 5000L

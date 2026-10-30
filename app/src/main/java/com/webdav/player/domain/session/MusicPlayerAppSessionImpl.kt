@@ -1,17 +1,14 @@
 package com.webdav.player.domain.session
 
-import com.webdav.player.data.player.UnsupportedRangeReconnectionException
+import androidx.annotation.VisibleForTesting
 import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioTrack
-import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
-import com.webdav.player.domain.model.PlaybackSessionData
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.Playlist
-import com.webdav.player.domain.model.QueueOrigin
 import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
@@ -28,36 +25,34 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Domain playback session orchestrator managing queues, streaming resilience, and error state.
  */
-
 class MusicPlayerAppSessionImpl(
     private val playerEngine: AudioPlayerEngine,
     private val serverRepository: ServerRepository? = null,
-    private val trackMetadataRepository: TrackMetadataRepository? = null,
-    private val lyricsRepository: LyricsRepository? = null,
-    private val sessionStore: PlaybackSessionStore? = null,
+    trackMetadataRepository: TrackMetadataRepository? = null,
+    lyricsRepository: LyricsRepository? = null,
+    sessionStore: PlaybackSessionStore? = null,
     private val cueSheetResolver: CueSheetResolver? = null,
     private val playlistRepository: PlaylistRepository? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
     private val progressDispatcher: CoroutineDispatcher =
         (coroutineScope.coroutineContext[kotlin.coroutines.ContinuationInterceptor] as? CoroutineDispatcher)?.takeIf {
             it !is kotlinx.coroutines.MainCoroutineDispatcher
-        }
-            ?: Dispatchers.Default,
-    private val periodicDispatcher: CoroutineDispatcher = Dispatchers.Default,
+        } ?: Dispatchers.Default,
+    periodicDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : MusicPlayerAppSession {
     private val _sessionState = MutableStateFlow(PlayerSessionState())
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
@@ -69,497 +64,199 @@ class MusicPlayerAppSessionImpl(
     private var activeParentAudioTrack: AudioTrack? = null
     private var activeCuePath: String? = null
     private var hasStreamLoaded = false
-    private val internalJobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
+    private val internalJobs = CopyOnWriteArrayList<Job>()
 
-    private val queueManager =
-        PlaybackQueueManager(
-            sessionStateFlow = _sessionState,
-            onFlushRequested = { coroutineScope.launch { flushSession() } },
-        )
-
-    private val faultTolerance =
-        PlaybackFaultTolerance(
-            sessionStateFlow = _sessionState,
-            playerEngine = playerEngine,
-            playlistRepository = playlistRepository,
-            queueManager = queueManager,
-            coroutineScope = coroutineScope,
-        )
-
-    @androidx.annotation.VisibleForTesting
-    val lastBufferingTimestampMs: java.util.concurrent.atomic.AtomicLong
-        get() = faultTolerance.lastBufferingTimestampMs
-
-    private val persistenceCoordinator =
-        SessionPersistenceCoordinator(
-            sessionStore = sessionStore,
-            serverRepository = serverRepository,
-            trackMetadataRepository = trackMetadataRepository,
-            cueSheetResolver = cueSheetResolver,
-            playerEngine = playerEngine,
-            virtualTimelineEngine = virtualTimelineEngine,
-            sessionStateFlow = _sessionState,
-            playbackProgressFlow = _playbackProgress,
-            coroutineScope = coroutineScope,
-            periodicDispatcher = periodicDispatcher,
-            getActiveParentAudioTrack = { activeParentAudioTrack },
-            getActiveCuePath = { activeCuePath },
-            onCueSessionRestored = { parentTrack, cuePath ->
-                activeParentAudioTrack = parentTrack
-                activeCuePath = cuePath
-            },
-            onOrdinarySessionRestored = {
-                activeParentAudioTrack = null
-                activeCuePath = null
-            },
-        )
-
+    private val persistenceCoordinator = SessionPersistenceCoordinator(
+        sessionStore = sessionStore, serverRepository = serverRepository,
+        trackMetadataRepository = trackMetadataRepository, cueSheetResolver = cueSheetResolver,
+        playerEngine = playerEngine, virtualTimelineEngine = virtualTimelineEngine,
+        sessionStateFlow = _sessionState, playbackProgressFlow = _playbackProgress,
+        coroutineScope = coroutineScope, periodicDispatcher = periodicDispatcher,
+        getActiveParentAudioTrack = { activeParentAudioTrack }, getActiveCuePath = { activeCuePath },
+        onCueSessionRestored = { p, c -> activeParentAudioTrack = p; activeCuePath = c },
+        onOrdinarySessionRestored = { activeParentAudioTrack = null; activeCuePath = null },
+    )
     override val isRestored: StateFlow<Boolean> = persistenceCoordinator.isRestored
 
-    private fun loadTrackIntoEngine(
-        server: WebDavServer?,
-        track: AudioTrack,
-        startPositionMs: Long = 0L,
-    ) {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
+    private val queueManager = PlaybackQueueManager(_sessionState) { coroutineScope.launch { flushSession() } }
+    private val faultTolerance = PlaybackFaultTolerance(_sessionState, playerEngine, playlistRepository, queueManager, coroutineScope)
+    private val metadataCoordinator = PlaybackMetadataCoordinator(trackMetadataRepository, lyricsRepository, playerEngine, _sessionState, coroutineScope)
 
-        fun dispatchLoad(targetServer: WebDavServer) {
-            _sessionState.update { it.copy(activeServer = targetServer) }
+    private val _pausedByTransientAudioFocus = AtomicBoolean(false)
+    override val pausedByTransientAudioFocus: Boolean get() = _pausedByTransientAudioFocus.get()
+
+    @VisibleForTesting val lastBufferingTimestampMs: AtomicLong get() = faultTolerance.lastBufferingTimestampMs
+    @VisibleForTesting val isPrerollAppended = AtomicBoolean(false)
+
+    private fun clearTransientAudioFocusFlag() = _pausedByTransientAudioFocus.set(false)
+    private fun clearPrerollIfActive() { if (isPrerollAppended.compareAndSet(true, false)) playerEngine.clearPrerollTrack() }
+
+    private fun resetPlaybackState() {
+        clearPrerollIfActive(); stopPeriodicFlush()
+        virtualTimelineEngine.clear(); activeParentAudioTrack = null; activeCuePath = null; hasStreamLoaded = false
+    }
+
+    private fun loadTrackIntoEngine(server: WebDavServer?, track: AudioTrack, startPositionMs: Long = 0L) {
+        clearKilledBySystemFlag(); clearTransientAudioFocusFlag()
+        fun dispatch(target: WebDavServer) {
+            _sessionState.update { it.copy(activeServer = target) }
             hasStreamLoaded = true
-            try {
-                playerEngine.loadTrack(targetServer, track, startPositionMs)
-            } catch (e: Throwable) {
-                if (e.is404Exception()) {
-                    faultTolerance.handle404Failure(track) { skipToNext() }
-                    return
-                } else if (faultTolerance.isAuthException(e)) {
-                    faultTolerance.handleAuthFailure(track) { skipToNext() }
-                    return
-                } else if (faultTolerance.isServerUnreachableException(e)) {
-                    faultTolerance.handleServerUnavailable(track) { skipToNext() }
-                    return
-                } else {
-                    throw e
-                }
-            }
+            try { playerEngine.loadTrack(target, track, startPositionMs) }
+            catch (e: Throwable) { faultTolerance.handleLoadException(e, track) { skipToNext() }; return }
             coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = false) }
         }
-
-        if (server != null && server.id == track.serverId) {
-            dispatchLoad(server)
-        } else if (serverRepository != null) {
-            coroutineScope.launch {
-                val resolved = serverRepository.getServerById(track.serverId)
-                if (resolved != null) {
-                    dispatchLoad(resolved)
-                } else {
-                    faultTolerance.handleServerUnavailable(track) { skipToNext() }
-                }
+        when {
+            server != null && server.id == track.serverId -> dispatch(server)
+            serverRepository != null -> coroutineScope.launch {
+                serverRepository.getServerById(track.serverId)?.let { dispatch(it) } ?: faultTolerance.handleServerUnavailable(track) { skipToNext() }
             }
-        } else if (server != null) {
-            dispatchLoad(server)
+            server != null -> dispatch(server)
+            else -> coroutineScope.launch { faultTolerance.handleServerUnavailable(track) { skipToNext() } }
+        }
+    }
+
+    private fun applyCueContextAndGetStartMs(vt: List<VirtualTrack>?, parent: AudioTrack?, cue: String?, fallbackStartMs: Long = 0L, targetIndex: Int = 0): Long =
+        if (vt != null) {
+            activeParentAudioTrack = parent; activeCuePath = cue
+            virtualTimelineEngine.loadTracks(vt, targetIndex)
         } else {
-            coroutineScope.launch {
-                faultTolerance.handleServerUnavailable(track) { skipToNext() }
-            }
+            virtualTimelineEngine.clear(); activeParentAudioTrack = null; activeCuePath = null
+            fallbackStartMs
         }
-    }
 
-    private val _pausedByTransientAudioFocus =
-        java.util.concurrent.atomic
-            .AtomicBoolean(false)
-
-    override val pausedByTransientAudioFocus: Boolean
-        get() = _pausedByTransientAudioFocus.get()
-
-    private fun clearTransientAudioFocusFlag() {
-        _pausedByTransientAudioFocus.set(false)
-    }
-
-    @androidx.annotation.VisibleForTesting
-    val isPrerollAppended =
-        java.util.concurrent.atomic
-            .AtomicBoolean(false)
-
-    private fun clearPrerollIfActive() {
-        if (isPrerollAppended.compareAndSet(true, false)) {
-            playerEngine.clearPrerollTrack()
+    private fun dispatchQueueLoad(server: WebDavServer, request: QueueLoadRequest, directoryPath: String? = null) {
+        clearKilledBySystemFlag(); clearTransientAudioFocusFlag(); faultTolerance.cancelWatchdog()
+        persistenceCoordinator.markRestored(); queueManager.clearFailedTracks()
+        val startMs = applyCueContextAndGetStartMs(request.virtualTracks, request.parentTrack, request.cuePath, request.startPositionMs, request.queue.currentIndex)
+        _playbackProgress.value = PlaybackProgress(0L, request.targetTrack.durationMs, 0L)
+        _sessionState.update {
+            it.copy(queue = request.queue, durationMs = request.targetTrack.durationMs, currentDirectoryPath = directoryPath ?: it.currentDirectoryPath, errorMessage = null)
         }
+        loadTrackIntoEngine(server, request.parentTrack ?: request.targetTrack, startMs)
+        if (request.targetTrack.isVirtualTrack) playerEngine.updateTrackMetadata(request.targetTrack)
+        coroutineScope.launch { flushSession() }
     }
 
-    private fun enrichTrackWithMetadataPreservingPhysicalDuration(
-        track: AudioTrack,
-        meta: TrackMetadata,
-        isCurrentActiveTrack: Boolean,
-    ): AudioTrack {
-        val enriched = track.withMetadata(meta)
-        val physicalDuration =
-            if (isCurrentActiveTrack) {
-                playerEngine.durationMs.value.takeIf { it > 0L }
-                    ?: _sessionState.value.durationMs.takeIf { it > 0L }
-            } else {
-                null
-            }
-        return if (physicalDuration != null && physicalDuration > 0L) {
-            enriched.copy(durationMs = physicalDuration)
-        } else {
-            enriched
-        }
-    }
-
-    private suspend fun resolveVirtualTrackOffset(track: AudioTrack): Pair<VirtualTrack?, Long> {
-        if (!track.isVirtualTrack) return null to 0L
-        val trackNum = track.id.substringAfter("#cue_").toIntOrNull() ?: return null to 0L
-        val cuePath = track.cuePath ?: (track.remotePath.substringBeforeLast('.') + ".cue")
-        val server =
-            _sessionState.value.activeServer?.takeIf { it.id == track.serverId }
-                ?: serverRepository?.getServerById(track.serverId)
-                ?: return null to 0L
-
-        val virtualTracks =
-            cueSheetResolver?.resolveVirtualTracks(
-                server = server,
-                cuePath = cuePath,
-                parentAudioPath = track.remotePath,
-                totalDurationMs = track.durationMs,
-            ) ?: emptyList()
-
-        val matched = virtualTracks.firstOrNull { it.trackNumber == trackNum }
-        return matched to (matched?.startTimeMs ?: 0L)
-    }
-
-    private fun transitionToQueueIndex(
-        server: WebDavServer?,
-        targetIndex: Int,
-    ) {
+    private fun transitionToQueueIndex(server: WebDavServer?, targetIndex: Int) {
         faultTolerance.cancelWatchdog()
         val queue = _sessionState.value.queue
-        val targetTrack = queue.tracks[targetIndex]
-        val updatedQueue = queue.copy(currentIndex = targetIndex)
+        val targetTrack = queue.tracks.getOrNull(targetIndex) ?: return
         _playbackProgress.value = PlaybackProgress(0L, targetTrack.durationMs, 0L)
         _sessionState.update {
-            it.copy(
-                queue = updatedQueue,
-                durationMs = targetTrack.durationMs,
-                isUnsupportedRange = false,
-                isWeakNetwork = false,
-                canManualRetry = false,
-                isReconnecting = false,
-            )
+            it.copy(queue = queue.copy(currentIndex = targetIndex), durationMs = targetTrack.durationMs, isUnsupportedRange = false, isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
         }
-
         coroutineScope.launch {
-            val (_, startPositionMs) =
-                if (targetTrack.isVirtualTrack) {
-                    val (vt, ms) = resolveVirtualTrackOffset(targetTrack)
-                    if (vt != null) {
-                        virtualTimelineEngine.loadTracks(listOf(vt), 0)
-                        activeParentAudioTrack = targetTrack.copy(id = targetTrack.id.substringBefore("#cue_"))
-                        activeCuePath = targetTrack.cuePath ?: (targetTrack.remotePath.substringBeforeLast('.') + ".cue")
-                        vt to ms
-                    } else {
-                        virtualTimelineEngine.clear()
-                        activeParentAudioTrack = null
-                        activeCuePath = null
-                        null to 0L
-                    }
-                } else {
-                    virtualTimelineEngine.clear()
-                    activeParentAudioTrack = null
-                    activeCuePath = null
-                    null to 0L
-                }
-
-            loadTrackIntoEngine(
-                server = server,
-                track = targetTrack,
-                startPositionMs = startPositionMs,
-            )
-            if (targetTrack.isVirtualTrack) {
-                playerEngine.updateTrackMetadata(targetTrack)
-            }
+            val (vt, startMs) = queueManager.resolveVirtualTrackOffset(targetTrack, server, serverRepository, cueSheetResolver)
+            val parent = if (vt != null) targetTrack.copy(id = targetTrack.id.substringBefore("#cue_")) else null
+            val cue = if (vt != null) targetTrack.cuePath ?: (targetTrack.remotePath.substringBeforeLast('.') + ".cue") else null
+            val finalStartMs = applyCueContextAndGetStartMs(vt?.let { listOf(it) }, parent, cue, startMs)
+            loadTrackIntoEngine(server, targetTrack, finalStartMs)
+            if (targetTrack.isVirtualTrack) playerEngine.updateTrackMetadata(targetTrack)
             flushSession()
         }
     }
 
     init {
-        internalJobs +=
-            coroutineScope.launch {
-                // Restore cold start state first if store is provided
-                if (sessionStore != null) {
-                    try {
-                        restoreSession()
-                    } finally {
-                        persistenceCoordinator.markRestored()
-                    }
-                } else {
-                    persistenceCoordinator.markRestored()
-                }
+        startSessionAndServerObservation()
+        startPlaybackStateObservation()
+        startTrackTransitionsObservation()
+        startProgressPipeline()
+        startDurationObservation()
+        metadataCoordinator.startMetadataObservation()
+        metadataCoordinator.startLyricsObservation()
+    }
 
-                // Observe active server from repository after initial restoration
-                if (serverRepository != null) {
-                    try {
-                        serverRepository.getActiveServer().collect { server ->
-                            val current = _sessionState.value
-                            if (current.activeServer?.id != server?.id && !current.queue.isPlaylistQueue) {
-                                setActiveServer(server)
-                            }
-                        }
-                    } catch (e: Throwable) {
-                        // Gracefully ignore closed database or cancelled repository flow during teardown
+    private fun startSessionAndServerObservation() {
+        internalJobs += coroutineScope.launch {
+            try { restoreSession() } finally { persistenceCoordinator.markRestored() }
+            if (serverRepository != null) {
+                try {
+                    serverRepository.getActiveServer().collect { server ->
+                        val current = _sessionState.value
+                        if (current.activeServer?.id != server?.id && !current.queue.isPlaylistQueue) setActiveServer(server)
                     }
-                }
-            }
-
-        // Observe player engine state changes
-        internalJobs +=
-            coroutineScope.launch {
-                playerEngine.playbackState.collect { state ->
-                    if (state is PlaybackState.Ended) {
-                        handlePlaybackEnded()
-                        return@collect
-                    }
-                    if (state is PlaybackState.Buffering) {
-                        clearPrerollIfActive()
-                        faultTolerance.onBufferingStarted()
-                    } else if (state is PlaybackState.Playing) {
-                        faultTolerance.onPlayingStarted()
-                    } else {
-                        faultTolerance.cancelWatchdog()
-                    }
-                    if (state is PlaybackState.Error) {
-                        if (faultTolerance.isUnsupportedRangeError(state)) {
-                            playerEngine.pause()
-                            _sessionState.update { current ->
-                                current.copy(
-                                    playbackState = PlaybackState.Paused,
-                                    isUnsupportedRange = true,
-                                )
-                            }
-                            stopPeriodicFlush()
-                            return@collect
-                        } else if (faultTolerance.is404Error(state)) {
-                            faultTolerance.handle404Failure(_sessionState.value.currentTrack, state.message) { skipToNext() }
-                            return@collect
-                        } else if (faultTolerance.isAuthError(state)) {
-                            faultTolerance.handleAuthFailure(_sessionState.value.currentTrack, state.message) { skipToNext() }
-                            return@collect
-                        } else if (faultTolerance.isServerUnreachableError(state)) {
-                            val track = _sessionState.value.currentTrack
-                            if (track != null) {
-                                faultTolerance.handleServerUnavailable(track) { skipToNext() }
-                            }
-                            return@collect
-                        } else {
-                            _sessionState.update {
-                                it.copy(
-                                    isWeakNetwork = true,
-                                    canManualRetry = true,
-                                    isReconnecting = false,
-                                )
-                            }
-                        }
-                    }
-                    _sessionState.update { current ->
-                        val targetState =
-                            if (state is PlaybackState.Idle && current.isPaused && current.hasTrack && !hasStreamLoaded) {
-                                current.playbackState
-                            } else {
-                                state
-                            }
-                        current.copy(
-                            playbackState = targetState,
-                            errorMessage = if (state is PlaybackState.Error) state.message else current.errorMessage,
-                        )
-                    }
-                    if (state is PlaybackState.Playing) {
-                        startPeriodicFlush()
-                    } else {
-                        stopPeriodicFlush()
-                    }
-                }
-            }
-
-        // Observe seamless preroll track transitions from engine
-        internalJobs +=
-            coroutineScope.launch {
-                playerEngine.trackTransitions.collect {
-                    isPrerollAppended.set(false)
-                    val queue = _sessionState.value.queue
-                    if (!queue.isEmpty) {
-                        val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-                        val nextTrack = queue.tracks[nextIndex]
-                        val updatedQueue = queue.copy(currentIndex = nextIndex)
-                        _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
-                        _sessionState.update {
-                            it.copy(
-                                queue = updatedQueue,
-                                durationMs = nextTrack.durationMs,
-                            )
-                        }
-                        flushSession()
-                    }
-                }
-            }
-
-        // High-frequency playback progress pipeline calculated and throttled off the main thread
-        internalJobs +=
-            coroutineScope.launch(progressDispatcher) {
-                combine(
-                    playerEngine.currentPositionMs,
-                    playerEngine.durationMs,
-                    playerEngine.bufferedPositionMs,
-                ) { pos, dur, buf ->
-                    if (virtualTimelineEngine.isActive) {
-                        if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                            if (_sessionState.value.queue.isPlaylistQueue) {
-                                val activeVt = virtualTimelineEngine.activeTrack
-                                if (activeVt != null && activeVt.endTimeMs != null && pos >= activeVt.endTimeMs) {
-                                    handlePlaybackEnded()
-                                }
-                            } else {
-                                val transition = virtualTimelineEngine.onPositionUpdate(pos)
-                                if (transition is VirtualTimelineEngine.TransitionResult.Transitioned) {
-                                    handleVirtualTrackTransition(transition.newIndex, transition.newTrack)
-                                }
-                            }
-                            virtualTimelineEngine.mapToVirtualProgress(pos, dur, buf)
-                        } else {
-                            _playbackProgress.value
-                        }
-                    } else {
-                        val fallbackDur = _sessionState.value.currentTrack?.durationMs ?: 0L
-                        val effectiveDur = if (dur > 0L) dur else fallbackDur
-                        PlaybackProgress(
-                            currentPositionMs = pos,
-                            durationMs = effectiveDur,
-                            bufferedPositionMs = buf,
-                        )
-                    }
-                }.distinctUntilChanged()
-                    .collect { progress ->
-                        if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                            _playbackProgress.value = progress
-                            checkAndTriggerAdaptivePreroll(progress)
-                        }
-                    }
-            }
-
-        internalJobs +=
-            coroutineScope.launch {
-                playerEngine.durationMs.collect { dur ->
-                    if (playerEngine.playbackState.value !is PlaybackState.Idle && dur > 0L) {
-                        if (!virtualTimelineEngine.isActive) {
-                            _sessionState.update { current ->
-                                val curIdx = current.queue.currentIndex
-                                val updatedTracks =
-                                    if (curIdx in current.queue.tracks.indices) {
-                                        current.queue.tracks.mapIndexed { idx, trk ->
-                                            if (idx == curIdx && trk.durationMs != dur) {
-                                                trk.copy(durationMs = dur)
-                                            } else {
-                                                trk
-                                            }
-                                        }
-                                    } else {
-                                        current.queue.tracks
-                                    }
-                                current.copy(
-                                    durationMs = dur,
-                                    queue = current.queue.copy(tracks = updatedTracks),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-        // Observe metadata changes and enrich queue tracks reactively
-        if (trackMetadataRepository != null) {
-            coroutineScope.launch {
-                var currentMetadataJob: Job? = null
-                _sessionState
-                    .map { it.activeServer?.id }
-                    .distinctUntilChanged()
-                    .collect { serverId ->
-                        currentMetadataJob?.cancel()
-                        if (serverId != null) {
-                            currentMetadataJob =
-                                coroutineScope.launch {
-                                    trackMetadataRepository.getAllMetadataFlow(serverId).collect { metadataList ->
-                                        if (metadataList.isNotEmpty()) {
-                                            val metaMap = metadataList.associateBy { it.remotePath }
-                                            val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
-
-                                            _sessionState.update { current ->
-                                                var anyChanged = false
-                                                val updatedTracks =
-                                                    current.queue.tracks.mapIndexed { index, track ->
-                                                        val meta = metaMap[track.remotePath]
-                                                        if (meta != null) {
-                                                            val enriched =
-                                                                enrichTrackWithMetadataPreservingPhysicalDuration(
-                                                                    track = track,
-                                                                    meta = meta,
-                                                                    isCurrentActiveTrack = (index == current.queue.currentIndex),
-                                                                )
-                                                            if (enriched != track) {
-                                                                anyChanged = true
-                                                                tracksToUpdate.add(index to enriched)
-                                                                enriched
-                                                            } else {
-                                                                track
-                                                            }
-                                                        } else {
-                                                            track
-                                                        }
-                                                    }
-                                                if (anyChanged) {
-                                                    current.copy(queue = current.queue.copy(tracks = updatedTracks))
-                                                } else {
-                                                    current
-                                                }
-                                            }
-
-                                            // Dispatch side-effects (playerEngine updates) outside the StateFlow reducer
-                                            val currentQueueIndex = _sessionState.value.queue.currentIndex
-                                            val currentEnriched = tracksToUpdate.firstOrNull { it.first == currentQueueIndex }?.second
-                                            if (currentEnriched != null) {
-                                                playerEngine.updateTrackMetadata(currentEnriched)
-                                            }
-                                        }
-                                    }
-                                }
-                        }
-                    }
+                } catch (e: Throwable) { /* ignore during teardown */ }
             }
         }
+    }
 
-        // Observe active track changes and load lyrics reactively
-        if (lyricsRepository != null) {
-            coroutineScope.launch {
-                var lyricJob: Job? = null
-                _sessionState
-                    .map { state ->
-                        val server = state.activeServer
-                        val track = state.currentTrack
-                        if (server != null && track != null) server to track else null
-                    }.distinctUntilChanged()
-                    .collect { pair ->
-                        lyricJob?.cancel()
-                        if (pair == null) {
-                            _sessionState.update { it.copy(lyrics = null, isLoadingLyrics = false) }
-                        } else {
-                            val (server, track) = pair
-                            _sessionState.update { it.copy(lyrics = null, isLoadingLyrics = true) }
-                            lyricJob =
-                                coroutineScope.launch {
-                                    val resolved = lyricsRepository.resolveLyrics(server, track)
-                                    _sessionState.update { it.copy(lyrics = resolved, isLoadingLyrics = false) }
-                                }
-                        }
+    private fun startPlaybackStateObservation() {
+        internalJobs += coroutineScope.launch {
+            playerEngine.playbackState.collect { state ->
+                when (state) {
+                    is PlaybackState.Ended -> { handlePlaybackEnded(); return@collect }
+                    is PlaybackState.Buffering -> { clearPrerollIfActive(); faultTolerance.onBufferingStarted() }
+                    is PlaybackState.Playing -> { faultTolerance.onPlayingStarted(); startPeriodicFlush() }
+                    is PlaybackState.Error -> {
+                        val handled = faultTolerance.handlePlaybackError(
+                            state, _sessionState.value.currentTrack,
+                            { playerEngine.pause(); stopPeriodicFlush() }, { skipToNext() }
+                        )
+                        if (handled) return@collect
                     }
+                    else -> { faultTolerance.cancelWatchdog(); stopPeriodicFlush() }
+                }
+                _sessionState.update { current ->
+                    val target = if (state is PlaybackState.Idle && current.isPaused && current.hasTrack && !hasStreamLoaded) current.playbackState else state
+                    current.copy(playbackState = target, errorMessage = if (state is PlaybackState.Error) state.message else current.errorMessage)
+                }
+            }
+        }
+    }
+
+    private fun startTrackTransitionsObservation() {
+        internalJobs += coroutineScope.launch {
+            playerEngine.trackTransitions.collect {
+                isPrerollAppended.set(false)
+                val queue = _sessionState.value.queue
+                if (!queue.isEmpty) {
+                    val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
+                    val nextTrack = queue.tracks[nextIndex]
+                    _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
+                    _sessionState.update { it.copy(queue = queue.copy(currentIndex = nextIndex), durationMs = nextTrack.durationMs) }
+                    flushSession()
+                }
+            }
+        }
+    }
+
+    private fun mapEngineProgress(pos: Long, dur: Long, buf: Long): PlaybackProgress {
+        if (!virtualTimelineEngine.isActive) return PlaybackProgress(pos, if (dur > 0L) dur else (_sessionState.value.currentTrack?.durationMs ?: 0L), buf)
+        if (playerEngine.playbackState.value is PlaybackState.Idle) return _playbackProgress.value
+        if (_sessionState.value.queue.isPlaylistQueue) {
+            val vt = virtualTimelineEngine.activeTrack
+            if (vt?.endTimeMs != null && pos >= vt.endTimeMs) handlePlaybackEnded()
+        } else {
+            (virtualTimelineEngine.onPositionUpdate(pos) as? VirtualTimelineEngine.TransitionResult.Transitioned)?.let {
+                handleVirtualTrackTransition(it.newIndex, it.newTrack)
+            }
+        }
+        return virtualTimelineEngine.mapToVirtualProgress(pos, dur, buf)
+    }
+
+    private fun startProgressPipeline() {
+        internalJobs += coroutineScope.launch(progressDispatcher) {
+            combine(playerEngine.currentPositionMs, playerEngine.durationMs, playerEngine.bufferedPositionMs) { pos, dur, buf ->
+                mapEngineProgress(pos, dur, buf)
+            }.distinctUntilChanged().collect { progress ->
+                if (playerEngine.playbackState.value !is PlaybackState.Idle) {
+                    _playbackProgress.value = progress
+                    checkAndTriggerAdaptivePreroll(progress)
+                }
+            }
+        }
+    }
+
+    private fun startDurationObservation() {
+        internalJobs += coroutineScope.launch {
+            playerEngine.durationMs.collect { dur ->
+                if (playerEngine.playbackState.value !is PlaybackState.Idle && dur > 0L && !virtualTimelineEngine.isActive) {
+                    _sessionState.update { current ->
+                        val curIdx = current.queue.currentIndex
+                        val updated = current.queue.tracks.mapIndexed { idx, trk -> if (idx == curIdx && trk.durationMs != dur) trk.copy(durationMs = dur) else trk }
+                        current.copy(durationMs = dur, queue = current.queue.copy(tracks = updated))
+                    }
+                }
             }
         }
     }
@@ -568,968 +265,273 @@ class MusicPlayerAppSessionImpl(
 
     override fun setActiveServer(server: WebDavServer?) {
         _sessionState.update { current ->
-            if (current.activeServer?.id != server?.id) {
-                // If on cold start activeServer was null and we already have a restored session/queue,
-                // do NOT clear the queue or playback state! Attach the server and keep the restored session.
-                if (current.activeServer == null && current.hasTrack) {
-                    val path =
-                        if (current.currentDirectoryPath.isNotBlank() && current.currentDirectoryPath != "/") {
-                            current.currentDirectoryPath
-                        } else {
-                            if (server != null) getLastDirectoryForServer(server.id) else "/"
-                        }
-                    return@update current.copy(
-                        activeServer = server,
-                        currentDirectoryPath = path,
-                    )
-                }
-
-                // If currently playing a cross-server playlist, do not destroy the playlist queue
-                if (current.queue.isPlaylistQueue) {
-                    return@update current.copy(activeServer = server)
-                }
-
-                if (current.playbackState !is PlaybackState.Idle) {
-                    playerEngine.stop()
-                }
-                virtualTimelineEngine.clear()
-                activeParentAudioTrack = null
-                activeCuePath = null
-                hasStreamLoaded = false
-                _playbackProgress.value = PlaybackProgress.ZERO
-                val lastPath = if (server != null) getLastDirectoryForServer(server.id) else "/"
-                current.copy(
-                    activeServer = server,
-                    queue = PlaybackQueue.EMPTY,
-                    playbackState = PlaybackState.Idle,
-                    durationMs = 0L,
-                    currentDirectoryPath = lastPath,
-                    errorMessage = null,
-                    lyrics = null,
-                    isLoadingLyrics = false,
-                )
-            } else {
-                current.copy(activeServer = server)
+            if (current.activeServer?.id == server?.id) return@update current.copy(activeServer = server)
+            if (current.activeServer == null && current.hasTrack) {
+                val path = current.currentDirectoryPath.takeIf { it.isNotBlank() && it != "/" }
+                    ?: if (server != null) getLastDirectoryForServer(server.id) else "/"
+                return@update current.copy(activeServer = server, currentDirectoryPath = path)
             }
+            if (current.queue.isPlaylistQueue) return@update current.copy(activeServer = server)
+
+            if (current.playbackState !is PlaybackState.Idle) playerEngine.stop()
+            resetPlaybackState()
+            _playbackProgress.value = PlaybackProgress.ZERO
+            val lastPath = if (server != null) getLastDirectoryForServer(server.id) else "/"
+            current.copy(activeServer = server, queue = PlaybackQueue.EMPTY, playbackState = PlaybackState.Idle, durationMs = 0L, currentDirectoryPath = lastPath, errorMessage = null, lyrics = null, isLoadingLyrics = false)
         }
     }
 
     override fun playDirectoryTrack(
-        directory: RemoteDirectory,
-        selectedFile: RemoteFile,
+        directory: RemoteDirectory, selectedFile: RemoteFile,
         initialMetadata: Map<String, TrackMetadata>,
         virtualTracksByAudioPath: Map<String, List<VirtualTrack>>,
     ) {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
-        persistenceCoordinator.markRestored()
-        virtualTimelineEngine.clear()
-        activeParentAudioTrack = null
-        activeCuePath = null
         val server = _sessionState.value.activeServer ?: return
-        val audioFiles = directory.files.filter { it.isAudio }
-        if (audioFiles.isEmpty()) return
-
-        val tracks =
-            audioFiles.mapNotNull { file ->
-                val meta = initialMetadata[file.path]
-                AudioTrack.fromRemoteFile(server, file, meta)
-            }
-        if (tracks.isEmpty()) return
-
-        val selectedIndex =
-            tracks
-                .indexOfFirst { it.remotePath == selectedFile.path }
-                .takeIf { it >= 0 } ?: 0
-
-        val resolvedVirtualMap =
-            if (virtualTracksByAudioPath.isNotEmpty()) {
-                virtualTracksByAudioPath
-            } else {
-                val cueFiles = directory.files.filter { it.isCue }
-                if (cueFiles.isNotEmpty() && cueSheetResolver != null) {
-                    val map = mutableMapOf<String, List<VirtualTrack>>()
-                    for (cueFile in cueFiles) {
-                        val matchedAudio =
-                            com.webdav.player.data.cue.CueAssociationHelper.findMatchingAudioFile(
-                                cueFile = cueFile,
-                                audioFiles = audioFiles,
-                                totalCueFilesCount = cueFiles.size,
-                            )
-                        if (matchedAudio != null) {
-                            val cachedTracks =
-                                cueSheetResolver.getCachedVirtualTracks(
-                                    server = server,
-                                    cuePath = cueFile.path,
-                                    parentAudioPath = matchedAudio.path,
-                                )
-                            if (!cachedTracks.isNullOrEmpty()) {
-                                map[matchedAudio.path] = cachedTracks
-                            }
-                        }
-                    }
-                    map
-                } else {
-                    emptyMap()
-                }
-            }
-
-        val queue =
-            PlaybackQueue.fromTracks(
-                tracks = tracks,
-                virtualTracksMap = resolvedVirtualMap,
-                selectedIndex = selectedIndex,
-            )
-
-        val selectedTrack = queue.currentTrack ?: return
-        val isVirtual = selectedTrack.isVirtualTrack
-
-        if (isVirtual) {
-            val parentTrack =
-                tracks.firstOrNull { it.remotePath == selectedTrack.remotePath }
-                    ?: selectedTrack.copy(id = selectedTrack.id.substringBefore("#cue_"))
-            val virtualTracks = resolvedVirtualMap[selectedTrack.remotePath] ?: emptyList()
-            val targetVirtualIndex =
-                virtualTracks
-                    .indexOfFirst {
-                        it.trackNumber == selectedTrack.id.substringAfter("#cue_").toIntOrNull()
-                    }.takeIf { it >= 0 } ?: 0
-
-            activeParentAudioTrack = parentTrack
-            activeCuePath =
-                directory.files.firstOrNull { it.isCue }?.path
-                    ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
-
-            val startPositionMs = virtualTimelineEngine.loadTracks(virtualTracks, targetVirtualIndex)
-
-            _playbackProgress.value =
-                PlaybackProgress(
-                    currentPositionMs = 0L,
-                    durationMs = selectedTrack.durationMs,
-                    bufferedPositionMs = 0L,
-                )
-            _sessionState.update {
-                it.copy(
-                    queue = queue,
-                    durationMs = selectedTrack.durationMs,
-                    currentDirectoryPath = directory.path,
-                    errorMessage = null,
-                )
-            }
-
-            loadTrackIntoEngine(
-                server = server,
-                track = parentTrack,
-                startPositionMs = startPositionMs,
-            )
-
-            playerEngine.updateTrackMetadata(selectedTrack)
-        } else {
-            _playbackProgress.value =
-                PlaybackProgress(
-                    currentPositionMs = 0L,
-                    durationMs = selectedTrack.durationMs,
-                    bufferedPositionMs = 0L,
-                )
-            _sessionState.update {
-                it.copy(
-                    queue = queue,
-                    durationMs = selectedTrack.durationMs,
-                    currentDirectoryPath = directory.path,
-                    errorMessage = null,
-                )
-            }
-
-            loadTrackIntoEngine(
-                server = server,
-                track = selectedTrack,
-                startPositionMs = 0L,
-            )
-        }
-
-        // Ensure newly created queue items immediately enrich from Room if missing artwork/duration
-        if (trackMetadataRepository != null) {
-            coroutineScope.launch {
-                val current = _sessionState.value.queue
-                val unpopulatedPaths = current.tracks.filter { it.coverThumbnailPath == null }.map { it.remotePath }
-                if (unpopulatedPaths.isNotEmpty()) {
-                    val tracksToUpdate = mutableListOf<Pair<Int, AudioTrack>>()
-                    _sessionState.update { state ->
-                        var anyChanged = false
-                        val updated =
-                            state.queue.tracks.mapIndexed { index, track ->
-                                if (track.coverThumbnailPath == null) {
-                                    val meta = trackMetadataRepository.getCachedMetadata(server.id, track.remotePath)
-                                    if (meta != null) {
-                                        val enriched =
-                                            enrichTrackWithMetadataPreservingPhysicalDuration(
-                                                track = track,
-                                                meta = meta,
-                                                isCurrentActiveTrack = (index == state.queue.currentIndex),
-                                            )
-                                        if (enriched != track) {
-                                            anyChanged = true
-                                            tracksToUpdate.add(index to enriched)
-                                            enriched
-                                        } else {
-                                            track
-                                        }
-                                    } else {
-                                        track
-                                    }
-                                } else {
-                                    track
-                                }
-                            }
-                        if (anyChanged) {
-                            state.copy(queue = state.queue.copy(tracks = updated))
-                        } else {
-                            state
-                        }
-                    }
-                    val currentEnriched = tracksToUpdate.firstOrNull { it.first == queue.currentIndex }?.second
-                    if (currentEnriched != null) {
-                        playerEngine.updateTrackMetadata(currentEnriched)
-                    }
-                }
-            }
-        }
-
-        coroutineScope.launch { flushSession() }
+        val request = queueManager.buildDirectoryQueue(directory, selectedFile, initialMetadata, virtualTracksByAudioPath, server, cueSheetResolver) ?: return
+        dispatchQueueLoad(server, request, directory.path)
+        metadataCoordinator.enrichQueueTracksFromCache(server, request.queue)
     }
 
     override fun playTrack(track: AudioTrack) {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
-        persistenceCoordinator.markRestored()
-        virtualTimelineEngine.clear()
-        activeParentAudioTrack = null
-        activeCuePath = null
-        queueManager.clearFailedTracks()
         val server = _sessionState.value.activeServer
         if (server == null && serverRepository == null) return
-        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0, origin = QueueOrigin.AD_HOC)
-        _playbackProgress.value =
-            PlaybackProgress(
-                currentPositionMs = 0L,
-                durationMs = track.durationMs,
-                bufferedPositionMs = 0L,
-            )
-        _sessionState.update { it.copy(queue = queue, errorMessage = null) }
-
         coroutineScope.launch {
-            val (_, startPositionMs) =
-                if (track.isVirtualTrack) {
-                    val (vt, ms) = resolveVirtualTrackOffset(track)
-                    if (vt != null) {
-                        virtualTimelineEngine.loadTracks(listOf(vt), 0)
-                        activeParentAudioTrack = track.copy(id = track.id.substringBefore("#cue_"))
-                        activeCuePath = track.cuePath ?: (track.remotePath.substringBeforeLast('.') + ".cue")
-                        vt to ms
-                    } else {
-                        virtualTimelineEngine.clear()
-                        activeParentAudioTrack = null
-                        activeCuePath = null
-                        null to 0L
-                    }
-                } else {
-                    virtualTimelineEngine.clear()
-                    activeParentAudioTrack = null
-                    activeCuePath = null
-                    null to 0L
-                }
-
-            val effectiveServer = server ?: serverRepository?.getServerById(track.serverId)
-            loadTrackIntoEngine(server = effectiveServer, track = track, startPositionMs = startPositionMs)
-            if (track.isVirtualTrack) {
-                playerEngine.updateTrackMetadata(track)
-            }
-            flushSession()
-
-            if (trackMetadataRepository != null) {
-                val s = effectiveServer ?: return@launch
-                val cachedMeta = trackMetadataRepository.getCachedMetadata(s.id, track.remotePath)
-                val meta =
-                    if (cachedMeta != null) {
-                        cachedMeta
-                    } else {
-                        val file = RemoteFile(name = track.fileName, path = track.remotePath)
-                        trackMetadataRepository.resolveSingleTrackMetadata(s, file)
-                    }
-                var enrichedTrack: AudioTrack? = null
-
-                _sessionState.update { current ->
-                    var changed = false
-                    val updated =
-                        current.queue.tracks.map { t ->
-                            if (t.id == track.id) {
-                                val enriched =
-                                    enrichTrackWithMetadataPreservingPhysicalDuration(
-                                        track = t,
-                                        meta = meta,
-                                        isCurrentActiveTrack = true,
-                                    )
-                                if (enriched != t) {
-                                    changed = true
-                                    enrichedTrack = enriched
-                                    enriched
-                                } else {
-                                    t
-                                }
-                            } else {
-                                t
-                            }
-                        }
-                    if (changed) current.copy(queue = current.queue.copy(tracks = updated)) else current
-                }
-
-                if (enrichedTrack != null) {
-                    playerEngine.updateTrackMetadata(enrichedTrack!!)
-                }
-            }
+            val request = queueManager.buildTrackQueue(track, server, serverRepository, cueSheetResolver)
+            val effectiveServer = server ?: serverRepository?.getServerById(track.serverId) ?: return@launch
+            dispatchQueueLoad(effectiveServer, request)
+            metadataCoordinator.enrichSingleTrackMetadata(effectiveServer, track)
         }
     }
 
-    override fun playVirtualTracks(
-        parentTrack: AudioTrack,
-        virtualTracks: List<VirtualTrack>,
-        startIndex: Int,
-        cuePath: String?,
-    ) {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
-        persistenceCoordinator.markRestored()
+    override fun playVirtualTracks(parentTrack: AudioTrack, virtualTracks: List<VirtualTrack>, startIndex: Int, cuePath: String?) {
+        clearKilledBySystemFlag(); clearTransientAudioFocusFlag()
         val server = _sessionState.value.activeServer ?: return
         if (virtualTracks.isEmpty()) return
+        val cleanParent = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
+        val validIndex = startIndex.coerceIn(0, virtualTracks.lastIndex)
 
-        val cleanParentTrack = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
-        val validStartIndex = startIndex.coerceIn(0, virtualTracks.lastIndex)
-
-        val isSameParentTrackActive =
-            virtualTimelineEngine.isActive &&
-                activeParentAudioTrack?.serverId == cleanParentTrack.serverId &&
-                activeParentAudioTrack?.remotePath == cleanParentTrack.remotePath &&
-                playerEngine.playbackState.value !is PlaybackState.Idle
-
-        if (isSameParentTrackActive) {
-            val seekResult = virtualTimelineEngine.seekToTrackIndex(validStartIndex)
-            if (seekResult != null) {
-                applyVirtualTrackSeek(seekResult)
-                if (!_sessionState.value.isPlaying) {
-                    playerEngine.play()
-                }
-                return
+        if (virtualTimelineEngine.isActive && activeParentAudioTrack?.serverId == cleanParent.serverId && activeParentAudioTrack?.remotePath == cleanParent.remotePath && playerEngine.playbackState.value !is PlaybackState.Idle) {
+            virtualTimelineEngine.seekToTrackIndex(validIndex)?.let {
+                applyVirtualTrackSeek(it); if (!_sessionState.value.isPlaying) playerEngine.play(); return
             }
         }
-
-        activeParentAudioTrack = cleanParentTrack
-        activeCuePath = cuePath ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
-
-        val mappedTracks =
-            virtualTracks.map { vt ->
-                AudioTrack(
-                    id = "${activeParentAudioTrack!!.id}#cue_${vt.trackNumber}",
-                    serverId = parentTrack.serverId,
-                    remotePath = parentTrack.remotePath,
-                    title = vt.title,
-                    artist = vt.performer?.takeIf { it.isNotBlank() } ?: parentTrack.artist,
-                    album = parentTrack.album,
-                    durationMs = vt.durationMs,
-                    size = parentTrack.size,
-                    format = parentTrack.format,
-                    coverThumbnailPath = parentTrack.coverThumbnailPath,
-                )
-            }
-
-        val startPositionMs = virtualTimelineEngine.loadTracks(virtualTracks, validStartIndex)
-        val initialVirtualTrack = mappedTracks[validStartIndex]
-        val rawQueue = PlaybackQueue(tracks = mappedTracks, currentIndex = validStartIndex)
-        val queue =
-            if (_sessionState.value.playbackMode == PlaybackMode.SHUFFLE) {
-                rawQueue.withGeneratedShuffleOrder(validStartIndex)
-            } else {
-                rawQueue
-            }
-
-        _playbackProgress.value =
-            PlaybackProgress(
-                currentPositionMs = 0L,
-                durationMs = initialVirtualTrack.durationMs,
-                bufferedPositionMs = 0L,
-            )
-        _sessionState.update {
-            it.copy(
-                queue = queue,
-                durationMs = initialVirtualTrack.durationMs,
-                errorMessage = null,
-            )
-        }
-
-        loadTrackIntoEngine(
-            server = server,
-            track = cleanParentTrack,
-            startPositionMs = startPositionMs,
-        )
-
-        playerEngine.updateTrackMetadata(initialVirtualTrack)
-        coroutineScope.launch { flushSession() }
+        val request = queueManager.buildVirtualTracksQueue(parentTrack, virtualTracks, validIndex, cuePath, _sessionState.value.playbackMode)
+        dispatchQueueLoad(server, request)
     }
 
-    private fun handleVirtualTrackTransition(
-        newIndex: Int,
-        newTrack: VirtualTrack,
-    ) {
-        var enrichedTrack: AudioTrack? = null
+    private fun handleVirtualTrackTransition(newIndex: Int, newTrack: VirtualTrack) {
         _sessionState.update { current ->
-            if (newIndex in current.queue.tracks.indices) {
-                val updatedQueue = current.queue.copy(currentIndex = newIndex)
-                enrichedTrack = updatedQueue.currentTrack
-                current.copy(
-                    queue = updatedQueue,
-                    durationMs = newTrack.durationMs,
-                )
-            } else {
-                current
-            }
+            if (newIndex in current.queue.tracks.indices) current.copy(queue = current.queue.copy(currentIndex = newIndex), durationMs = newTrack.durationMs) else current
         }
-        val targetTrack = enrichedTrack ?: return
-        coroutineScope.launch(Dispatchers.Main) {
-            playerEngine.updateTrackMetadata(targetTrack)
-            flushSession()
+        _sessionState.value.queue.currentTrack?.let { track ->
+            coroutineScope.launch(Dispatchers.Main) { playerEngine.updateTrackMetadata(track); flushSession() }
         }
     }
 
     private fun applyVirtualTrackSeek(seekResult: TrackSeekResult) {
         faultTolerance.cancelWatchdog()
-        var enrichedTrack: AudioTrack? = null
         _sessionState.update { current ->
             if (seekResult.trackIndex in current.queue.tracks.indices) {
-                val updatedQueue = current.queue.copy(currentIndex = seekResult.trackIndex)
-                enrichedTrack = updatedQueue.currentTrack
-                current.copy(
-                    queue = updatedQueue,
-                    durationMs = seekResult.track.durationMs,
-                    isUnsupportedRange = false,
-                    isWeakNetwork = false,
-                    canManualRetry = false,
-                    isReconnecting = false,
-                )
-            } else {
-                current
-            }
+                current.copy(queue = current.queue.copy(currentIndex = seekResult.trackIndex), durationMs = seekResult.track.durationMs, isUnsupportedRange = false, isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
+            } else current
         }
-        val targetTrack = enrichedTrack
-        if (targetTrack != null) {
-            playerEngine.updateTrackMetadata(targetTrack)
-        }
-        _playbackProgress.value =
-            PlaybackProgress(
-                currentPositionMs = 0L,
-                durationMs = seekResult.track.durationMs,
-                bufferedPositionMs = 0L,
-            )
+        _sessionState.value.queue.currentTrack?.let { playerEngine.updateTrackMetadata(it) }
+        _playbackProgress.value = PlaybackProgress(0L, seekResult.track.durationMs, 0L)
         playerEngine.seekTo(seekResult.targetPositionMs)
         coroutineScope.launch { flushSession() }
     }
 
-    override fun playNext(track: AudioTrack) {
-        queueManager.playNext(track) { playTrack(it) }
-    }
+    override fun playNext(track: AudioTrack) = queueManager.playNext(track) { playTrack(it) }
 
     override fun playNextAndAdvance(track: AudioTrack) {
         queueManager.playNextAndAdvance(
             track = track,
             hasServerOrRepo = (_sessionState.value.activeServer != null || serverRepository != null),
             onPlayTrack = { playTrack(it) },
-            onTransitionToIndex = { targetIndex ->
-                transitionToQueueIndex(_sessionState.value.activeServer, targetIndex)
-            },
+            onTransitionToIndex = { targetIndex -> transitionToQueueIndex(_sessionState.value.activeServer, targetIndex) },
         )
     }
 
-    override fun togglePlayPause() {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
+    private fun resumeCurrentTrack() {
         val current = _sessionState.value
-        when {
-            current.isPlaying || current.isBuffering -> {
-                pause()
-            }
-
-            current.isPaused -> {
-                if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null &&
-                    current.activeServer != null
-                ) {
-                    if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-                        val resumePos =
-                            (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) +
-                                _playbackProgress.value.currentPositionMs
-                        loadTrackIntoEngine(
-                            server = current.activeServer,
-                            track = activeParentAudioTrack!!,
-                            startPositionMs = resumePos,
-                        )
-                        current.currentTrack?.let { playerEngine.updateTrackMetadata(it) }
-                    } else {
-                        loadTrackIntoEngine(
-                            server = current.activeServer,
-                            track = current.currentTrack!!,
-                            startPositionMs = _playbackProgress.value.currentPositionMs,
-                        )
-                    }
-                } else {
-                    playerEngine.play()
-                }
-            }
-
-            current.currentTrack != null -> {
-                val server = current.activeServer ?: return
-                if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-                    val resumePos =
-                        (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) +
-                            _playbackProgress.value.currentPositionMs
-                    loadTrackIntoEngine(
-                        server = server,
-                        track = activeParentAudioTrack!!,
-                        startPositionMs = resumePos,
-                    )
-                    current.currentTrack?.let { playerEngine.updateTrackMetadata(it) }
-                } else {
-                    loadTrackIntoEngine(
-                        server = server,
-                        track = current.currentTrack!!,
-                        startPositionMs = _playbackProgress.value.currentPositionMs,
-                    )
-                }
-            }
+        val server = current.activeServer ?: return
+        val currentTrack = current.currentTrack ?: return
+        if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
+            val resumePos = (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) + _playbackProgress.value.currentPositionMs
+            loadTrackIntoEngine(server, activeParentAudioTrack!!, resumePos)
+            playerEngine.updateTrackMetadata(currentTrack)
+        } else {
+            loadTrackIntoEngine(server, currentTrack, _playbackProgress.value.currentPositionMs)
         }
     }
 
+    override fun togglePlayPause() {
+        if (_sessionState.value.isPlaying || _sessionState.value.isBuffering) pause() else play()
+    }
+
     override fun play() {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
+        clearKilledBySystemFlag(); clearTransientAudioFocusFlag()
         val current = _sessionState.value
         if (current.isPaused) {
-            if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null &&
-                current.activeServer != null
-            ) {
-                if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-                    val resumePos =
-                        (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) +
-                            _playbackProgress.value.currentPositionMs
-                    loadTrackIntoEngine(
-                        server = current.activeServer,
-                        track = activeParentAudioTrack!!,
-                        startPositionMs = resumePos,
-                    )
-                    current.currentTrack?.let { playerEngine.updateTrackMetadata(it) }
-                } else {
-                    loadTrackIntoEngine(
-                        server = current.activeServer,
-                        track = current.currentTrack!!,
-                        startPositionMs = _playbackProgress.value.currentPositionMs,
-                    )
-                }
-            } else {
-                playerEngine.play()
-            }
+            if ((!hasStreamLoaded || playerEngine.playbackState.value is PlaybackState.Idle) && current.currentTrack != null && current.activeServer != null) {
+                resumeCurrentTrack()
+            } else playerEngine.play()
         } else if (current.currentTrack != null && current.activeServer != null) {
-            if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-                val resumePos =
-                    (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) +
-                        _playbackProgress.value.currentPositionMs
-                loadTrackIntoEngine(
-                    server = current.activeServer,
-                    track = activeParentAudioTrack!!,
-                    startPositionMs = resumePos,
-                )
-                current.currentTrack?.let { playerEngine.updateTrackMetadata(it) }
-            } else {
-                loadTrackIntoEngine(
-                    server = current.activeServer,
-                    track = current.currentTrack!!,
-                    startPositionMs = _playbackProgress.value.currentPositionMs,
-                )
-            }
+            resumeCurrentTrack()
         }
     }
 
     override fun pause() {
-        clearTransientAudioFocusFlag()
-        pauseInternal()
+        clearTransientAudioFocusFlag(); pauseInternal()
     }
 
     private fun pauseInternal() {
-        clearPrerollIfActive()
-        faultTolerance.cancelWatchdog()
-        if (hasStreamLoaded) {
-            playerEngine.pause()
-        }
+        clearPrerollIfActive(); faultTolerance.cancelWatchdog()
+        if (hasStreamLoaded) playerEngine.pause()
         coroutineScope.launch {
-            if (isRestored.value) {
-                val pos = playerEngine.currentPositionMs.value
-                if (pos > 0L) {
-                    if (virtualTimelineEngine.isActive) {
-                        val startMs = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
-                        val relPos = (pos - startMs).coerceAtLeast(0L)
-                        sessionStore?.savePosition(pos, relPos, isCleanExit = true)
-                    } else {
-                        sessionStore?.savePosition(pos, null, isCleanExit = true)
-                    }
-                }
+            val pos = playerEngine.currentPositionMs.value
+            if (pos > 0L) {
+                val virtPos = if (virtualTimelineEngine.isActive) (pos - (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L)).coerceAtLeast(0L) else null
+                persistenceCoordinator.savePosition(pos, virtPos, isCleanExit = true)
             }
             flushSessionWithCleanExit(isCleanExit = true)
         }
     }
 
     override fun onAudioFocusTransientLoss() {
-        val state = _sessionState.value
-        val wasPlaying = state.isPlaying || state.isBuffering
-        if (wasPlaying) {
-            _pausedByTransientAudioFocus.set(true)
-            pauseInternal()
-        } else {
-            _pausedByTransientAudioFocus.set(false)
-        }
+        if (_sessionState.value.isPlaying || _sessionState.value.isBuffering) {
+            _pausedByTransientAudioFocus.set(true); pauseInternal()
+        } else _pausedByTransientAudioFocus.set(false)
     }
 
     override fun onAudioFocusGain() {
-        if (_pausedByTransientAudioFocus.compareAndSet(true, false)) {
-            play()
-        }
+        if (_pausedByTransientAudioFocus.compareAndSet(true, false)) play()
     }
 
     override fun onAudioFocusLoss() {
-        _pausedByTransientAudioFocus.set(false)
-        pauseInternal()
+        _pausedByTransientAudioFocus.set(false); pauseInternal()
     }
 
     override fun seekTo(positionMs: Long) {
         clearPrerollIfActive()
         val clamped = positionMs.coerceAtLeast(0L)
-        if (virtualTimelineEngine.isActive) {
-            val globalTargetMs =
-                virtualTimelineEngine.calculateSeekTargetMs(
-                    clamped,
-                    playerEngine.durationMs.value,
-                )
-            _playbackProgress.update { it.copy(currentPositionMs = clamped) }
-            if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                playerEngine.seekTo(globalTargetMs)
-            }
-            coroutineScope.launch {
-                if (isRestored.value) {
-                    sessionStore?.savePosition(globalTargetMs, clamped)
-                }
-            }
-        } else {
-            _playbackProgress.update { it.copy(currentPositionMs = clamped) }
-            if (playerEngine.playbackState.value !is PlaybackState.Idle) {
-                playerEngine.seekTo(clamped)
-            }
-            coroutineScope.launch {
-                if (isRestored.value) {
-                    sessionStore?.savePosition(clamped)
-                }
-            }
-        }
+        val targetMs = if (virtualTimelineEngine.isActive) virtualTimelineEngine.calculateSeekTargetMs(clamped, playerEngine.durationMs.value) else clamped
+        val virtPos = if (virtualTimelineEngine.isActive) clamped else null
+        _playbackProgress.update { it.copy(currentPositionMs = clamped) }
+        if (playerEngine.playbackState.value !is PlaybackState.Idle) playerEngine.seekTo(targetMs)
+        persistenceCoordinator.savePosition(targetMs, virtPos)
     }
 
-    override fun playPlaylist(
-        playlist: Playlist,
-        startIndex: Int,
-    ) {
-        clearKilledBySystemFlag()
-        clearTransientAudioFocusFlag()
-        persistenceCoordinator.markRestored()
-        virtualTimelineEngine.clear()
-        activeParentAudioTrack = null
-        activeCuePath = null
-        queueManager.clearFailedTracks()
-
+    override fun playPlaylist(playlist: Playlist, startIndex: Int) {
         coroutineScope.launch {
             val entries = playlistRepository?.getTracksForPlaylist(playlist.id) ?: emptyList()
-            if (entries.isEmpty()) {
+            val request = queueManager.buildPlaylistQueue(entries, startIndex, _sessionState.value.activeServer, serverRepository, cueSheetResolver)
+            if (request == null) {
                 _sessionState.update { it.copy(queue = PlaybackQueue.EMPTY, errorMessage = null) }
                 return@launch
             }
-
-            val tracks = entries.map { it.toAudioTrack() }
-            val safeStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
-            val queue =
-                PlaybackQueue.fromTracks(
-                    tracks = tracks,
-                    selectedIndex = safeStartIndex,
-                    origin = QueueOrigin.PLAYLIST,
-                )
-
-            val currentTrack = queue.currentTrack ?: tracks[safeStartIndex]
-            val (matchedVt, startPositionMs) = resolveVirtualTrackOffset(currentTrack)
-            if (matchedVt != null) {
-                virtualTimelineEngine.loadTracks(listOf(matchedVt), 0)
-                activeParentAudioTrack = currentTrack.copy(id = currentTrack.id.substringBefore("#cue_"))
-                activeCuePath = currentTrack.cuePath ?: (currentTrack.remotePath.substringBeforeLast('.') + ".cue")
-            } else {
-                virtualTimelineEngine.clear()
-                activeParentAudioTrack = null
-                activeCuePath = null
-            }
-
-            _playbackProgress.value =
-                PlaybackProgress(
-                    currentPositionMs = 0L,
-                    durationMs = currentTrack.durationMs,
-                    bufferedPositionMs = 0L,
-                )
-            _sessionState.update {
-                it.copy(
-                    queue = queue,
-                    durationMs = currentTrack.durationMs,
-                    errorMessage = null,
-                    isUnsupportedRange = false,
-                    isWeakNetwork = false,
-                    canManualRetry = false,
-                    isReconnecting = false,
-                )
-            }
-
-            loadTrackIntoEngine(
-                server = _sessionState.value.activeServer,
-                track = currentTrack,
-                startPositionMs = startPositionMs,
-            )
-            if (matchedVt != null) {
-                playerEngine.updateTrackMetadata(currentTrack)
-            }
+            dispatchQueueLoad(_sessionState.value.activeServer ?: return@launch, request)
         }
     }
 
     override fun skipToNext() {
-        clearTransientAudioFocusFlag()
-        clearPrerollIfActive()
+        clearTransientAudioFocusFlag(); clearPrerollIfActive()
         if (virtualTimelineEngine.isActive && !_sessionState.value.queue.isPlaylistQueue) {
-            val seekResult = virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)
-            if (seekResult != null) {
-                applyVirtualTrackSeek(seekResult)
-            }
+            virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)?.let { applyVirtualTrackSeek(it) }
             return
         }
         val queue = _sessionState.value.queue
-        if (queue.isEmpty) return
-        val server = _sessionState.value.activeServer
-
-        val nextIndex = queueManager.calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-        transitionToQueueIndex(server, nextIndex)
+        if (!queue.isEmpty) transitionToQueueIndex(_sessionState.value.activeServer, queueManager.calculateNextQueueIndex(queue, _sessionState.value.playbackMode))
     }
 
     override fun skipToPrevious() {
-        clearTransientAudioFocusFlag()
-        clearPrerollIfActive()
+        clearTransientAudioFocusFlag(); clearPrerollIfActive()
         if (virtualTimelineEngine.isActive && !_sessionState.value.queue.isPlaylistQueue) {
-            val seekResult =
-                virtualTimelineEngine.getPreviousTrackSeekPosition(
-                    globalPositionMs = playerEngine.currentPositionMs.value,
-                    mode = _sessionState.value.playbackMode,
-                )
-            if (seekResult != null) {
-                applyVirtualTrackSeek(seekResult)
-            }
+            virtualTimelineEngine.getPreviousTrackSeekPosition(playerEngine.currentPositionMs.value, _sessionState.value.playbackMode)?.let { applyVirtualTrackSeek(it) }
             return
         }
         val queue = _sessionState.value.queue
         if (queue.isEmpty) return
-        val server = _sessionState.value.activeServer
-
-        val currentPos = playerEngine.currentPositionMs.value
-        if (currentPos > 3000L) {
-            seekTo(0L)
-            return
-        }
-
-        val prevIndex = queueManager.calculatePreviousQueueIndex(queue, _sessionState.value.playbackMode)
-        transitionToQueueIndex(server, prevIndex)
+        if (playerEngine.currentPositionMs.value > 3000L) { seekTo(0L); return }
+        transitionToQueueIndex(_sessionState.value.activeServer, queueManager.calculatePreviousQueueIndex(queue, _sessionState.value.playbackMode))
     }
 
     override fun playQueueIndex(index: Int) {
-        clearTransientAudioFocusFlag()
-        clearPrerollIfActive()
+        clearTransientAudioFocusFlag(); clearPrerollIfActive()
         if (virtualTimelineEngine.isActive && !_sessionState.value.queue.isPlaylistQueue) {
-            val seekResult = virtualTimelineEngine.seekToTrackIndex(index)
-            if (seekResult != null) {
-                applyVirtualTrackSeek(seekResult)
-            }
+            virtualTimelineEngine.seekToTrackIndex(index)?.let { applyVirtualTrackSeek(it) }
             return
         }
-        val queue = _sessionState.value.queue
-        if (index !in queue.tracks.indices) return
-        val server = _sessionState.value.activeServer
-        queueManager.clearFailedTracks()
-        transitionToQueueIndex(server, index)
+        if (index in _sessionState.value.queue.tracks.indices) {
+            queueManager.clearFailedTracks()
+            transitionToQueueIndex(_sessionState.value.activeServer, index)
+        }
     }
 
-    override fun cyclePlaybackMode() {
-        queueManager.cyclePlaybackMode()
-    }
-
-    override fun setPlaybackMode(mode: PlaybackMode) {
-        queueManager.setPlaybackMode(mode)
-    }
+    override fun cyclePlaybackMode() = queueManager.cyclePlaybackMode()
+    override fun setPlaybackMode(mode: PlaybackMode) = queueManager.setPlaybackMode(mode)
 
     override fun removeQueueTrack(index: Int) {
         clearPrerollIfActive()
         queueManager.removeQueueTrack(
             index = index,
             onQueueCleared = {
-                hasStreamLoaded = false
-                playerEngine.stop()
-                _playbackProgress.value = PlaybackProgress.ZERO
+                hasStreamLoaded = false; playerEngine.stop(); _playbackProgress.value = PlaybackProgress.ZERO
             },
             onCurrentTrackChanged = { nextTrack ->
                 _playbackProgress.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
-                val server = _sessionState.value.activeServer
-                if (server != null) {
-                    loadTrackIntoEngine(server, nextTrack, 0L)
-                }
+                _sessionState.value.activeServer?.let { loadTrackIntoEngine(it, nextTrack, 0L) }
             },
         )
     }
 
     override fun retryPlayback() {
-        val server = _sessionState.value.activeServer ?: return
-        val currentTrack = _sessionState.value.currentTrack ?: return
-        val currentPos = _playbackProgress.value.currentPositionMs
-
         faultTolerance.cancelWatchdog()
-        _sessionState.update {
-            it.copy(
-                isWeakNetwork = false,
-                canManualRetry = false,
-                isReconnecting = true,
-            )
-        }
-
-        if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-            val resumePos =
-                (virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L) + currentPos
-            loadTrackIntoEngine(
-                server = server,
-                track = activeParentAudioTrack!!,
-                startPositionMs = resumePos,
-            )
-            playerEngine.updateTrackMetadata(currentTrack)
-        } else {
-            loadTrackIntoEngine(
-                server = server,
-                track = currentTrack,
-                startPositionMs = currentPos,
-            )
-            playerEngine.updateTrackMetadata(currentTrack)
-        }
+        _sessionState.update { it.copy(isWeakNetwork = false, canManualRetry = false, isReconnecting = true) }
+        resumeCurrentTrack()
     }
 
-    @androidx.annotation.VisibleForTesting
-    fun setWeakNetworkState(
-        isWeakNetwork: Boolean,
-        canManualRetry: Boolean,
-    ) {
-        faultTolerance.setWeakNetworkState(isWeakNetwork, canManualRetry)
-    }
+    @VisibleForTesting
+    fun setWeakNetworkState(isWeakNetwork: Boolean, canManualRetry: Boolean) = faultTolerance.setWeakNetworkState(isWeakNetwork, canManualRetry)
 
     override fun stop() {
-        clearTransientAudioFocusFlag()
-        clearPrerollIfActive()
-        stopPeriodicFlush()
-        virtualTimelineEngine.clear()
-        activeParentAudioTrack = null
-        activeCuePath = null
-        hasStreamLoaded = false
-        faultTolerance.cancelWatchdog()
-        playerEngine.stop()
+        clearTransientAudioFocusFlag(); resetPlaybackState(); faultTolerance.cancelWatchdog(); playerEngine.stop()
         _playbackProgress.value = PlaybackProgress.ZERO
-        _sessionState.update {
-            it.copy(
-                playbackState = PlaybackState.Idle,
-                isWeakNetwork = false,
-                canManualRetry = false,
-                isReconnecting = false,
-            )
-        }
+        _sessionState.update { it.copy(playbackState = PlaybackState.Idle, isWeakNetwork = false, canManualRetry = false, isReconnecting = false) }
         coroutineScope.launch { flushSessionWithCleanExit(isCleanExit = true) }
     }
 
     override fun clearKilledBySystemFlag() {
-        if (_sessionState.value.wasKilledBySystem) {
-            _sessionState.update { it.copy(wasKilledBySystem = false) }
-        }
+        if (_sessionState.value.wasKilledBySystem) _sessionState.update { it.copy(wasKilledBySystem = false) }
     }
 
     override fun confirmUnsupportedRangeReplay() {
         faultTolerance.confirmUnsupportedRangeReplay onReplay@{
             val server = _sessionState.value.activeServer ?: return@onReplay
-            val currentTrack = _sessionState.value.currentTrack ?: return@onReplay
-            _playbackProgress.value = PlaybackProgress(0L, currentTrack.durationMs, 0L)
-            if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-                val startPos = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
-                loadTrackIntoEngine(
-                    server = server,
-                    track = activeParentAudioTrack!!,
-                    startPositionMs = startPos,
-                )
-                playerEngine.updateTrackMetadata(currentTrack)
-            } else {
-                loadTrackIntoEngine(
-                    server = server,
-                    track = currentTrack,
-                    startPositionMs = 0L,
-                )
-            }
+            val track = _sessionState.value.currentTrack ?: return@onReplay
+            _playbackProgress.value = PlaybackProgress(0L, track.durationMs, 0L)
+            val isVirtual = virtualTimelineEngine.isActive && activeParentAudioTrack != null
+            val startPos = if (isVirtual) virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L else 0L
+            loadTrackIntoEngine(server, if (isVirtual) activeParentAudioTrack!! else track, startPos)
+            if (isVirtual) playerEngine.updateTrackMetadata(track)
         }
     }
 
-    override fun dismissUnsupportedRange() {
-        faultTolerance.dismissUnsupportedRange()
-    }
+    override fun dismissUnsupportedRange() = faultTolerance.dismissUnsupportedRange()
 
     override fun release() {
-        clearPrerollIfActive()
-        stopPeriodicFlush()
-        virtualTimelineEngine.clear()
-        activeParentAudioTrack = null
-        activeCuePath = null
-        hasStreamLoaded = false
-        internalJobs.forEach { it.cancel() }
-        internalJobs.clear()
-        playerEngine.release()
+        resetPlaybackState()
+        internalJobs.forEach { it.cancel() }; internalJobs.clear(); playerEngine.release()
         _playbackProgress.value = PlaybackProgress.ZERO
     }
 
-    override fun flushSessionAsync() {
-        persistenceCoordinator.flushSessionAsync()
-    }
-
-    private fun startPeriodicFlush() {
-        persistenceCoordinator.startPeriodicFlush()
-    }
-
-    private fun stopPeriodicFlush() {
-        persistenceCoordinator.stopPeriodicFlush()
-    }
-
-    override fun setCurrentDirectoryPath(path: String) {
-        persistenceCoordinator.setCurrentDirectoryPath(path)
-    }
-
-    override suspend fun restoreSession() {
-        persistenceCoordinator.restoreSession()
-    }
-
-    override suspend fun flushSession() {
-        persistenceCoordinator.flushSession()
-    }
-
-    suspend fun flushSessionWithCleanExit(isCleanExit: Boolean) {
-        persistenceCoordinator.flushSessionWithCleanExit(isCleanExit)
-    }
+    override fun flushSessionAsync() = persistenceCoordinator.flushSessionAsync()
+    private fun startPeriodicFlush() = persistenceCoordinator.startPeriodicFlush()
+    private fun stopPeriodicFlush() = persistenceCoordinator.stopPeriodicFlush()
+    override fun setCurrentDirectoryPath(path: String) = persistenceCoordinator.setCurrentDirectoryPath(path)
+    override suspend fun restoreSession() = persistenceCoordinator.restoreSession()
+    override suspend fun flushSession() = persistenceCoordinator.flushSession()
+    suspend fun flushSessionWithCleanExit(isCleanExit: Boolean) = persistenceCoordinator.flushSessionWithCleanExit(isCleanExit)
 
     companion object {
         const val DURATION_COMPLETION_TOLERANCE_MS: Long = 5000L
@@ -1538,111 +540,48 @@ class MusicPlayerAppSessionImpl(
         const val HEALTHY_NETWORK_QUIET_PERIOD_MS: Long = 30_000L
     }
 
-    @androidx.annotation.VisibleForTesting
-    fun setShuffleOrder(order: List<Int>) {
-        queueManager.setShuffleOrder(order)
-    }
+    @VisibleForTesting
+    fun setShuffleOrder(order: List<Int>) = queueManager.setShuffleOrder(order)
 
-    private fun calculateNextQueueIndex(
-        queue: PlaybackQueue,
-        mode: PlaybackMode,
-    ): Int = queueManager.calculateNextQueueIndex(queue, mode)
+    private fun calculateNextQueueIndex(queue: PlaybackQueue, mode: PlaybackMode): Int = queueManager.calculateNextQueueIndex(queue, mode)
 
     private fun checkAndTriggerAdaptivePreroll(progress: PlaybackProgress) {
-        if (virtualTimelineEngine.isActive || isPrerollAppended.get()) return
-        val queue = _sessionState.value.queue
-        if (queue.tracks.size <= 1) return
-        val duration = progress.durationMs
-        val position = progress.currentPositionMs
-        val remainingMs = duration - position
-
-        if (remainingMs in 1..PREROLL_TRIGGER_WINDOW_MS) {
-            val isPlaying = _sessionState.value.playbackState is PlaybackState.Playing
-            val isHealthyNetwork = faultTolerance.isHealthyNetwork(HEALTHY_NETWORK_QUIET_PERIOD_MS)
-
-            if (isPlaying && isHealthyNetwork) {
-                if (isPrerollAppended.compareAndSet(false, true)) {
-                    val server =
-                        _sessionState.value.activeServer ?: run {
-                            isPrerollAppended.set(false)
-                            return
-                        }
-                    val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-                    val nextTrack = queue.tracks[nextIndex]
-                    val currentTrackId = _sessionState.value.currentTrack?.id
-                    coroutineScope.launch(Dispatchers.Main) {
-                        // Atomic double-check on Main thread before invoking playerEngine:
-                        // Ensure pre-roll is still expected, playback is still actively playing, and current track hasn't changed.
-                        if (isPrerollAppended.get() &&
-                            _sessionState.value.playbackState is PlaybackState.Playing &&
-                            _sessionState.value.currentTrack?.id == currentTrackId
-                        ) {
-                            val nextServer =
-                                if (server.id == nextTrack.serverId) {
-                                    server
-                                } else {
-                                    serverRepository?.getServerById(nextTrack.serverId) ?: server
-                                }
-                            playerEngine.prerollTrack(nextServer, nextTrack)
-                        } else {
-                            isPrerollAppended.set(false)
-                        }
-                    }
-                }
-            }
-        }
+        faultTolerance.checkAndTriggerAdaptivePreroll(
+            progress = progress, queue = _sessionState.value.queue, playbackMode = _sessionState.value.playbackMode,
+            activeServer = _sessionState.value.activeServer, currentTrackId = _sessionState.value.currentTrack?.id,
+            isPrerollAppended = isPrerollAppended, serverRepository = serverRepository,
+            onPreroll = { nextServer, nextTrack -> playerEngine.prerollTrack(nextServer, nextTrack) },
+        )
     }
 
     private fun handlePlaybackEnded() {
         isPrerollAppended.set(false)
         val currentPos = playerEngine.currentPositionMs.value
         val currentTrack = _sessionState.value.currentTrack
-        val duration =
-            playerEngine.durationMs.value.takeIf { it > 0L }
-                ?: currentTrack?.durationMs
-                ?: _sessionState.value.durationMs
+        val duration = playerEngine.durationMs.value.takeIf { it > 0L } ?: currentTrack?.durationMs ?: _sessionState.value.durationMs
 
         if (faultTolerance.isPrematureEof(currentPos, duration)) {
-            // Tier 3 (Premature EOF): premature network cut-off detected.
-            // Do NOT advance queue, preserve current track index, seek to cut-off position,
-            // and transition to PlaybackState.Buffering to attempt in-place resumption.
             _sessionState.update { it.copy(playbackState = PlaybackState.Buffering) }
-            playerEngine.seekTo(currentPos)
-            playerEngine.play()
-            return
+            playerEngine.seekTo(currentPos); playerEngine.play(); return
         }
 
-        // Genuine completion!
         if (virtualTimelineEngine.isActive && !_sessionState.value.queue.isPlaylistQueue) {
-            val nextSeek = virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)
-            if (nextSeek != null) {
-                applyVirtualTrackSeek(nextSeek)
-                playerEngine.play()
-            } else {
-                _sessionState.update { it.copy(playbackState = PlaybackState.Ended) }
-            }
+            virtualTimelineEngine.getNextTrackSeekPosition(_sessionState.value.playbackMode)?.let {
+                applyVirtualTrackSeek(it); playerEngine.play()
+            } ?: _sessionState.update { it.copy(playbackState = PlaybackState.Ended) }
             return
         }
 
         val queue = _sessionState.value.queue
-        val server = _sessionState.value.activeServer
-        if (server == null || queue.isEmpty) {
-            _sessionState.update { it.copy(playbackState = PlaybackState.Ended) }
-            return
-        }
+        val server = _sessionState.value.activeServer ?: return run { _sessionState.update { it.copy(playbackState = PlaybackState.Ended) } }
+        if (queue.isEmpty) return run { _sessionState.update { it.copy(playbackState = PlaybackState.Ended) } }
 
-        when (_sessionState.value.playbackMode) {
-            PlaybackMode.SINGLE_LOOP -> {
-                _playbackProgress.value = PlaybackProgress(0L, duration, 0L)
-                playerEngine.seekTo(0L)
-                playerEngine.play()
-                coroutineScope.launch { flushSession() }
-            }
-
-            PlaybackMode.LIST_LOOP, PlaybackMode.SHUFFLE -> {
-                val nextIndex = calculateNextQueueIndex(queue, _sessionState.value.playbackMode)
-                transitionToQueueIndex(server, nextIndex)
-            }
+        if (_sessionState.value.playbackMode == PlaybackMode.SINGLE_LOOP) {
+            _playbackProgress.value = PlaybackProgress(0L, duration, 0L)
+            playerEngine.seekTo(0L); playerEngine.play()
+            coroutineScope.launch { flushSession() }
+        } else {
+            transitionToQueueIndex(server, calculateNextQueueIndex(queue, _sessionState.value.playbackMode))
         }
     }
 }

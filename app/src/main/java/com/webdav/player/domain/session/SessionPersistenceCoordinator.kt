@@ -58,6 +58,18 @@ internal class SessionPersistenceCoordinator(
 
     fun getLastDirectoryForServer(serverId: Long): String = serverLastDirectories[serverId] ?: "/"
 
+    fun savePosition(
+        positionMs: Long,
+        virtualPositionMs: Long? = null,
+        isCleanExit: Boolean = false,
+    ) {
+        if (!_isRestored.value) return
+        val store = sessionStore ?: return
+        coroutineScope.launch {
+            store.savePosition(positionMs, virtualPositionMs, isCleanExit)
+        }
+    }
+
     fun setCurrentDirectoryPath(path: String) {
         val serverId = sessionStateFlow.value.activeServer?.id
         if (serverId != null) {

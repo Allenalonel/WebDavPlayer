@@ -72,6 +72,37 @@ internal class PlaybackQueueManager(
         return queue.getPreviousIndex(mode) ?: 0
     }
 
+    fun resolveDirectoryCueMap(
+        directory: com.webdav.player.domain.model.RemoteDirectory,
+        audioFiles: List<com.webdav.player.domain.model.RemoteFile>,
+        server: com.webdav.player.domain.model.WebDavServer,
+        cueSheetResolver: com.webdav.player.domain.cue.CueSheetResolver?,
+    ): Map<String, List<com.webdav.player.domain.model.VirtualTrack>> {
+        val cueFiles = directory.files.filter { it.isCue }
+        if (cueFiles.isEmpty() || cueSheetResolver == null) return emptyMap()
+        val map = mutableMapOf<String, List<com.webdav.player.domain.model.VirtualTrack>>()
+        for (cueFile in cueFiles) {
+            val matchedAudio =
+                com.webdav.player.data.cue.CueAssociationHelper.findMatchingAudioFile(
+                    cueFile = cueFile,
+                    audioFiles = audioFiles,
+                    totalCueFilesCount = cueFiles.size,
+                )
+            if (matchedAudio != null) {
+                val cachedTracks =
+                    cueSheetResolver.getCachedVirtualTracks(
+                        server = server,
+                        cuePath = cueFile.path,
+                        parentAudioPath = matchedAudio.path,
+                    )
+                if (!cachedTracks.isNullOrEmpty()) {
+                    map[matchedAudio.path] = cachedTracks
+                }
+            }
+        }
+        return map
+    }
+
     /**
      * Sets the shuffle order for the active queue.
      */
@@ -185,4 +216,172 @@ internal class PlaybackQueueManager(
         }
         onFlushRequested()
     }
+
+    fun buildDirectoryQueue(
+        directory: com.webdav.player.domain.model.RemoteDirectory,
+        selectedFile: com.webdav.player.domain.model.RemoteFile,
+        initialMetadata: Map<String, com.webdav.player.domain.model.TrackMetadata>,
+        virtualTracksByAudioPath: Map<String, List<com.webdav.player.domain.model.VirtualTrack>>,
+        server: com.webdav.player.domain.model.WebDavServer,
+        cueSheetResolver: com.webdav.player.domain.cue.CueSheetResolver?,
+    ): QueueLoadRequest? {
+        val audioFiles = directory.files.filter { it.isAudio }
+        if (audioFiles.isEmpty()) return null
+        val tracks = audioFiles.mapNotNull { AudioTrack.fromRemoteFile(server, it, initialMetadata[it.path]) }
+        if (tracks.isEmpty()) return null
+
+        val selectedIndex = tracks.indexOfFirst { it.remotePath == selectedFile.path }.takeIf { it >= 0 } ?: 0
+        val resolvedVirtualMap =
+            if (virtualTracksByAudioPath.isNotEmpty()) {
+                virtualTracksByAudioPath
+            } else {
+                resolveDirectoryCueMap(directory, audioFiles, server, cueSheetResolver)
+            }
+
+        val queue = PlaybackQueue.fromTracks(tracks = tracks, virtualTracksMap = resolvedVirtualMap, selectedIndex = selectedIndex)
+        val selectedTrack = queue.currentTrack ?: return null
+
+        return if (selectedTrack.isVirtualTrack) {
+            val parentTrack =
+                tracks.firstOrNull { it.remotePath == selectedTrack.remotePath }
+                    ?: selectedTrack.copy(id = selectedTrack.id.substringBefore("#cue_"))
+            val virtualTracks = resolvedVirtualMap[selectedTrack.remotePath] ?: emptyList()
+            val targetVirtualIndex =
+                virtualTracks.indexOfFirst { it.trackNumber == selectedTrack.id.substringAfter("#cue_").toIntOrNull() }.takeIf { it >= 0 } ?: 0
+            val cuePath = directory.files.firstOrNull { it.isCue }?.path ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
+            QueueLoadRequest(
+                queue = queue,
+                targetTrack = selectedTrack,
+                parentTrack = parentTrack,
+                cuePath = cuePath,
+                virtualTracks = virtualTracks,
+                startPositionMs = virtualTracks.getOrNull(targetVirtualIndex)?.startTimeMs ?: 0L,
+            )
+        } else {
+            QueueLoadRequest(
+                queue = queue,
+                targetTrack = selectedTrack,
+            )
+        }
+    }
+
+    suspend fun buildTrackQueue(
+        track: AudioTrack,
+        server: com.webdav.player.domain.model.WebDavServer?,
+        serverRepository: com.webdav.player.domain.repository.ServerRepository?,
+        cueSheetResolver: com.webdav.player.domain.cue.CueSheetResolver?,
+    ): QueueLoadRequest {
+        val queue = PlaybackQueue(tracks = listOf(track), currentIndex = 0, origin = com.webdav.player.domain.model.QueueOrigin.AD_HOC)
+        val (vt, startPositionMs) = resolveVirtualTrackOffset(track, server, serverRepository, cueSheetResolver)
+        return if (vt != null) {
+            val parentTrack = track.copy(id = track.id.substringBefore("#cue_"))
+            val cuePath = track.cuePath ?: (track.remotePath.substringBeforeLast('.') + ".cue")
+            QueueLoadRequest(
+                queue = queue,
+                targetTrack = track,
+                parentTrack = parentTrack,
+                cuePath = cuePath,
+                virtualTracks = listOf(vt),
+                startPositionMs = startPositionMs,
+            )
+        } else {
+            QueueLoadRequest(
+                queue = queue,
+                targetTrack = track,
+                startPositionMs = 0L,
+            )
+        }
+    }
+
+    fun buildVirtualTracksQueue(
+        parentTrack: AudioTrack,
+        virtualTracks: List<com.webdav.player.domain.model.VirtualTrack>,
+        startIndex: Int,
+        cuePath: String?,
+        playbackMode: PlaybackMode,
+    ): QueueLoadRequest {
+        val cleanParentTrack = parentTrack.copy(id = parentTrack.id.substringBefore("#cue_"))
+        val validStartIndex = startIndex.coerceIn(0, virtualTracks.lastIndex)
+        val resolvedCuePath = cuePath ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
+        val mappedTracks = virtualTracks.map { it.toAudioTrack(cleanParentTrack, resolvedCuePath) }
+        val initialVirtualTrack = mappedTracks[validStartIndex]
+        val rawQueue = PlaybackQueue(tracks = mappedTracks, currentIndex = validStartIndex)
+        val queue = if (playbackMode == PlaybackMode.SHUFFLE) rawQueue.withGeneratedShuffleOrder(validStartIndex) else rawQueue
+        return QueueLoadRequest(
+            queue = queue,
+            targetTrack = initialVirtualTrack,
+            parentTrack = cleanParentTrack,
+            cuePath = resolvedCuePath,
+            virtualTracks = virtualTracks,
+            startPositionMs = virtualTracks[validStartIndex].startTimeMs,
+        )
+    }
+
+    suspend fun buildPlaylistQueue(
+        entries: List<com.webdav.player.domain.model.PlaylistTrackEntry>,
+        startIndex: Int,
+        server: com.webdav.player.domain.model.WebDavServer?,
+        serverRepository: com.webdav.player.domain.repository.ServerRepository?,
+        cueSheetResolver: com.webdav.player.domain.cue.CueSheetResolver?,
+    ): QueueLoadRequest? {
+        if (entries.isEmpty()) return null
+        val tracks = entries.map { it.toAudioTrack() }
+        val safeStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
+        val queue = PlaybackQueue.fromTracks(tracks = tracks, selectedIndex = safeStartIndex, origin = com.webdav.player.domain.model.QueueOrigin.PLAYLIST)
+        val currentTrack = queue.currentTrack ?: tracks[safeStartIndex]
+        val (matchedVt, startPositionMs) = resolveVirtualTrackOffset(currentTrack, server, serverRepository, cueSheetResolver)
+        return if (matchedVt != null) {
+            val parentTrack = currentTrack.copy(id = currentTrack.id.substringBefore("#cue_"))
+            val cuePath = currentTrack.cuePath ?: (currentTrack.remotePath.substringBeforeLast('.') + ".cue")
+            QueueLoadRequest(
+                queue = queue,
+                targetTrack = currentTrack,
+                parentTrack = parentTrack,
+                cuePath = cuePath,
+                virtualTracks = listOf(matchedVt),
+                startPositionMs = startPositionMs,
+            )
+        } else {
+            QueueLoadRequest(
+                queue = queue,
+                targetTrack = currentTrack,
+                startPositionMs = 0L,
+            )
+        }
+    }
+
+    suspend fun resolveVirtualTrackOffset(
+        track: AudioTrack,
+        server: com.webdav.player.domain.model.WebDavServer?,
+        serverRepository: com.webdav.player.domain.repository.ServerRepository?,
+        cueSheetResolver: com.webdav.player.domain.cue.CueSheetResolver?,
+    ): Pair<com.webdav.player.domain.model.VirtualTrack?, Long> {
+        if (!track.isVirtualTrack) return null to 0L
+        val trackNum = track.id.substringAfter("#cue_").toIntOrNull() ?: return null to 0L
+        val cuePath = track.cuePath ?: (track.remotePath.substringBeforeLast('.') + ".cue")
+        val targetServer =
+            server?.takeIf { it.id == track.serverId }
+                ?: serverRepository?.getServerById(track.serverId)
+                ?: return null to 0L
+
+        val virtualTracks =
+            cueSheetResolver?.resolveVirtualTracks(
+                server = targetServer,
+                cuePath = cuePath,
+                parentAudioPath = track.remotePath,
+                totalDurationMs = track.durationMs,
+            ) ?: emptyList()
+
+        val matched = virtualTracks.firstOrNull { it.trackNumber == trackNum }
+        return matched to (matched?.startTimeMs ?: 0L)
+    }
 }
+
+internal data class QueueLoadRequest(
+    val queue: PlaybackQueue,
+    val targetTrack: AudioTrack,
+    val parentTrack: AudioTrack? = null,
+    val cuePath: String? = null,
+    val virtualTracks: List<com.webdav.player.domain.model.VirtualTrack>? = null,
+    val startPositionMs: Long = 0L,
+)
