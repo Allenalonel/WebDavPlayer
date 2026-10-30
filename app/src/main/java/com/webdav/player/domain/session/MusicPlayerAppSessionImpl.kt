@@ -42,15 +42,6 @@ import kotlinx.coroutines.launch
 /**
  * Domain playback session orchestrator managing queues, streaming resilience, and error state.
  */
-fun Throwable?.is404Exception(): Boolean {
-    if (this == null) return false
-    val causes = generateSequence(this) { it.cause }
-    return causes.any { cause ->
-        (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException && cause.responseCode == 404) ||
-            (cause is java.io.FileNotFoundException) ||
-            (cause.message?.contains("404") == true)
-    } || (message?.contains("404") == true)
-}
 
 class MusicPlayerAppSessionImpl(
     private val playerEngine: AudioPlayerEngine,
@@ -85,6 +76,19 @@ class MusicPlayerAppSessionImpl(
             sessionStateFlow = _sessionState,
             onFlushRequested = { coroutineScope.launch { flushSession() } },
         )
+
+    private val faultTolerance =
+        PlaybackFaultTolerance(
+            sessionStateFlow = _sessionState,
+            playerEngine = playerEngine,
+            playlistRepository = playlistRepository,
+            queueManager = queueManager,
+            coroutineScope = coroutineScope,
+        )
+
+    @androidx.annotation.VisibleForTesting
+    val lastBufferingTimestampMs: java.util.concurrent.atomic.AtomicLong
+        get() = faultTolerance.lastBufferingTimestampMs
 
     private val persistenceCoordinator =
         SessionPersistenceCoordinator(
@@ -127,13 +131,13 @@ class MusicPlayerAppSessionImpl(
                 playerEngine.loadTrack(targetServer, track, startPositionMs)
             } catch (e: Throwable) {
                 if (e.is404Exception()) {
-                    handle404Failure(track)
+                    faultTolerance.handle404Failure(track) { skipToNext() }
                     return
-                } else if (isAuthException(e)) {
-                    handleAuthFailure(track)
+                } else if (faultTolerance.isAuthException(e)) {
+                    faultTolerance.handleAuthFailure(track) { skipToNext() }
                     return
-                } else if (isServerUnreachableException(e)) {
-                    handleServerUnavailable(track)
+                } else if (faultTolerance.isServerUnreachableException(e)) {
+                    faultTolerance.handleServerUnavailable(track) { skipToNext() }
                     return
                 } else {
                     throw e
@@ -150,135 +154,17 @@ class MusicPlayerAppSessionImpl(
                 if (resolved != null) {
                     dispatchLoad(resolved)
                 } else {
-                    handleServerUnavailable(track)
+                    faultTolerance.handleServerUnavailable(track) { skipToNext() }
                 }
             }
         } else if (server != null) {
             dispatchLoad(server)
         } else {
             coroutineScope.launch {
-                handleServerUnavailable(track)
+                faultTolerance.handleServerUnavailable(track) { skipToNext() }
             }
         }
     }
-
-    private fun handleServerUnavailable(track: AudioTrack) {
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-        playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_UNREACHABLE)
-        val queueSize = _sessionState.value.queue.size
-        if (queueManager.recordFailedTrack(track.id, queueSize)) {
-            skipToNext()
-        } else {
-            _sessionState.update {
-                it.copy(
-                    playbackState = PlaybackState.Error("所属服务器无法连接"),
-                    errorMessage = "所属服务器无法连接",
-                    canManualRetry = false,
-                    isWeakNetwork = false,
-                )
-            }
-        }
-    }
-
-    private fun handle404Failure(
-        track: AudioTrack?,
-        errorMessage: String? = null,
-    ) {
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-        val queueSize = _sessionState.value.queue.size
-        val shouldSkip =
-            if (track != null) {
-                playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.FILE_NOT_FOUND)
-                queueManager.recordFailedTrack(track.id, queueSize)
-            } else {
-                false
-            }
-        if (shouldSkip) {
-            skipToNext()
-        } else {
-            val msg = errorMessage ?: "音频文件已被重命名或删除"
-            _sessionState.update {
-                it.copy(
-                    playbackState = PlaybackState.Error(msg),
-                    errorMessage = msg,
-                    canManualRetry = false,
-                    isWeakNetwork = false,
-                )
-            }
-        }
-    }
-
-    private fun handleAuthFailure(
-        track: AudioTrack?,
-        errorMessage: String? = null,
-    ) {
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-        val queueSize = _sessionState.value.queue.size
-        val shouldSkip =
-            if (track != null) {
-                playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_CREDENTIAL_INVALID)
-                queueManager.recordFailedTrack(track.id, queueSize)
-            } else {
-                false
-            }
-        if (shouldSkip) {
-            skipToNext()
-        } else {
-            val msg = errorMessage ?: "服务器认证凭据失效"
-            _sessionState.update {
-                it.copy(
-                    playbackState = PlaybackState.Error(msg),
-                    errorMessage = msg,
-                    canManualRetry = false,
-                    isWeakNetwork = false,
-                )
-            }
-        }
-    }
-
-    private fun isAuthException(e: Throwable): Boolean {
-        val causes = generateSequence(e) { it.cause }
-        return causes.any { c ->
-            (c is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException && (c.responseCode == 401 || c.responseCode == 403)) ||
-                c.message?.contains("401") == true ||
-                c.message?.contains("403") == true ||
-                c.message?.contains("Unauthorized", ignoreCase = true) == true ||
-                c.message?.contains("Forbidden", ignoreCase = true) == true
-        }
-    }
-
-    private fun isServerUnreachableException(e: Throwable): Boolean {
-        val causes = generateSequence(e) { it.cause }
-        return causes.any { c ->
-            c is java.net.ConnectException ||
-                c is java.net.UnknownHostException ||
-                c is java.net.SocketTimeoutException ||
-                c.message?.contains("Connection refused", ignoreCase = true) == true ||
-                c.message?.contains("Failed to connect", ignoreCase = true) == true
-        }
-    }
-
-    private fun is404Error(state: PlaybackState.Error): Boolean = state.cause.is404Exception() || state.message.contains("404")
-
-    private fun isAuthError(state: PlaybackState.Error): Boolean {
-        val cause = state.cause
-        if (cause != null && isAuthException(cause)) return true
-        return state.message.contains("401") ||
-            state.message.contains("403") ||
-            state.message.contains("Unauthorized", ignoreCase = true) ||
-            state.message.contains("Forbidden", ignoreCase = true)
-    }
-
-    private fun isServerUnreachableError(state: PlaybackState.Error): Boolean {
-        val cause = state.cause
-        if (cause != null && isServerUnreachableException(cause)) return true
-        return state.message.contains("ConnectException") ||
-            state.message.contains("Connection refused", ignoreCase = true)
-    }
-
-    private val bufferingWatchdogJobRef =
-        java.util.concurrent.atomic
-            .AtomicReference<Job?>(null)
 
     private val _pausedByTransientAudioFocus =
         java.util.concurrent.atomic
@@ -290,11 +176,6 @@ class MusicPlayerAppSessionImpl(
     private fun clearTransientAudioFocusFlag() {
         _pausedByTransientAudioFocus.set(false)
     }
-
-    @androidx.annotation.VisibleForTesting
-    val lastBufferingTimestampMs =
-        java.util.concurrent.atomic
-            .AtomicLong(0L)
 
     @androidx.annotation.VisibleForTesting
     val isPrerollAppended =
@@ -352,7 +233,7 @@ class MusicPlayerAppSessionImpl(
         server: WebDavServer?,
         targetIndex: Int,
     ) {
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        faultTolerance.cancelWatchdog()
         val queue = _sessionState.value.queue
         val targetTrack = queue.tracks[targetIndex]
         val updatedQueue = queue.copy(currentIndex = targetIndex)
@@ -440,44 +321,15 @@ class MusicPlayerAppSessionImpl(
                         return@collect
                     }
                     if (state is PlaybackState.Buffering) {
-                        lastBufferingTimestampMs.set(System.currentTimeMillis())
                         clearPrerollIfActive()
-                        if (bufferingWatchdogJobRef.get()?.isActive != true) {
-                            val job =
-                                coroutineScope.launch {
-                                    delay(15_000L)
-                                    if (isActive) {
-                                        _sessionState.update {
-                                            it.copy(isWeakNetwork = true, canManualRetry = false, isReconnecting = true)
-                                        }
-                                        delay(15_000L)
-                                        if (isActive) {
-                                            playerEngine.pause()
-                                            _sessionState.update {
-                                                it.copy(
-                                                    playbackState = PlaybackState.Paused,
-                                                    isWeakNetwork = true,
-                                                    canManualRetry = true,
-                                                    isReconnecting = true,
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            bufferingWatchdogJobRef.set(job)
-                        }
+                        faultTolerance.onBufferingStarted()
                     } else if (state is PlaybackState.Playing) {
-                        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
-                        if (_sessionState.value.isWeakNetwork || _sessionState.value.canManualRetry || _sessionState.value.isReconnecting) {
-                            _sessionState.update {
-                                it.copy(isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
-                            }
-                        }
+                        faultTolerance.onPlayingStarted()
                     } else {
-                        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+                        faultTolerance.cancelWatchdog()
                     }
                     if (state is PlaybackState.Error) {
-                        if (isUnsupportedRangeError(state)) {
+                        if (faultTolerance.isUnsupportedRangeError(state)) {
                             playerEngine.pause()
                             _sessionState.update { current ->
                                 current.copy(
@@ -487,16 +339,16 @@ class MusicPlayerAppSessionImpl(
                             }
                             stopPeriodicFlush()
                             return@collect
-                        } else if (is404Error(state)) {
-                            handle404Failure(_sessionState.value.currentTrack, state.message)
+                        } else if (faultTolerance.is404Error(state)) {
+                            faultTolerance.handle404Failure(_sessionState.value.currentTrack, state.message) { skipToNext() }
                             return@collect
-                        } else if (isAuthError(state)) {
-                            handleAuthFailure(_sessionState.value.currentTrack, state.message)
+                        } else if (faultTolerance.isAuthError(state)) {
+                            faultTolerance.handleAuthFailure(_sessionState.value.currentTrack, state.message) { skipToNext() }
                             return@collect
-                        } else if (isServerUnreachableError(state)) {
+                        } else if (faultTolerance.isServerUnreachableError(state)) {
                             val track = _sessionState.value.currentTrack
                             if (track != null) {
-                                handleServerUnavailable(track)
+                                faultTolerance.handleServerUnavailable(track) { skipToNext() }
                             }
                             return@collect
                         } else {
@@ -1148,7 +1000,7 @@ class MusicPlayerAppSessionImpl(
     }
 
     private fun applyVirtualTrackSeek(seekResult: TrackSeekResult) {
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        faultTolerance.cancelWatchdog()
         var enrichedTrack: AudioTrack? = null
         _sessionState.update { current ->
             if (seekResult.trackIndex in current.queue.tracks.indices) {
@@ -1309,7 +1161,7 @@ class MusicPlayerAppSessionImpl(
 
     private fun pauseInternal() {
         clearPrerollIfActive()
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        faultTolerance.cancelWatchdog()
         if (hasStreamLoaded) {
             playerEngine.pause()
         }
@@ -1547,7 +1399,7 @@ class MusicPlayerAppSessionImpl(
         val currentTrack = _sessionState.value.currentTrack ?: return
         val currentPos = _playbackProgress.value.currentPositionMs
 
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        faultTolerance.cancelWatchdog()
         _sessionState.update {
             it.copy(
                 isWeakNetwork = false,
@@ -1580,9 +1432,7 @@ class MusicPlayerAppSessionImpl(
         isWeakNetwork: Boolean,
         canManualRetry: Boolean,
     ) {
-        _sessionState.update {
-            it.copy(isWeakNetwork = isWeakNetwork, canManualRetry = canManualRetry, isReconnecting = isWeakNetwork)
-        }
+        faultTolerance.setWeakNetworkState(isWeakNetwork, canManualRetry)
     }
 
     override fun stop() {
@@ -1593,7 +1443,7 @@ class MusicPlayerAppSessionImpl(
         activeParentAudioTrack = null
         activeCuePath = null
         hasStreamLoaded = false
-        bufferingWatchdogJobRef.getAndSet(null)?.cancel()
+        faultTolerance.cancelWatchdog()
         playerEngine.stop()
         _playbackProgress.value = PlaybackProgress.ZERO
         _sessionState.update {
@@ -1614,38 +1464,30 @@ class MusicPlayerAppSessionImpl(
     }
 
     override fun confirmUnsupportedRangeReplay() {
-        _sessionState.update { it.copy(isUnsupportedRange = false, errorMessage = null) }
-        val server = _sessionState.value.activeServer ?: return
-        val currentTrack = _sessionState.value.currentTrack ?: return
-        _playbackProgress.value = PlaybackProgress(0L, currentTrack.durationMs, 0L)
-        if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
-            val startPos = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
-            loadTrackIntoEngine(
-                server = server,
-                track = activeParentAudioTrack!!,
-                startPositionMs = startPos,
-            )
-            playerEngine.updateTrackMetadata(currentTrack)
-        } else {
-            loadTrackIntoEngine(
-                server = server,
-                track = currentTrack,
-                startPositionMs = 0L,
-            )
+        faultTolerance.confirmUnsupportedRangeReplay onReplay@{
+            val server = _sessionState.value.activeServer ?: return@onReplay
+            val currentTrack = _sessionState.value.currentTrack ?: return@onReplay
+            _playbackProgress.value = PlaybackProgress(0L, currentTrack.durationMs, 0L)
+            if (virtualTimelineEngine.isActive && activeParentAudioTrack != null) {
+                val startPos = virtualTimelineEngine.activeTrack?.startTimeMs ?: 0L
+                loadTrackIntoEngine(
+                    server = server,
+                    track = activeParentAudioTrack!!,
+                    startPositionMs = startPos,
+                )
+                playerEngine.updateTrackMetadata(currentTrack)
+            } else {
+                loadTrackIntoEngine(
+                    server = server,
+                    track = currentTrack,
+                    startPositionMs = 0L,
+                )
+            }
         }
     }
 
     override fun dismissUnsupportedRange() {
-        _sessionState.update { it.copy(isUnsupportedRange = false) }
-    }
-
-    private fun isUnsupportedRangeError(state: PlaybackState.Error): Boolean {
-        val hasTypedCause =
-            generateSequence<Throwable>(state.cause) { it.cause }.any {
-                it is UnsupportedRangeReconnectionException
-            }
-        if (hasTypedCause) return true
-        return state.message.contains("UnsupportedRangeReconnectionException", ignoreCase = true)
+        faultTolerance.dismissUnsupportedRange()
     }
 
     override fun release() {
@@ -1716,7 +1558,7 @@ class MusicPlayerAppSessionImpl(
 
         if (remainingMs in 1..PREROLL_TRIGGER_WINDOW_MS) {
             val isPlaying = _sessionState.value.playbackState is PlaybackState.Playing
-            val isHealthyNetwork = (System.currentTimeMillis() - lastBufferingTimestampMs.get()) >= HEALTHY_NETWORK_QUIET_PERIOD_MS
+            val isHealthyNetwork = faultTolerance.isHealthyNetwork(HEALTHY_NETWORK_QUIET_PERIOD_MS)
 
             if (isPlaying && isHealthyNetwork) {
                 if (isPrerollAppended.compareAndSet(false, true)) {
@@ -1760,14 +1602,7 @@ class MusicPlayerAppSessionImpl(
                 ?: currentTrack?.durationMs
                 ?: _sessionState.value.durationMs
 
-        // Multi-tier completion arbitration:
-        // Tier 1 (Physical Match): currentPos >= duration - DURATION_COMPLETION_TOLERANCE_MS
-        val isPhysicalMatch = duration <= 0L || currentPos >= (duration - DURATION_COMPLETION_TOLERANCE_MS)
-        // Tier 2 (Completion Progress Threshold): 95%+ of duration reached (e.g. metadata tag inflation)
-        val isProgressMatch =
-            duration > 0L && (currentPos.toDouble() / duration.toDouble()) >= COMPLETION_PROGRESS_THRESHOLD
-
-        if (!isPhysicalMatch && !isProgressMatch) {
+        if (faultTolerance.isPrematureEof(currentPos, duration)) {
             // Tier 3 (Premature EOF): premature network cut-off detected.
             // Do NOT advance queue, preserve current track index, seek to cut-off position,
             // and transition to PlaybackState.Buffering to attempt in-place resumption.
