@@ -45,19 +45,23 @@ _Avoid_: ID3, Tag, Audio Info
 _Avoid_: External Image, Folder Icon, Album Photo
 
 **Playback Queue**:
-当前播放会话中排队待播的有序音频曲目运行时集合。与用户持久化保存的 Playlist 解耦。
+当前播放会话中排队待播的有序音频曲目运行时集合。具备明确的 Queue Origin 来源标记，与用户持久化保存的 Playlist 解耦。
 _Avoid_: Track List, Song Sequence
+
+**Queue Origin**:
+播放队列的来源拓扑分类标识，包含目录闭环回放（Directory Queue）、跨服务器自定义歌单闭环回放（Playlist Queue）与单曲临时插队起播（Ad-hoc Queue），决定切歌到达末尾时的回流逻辑与跨服媒体流凭据装配。
+_Avoid_: Queue Type, Play Source, List Kind
 
 **Playlist**:
 用户创建并持久化保存的自定义音频曲目集合，支持跨多个 WebDAV Server 引用音轨。
 _Avoid_: Song List, Favorite Folder, Collection
 
 **Playlist Track Entry**:
-持久化在本地数据库中的歌单曲目引用，明确记录所属的 WebDAV Server 标识符、远程相对路径及快照元数据（标题、艺术家、专辑、时长等）。
+持久化在本地数据库中的歌单曲目引用，明确记录所属的 WebDAV Server 标识符、远程相对路径、排序索引及快照元数据（标题、艺术家、专辑、时长、封面缩略图路径等），支持后台异步封面自愈补全。
 _Avoid_: Song Item, Playlist Item
 
 **Inactive Playlist Track**:
-当所属 WebDAV Server 处于离线/无法连接状态，或远程文件返回 404（已被重命名、移动或删除）时，歌单中呈现为置灰不可点击的音轨状态，点击触发 Toast 告知具体不可用原因，流式回放自动跳过。
+当所属 WebDAV Server 处于离线/无法连接状态，或服务器认证凭证失效（401/403），或远程文件返回 404（已被重命名、移动或删除）时，歌单中呈现为置灰减淡的音轨状态。具备显式诊断原因枚举（InactiveReason），点击触发明确 Toast 反馈，流式切歌自动静默平滑跳过。
 _Avoid_: Disabled Song, Dead Link, Error Item
 
 **Library Search Index**:
@@ -184,8 +188,24 @@ _Avoid_: Audio Upsampling, System Resample, Driver Convert
 ### UI & Navigation
 
 **Primary Navigation Bar**:
-应用底部的顶层导航容器，承载「曲库浏览」（Directory Browser）与「服务器管理」（Server Management）顶层核心目的地。
+应用底部的顶层导航容器，以「歌单」（Playlists）—「媒体库」（Directory Browser）—「服务器」（Server Management）有序承载应用三大一级视窗，并具备持久化记忆能力，应用冷启动时精准恢复至上次退出时停留的底栏目的地。
 _Avoid_: Bottom Bar, Tab Bar, Footer Menu
+
+**Borderless Immersive Search**:
+基于 Material Design 3 规范构建的全通透极简搜索视图，完全剔除粗生硬的通栏底部分割横线（Divider-free），以浅灰圆角容器内嵌输入框搭配右侧平滑「取消」动作，向下直通纵向时钟搜索历史与标准 MD3 ListItem 结果。
+_Avoid_: SearchBar with Divider, Flat Search Header, Line Search
+
+**Custom Playlist Reorder Mode**:
+歌单专用的按需编排模式。常规浏览模式下列表彻底隐藏拖拽手柄 `[ ≡ ]` 以保证界面纯净与防止误触；仅在排序菜单显式选择「自定义排序」时，才在条目左侧浮现手柄并于顶栏提供「保存」动作，支持随意跨多曲连续上下拖拽。
+_Avoid_: Permanent Drag Handles, Edit Mode Screen, Always-On Drag
+
+**Threshold-Gated Double-Action Swipe**:
+歌单曲目条目的带物理阈值双向滑动手势体系：左滑为「添加到下一首播放」（触发后平滑弹性归位），右滑为「从歌单中删除」；严格以物理最大宽度的 50% 为触发阈值并伴随清脆触感震动反馈，滑回小于 50% 区域自动安全取消操作，有效免疫误触。
+_Avoid_: Fast Swipe Delete, Unidirectional Dismiss, Immediate Trigger, Sensitive Swipe
+
+**Playlist Track Detail Dialog**:
+由歌单曲目溢出菜单（⋮）调起的专用详细信息视窗，清晰呈现音轨标题、艺术家、专辑、编码格式、实际时长、物理文件大小、来源目录及完整远程路径，并支持在对话框内一键起播。
+_Avoid_: File Info Activity, Song Property Window
 
 **Docked Mini-Player**:
 悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊，具备曲目摘要、播放控制与上滑/点击呼出全屏播放器的能力，在应用内任何页面导航切换时均不中断。
