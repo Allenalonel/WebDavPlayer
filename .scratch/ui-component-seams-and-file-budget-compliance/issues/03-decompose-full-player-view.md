@@ -10,11 +10,15 @@
 
 **Blocked by:** None (can run independently or after 01, 02)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Create `ui/player/components/PlayerVinylArtwork.kt` and move `ArtworkPage` and vinyl disc rotation animations
-- [ ] Create `ui/player/components/PlayerTransportControls.kt` and move `PlaybackModeButton`, transport controls, and slider logic
-- [ ] Create `ui/player/components/FullPlayerRetryBanner.kt` and move `FullPlayerRetryBanner` and `isFullPlayerRetryBannerVisible`
-- [ ] Update imports in `FullPlayerView.kt` and ensure clean compilation
-- [ ] Verify `FullPlayerView.kt` line count is under 450 lines (strictly complying with 600-line budget)
-- [ ] Verify all player and end-to-end tests pass cleanly (`./gradlew testDebugUnitTest`)
+- [x] Create `ui/player/components/PlayerVinylArtwork.kt` and move `ArtworkPage` and vinyl disc rotation animations
+- [x] Create `ui/player/components/PlayerTransportControls.kt` and move `PlaybackModeButton`, transport controls, and slider logic
+- [x] Create `ui/player/components/FullPlayerRetryBanner.kt` and move `FullPlayerRetryBanner` and `isFullPlayerRetryBannerVisible`
+- [x] Update imports in `FullPlayerView.kt` and ensure clean compilation
+- [x] Verify `FullPlayerView.kt` line count is under 450 lines (strictly complying with 600-line budget)
+- [x] Verify all player and end-to-end tests pass cleanly (`./gradlew testDebugUnitTest`)
+
+## Answer
+
+Extracted `PlayerVinylArtwork.kt` (205 lines), `PlayerTransportControls.kt` (505 lines), and `FullPlayerRetryBanner.kt` (124 lines) under `ui/player/components/`. All extracted components are marked `internal` and include `@Preview` annotations. `FullPlayerView.kt` was reduced from 867 lines to 403 lines (under 450 lines target). All playback and player unit tests pass cleanly.
