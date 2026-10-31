@@ -54,7 +54,7 @@ internal class DefaultTrackMetadataResolver(
             }
 
             val audioFormat = (file.fileType as? RemoteFileType.Audio)?.format
-            val initialParsed = AudioMetadataParser.parse(rangeBytes, audioFormat)
+            val initialParsed = AudioMetadataParser.parse(rangeBytes, audioFormat, fileSize = file.size)
             val initialArtworkComplete =
                 initialParsed.artworkData != null &&
                     initialParsed.artworkData.isNotEmpty() &&
@@ -81,7 +81,7 @@ internal class DefaultTrackMetadataResolver(
 
             val parsed =
                 if (completeBytes !== rangeBytes) {
-                    AudioMetadataParser.parse(completeBytes, audioFormat)
+                    AudioMetadataParser.parse(completeBytes, audioFormat, fileSize = file.size)
                 } else {
                     initialParsed
                 }

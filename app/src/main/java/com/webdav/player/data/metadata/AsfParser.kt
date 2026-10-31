@@ -120,23 +120,19 @@ object AsfParser {
             when {
                 subObjGuid.contentEquals(FILE_PROPERTIES_GUID) -> {
                     // Offset 40 in File Properties is playDuration (100ns units), followed by sendDuration and preroll (ms)
-                    // We've already read 24 bytes header, so check within subObjEnd boundary
                     if (reader.position() + 48 <= subObjEnd) {
                         reader.skip(16) // skip file id (16)
                         reader.skip(8) // skip file size (8)
                         reader.skip(8) // skip creation time (8)
                         reader.skip(8) // skip data packets count (8)
                         val playDuration100ns = reader.readLongLe()
-                        val prerollMs =
-                            if (reader.position() + 16 <= subObjEnd) {
-                                reader.skip(8) // skip send duration (8)
-                                reader.readLongLe()
-                            } else {
-                                0L
-                            }
-                        if (playDuration100ns > 0) {
-                            val totalMs = playDuration100ns / 10000L
-                            durationMs = (totalMs - prerollMs).coerceAtLeast(0L)
+                        val sendDuration100ns = if (reader.position() + 8 <= subObjEnd) reader.readLongLe() else 0L
+                        val prerollMs = if (reader.position() + 8 <= subObjEnd) reader.readLongLe() else 0L
+
+                        val duration100ns = if (playDuration100ns > 0) playDuration100ns else sendDuration100ns
+                        if (duration100ns > 0) {
+                            val totalMs = duration100ns / 10000L
+                            durationMs = if (totalMs > prerollMs) totalMs - prerollMs else totalMs
                         }
                     }
                 }
