@@ -287,7 +287,14 @@ class EndToEndCacheResilienceIntegrationTest {
                 )
 
             // Step 1: Initial resolution populates Room DB and writes thumbnails to disk
-            val initialContent = directoryRepository.observeDirectoryContent(testServer, "/Music/Classics/", forceRefresh = true).toList().last()
+            val initialContent =
+                directoryRepository
+                    .observeDirectoryContent(
+                        testServer,
+                        "/Music/Classics/",
+                        forceRefresh = true,
+                    ).toList()
+                    .last()
             assertNotNull("Initial directory listing must succeed", initialContent.directory)
 
             trackMetadataRepository.resolveMetadata(testServer, directory.files, forceRefresh = false)
@@ -560,7 +567,14 @@ class EndToEndCacheResilienceIntegrationTest {
 
             // Step 1: Browse directory initially while remote cover.jpg does not exist.
             // Negative caching stores NO_FOLDER_ARTWORK_SENTINEL.
-            val initialContent = directoryRepository.observeDirectoryContent(testServer, "/Music/Acoustic/", forceRefresh = true).toList().last()
+            val initialContent =
+                directoryRepository
+                    .observeDirectoryContent(
+                        testServer,
+                        "/Music/Acoustic/",
+                        forceRefresh = true,
+                    ).toList()
+                    .last()
             assertNotNull("Initial directory listing must succeed", initialContent.directory)
 
             trackMetadataRepository.resolveMetadata(testServer, directory.files, forceRefresh = false)

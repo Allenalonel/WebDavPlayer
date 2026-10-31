@@ -224,9 +224,18 @@ class LyricsRepositoryTest {
             artworkBytes: ByteArray,
         ): String? = "/fake/covers/cover_$serverId.jpg"
 
-        override fun getThumbnailFile(serverId: Long, remotePath: String): java.io.File? = null
-        override fun deleteThumbnail(serverId: Long, remotePath: String) {}
+        override fun getThumbnailFile(
+            serverId: Long,
+            remotePath: String,
+        ): java.io.File? = null
+
+        override fun deleteThumbnail(
+            serverId: Long,
+            remotePath: String,
+        ) {}
+
         override suspend fun deleteServerCovers(serverId: Long) {}
+
         override fun isValidThumbnailFile(filePath: String?): Boolean = true
     }
 }

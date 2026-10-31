@@ -18,20 +18,14 @@ class ServerRepositoryImpl(
     private val directoryCacheDao: DirectoryCacheDao? = null,
     private val trackMetadataDao: TrackMetadataDao? = null,
 ) : ServerRepository {
-
-    override fun getAllServers(): Flow<List<WebDavServer>> {
-        return serverDao.getAllServersFlow().map { list ->
+    override fun getAllServers(): Flow<List<WebDavServer>> =
+        serverDao.getAllServersFlow().map { list ->
             list.map { it.toDomain() }
         }
-    }
 
-    override fun getActiveServer(): Flow<WebDavServer?> {
-        return serverDao.getActiveServerFlow().map { it?.toDomain() }
-    }
+    override fun getActiveServer(): Flow<WebDavServer?> = serverDao.getActiveServerFlow().map { it?.toDomain() }
 
-    override suspend fun getServerById(id: Long): WebDavServer? {
-        return serverDao.getServerById(id)?.toDomain()
-    }
+    override suspend fun getServerById(id: Long): WebDavServer? = serverDao.getServerById(id)?.toDomain()
 
     override suspend fun saveServer(server: WebDavServer): Long {
         val totalCount = serverDao.getServerCount()

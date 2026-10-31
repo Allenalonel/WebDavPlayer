@@ -8,7 +8,6 @@ import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.flow.Flow
 
 interface TrackMetadataRepository {
-
     /**
      * Observes all resolved metadata for a given server.
      */
@@ -17,17 +16,26 @@ interface TrackMetadataRepository {
     /**
      * Observes resolved metadata for a list of remote paths on a given server.
      */
-    fun getMetadataForPathsFlow(serverId: Long, remotePaths: List<String>): Flow<List<TrackMetadata>>
+    fun getMetadataForPathsFlow(
+        serverId: Long,
+        remotePaths: List<String>,
+    ): Flow<List<TrackMetadata>>
 
     /**
      * Observes resolved metadata for a specific path on a given server.
      */
-    fun getMetadataFlow(serverId: Long, remotePath: String): Flow<TrackMetadata?>
+    fun getMetadataFlow(
+        serverId: Long,
+        remotePath: String,
+    ): Flow<TrackMetadata?>
 
     /**
      * Retrieves cached metadata directly from the local Room database, or null if not resolved.
      */
-    suspend fun getCachedMetadata(serverId: Long, remotePath: String): TrackMetadata?
+    suspend fun getCachedMetadata(
+        serverId: Long,
+        remotePath: String,
+    ): TrackMetadata?
 
     /**
      * Resolves metadata for remote audio files in the background with bounded concurrency.
@@ -44,7 +52,7 @@ interface TrackMetadataRepository {
      */
     suspend fun resolveSingleTrackMetadata(
         server: WebDavServer,
-        file: RemoteFile
+        file: RemoteFile,
     ): TrackMetadata
 
     /**

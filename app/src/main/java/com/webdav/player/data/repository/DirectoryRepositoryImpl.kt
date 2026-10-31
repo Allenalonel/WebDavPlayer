@@ -158,9 +158,8 @@ class DirectoryRepositoryImpl(
         return metaMap
     }
 
-    private fun getInitialCueAlbums(
-        directory: RemoteDirectory,
-    ): List<CueAlbumItem> = cueSheetResolver?.resolveInitialCueAlbums(directory) ?: emptyList()
+    private fun getInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem> =
+        cueSheetResolver?.resolveInitialCueAlbums(directory) ?: emptyList()
 
     private suspend fun enrichDirectoryContent(
         server: WebDavServer,
