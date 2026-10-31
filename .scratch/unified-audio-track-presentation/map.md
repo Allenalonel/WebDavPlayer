@@ -17,6 +17,7 @@
 - **Ticket 02 resolved**: Migrated `ui/browser/components/AudioTrackItemRow.kt` (shrunk from 585 to 118 lines) by delegating audio track rendering to `AudioTrackRow`, extracted `NonAudioFileRow.kt` and `AudioTrackItemRowCompat.kt`. Gist: 585 -> 118 lines, full compatibility and FileInfoDialog preserved. ([02-migrate-browser-audio-track-item-row.md](issues/02-migrate-browser-audio-track-item-row.md))
 - **Ticket 03 resolved**: Migrated `ui/playlist/components/PlaylistTrackRow.kt` (shrunk from 440 to 150 lines) by delegating to `AudioTrackRow`, extracted `PlaylistTrackRowCollaborators.kt`. Gist: 440 -> 150 lines, 50% physical width threshold swipe and reorder drag handle preserved. ([03-migrate-playlist-track-row-with-gestures.md](issues/03-migrate-playlist-track-row-with-gestures.md))
 - **Ticket 04 resolved**: Migrated `ui/browser/components/SearchResultsViews.kt` (shrunk to 140 lines) and `ui/player/PlaybackQueueBottomSheet.kt` (shrunk to 186 lines) to `AudioTrackRow`, verified file line budgets and full unit test suite. ([04-migrate-search-and-queue-and-verify-compliance.md](issues/04-migrate-search-and-queue-and-verify-compliance.md))
+- **Code Review fixes merged**: Extracted `TrackTagPill.kt` to deduplicate CUE/分轨 badge rendering, resolved feature envy in `SearchTrackItem.kt`, unified audio quality badge across all 4 screens, aligned 12-parameter `AudioTrackRow` Composable signature, and confirmed all 5 row files are under 200 lines (<600 line limit).
 
 ## Ticket Graph & Frontier
 ```text
