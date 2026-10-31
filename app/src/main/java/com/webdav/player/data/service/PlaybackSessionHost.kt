@@ -44,7 +44,7 @@ class PlaybackSessionHost(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
     val hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
-) : AudioPlayerEngine by playerEngine {
+) {
     private val basePlayer: Player = sessionPlayer
     private val sessionListeners = CopyOnWriteArrayList<Player.Listener>()
 
@@ -84,19 +84,19 @@ class PlaybackSessionHost(
             }
 
             override fun seekToNext() {
-                // Handled at session layer via WebDavMediaSessionCallback
+                appSession?.skipToNext()
             }
 
             override fun seekToNextMediaItem() {
-                // Handled at session layer via WebDavMediaSessionCallback
+                appSession?.skipToNext()
             }
 
             override fun seekToPrevious() {
-                // Handled at session layer via WebDavMediaSessionCallback
+                appSession?.skipToPrevious()
             }
 
             override fun seekToPreviousMediaItem() {
-                // Handled at session layer via WebDavMediaSessionCallback
+                appSession?.skipToPrevious()
             }
 
             override fun isCommandAvailable(command: Int): Boolean =
@@ -462,38 +462,7 @@ class PlaybackSessionHost(
         }
     }
 
-    override fun loadTrack(
-        server: WebDavServer,
-        track: AudioTrack,
-        startPositionMs: Long,
-    ) {
-        audioFocusHandler.requestAudioFocus()
-        ensureServiceStarted()
-        playerEngine.loadTrack(server, track, startPositionMs)
-    }
-
-    override fun prerollTrack(
-        server: WebDavServer,
-        track: AudioTrack,
-    ) {
-        playerEngine.prerollTrack(server, track)
-    }
-
-    override fun clearPrerollTrack() {
-        playerEngine.clearPrerollTrack()
-    }
-
-    override fun updateTrackMetadata(track: AudioTrack) {
-        playerEngine.updateTrackMetadata(track)
-    }
-
-    override fun play() {
-        audioFocusHandler.requestAudioFocus()
-        ensureServiceStarted()
-        playerEngine.play()
-    }
-
-    override fun stop() {
+    fun stop() {
         hardwareLockManager.releaseLocks()
         cancelDemotionTimer()
         unregisterBecomingNoisyReceiver()
@@ -503,7 +472,7 @@ class PlaybackSessionHost(
         demoteForeground(removeNotification = true)
     }
 
-    override fun release() {
+    fun release() {
         hardwareLockManager.release()
         cancelDemotionTimer()
         unregisterBecomingNoisyReceiver()
@@ -522,12 +491,6 @@ class PlaybackSessionHost(
         attachedService = null
         isForegroundActive = false
     }
-
-    override fun setVolume(volume: Float) {
-        playerEngine.setVolume(volume)
-    }
-
-    override fun getVolume(): Float = playerEngine.getVolume()
 
     companion object {
         const val DEFAULT_DEMOTION_TIMEOUT_MS: Long = 15 * 60 * 1000L

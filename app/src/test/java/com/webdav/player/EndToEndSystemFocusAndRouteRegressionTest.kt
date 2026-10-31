@@ -164,7 +164,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
 
         appSession =
             MusicPlayerAppSessionImpl(
-                playerEngine = host,
+                playerEngine = fakeEngine,
                 serverRepository = serverRepository,
                 sessionStore = sessionStore,
                 coroutineScope = sessionScope,
@@ -440,7 +440,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             val coldSessionScope = CoroutineScope(testDispatcher + coldSessionJob)
             val coldAppSession =
                 MusicPlayerAppSessionImpl(
-                    playerEngine = host,
+                    playerEngine = fakeEngine,
                     serverRepository = serverRepository,
                     sessionStore = sessionStore,
                     coroutineScope = coldSessionScope,
@@ -519,7 +519,7 @@ class EndToEndSystemFocusAndRouteRegressionTest {
             val coldSessionScope = CoroutineScope(testDispatcher + coldSessionJob)
             val coldAppSession =
                 MusicPlayerAppSessionImpl(
-                    playerEngine = host,
+                    playerEngine = fakeEngine,
                     serverRepository = serverRepository,
                     sessionStore = sessionStore,
                     coroutineScope = coldSessionScope,

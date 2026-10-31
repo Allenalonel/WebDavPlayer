@@ -23,7 +23,7 @@ class WebDavMediaService : MediaSessionService() {
         get() = sessionHost?.mediaSession ?: PlaybackSessionHost.getInstance(applicationContext).mediaSession
 
     val playerEngine: AudioPlayerEngine
-        get() = sessionHost ?: PlaybackSessionHost.getInstance(applicationContext)
+        get() = sessionHost?.playerEngine ?: PlaybackSessionHost.getInstance(applicationContext).playerEngine
 
     override fun onCreate() {
         super.onCreate()

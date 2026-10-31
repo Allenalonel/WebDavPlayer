@@ -620,7 +620,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val sessionJob = SupervisorJob()
             val appSession =
                 MusicPlayerAppSessionImpl(
-                    playerEngine = host,
+                    playerEngine = fakeEngine,
                     serverRepository = serverRepository,
                     sessionStore = sessionStore,
                     coroutineScope = kotlinx.coroutines.CoroutineScope(testDispatcher + sessionJob),

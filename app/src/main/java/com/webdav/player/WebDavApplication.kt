@@ -5,6 +5,8 @@ import android.content.ComponentCallbacks2
 import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
+import com.webdav.player.data.player.Media3AudioPlayerEngine
+import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
@@ -57,6 +59,9 @@ class WebDavApplication : Application() {
     lateinit var playerEngine: AudioPlayerEngine
         private set
 
+    lateinit var sessionHost: PlaybackSessionHost
+        private set
+
     lateinit var musicPlayerAppSession: MusicPlayerAppSession
         private set
 
@@ -83,8 +88,14 @@ class WebDavApplication : Application() {
                 trackMetadataRepository = trackMetadataRepository,
             )
 
-        val sessionHost = PlaybackSessionHost.getInstance(this)
-        playerEngine = sessionHost
+        val media3Engine =
+            Media3AudioPlayerEngine(
+                context = this,
+                mediaSourceBuilder = WebDavMediaSourceBuilder(this, webDavClient),
+            )
+        playerEngine = media3Engine
+        val sessionHost = PlaybackSessionHost.getInstance(this, media3Engine)
+        this.sessionHost = sessionHost
 
         val sessionStore = DataStorePlaybackSessionStore(this)
         this.sessionStore = sessionStore
@@ -126,7 +137,7 @@ class WebDavApplication : Application() {
                 cueSheetResolver = cueSheetResolver,
                 playlistRepository = playlistRepository,
             )
-        (playerEngine as? PlaybackSessionHost)?.bindAppSession(musicPlayerAppSession)
+        sessionHost.bindAppSession(musicPlayerAppSession)
     }
 
     override fun onTrimMemory(level: Int) {

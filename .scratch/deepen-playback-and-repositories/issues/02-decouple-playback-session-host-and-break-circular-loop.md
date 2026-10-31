@@ -7,10 +7,17 @@ Eliminate `(playerEngine as? PlaybackSessionHost)?.bindAppSession(...)` from `We
 
 **Blocked by:** 01
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Remove `AudioPlayerEngine by playerEngine` from `PlaybackSessionHost`
-- [ ] Remove empty stubs `seekToNext`, `seekToNextMediaItem`, `seekToPrevious`, `seekToPreviousMediaItem` from ForwardingPlayer where applicable, routing via session
-- [ ] Update `WebDavApplication` to instantiate `playerEngine = Media3AudioPlayerEngine(...)` directly, inject it into `MusicPlayerAppSessionImpl`, and bind session to `PlaybackSessionHost` cleanly without `as?` downcasts
-- [ ] Update `PlaybackSessionHostTest` and integration tests to reflect decoupled lifecycle
-- [ ] Ensure all tests pass cleanly
+- [x] Remove `AudioPlayerEngine by playerEngine` from `PlaybackSessionHost`
+- [x] Remove empty stubs `seekToNext`, `seekToNextMediaItem`, `seekToPrevious`, `seekToPreviousMediaItem` from ForwardingPlayer where applicable, routing via session
+- [x] Update `WebDavApplication` to instantiate `playerEngine = Media3AudioPlayerEngine(...)` directly, inject it into `MusicPlayerAppSessionImpl`, and bind session to `PlaybackSessionHost` cleanly without `as?` downcasts
+- [x] Update `PlaybackSessionHostTest` and integration tests to reflect decoupled lifecycle
+- [x] Ensure all tests pass cleanly
+
+## Answer
+Decoupled `PlaybackSessionHost` from `AudioPlayerEngine`:
+1. Removed `AudioPlayerEngine by playerEngine` from `PlaybackSessionHost`. It now acts exclusively as an Android system adapter for foreground service elevation, MediaSession, and AudioFocus.
+2. Routed `ForwardingPlayer`'s `seekToNext`, `seekToNextMediaItem`, `seekToPrevious`, `seekToPreviousMediaItem` directly to `appSession.skipToNext()` and `appSession.skipToPrevious()`, eliminating empty stubs.
+3. Updated `WebDavApplication` to instantiate `playerEngine = Media3AudioPlayerEngine(...)` directly and inject it into `MusicPlayerAppSessionImpl`. `sessionHost` binds `musicPlayerAppSession` in a clean unidirectional relationship, eliminating all `as? PlaybackSessionHost` downcasts.
+4. Updated `PlaybackSessionHostTest`, `PackagingSeamVerificationTest`, `EndToEndPlaybackPipelineIntegrationTest`, and `EndToEndSystemFocusAndRouteRegressionTest`. All tests pass cleanly and modified files adhere to the 600-line budget.
