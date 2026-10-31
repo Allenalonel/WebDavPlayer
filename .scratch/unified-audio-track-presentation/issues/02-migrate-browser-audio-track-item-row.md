@@ -13,9 +13,9 @@ The directory browser's row component will focus strictly on directory-specific 
 
 **Status:** claimed
 
-- [ ] Refactor `AudioTrackItemRow` to delegate to `AudioTrackRow`
-- [ ] Connect `RemoteFile` badge resolution and metadata formatting
-- [ ] Wire overflow menu actions (`下一首播放`, `添加到歌单`, `详细信息`)
-- [ ] Preserve `FileInfoDialog` invocation and non-audio item handling
-- [ ] Verify line count reduction from 585 to ≤130 lines
-- [ ] Verify DirectoryBrowserScreen previews and Robolectric unit tests pass cleanly
+- [x] Refactor `AudioTrackItemRow` to delegate to `AudioTrackRow`
+- [x] Connect `RemoteFile` badge resolution and metadata formatting
+- [x] Wire overflow menu actions (`下一首播放`, `添加到歌单`, `详细信息`)
+- [x] Preserve `FileInfoDialog` invocation and non-audio item handling
+- [x] Verify line count reduction from 585 to ≤130 lines
+- [x] Verify DirectoryBrowserScreen previews and Robolectric unit tests pass cleanly
