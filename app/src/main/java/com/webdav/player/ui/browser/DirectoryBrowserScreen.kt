@@ -111,7 +111,7 @@ fun DirectoryBrowserScreen(
                     Toast.makeText(context, "刷新失败: $error", Toast.LENGTH_SHORT).show()
                 } else {
                     val count = (uiState.currentDirectory?.subDirectories?.size ?: 0) + (uiState.currentDirectory?.files?.size ?: 0)
-                    Toast.makeText(context, "刷新完成 (共 ${count} 项)", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "刷新完成 (共 $count 项)", Toast.LENGTH_SHORT).show()
                 }
             }
         }

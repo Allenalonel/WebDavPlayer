@@ -52,9 +52,10 @@ internal fun PlaylistTrackRow(
         label = "drag_elevation",
     )
 
-    val subtitle = remember(track.artist, track.album) {
-        AudioTrackRowDefaults.formatSubtitle(track.artist, track.album)
-    }
+    val subtitle =
+        remember(track.artist, track.album) {
+            AudioTrackRowDefaults.formatSubtitle(track.artist, track.album)
+        }
     val qualityBadge = remember(track) { track.toAudioTrack().qualityBadge }
 
     val itemWidthPx = remember { mutableFloatStateOf(0f) }
@@ -126,7 +127,12 @@ internal fun PlaylistTrackRow(
                             onDragStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
                         )
                     },
-                    tagContent = if (track.isVirtualTrack) { { PlaylistVirtualTrackTag() } } else null,
+                    tagContent =
+                        if (track.isVirtualTrack) {
+                            { PlaylistVirtualTrackTag() }
+                        } else {
+                            null
+                        },
                     actionsMenu = { dismiss ->
                         PlaylistTrackActionsMenu(
                             track = track,
