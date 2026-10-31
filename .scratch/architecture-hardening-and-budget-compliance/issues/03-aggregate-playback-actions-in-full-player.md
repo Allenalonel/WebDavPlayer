@@ -28,10 +28,16 @@ Aggregate playback intents into a clean, reusable `PlaybackActions` contract:
 
 **Blocked by:** None
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] Create `ui/player/PlaybackActions.kt` interface and `rememberPlaybackActions` helper
-- [ ] Refactor `FullPlayerView.kt` to accept `playbackActions: PlaybackActions`
-- [ ] Update `MainActivity.kt` to pass `playbackActions`
-- [ ] Update `FullPlayerView` preview declarations
-- [ ] Verify Compose previews and Robolectric unit tests pass cleanly
+- [x] Create `ui/player/PlaybackActions.kt` interface and `rememberPlaybackActions` helper
+- [x] Refactor `FullPlayerView.kt` to accept `playbackActions: PlaybackActions`
+- [x] Update `MainActivity.kt` to pass `playbackActions`
+- [x] Update `FullPlayerView` preview declarations
+- [x] Verify Compose previews and Robolectric unit tests pass cleanly
+
+## Answer
+- Created `PlaybackActions` interface and `rememberPlaybackActions` Compose helper in `com.webdav.player.ui.player`.
+- Refactored `FullPlayerView.kt` to accept `playbackActions: PlaybackActions = PlaybackActions.EMPTY`, collapsing 8 individual playback callback parameters.
+- Simplified `MainActivity.kt` call site from 11 lines of callback forwarding to a single `playbackActions` parameter.
+- Full test suite passed with 100% pass rate.
