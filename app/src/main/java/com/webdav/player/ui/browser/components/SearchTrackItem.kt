@@ -1,55 +1,43 @@
 package com.webdav.player.ui.browser.components
 
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.ui.common.AudioTrackRow
+import com.webdav.player.ui.common.AudioTrackRowDefaults
+import com.webdav.player.ui.common.TrackTagPill
 import com.webdav.player.ui.common.TrackThumbnailLeading
 import com.webdav.player.ui.theme.AppIcons
 
 fun resolveSearchTrackSubtitle(track: AudioTrack): String {
     val artist = track.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家"
-    val parts = mutableListOf(artist)
-    if (!track.album.isNullOrBlank()) {
-        parts.add(track.album.trim())
-    }
-    if (track.isVirtualTrack) {
-        val parentFileName = track.fileName.ifEmpty { track.remotePath.substringAfterLast('/') }
-        if (parentFileName.isNotBlank()) {
-            parts.add(parentFileName.trim())
+    val extra =
+        if (track.isVirtualTrack) {
+            track.fileName.ifEmpty { track.remotePath.substringAfterLast('/') }.takeIf { it.isNotBlank() }
+        } else {
+            null
         }
-    }
-    return parts.joinToString(" · ")
+    return AudioTrackRowDefaults.formatSubtitle(
+        artist = artist,
+        album = track.album,
+        extra = extra,
+    ) ?: artist
 }
 
 @Composable
-fun CueTagBadge(modifier: Modifier = Modifier) {
-    Surface(
-        shape = RoundedCornerShape(4.dp),
-        color = MaterialTheme.colorScheme.tertiaryContainer,
+fun CueTagBadge(modifier: Modifier = Modifier) =
+    TrackTagPill(
+        text = "CUE",
         modifier = modifier,
-    ) {
-        Text(
-            text = "CUE",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-        )
-    }
-}
+    )
 
 @Composable
 fun SearchTrackItem(
@@ -63,6 +51,7 @@ fun SearchTrackItem(
         subtitle = resolveSearchTrackSubtitle(track),
         modifier = modifier,
         coverThumbnailPath = track.coverThumbnailPath,
+        audioQualityBadge = track.qualityBadge,
         leadingContent = {
             TrackThumbnailLeading(
                 coverThumbnailPath = track.coverThumbnailPath,

@@ -146,8 +146,8 @@ class PlaybackQueueBottomSheetTest {
         if (collaboratorFile.exists()) {
             val collabLines = collaboratorFile.readLines().size
             assertTrue(
-                "QueueTrackItemRow.kt line count must be strictly < 600 lines, but was $collabLines",
-                collabLines < 600,
+                "QueueTrackItemRow.kt line count must be < 200 lines, but was $collabLines",
+                collabLines < 200,
             )
         }
     }

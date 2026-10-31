@@ -1,6 +1,8 @@
 package com.webdav.player.ui.common
 
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -204,6 +206,27 @@ class AudioTrackRowTest {
             val paramTypes = method!!.parameterTypes.map { it.simpleName }
             assertTrue("Method $name must be a @Composable accepting Composer", paramTypes.contains("Composer"))
         }
+    }
+
+    @Test
+    fun audioTrackRow_supportsExact12ParameterContract() {
+        val composableInvocation: @Composable () -> Unit = {
+            AudioTrackRow(
+                title = "Title",
+                subtitle = "Subtitle",
+                modifier = Modifier,
+                durationText = "03:45",
+                coverThumbnailPath = null,
+                audioQualityBadge = null,
+                isActive = false,
+                isPlaying = false,
+                onClick = {},
+                leadingContent = null,
+                trailingContent = null,
+                actionsMenu = null,
+            )
+        }
+        org.junit.Assert.assertNotNull(composableInvocation)
     }
 
     @Test

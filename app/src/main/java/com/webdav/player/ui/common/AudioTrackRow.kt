@@ -40,7 +40,7 @@ fun AudioTrackRow(
     onClick: () -> Unit = {},
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
-    actionsMenu: (@Composable (() -> Unit) -> Unit)? = null,
+    actionsMenu: (@Composable (dismiss: () -> Unit) -> Unit)? = null,
     tagContent: (@Composable () -> Unit)? = null,
     containerColor: Color? = null,
     showDivider: Boolean = false,

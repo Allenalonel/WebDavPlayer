@@ -128,6 +128,7 @@ fun QueueTrackItemRow(
             AudioTrackRow(
                 title = track.title,
                 subtitle = resolveQueueTrackSubtitle(track, isActive, playbackProgress),
+                audioQualityBadge = track.qualityBadge,
                 isActive = isActive,
                 isPlaying = isPlaying,
                 onClick = onClick,

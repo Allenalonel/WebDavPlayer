@@ -85,6 +85,20 @@ class SearchTrackItemTest {
     }
 
     @Test
+    fun cueTagBadge_composableSignatureExistsOnClasspath() {
+        val clazz = Class.forName("com.webdav.player.ui.browser.components.SearchTrackItemKt")
+        val methodNames = clazz.methods.map { it.name }
+        assertTrue("CueTagBadge must exist on classpath", methodNames.any { it.startsWith("CueTagBadge") })
+    }
+
+    @Test
+    fun searchTrack_hasQualityBadge() {
+        val flacTrack = createTrack()
+        assertEquals("FLAC", flacTrack.qualityBadge.label)
+        assertTrue(flacTrack.qualityBadge.isLossless)
+    }
+
+    @Test
     fun searchResultsViews_andCollaborators_lineCountWithinBudget() {
         val mainFile = File("src/main/java/com/webdav/player/ui/browser/components/SearchResultsViews.kt")
         assertTrue("SearchResultsViews.kt must exist", mainFile.exists())
@@ -98,8 +112,8 @@ class SearchTrackItemTest {
         if (collaboratorFile.exists()) {
             val collabLines = collaboratorFile.readLines().size
             assertTrue(
-                "SearchTrackItem.kt line count must be strictly < 600 lines, but was $collabLines",
-                collabLines < 600,
+                "SearchTrackItem.kt line count must be < 200 lines, but was $collabLines",
+                collabLines < 200,
             )
         }
     }
