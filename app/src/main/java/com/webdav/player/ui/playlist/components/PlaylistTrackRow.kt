@@ -52,31 +52,34 @@ internal fun PlaylistTrackRow(
         label = "drag_elevation",
     )
 
-    val durationText = remember(track.durationMs) {
-        if (track.durationMs > 0L) PlaybackProgress.formatMs(track.durationMs) else null
-    }
-    val subtitle = remember(track.artist, track.album) {
-        AudioTrackRowDefaults.formatSubtitle(track.artist, track.album)
-    }
+    val durationText =
+        remember(track.durationMs) {
+            if (track.durationMs > 0L) PlaybackProgress.formatMs(track.durationMs) else null
+        }
+    val subtitle =
+        remember(track.artist, track.album) {
+            AudioTrackRowDefaults.formatSubtitle(track.artist, track.album)
+        }
 
     val itemWidthPx = remember { mutableFloatStateOf(0f) }
     val isPastThreshold = remember { mutableStateOf(false) }
 
-    val dismissState = key(track.id) {
-        rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                PlaylistTrackSwipeHelper.handleDismiss(
-                    value = value,
-                    isPastThreshold = isPastThreshold.value,
-                    onRemove = onRemove,
-                    onPlayNext = onPlayNext,
-                )
-            },
-            positionalThreshold = { totalDistance ->
-                PlaylistTrackSwipeHelper.positionalThreshold(totalDistance)
-            },
-        )
-    }
+    val dismissState =
+        key(track.id) {
+            rememberSwipeToDismissBoxState(
+                confirmValueChange = { value ->
+                    PlaylistTrackSwipeHelper.handleDismiss(
+                        value = value,
+                        isPastThreshold = isPastThreshold.value,
+                        onRemove = onRemove,
+                        onPlayNext = onPlayNext,
+                    )
+                },
+                positionalThreshold = { totalDistance ->
+                    PlaylistTrackSwipeHelper.positionalThreshold(totalDistance)
+                },
+            )
+        }
 
     LaunchedEffect(dismissState) {
         snapshotFlow {
@@ -92,14 +95,15 @@ internal fun PlaylistTrackRow(
         state = dismissState,
         enableDismissFromStartToEnd = !showDragHandle,
         enableDismissFromEndToStart = !showDragHandle,
-        modifier = modifier
-            .fillMaxWidth()
-            .onSizeChanged { itemWidthPx.floatValue = it.width.toFloat() }
-            .zIndex(if (isDragging) 2f else 1f)
-            .graphicsLayer {
-                translationY = if (isDragging) dragDropState.dragOffset else 0f
-                shadowElevation = elevation.toPx()
-            },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .onSizeChanged { itemWidthPx.floatValue = it.width.toFloat() }
+                .zIndex(if (isDragging) 2f else 1f)
+                .graphicsLayer {
+                    translationY = if (isDragging) dragDropState.dragOffset else 0f
+                    shadowElevation = elevation.toPx()
+                },
         backgroundContent = {
             PlaylistSwipeBackground(
                 dismissDirection = dismissState.dismissDirection,
@@ -125,7 +129,12 @@ internal fun PlaylistTrackRow(
                             onDragStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
                         )
                     },
-                    tagContent = if (track.isVirtualTrack) { { PlaylistVirtualTrackTag() } } else null,
+                    tagContent =
+                        if (track.isVirtualTrack) {
+                            { PlaylistVirtualTrackTag() }
+                        } else {
+                            null
+                        },
                     actionsMenu = { dismiss ->
                         PlaylistTrackActionsMenu(
                             track = track,
@@ -137,10 +146,11 @@ internal fun PlaylistTrackRow(
                     },
                 )
                 HorizontalDivider(
-                    modifier = Modifier.padding(
-                        start = PlaylistTrackRowDefaults.dividerStartInset(showDragHandle),
-                        end = AudioTrackRowDefaults.DividerInsetEnd,
-                    ),
+                    modifier =
+                        Modifier.padding(
+                            start = PlaylistTrackRowDefaults.dividerStartInset(showDragHandle),
+                            end = AudioTrackRowDefaults.DividerInsetEnd,
+                        ),
                     thickness = PlaylistTrackRowDefaults.DividerThickness,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = PlaylistTrackRowDefaults.DividerAlpha),
                 )
