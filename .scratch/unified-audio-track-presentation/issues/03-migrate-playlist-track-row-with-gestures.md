@@ -20,9 +20,9 @@ Refactor `ui/playlist/components/PlaylistTrackRow.kt` (currently 440 lines) to d
 
 **Status:** claimed
 
-- [ ] Wrap `AudioTrackRow` inside `SwipeToDismissBox`
-- [ ] Strictly verify 50% physical threshold and haptic vibration feedback
-- [ ] Connect drag-and-drop handle into `leadingContent` slot with vertical drag gestures
-- [ ] Wire overflow actions (`下一首播放`, `从歌单删除`, `详细信息`)
-- [ ] Verify line count reduction from 440 to ≤160 lines
-- [ ] Run `PlaylistDetailViewModelTest` and verify all swipe/reorder gestures remain 100% functional
+- [x] Wrap `AudioTrackRow` inside `SwipeToDismissBox`
+- [x] Strictly verify 50% physical threshold and haptic vibration feedback
+- [x] Connect drag-and-drop handle into `leadingContent` slot with vertical drag gestures
+- [x] Wire overflow actions (`下一首播放`, `从歌单删除`, `详细信息`)
+- [x] Verify line count reduction from 440 to ≤160 lines
+- [x] Run `PlaylistDetailViewModelTest` and verify all swipe/reorder gestures remain 100% functional
