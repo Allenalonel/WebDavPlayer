@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.webdav.player.WebDavApplication
+import com.webdav.player.di.AppViewModelFactory
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
 
@@ -33,22 +34,21 @@ class PlaylistDetailViewModelFactory(
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (context != null) {
+            val app =
+                requireNotNull(context.applicationContext as? WebDavApplication) {
+                    "Application context must be an instance of WebDavApplication"
+                }
+            return AppViewModelFactory(app, playlistId).create(modelClass)
+        }
         val repo =
-            playlistRepository ?: run {
-                val app =
-                    context?.applicationContext as? WebDavApplication
-                        ?: throw IllegalStateException("Application context or PlaylistRepository required")
-                app.playlistRepository
-            }
-        val session =
-            musicPlayerAppSession ?: run {
-                val app = context?.applicationContext as? WebDavApplication
-                app?.musicPlayerAppSession
+            requireNotNull(playlistRepository) {
+                "PlaylistRepository or Context required"
             }
         return PlaylistDetailViewModel(
             playlistId = playlistId,
             playlistRepository = repo,
-            musicPlayerAppSession = session,
+            musicPlayerAppSession = musicPlayerAppSession,
         ) as T
     }
 }
