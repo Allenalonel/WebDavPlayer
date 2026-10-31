@@ -16,6 +16,7 @@
 - **Ticket 01 resolved**: Created `ui/common/AudioTrackRow.kt` (242 lines) and collaborators (`AudioTrackRowDefaults.kt`, `TrackThumbnailLeading.kt`, `EqualizerTrackIndicator.kt`, `AudioQualityBadgePill.kt`), unit tested in `AudioTrackRowTest.kt`. Gist: Slot-based audio row component adhering to <600 line limit with built-in marquee, equalizer, and quality badge. ([01-create-shared-audio-track-row-component.md](issues/01-create-shared-audio-track-row-component.md))
 - **Ticket 02 resolved**: Migrated `ui/browser/components/AudioTrackItemRow.kt` (shrunk from 585 to 118 lines) by delegating audio track rendering to `AudioTrackRow`, extracted `NonAudioFileRow.kt` and `AudioTrackItemRowCompat.kt`. Gist: 585 -> 118 lines, full compatibility and FileInfoDialog preserved. ([02-migrate-browser-audio-track-item-row.md](issues/02-migrate-browser-audio-track-item-row.md))
 - **Ticket 03 resolved**: Migrated `ui/playlist/components/PlaylistTrackRow.kt` (shrunk from 440 to 150 lines) by delegating to `AudioTrackRow`, extracted `PlaylistTrackRowCollaborators.kt`. Gist: 440 -> 150 lines, 50% physical width threshold swipe and reorder drag handle preserved. ([03-migrate-playlist-track-row-with-gestures.md](issues/03-migrate-playlist-track-row-with-gestures.md))
+- **Ticket 04 resolved**: Migrated `ui/browser/components/SearchResultsViews.kt` (shrunk to 140 lines) and `ui/player/PlaybackQueueBottomSheet.kt` (shrunk to 186 lines) to `AudioTrackRow`, verified file line budgets and full unit test suite. ([04-migrate-search-and-queue-and-verify-compliance.md](issues/04-migrate-search-and-queue-and-verify-compliance.md))
 
 ## Ticket Graph & Frontier
 ```text
@@ -28,10 +29,10 @@
    │                   │
    └─────────┬─────────┘
              ▼
-[04-migrate-search-and-queue-and-verify] (ready)
+[04-migrate-search-and-queue-and-verify] (resolved)
 ```
 
 1. `01-create-shared-audio-track-row-component.md`: 构建通用 `AudioTrackRow` 组件 (Status: resolved)
 2. `02-migrate-browser-audio-track-item-row.md`: 迁移媒体库 `AudioTrackItemRow` (Status: resolved)
 3. `03-migrate-playlist-track-row-with-gestures.md`: 迁移歌单 `PlaylistTrackRow` 保持 50% 阈值手势 (Status: resolved)
-4. `04-migrate-search-and-queue-and-verify-compliance.md`: 迁移搜索与队列底抽，全量 UI 编译与回归验证 (Status: open, Blocked by: None)
+4. `04-migrate-search-and-queue-and-verify-compliance.md`: 迁移搜索与队列底抽，全量 UI 编译与回归验证 (Status: resolved)
