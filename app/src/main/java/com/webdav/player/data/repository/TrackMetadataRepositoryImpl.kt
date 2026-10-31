@@ -4,8 +4,11 @@ import com.webdav.player.data.local.CoverArtStorage
 import com.webdav.player.data.local.TrackMetadataDao
 import com.webdav.player.data.local.TrackMetadataEntity
 import com.webdav.player.data.local.WebDavServerDao
+import com.webdav.player.data.lyrics.LrcParser
 import com.webdav.player.data.metadata.DefaultTrackMetadataResolver
 import com.webdav.player.data.remote.WebDavClient
+import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.Lyrics
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
@@ -29,6 +32,7 @@ class TrackMetadataRepositoryImpl internal constructor(
     private val trackMetadataDao: TrackMetadataDao,
     private val trackMetadataResolver: DefaultTrackMetadataResolver,
     private val coverArtStorage: CoverArtStorage,
+    private val webDavClient: WebDavClient? = null,
     private val webDavServerDao: WebDavServerDao? = null,
     private val maxConcurrency: Int = 3,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -48,6 +52,7 @@ class TrackMetadataRepositoryImpl internal constructor(
         trackMetadataDao = trackMetadataDao,
         trackMetadataResolver = DefaultTrackMetadataResolver(webDavClient, coverArtStorage, ioDispatcher),
         coverArtStorage = coverArtStorage,
+        webDavClient = webDavClient,
         webDavServerDao = webDavServerDao,
         maxConcurrency = maxConcurrency,
         ioDispatcher = ioDispatcher,
@@ -58,6 +63,7 @@ class TrackMetadataRepositoryImpl internal constructor(
     private val semaphore = Semaphore(maxConcurrency)
     private val knownServers = java.util.concurrent.ConcurrentHashMap<Long, WebDavServer>()
     private val inFlightSelfHealing = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val resolvedLyricsCache = java.util.concurrent.ConcurrentHashMap<String, Lyrics>()
 
     private suspend fun findServer(serverId: Long): WebDavServer? {
         knownServers[serverId]?.let { return it }
@@ -271,4 +277,56 @@ class TrackMetadataRepositoryImpl internal constructor(
                 )
             }
         }
+
+    override suspend fun resolveLyrics(
+        server: WebDavServer,
+        track: AudioTrack,
+    ): Lyrics =
+        withContext(ioDispatcher) {
+            val cacheKey = "${server.id}:${track.remotePath}"
+            resolvedLyricsCache[cacheKey]?.let { return@withContext it }
+
+            // 1. Probe remote directory for ${baseName}.lrc
+            val lrcPath = track.remotePath.substringBeforeLast('.') + ".lrc"
+            try {
+                val remoteText = webDavClient?.fetchText(server, lrcPath)
+                if (!remoteText.isNullOrBlank()) {
+                    val parsed = LrcParser.parse(remoteText)
+                    if (parsed.isNotEmpty) {
+                        resolvedLyricsCache[cacheKey] = parsed
+                        return@withContext parsed
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore and fall through to embedded metadata
+            }
+
+            // 2. Fall back to embedded metadata via Room cache / on-demand resolver
+            try {
+                val file = RemoteFile(name = track.title, path = track.remotePath)
+                val embeddedText: String? =
+                    getCachedMetadata(server.id, track.remotePath)?.lyrics?.takeIf { it.isNotBlank() }
+                        ?: resolveSingleTrackMetadata(server, file).lyrics
+
+                if (!embeddedText.isNullOrBlank()) {
+                    val parsed = LrcParser.parse(embeddedText)
+                    if (parsed.isNotEmpty) {
+                        resolvedLyricsCache[cacheKey] = parsed
+                        return@withContext parsed
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore error
+            }
+
+            // 3. No lyrics available from either source
+            val empty = Lyrics.EMPTY
+            resolvedLyricsCache[cacheKey] = empty
+            empty
+        }
+
+    override fun clearCache() {
+        resolvedLyricsCache.clear()
+        trackMetadataResolver.clearCache()
+    }
 }

@@ -93,8 +93,7 @@ class Media3AudioPlayerEngineTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        val adapter = DefaultWebDavMediaSourceAdapter(context)
-        engine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
+        engine = Media3AudioPlayerEngine(context)
     }
 
     @After
@@ -121,9 +120,9 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun loadTrack_withMediaSourceAdapter_preparesExoPlayerMediaSources() {
-        val adapter = DefaultWebDavMediaSourceAdapter(context)
-        val customEngine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
+    fun loadTrack_withMediaSourceBuilder_preparesExoPlayerMediaSources() {
+        val builder = WebDavMediaSourceBuilder(context)
+        val customEngine = Media3AudioPlayerEngine(context, mediaSourceBuilder = builder)
         try {
             customEngine.loadTrack(
                 server = testServer,
@@ -144,9 +143,9 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
-    fun prerollTrack_withMediaSourceAdapter_addsMediaSource() {
-        val adapter = DefaultWebDavMediaSourceAdapter(context)
-        val customEngine = Media3AudioPlayerEngine(context, mediaSourceAdapter = adapter)
+    fun prerollTrack_withMediaSourceBuilder_addsMediaSource() {
+        val builder = WebDavMediaSourceBuilder(context)
+        val customEngine = Media3AudioPlayerEngine(context, mediaSourceBuilder = builder)
         try {
             customEngine.loadTrack(
                 server = testServer,

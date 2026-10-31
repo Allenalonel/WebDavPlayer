@@ -12,7 +12,6 @@ import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.test.core.app.ApplicationProvider
-import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.WebDavServer
@@ -24,6 +23,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -37,10 +37,10 @@ import java.util.concurrent.TimeUnit
 
 @OptIn(UnstableApi::class)
 @RunWith(RobolectricTestRunner::class)
-class WebDavMediaSourceAdapterTest {
+class WebDavMediaSourceBuilderTest {
     private lateinit var context: Context
     private lateinit var mockWebServer: MockWebServer
-    private lateinit var adapter: WebDavMediaSourceAdapter
+    private lateinit var builder: WebDavMediaSourceBuilder
 
     private lateinit var testServer: WebDavServer
 
@@ -74,7 +74,7 @@ class WebDavMediaSourceAdapterTest {
                 password = "testpassword",
             )
 
-        adapter = DefaultWebDavMediaSourceAdapter(context)
+        builder = WebDavMediaSourceBuilder(context)
     }
 
     @After
@@ -84,7 +84,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun createMediaItem_producesValidMediaItem_withCompleteMetadataAndStreamUri() {
-        val mediaItem = adapter.createMediaItem(testServer, testTrack)
+        val mediaItem = builder.createMediaItem(testServer, testTrack)
         assertNotNull(mediaItem)
         assertEquals(testTrack.id, mediaItem.mediaId)
         assertEquals("Test MP3", mediaItem.mediaMetadata.title.toString())
@@ -98,14 +98,14 @@ class WebDavMediaSourceAdapterTest {
     fun createMediaItem_withCoverThumbnail_attachesArtworkUri() {
         val coverPath = "/local/path/cover.jpg"
         val trackWithArt = testTrack.copy(coverThumbnailPath = coverPath)
-        val mediaItem = adapter.createMediaItem(testServer, trackWithArt)
+        val mediaItem = builder.createMediaItem(testServer, trackWithArt)
         assertNotNull(mediaItem.mediaMetadata.artworkUri)
         assertEquals(Uri.fromFile(File(coverPath)), mediaItem.mediaMetadata.artworkUri)
     }
 
     @Test
     fun createMediaSource_producesValidMediaSource_withAttachedMetadataAndUri() {
-        val mediaSource = adapter.createMediaSource(testServer, testTrack)
+        val mediaSource = builder.createMediaSource(testServer, testTrack)
         assertNotNull(mediaSource)
 
         val mediaItem = mediaSource.mediaItem
@@ -119,8 +119,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun createMediaSource_streamingConnection_hasAtLeast30SecondsReadAndWriteTimeouts() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val streamingClient = defaultAdapter.getStreamingClientForServer(testServer)
+        val streamingClient = builder.getStreamingClientForServer(testServer)
 
         assertTrue(
             "Read timeout must be at least 30 seconds (30000ms), but was ${streamingClient.readTimeoutMillis}ms",
@@ -143,7 +142,7 @@ class WebDavMediaSourceAdapterTest {
                 .setBody("test audio stream data"),
         )
 
-        val mediaSource = adapter.createMediaSource(testServer, testTrack)
+        val mediaSource = builder.createMediaSource(testServer, testTrack)
         val player = ExoPlayer.Builder(context).build()
         try {
             player.setMediaSource(mediaSource)
@@ -162,8 +161,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun loadErrorHandlingPolicy_retriesWithExponentialBackoff_onTransientSocketAndNetworkFailures() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val policy = defaultAdapter.loadErrorHandlingPolicy
+        val policy = builder.loadErrorHandlingPolicy
 
         val testDataSpec = DataSpec.Builder().setUri(testServer.resolveFileUrl(testTrack.remotePath)).build()
         val socketTimeoutException =
@@ -234,8 +232,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun loadErrorHandlingPolicy_failsFast_onNonRecoverableHttpErrors() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val policy = defaultAdapter.loadErrorHandlingPolicy
+        val policy = builder.loadErrorHandlingPolicy
 
         val testDataSpec = DataSpec.Builder().setUri(testServer.resolveFileUrl(testTrack.remotePath)).build()
 
@@ -271,8 +268,7 @@ class WebDavMediaSourceAdapterTest {
                 .setBody("streaming-chunk-data"),
         )
 
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val dataSource = defaultAdapter.getDataSourceFactory(testServer).createDataSource()
+        val dataSource = builder.getDataSourceFactory(testServer).createDataSource()
 
         val dataSpec =
             DataSpec
@@ -307,7 +303,6 @@ class WebDavMediaSourceAdapterTest {
                 .setBody("recovered-after-retry"),
         )
 
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
         val dataSpec =
             DataSpec
                 .Builder()
@@ -348,12 +343,12 @@ class WebDavMediaSourceAdapterTest {
                 caughtTimeoutException!!,
                 1,
             )
-        val retryDelayMs = defaultAdapter.loadErrorHandlingPolicy.getRetryDelayMsFor(errorInfo)
+        val retryDelayMs = builder.loadErrorHandlingPolicy.getRetryDelayMsFor(errorInfo)
         assertNotEquals("Should retry transient socket timeout", C.TIME_UNSET, retryDelayMs)
         assertEquals("First retry delay should be 1000ms", 1000L, retryDelayMs)
 
-        // Perform recovery stream read using adapter's configured data source
-        val normalDataSource = defaultAdapter.getDataSourceFactory(testServer).createDataSource()
+        // Perform recovery stream read using builder's configured data source
+        val normalDataSource = builder.getDataSourceFactory(testServer).createDataSource()
         normalDataSource.open(dataSpec)
         val buffer = ByteArray(64)
         val bytesRead = normalDataSource.read(buffer, 0, buffer.size)
@@ -364,8 +359,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun resolveExtractorsFactory_bindsAsfExtractor_forWmaFormat() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val factory = defaultAdapter.resolveExtractorsFactory(AudioFormat.WMA)
+        val factory = builder.resolveExtractorsFactory(AudioFormat.WMA)
         val extractors = factory.createExtractors()
 
         assertTrue("WMA extractor array should not be empty", extractors.isNotEmpty())
@@ -374,8 +368,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun resolveExtractorsFactory_bindsFlacExtractor_forFlacFormat() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val factory = defaultAdapter.resolveExtractorsFactory(AudioFormat.FLAC)
+        val factory = builder.resolveExtractorsFactory(AudioFormat.FLAC)
         val extractors = factory.createExtractors()
 
         assertTrue("FLAC extractor array should not be empty", extractors.isNotEmpty())
@@ -384,8 +377,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun resolveExtractorsFactory_bindsMp3Extractor_forMp3Format() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val factory = defaultAdapter.resolveExtractorsFactory(AudioFormat.MP3)
+        val factory = builder.resolveExtractorsFactory(AudioFormat.MP3)
         val extractors = factory.createExtractors()
 
         assertTrue("MP3 extractor array should not be empty", extractors.isNotEmpty())
@@ -394,8 +386,7 @@ class WebDavMediaSourceAdapterTest {
 
     @Test
     fun resolveExtractorsFactory_bindsWavExtractor_forWavFormat() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        val factory = defaultAdapter.resolveExtractorsFactory(AudioFormat.WAV)
+        val factory = builder.resolveExtractorsFactory(AudioFormat.WAV)
         val extractors = factory.createExtractors()
 
         assertTrue("WAV extractor array should not be empty", extractors.isNotEmpty())
@@ -413,22 +404,21 @@ class WebDavMediaSourceAdapterTest {
                 format = AudioFormat.WMA,
                 size = 2048L,
             )
-        val mediaSource = adapter.createMediaSource(testServer, wmaTrack)
+        val mediaSource = builder.createMediaSource(testServer, wmaTrack)
         assertNotNull(mediaSource)
         assertEquals("audio/x-ms-wma", mediaSource.mediaItem.localConfiguration?.mimeType)
     }
 
     @Test
-    fun adapter_exposesDedicatedStreamingConnectionPool() {
-        val defaultAdapter = adapter as DefaultWebDavMediaSourceAdapter
-        assertNotNull(adapter.streamingConnectionPool)
-        org.junit.Assert.assertSame(
-            defaultAdapter.webDavClient.streamingConnectionPool,
-            adapter.streamingConnectionPool,
+    fun builder_exposesDedicatedStreamingConnectionPool() {
+        assertNotNull(builder.streamingConnectionPool)
+        assertSame(
+            builder.webDavClient.streamingConnectionPool,
+            builder.streamingConnectionPool,
         )
-        val streamingClient = defaultAdapter.getStreamingClientForServer(testServer)
-        org.junit.Assert.assertSame(
-            adapter.streamingConnectionPool,
+        val streamingClient = builder.getStreamingClientForServer(testServer)
+        assertSame(
+            builder.streamingConnectionPool,
             streamingClient.connectionPool,
         )
     }

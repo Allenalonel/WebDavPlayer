@@ -1,6 +1,5 @@
 package com.webdav.player.data.repository
 
-import com.webdav.player.data.cue.CueAssociationHelper
 import com.webdav.player.data.local.DirectoryCacheDao
 import com.webdav.player.data.local.DirectoryCacheEntity
 import com.webdav.player.data.local.RemoteDirectoryJsonSerializer
@@ -65,48 +64,6 @@ class DirectoryRepositoryImpl(
 
         return null
     }
-
-    override fun observeDirectory(
-        server: WebDavServer,
-        path: String,
-        forceRefresh: Boolean,
-    ): Flow<ListDirectoryResult> =
-        flow {
-            val normalizedPath = RemoteDirectory.normalizePath(path)
-            var cachedDir: RemoteDirectory? = null
-
-            if (!forceRefresh) {
-                cachedDir = getCachedDirectory(server, normalizedPath)
-                if (cachedDir != null) {
-                    emit(ListDirectoryResult.Success(cachedDir))
-                }
-            }
-
-            val remoteResult =
-                try {
-                    webDavClient.listDirectory(server, normalizedPath)
-                } catch (ce: CancellationException) {
-                    throw ce
-                } catch (e: Exception) {
-                    ListDirectoryResult.Failure(e.message ?: "Unknown error")
-                }
-
-            when (remoteResult) {
-                is ListDirectoryResult.Success -> {
-                    if (cachedDir == null || remoteResult.directory != cachedDir) {
-                        persistCache(server.id, normalizedPath, remoteResult.directory)
-                        emit(remoteResult)
-                    }
-                }
-
-                is ListDirectoryResult.Failure -> {
-                    // Transient network errors during background revalidation do not suppress or crash already-rendered cached data.
-                    if (cachedDir == null || forceRefresh) {
-                        emit(remoteResult)
-                    }
-                }
-            }
-        }
 
     override fun observeDirectoryContent(
         server: WebDavServer,
@@ -201,30 +158,8 @@ class DirectoryRepositoryImpl(
         return metaMap
     }
 
-    private fun getInitialCueAlbums(
-        directory: RemoteDirectory,
-    ): List<CueAlbumItem> {
-        val cueFiles = directory.files.filter { it.isCue }
-        val audioFiles = directory.files.filter { it.isAudio }
-        if (cueFiles.isEmpty()) return emptyList()
-
-        return cueFiles.map { cueFile ->
-            val matchedAudio =
-                CueAssociationHelper.findMatchingAudioFile(
-                    cueFile = cueFile,
-                    audioFiles = audioFiles,
-                    totalCueFilesCount = cueFiles.size,
-                )
-            CueAlbumItem(
-                cueFile = cueFile,
-                audioFile = matchedAudio,
-                tracks = emptyList(),
-                isExpanded = false,
-                isLoading = cueSheetResolver != null,
-                errorMessage = if (cueSheetResolver == null && matchedAudio == null) "未找到对应的目标音频文件" else null,
-            )
-        }
-    }
+    private fun getInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem> =
+        cueSheetResolver?.resolveInitialCueAlbums(directory) ?: emptyList()
 
     private suspend fun enrichDirectoryContent(
         server: WebDavServer,
@@ -262,27 +197,6 @@ class DirectoryRepositoryImpl(
             metadataMap = metadataMap,
             isEnriching = false,
         )
-    }
-
-    override suspend fun listDirectory(
-        server: WebDavServer,
-        path: String,
-        forceRefresh: Boolean,
-    ): ListDirectoryResult {
-        val normalizedPath = RemoteDirectory.normalizePath(path)
-
-        if (!forceRefresh) {
-            val cached = getCachedDirectory(server, normalizedPath)
-            if (cached != null) {
-                return ListDirectoryResult.Success(cached)
-            }
-        }
-
-        val result = webDavClient.listDirectory(server, normalizedPath)
-        if (result is ListDirectoryResult.Success) {
-            persistCache(server.id, normalizedPath, result.directory)
-        }
-        return result
     }
 
     override suspend fun clearCache() {

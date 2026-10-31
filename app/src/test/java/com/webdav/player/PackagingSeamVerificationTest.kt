@@ -1,5 +1,7 @@
 package com.webdav.player
 
+import com.webdav.player.data.service.PlaybackSessionHost
+import com.webdav.player.domain.player.AudioPlayerEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -32,12 +34,23 @@ class PackagingSeamVerificationTest {
         // Session host talks to the engine solely through AudioPlayerEngine: zero downcasts
         val host = source("data/service/PlaybackSessionHost.kt")
         assertFalse(
+            "PlaybackSessionHost must not implement AudioPlayerEngine",
+            AudioPlayerEngine::class.java.isAssignableFrom(PlaybackSessionHost::class.java),
+        )
+        assertFalse(
             "PlaybackSessionHost must not downcast to Media3AudioPlayerEngine",
             Regex("""\bas\??\s+Media3AudioPlayerEngine\b""").containsMatchIn(host),
         )
         assertFalse(
             "PlaybackSessionHost must not reach into engine audio routing internals",
             host.contains("audioRoutingObserver") || host.contains("attachAudioRouting"),
+        )
+
+        // WebDavApplication must not downcast playerEngine to PlaybackSessionHost
+        val app = source("WebDavApplication.kt")
+        assertFalse(
+            "WebDavApplication must not downcast playerEngine to PlaybackSessionHost",
+            app.contains("as? PlaybackSessionHost") || app.contains("as PlaybackSessionHost"),
         )
 
         // Streaming pipeline owns no MediaSession, hardware locks, or reverse callbacks
@@ -47,11 +60,23 @@ class PackagingSeamVerificationTest {
                 assertFalse("Media3AudioPlayerEngine must not reference '$leak'", engine.contains(leak))
             }
 
-        // Media source adapter stays focused on authenticated streaming sources
-        val adapter = source("data/player/WebDavMediaSourceAdapter.kt")
+        // Media source builder stays focused on authenticated streaming sources
+        val builder = source("data/player/WebDavMediaSourceBuilder.kt")
         assertFalse(
-            "WebDavMediaSourceAdapter must not carry hardware lock dependencies",
-            adapter.contains("hardwareLockManager") || adapter.contains("StreamingHardwareLockManager"),
+            "WebDavMediaSourceBuilder must not carry hardware lock dependencies",
+            builder.contains("hardwareLockManager") || builder.contains("StreamingHardwareLockManager"),
+        )
+        assertFalse(
+            "WebDavMediaSourceAdapter file must be eliminated",
+            File(sourceRoot, "data/player/WebDavMediaSourceAdapter.kt").exists(),
+        )
+        assertFalse(
+            "LyricsRepository file must be eliminated",
+            File(sourceRoot, "domain/repository/LyricsRepository.kt").exists(),
+        )
+        assertFalse(
+            "LyricsRepositoryImpl file must be eliminated",
+            File(sourceRoot, "data/repository/LyricsRepositoryImpl.kt").exists(),
         )
 
         // AudioPlayerEngine interface exposes no routing or host concerns

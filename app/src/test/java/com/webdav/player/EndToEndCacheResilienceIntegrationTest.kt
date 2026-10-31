@@ -15,11 +15,10 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
-import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
+import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
-import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
@@ -93,9 +92,8 @@ class EndToEndCacheResilienceIntegrationTest {
     private lateinit var webDavClient: OkHttpWebDavClient
     private lateinit var serverRepository: ServerRepositoryImpl
     private lateinit var directoryRepository: DirectoryRepositoryImpl
-    private lateinit var mediaSourceAdapter: DefaultWebDavMediaSourceAdapter
+    private lateinit var mediaSourceBuilder: WebDavMediaSourceBuilder
     private lateinit var trackMetadataRepository: TrackMetadataRepositoryImpl
-    private lateinit var lyricsRepository: LyricsRepositoryImpl
     private lateinit var sessionStore: FakePlaybackSessionStore
     private lateinit var testServer: WebDavServer
 
@@ -119,7 +117,7 @@ class EndToEndCacheResilienceIntegrationTest {
         coverArtStorage = CoverArtStorageImpl(context)
         webDavClient = OkHttpWebDavClient()
         serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
-        mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, webDavClient)
+        mediaSourceBuilder = WebDavMediaSourceBuilder(context, webDavClient)
         sessionStore = FakePlaybackSessionStore()
 
         trackMetadataRepository =
@@ -135,12 +133,6 @@ class EndToEndCacheResilienceIntegrationTest {
                 webDavClient = webDavClient,
                 directoryCacheDao = database.directoryCacheDao(),
                 trackMetadataRepository = trackMetadataRepository,
-            )
-        lyricsRepository =
-            LyricsRepositoryImpl(
-                webDavClient = webDavClient,
-                trackMetadataRepository = trackMetadataRepository,
-                ioDispatcher = testDispatcher,
             )
 
         testServer =
@@ -295,8 +287,15 @@ class EndToEndCacheResilienceIntegrationTest {
                 )
 
             // Step 1: Initial resolution populates Room DB and writes thumbnails to disk
-            val initialList = directoryRepository.listDirectory(testServer, "/Music/Classics/", forceRefresh = true)
-            assertTrue("Initial directory listing must succeed", initialList is ListDirectoryResult.Success)
+            val initialContent =
+                directoryRepository
+                    .observeDirectoryContent(
+                        testServer,
+                        "/Music/Classics/",
+                        forceRefresh = true,
+                    ).toList()
+                    .last()
+            assertNotNull("Initial directory listing must succeed", initialContent.directory)
 
             trackMetadataRepository.resolveMetadata(testServer, directory.files, forceRefresh = false)
             advanceUntilIdle()
@@ -348,7 +347,7 @@ class EndToEndCacheResilienceIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -357,7 +356,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -569,8 +567,15 @@ class EndToEndCacheResilienceIntegrationTest {
 
             // Step 1: Browse directory initially while remote cover.jpg does not exist.
             // Negative caching stores NO_FOLDER_ARTWORK_SENTINEL.
-            val initialList = directoryRepository.listDirectory(testServer, "/Music/Acoustic/", forceRefresh = true)
-            assertTrue("Initial directory listing must succeed", initialList is ListDirectoryResult.Success)
+            val initialContent =
+                directoryRepository
+                    .observeDirectoryContent(
+                        testServer,
+                        "/Music/Acoustic/",
+                        forceRefresh = true,
+                    ).toList()
+                    .last()
+            assertNotNull("Initial directory listing must succeed", initialContent.directory)
 
             trackMetadataRepository.resolveMetadata(testServer, directory.files, forceRefresh = false)
             advanceUntilIdle()
@@ -586,7 +591,7 @@ class EndToEndCacheResilienceIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -595,7 +600,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -801,7 +805,7 @@ class EndToEndCacheResilienceIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
 
@@ -825,7 +829,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,

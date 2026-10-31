@@ -7,7 +7,6 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
-import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -23,7 +22,6 @@ import kotlinx.coroutines.launch
  */
 internal class PlaybackMetadataCoordinator(
     private val trackMetadataRepository: TrackMetadataRepository?,
-    private val lyricsRepository: LyricsRepository?,
     private val playerEngine: AudioPlayerEngine,
     private val sessionStateFlow: MutableStateFlow<PlayerSessionState>,
     private val coroutineScope: CoroutineScope,
@@ -52,7 +50,7 @@ internal class PlaybackMetadataCoordinator(
     }
 
     fun startLyricsObservation() {
-        val repo = lyricsRepository ?: return
+        val repo = trackMetadataRepository ?: return
         coroutineScope.launch {
             var lyricJob: Job? = null
             sessionStateFlow

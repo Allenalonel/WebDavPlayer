@@ -162,28 +162,26 @@ class PlaybackSessionHostTest {
         host.detachService(service)
         assertNull(host.attachedService)
 
-        // Caller plays track solely through AudioPlayerEngine interface
-        host.loadTrack(testServer, testTrack)
+        // Caller plays track directly on AudioPlayerEngine
+        fakeEngine.loadTrack(testServer, testTrack)
+        testScope.runCurrent()
         assertEquals(testTrack, fakeEngine.loadedTrack)
         assertEquals(PlaybackState.Playing, fakeEngine.playbackState.value)
 
-        // Caller invokes play solely through AudioPlayerEngine interface
-        host.play()
-        assertEquals(1, fakeEngine.playCount)
-
-        // Autonomous service startup intent dispatched
+        // Autonomous service startup intent dispatched via state observer
         val nextIntent = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedService
         assertNotNull(nextIntent)
         assertEquals(WebDavMediaService::class.java.name, nextIntent.component?.className)
     }
 
     @Test
-    fun callersControlPlaybackExclusively_viaLoadTrack_startsServiceAutonomouslyAndForwardsPipelineMethods() {
+    fun enginePlaybackStateTransitions_startServiceAutonomously_whenServiceDetached() {
         host.detachService(service)
         assertNull(host.attachedService)
 
-        // Caller loads track solely through AudioPlayerEngine interface
-        host.loadTrack(testServer, testTrack, startPositionMs = 2500L)
+        // Engine starts playback with start position
+        fakeEngine.loadTrack(testServer, testTrack, startPositionMs = 2500L)
+        testScope.runCurrent()
         assertEquals(1, fakeEngine.loadTrackCount)
         assertEquals(testTrack, fakeEngine.loadedTrack)
         assertEquals(2500L, fakeEngine.currentPositionMs.value)
@@ -193,23 +191,6 @@ class PlaybackSessionHostTest {
         val nextIntent = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedService
         assertNotNull(nextIntent)
         assertEquals(WebDavMediaService::class.java.name, nextIntent.component?.className)
-
-        // Test preroll forwarding
-        val prerollTrack = testTrack.copy(id = "2", title = "Track 2")
-        host.prerollTrack(testServer, prerollTrack)
-        assertTrue(fakeEngine.isPrerollActive)
-        assertEquals(prerollTrack, fakeEngine.prerolledTrack)
-
-        // Test clearPrerollTrack forwarding
-        host.clearPrerollTrack()
-        assertFalse(fakeEngine.isPrerollActive)
-        assertEquals(1, fakeEngine.clearPrerollCount)
-
-        // Test updateTrackMetadata forwarding
-        val updatedTrack = testTrack.copy(title = "Updated Title")
-        host.updateTrackMetadata(updatedTrack)
-        assertEquals(1, fakeEngine.updateTrackMetadataCalls)
-        assertEquals(updatedTrack, fakeEngine.loadedTrack)
     }
 
     @Test
@@ -451,7 +432,8 @@ class PlaybackSessionHostTest {
         val focusHandler = host.audioFocusHandler
 
         // Play track
-        host.loadTrack(testServer, testTrack)
+        fakeEngine.loadTrack(testServer, testTrack)
+        testScope.runCurrent()
 
         // Transient loss (incoming call) -> pause
         focusHandler.handleFocusChange(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
@@ -600,7 +582,7 @@ class PlaybackSessionHostTest {
             standaloneHost.sessionPlayer.addListener(metadataListener)
 
             // Verify non-disruptive metadata enrichment flows into host's sessionPlayer, MediaSession, and Notification
-            standaloneHost.loadTrack(testServer, testTrack, startPositionMs = 5000L)
+            media3Engine.loadTrack(testServer, testTrack, startPositionMs = 5000L)
             org.robolectric.shadows.ShadowLooper
                 .idleMainLooper()
 
@@ -612,16 +594,20 @@ class PlaybackSessionHostTest {
             assertTrue(standaloneHost.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
             assertTrue(standaloneHost.sessionPlayer.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
 
-            // Preroll a second track and verify seekToNext/Previous on sessionPlayer are no-ops
+            // Preroll a second track and verify seekToNext/Previous on sessionPlayer route to appSession
             val secondTrack = testTrack.copy(id = "2", remotePath = "/track2.mp3", title = "Track 2")
-            standaloneHost.prerollTrack(testServer, secondTrack)
+            media3Engine.prerollTrack(testServer, secondTrack)
             org.robolectric.shadows.ShadowLooper
                 .idleMainLooper()
             assertEquals(2, media3Engine.player.mediaItemCount)
             standaloneHost.sessionPlayer.seekToNext()
-            standaloneHost.sessionPlayer.seekToNextMediaItem()
+            assertEquals(1, appSession.skipNextCount)
             standaloneHost.sessionPlayer.seekToPrevious()
+            assertEquals(1, appSession.skipPreviousCount)
+            standaloneHost.sessionPlayer.seekToNextMediaItem()
+            assertEquals(2, appSession.skipNextCount)
             standaloneHost.sessionPlayer.seekToPreviousMediaItem()
+            assertEquals(2, appSession.skipPreviousCount)
             assertEquals(0, media3Engine.player.currentMediaItemIndex)
             assertEquals(5000L, media3Engine.currentPositionMs.value)
 
@@ -631,7 +617,7 @@ class PlaybackSessionHostTest {
                     artist = "Host Enriched Artist",
                     album = "Host Enriched Album",
                 )
-            standaloneHost.updateTrackMetadata(enrichedTrack)
+            media3Engine.updateTrackMetadata(enrichedTrack)
             org.robolectric.shadows.ShadowLooper
                 .idleMainLooper()
 
@@ -672,14 +658,14 @@ class PlaybackSessionHostTest {
                     putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT))
                 }
             assertTrue(callback.handleMediaButtonIntent(nextIntent))
-            assertEquals(1, appSession.skipNextCount)
+            assertEquals(3, appSession.skipNextCount)
 
             val prevIntent =
                 Intent(Intent.ACTION_MEDIA_BUTTON).apply {
                     putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
                 }
             assertTrue(callback.handleMediaButtonIntent(prevIntent))
-            assertEquals(1, appSession.skipPreviousCount)
+            assertEquals(3, appSession.skipPreviousCount)
         } finally {
             standaloneHost.release()
         }
@@ -943,5 +929,9 @@ class PlaybackSessionHostTest {
         assertFalse("PlaybackSessionHost must not expose attachAudioRouting", "attachAudioRouting" in hostMethods)
         assertFalse("PlaybackSessionHost must not expose detachAudioRouting", "detachAudioRouting" in hostMethods)
         assertFalse("AudioPlayerEngine must not expose onAudioRoutingChanged", "onAudioRoutingChanged" in engineMethods)
+        assertFalse(
+            "PlaybackSessionHost must not implement AudioPlayerEngine",
+            com.webdav.player.domain.player.AudioPlayerEngine::class.java.isAssignableFrom(PlaybackSessionHost::class.java),
+        )
     }
 }

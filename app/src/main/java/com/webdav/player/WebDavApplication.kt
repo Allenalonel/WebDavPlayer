@@ -5,12 +5,12 @@ import android.content.ComponentCallbacks2
 import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
-import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
+import com.webdav.player.data.player.Media3AudioPlayerEngine
+import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
 import com.webdav.player.data.repository.LibrarySearchRepositoryImpl
-import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.PlaylistRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
@@ -19,7 +19,6 @@ import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LibrarySearchRepository
-import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.PlaybackSessionStore
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
@@ -35,9 +34,6 @@ class WebDavApplication : Application() {
         private set
 
     lateinit var trackMetadataRepository: TrackMetadataRepository
-        private set
-
-    lateinit var lyricsRepository: LyricsRepository
         private set
 
     lateinit var sessionStore: PlaybackSessionStore
@@ -58,6 +54,9 @@ class WebDavApplication : Application() {
     lateinit var playerEngine: AudioPlayerEngine
         private set
 
+    lateinit var sessionHost: PlaybackSessionHost
+        private set
+
     lateinit var musicPlayerAppSession: MusicPlayerAppSession
         private set
 
@@ -68,7 +67,14 @@ class WebDavApplication : Application() {
         val coverArtStorage = CoverArtStorageImpl(this)
         val webDavClient = OkHttpWebDavClient()
         this.webDavClient = webDavClient
-        serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
+        serverRepository =
+            ServerRepositoryImpl(
+                serverDao = database.webDavServerDao(),
+                coverArtStorage = coverArtStorage,
+                webDavClient = webDavClient,
+                directoryCacheDao = database.directoryCacheDao(),
+                trackMetadataDao = database.trackMetadataDao(),
+            )
 
         trackMetadataRepository =
             TrackMetadataRepositoryImpl(
@@ -78,15 +84,14 @@ class WebDavApplication : Application() {
                 webDavServerDao = database.webDavServerDao(),
             )
 
-        lyricsRepository =
-            LyricsRepositoryImpl(
-                webDavClient = webDavClient,
-                trackMetadataRepository = trackMetadataRepository,
+        val media3Engine =
+            Media3AudioPlayerEngine(
+                context = this,
+                mediaSourceBuilder = WebDavMediaSourceBuilder(this, webDavClient),
             )
-
-        val mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(this, webDavClient)
-        val sessionHost = PlaybackSessionHost.getInstance(this, mediaSourceAdapter)
-        playerEngine = sessionHost
+        playerEngine = media3Engine
+        val sessionHost = PlaybackSessionHost.getInstance(this, media3Engine)
+        this.sessionHost = sessionHost
 
         val sessionStore = DataStorePlaybackSessionStore(this)
         this.sessionStore = sessionStore
@@ -123,12 +128,11 @@ class WebDavApplication : Application() {
                 playerEngine = playerEngine,
                 serverRepository = serverRepository,
                 trackMetadataRepository = trackMetadataRepository,
-                lyricsRepository = lyricsRepository,
                 sessionStore = sessionStore,
                 cueSheetResolver = cueSheetResolver,
                 playlistRepository = playlistRepository,
             )
-        (playerEngine as? PlaybackSessionHost)?.bindAppSession(musicPlayerAppSession)
+        sessionHost.bindAppSession(musicPlayerAppSession)
     }
 
     override fun onTrimMemory(level: Int) {

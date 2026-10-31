@@ -75,9 +75,9 @@ data class StreamingLoadControlConfig(
  * Media3/ExoPlayer implementation of AudioPlayerEngine with transparent streaming resilience.
  */
 @OptIn(UnstableApi::class)
-class Media3AudioPlayerEngine(
+class Media3AudioPlayerEngine internal constructor(
     private val context: Context,
-    val mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
+    internal val mediaSourceBuilder: WebDavMediaSourceBuilder = WebDavMediaSourceBuilder(context),
     customPlayer: Player? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     val loadControlConfig: StreamingLoadControlConfig = StreamingLoadControlConfig(),
@@ -110,7 +110,7 @@ class Media3AudioPlayerEngine(
         DataSource.Factory {
             val server = activeServerRef.get()
             if (server != null) {
-                mediaSourceAdapter.getDataSourceFactory(server).createDataSource()
+                mediaSourceBuilder.getDataSourceFactory(server).createDataSource()
             } else {
                 defaultDataSourceFactory.createDataSource()
             }
@@ -330,10 +330,10 @@ class Media3AudioPlayerEngine(
             _durationMs.value = if (track.durationMs > 0L) track.durationMs else 0L
 
             if (player is ExoPlayer) {
-                val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
+                val mediaSource = mediaSourceBuilder.createMediaSource(server, track)
                 player.setMediaSource(mediaSource, startPositionMs)
             } else {
-                val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
+                val mediaItem = mediaSourceBuilder.createMediaItem(server, track)
                 player.setMediaItem(mediaItem, startPositionMs)
             }
             player.prepare()
@@ -369,10 +369,10 @@ class Media3AudioPlayerEngine(
         runOnApplicationLooper {
             if (player.mediaItemCount >= 2) return@runOnApplicationLooper
             if (player is ExoPlayer) {
-                val mediaSource = mediaSourceAdapter.createMediaSource(server, track)
+                val mediaSource = mediaSourceBuilder.createMediaSource(server, track)
                 player.addMediaSource(mediaSource)
             } else {
-                val mediaItem = mediaSourceAdapter.createMediaItem(server, track)
+                val mediaItem = mediaSourceBuilder.createMediaItem(server, track)
                 player.addMediaItem(mediaItem)
             }
         }
