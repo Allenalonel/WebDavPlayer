@@ -99,14 +99,8 @@ class MainActivity : ComponentActivity() {
 
                 val musicSession = appContainer.musicPlayerAppSession
                 val playbackActions = rememberPlaybackActions(musicSession)
-                val playerSessionState by (
-                    musicSession?.sessionState?.collectAsStateWithLifecycle()
-                        ?: remember { mutableStateOf(PlayerSessionState()) }
-                )
-                val playbackProgress by (
-                    musicSession?.playbackProgress?.collectAsStateWithLifecycle()
-                        ?: remember { mutableStateOf(PlaybackProgress.ZERO) }
-                )
+                val playerSessionState by musicSession.sessionState.collectAsStateWithLifecycle()
+                val playbackProgress by musicSession.playbackProgress.collectAsStateWithLifecycle()
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
                 val playlistState by playlistViewModel.uiState.collectAsStateWithLifecycle()
@@ -166,10 +160,10 @@ class MainActivity : ComponentActivity() {
                                     DockedMiniPlayer(
                                         sessionState = playerSessionState,
                                         playbackProgress = playbackProgress,
-                                        onTogglePlayPause = { musicSession?.togglePlayPause() },
-                                        onSkipToNext = { musicSession?.skipToNext() },
+                                        onTogglePlayPause = { playbackActions.togglePlayPause() },
+                                        onSkipToNext = { playbackActions.skipToNext() },
                                         onMiniPlayerClick = { coordinator.expandFullPlayer() },
-                                        onRetryPlayback = { musicSession?.retryPlayback() },
+                                        onRetryPlayback = { playbackActions.retryPlayback() },
                                         modifier =
                                             Modifier
                                                 .fillMaxWidth()
