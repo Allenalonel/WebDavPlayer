@@ -23,10 +23,17 @@ Establish a unified `AppContainer` dependency interface and a centralized `AppVi
 
 **Blocked by:** None
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] Define `AppContainer` interface and implement on `WebDavApplication`
-- [ ] Create unified `AppViewModelFactory` supporting all 4 ViewModels
-- [ ] Purge fallback shadow instantiation in `DirectoryBrowserViewModelFactory`
-- [ ] Refactor `MainActivity` to instantiate ViewModels via unified container
-- [ ] Verify all ViewModel unit tests pass without regression
+- [x] Define `AppContainer` interface and implement on `WebDavApplication`
+- [x] Create unified `AppViewModelFactory` supporting all 4 ViewModels
+- [x] Purge fallback shadow instantiation in `DirectoryBrowserViewModelFactory`
+- [x] Refactor `MainActivity` to instantiate ViewModels via unified container
+- [x] Verify all ViewModel unit tests pass without regression
+
+## Answer
+- Defined `AppContainer` interface in `com.webdav.player.di` and implemented on `WebDavApplication`.
+- Implemented `AppViewModelFactory` dispatching `DirectoryBrowserViewModel`, `ServerManagementViewModel`, `PlaylistListViewModel`, and `PlaylistDetailViewModel` (with optional `playlistId`).
+- Purged all rogue fallback in-memory databases and shadow repositories from `DirectoryBrowserViewModelFactory` and `ServerManagementViewModelFactory`, consolidating them to clean delegations.
+- Updated `MainActivity` to inject ViewModels using `appContainer` and `AppViewModelFactory`.
+- All ViewModel and integration tests pass with 100% pass rate.

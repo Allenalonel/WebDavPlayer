@@ -28,7 +28,7 @@
 ## Tickets Breakdown
 
 1. `01-extract-playback-timeline-coordinator.md`: 提取 `PlaybackTimelineCoordinator` 内部协作者，会话类削减至 ≤400 行 (Status: resolved, Blocked by: None)
-2. `02-establish-app-container-and-consolidate-factories.md`: 建立 `AppContainer` 统一容器，消除 4 个 Factory 样板与影子依赖 (Status: open, Blocked by: None)
+2. `02-establish-app-container-and-consolidate-factories.md`: 建立 `AppContainer` 统一容器，消除 4 个 Factory 样板与影子依赖 (Status: resolved, Blocked by: None)
 3. `03-aggregate-playback-actions-in-full-player.md`: 提炼 `PlaybackActions` 播控意图契约，参数从 17 缩减至 5 (Status: open, Blocked by: None)
 4. `04-migrate-cue-virtual-track-row-and-verify.md`: 迁移 CUE 虚拟分轨至通用 `AudioTrackRow`，执行全量回归与 600 行红线检查 (Status: open, Blocked by: 01, 02, 03)
 
@@ -37,4 +37,6 @@
 ## Decisions-so-far
 
 - **Ticket 01 (Extract PlaybackTimelineCoordinator)**: 提取内部协作者 `PlaybackTimelineCoordinator` 承担 5 处协程事件监听管道与时间线算术计算，`MusicPlayerAppSessionImpl.kt` 瘦身至 558 行（从 869 行大幅缩减，严格遵守 600 行熔断线），单测 100% 通过无回归。([01-extract-playback-timeline-coordinator.md](issues/01-extract-playback-timeline-coordinator.md))
+- **Ticket 02 (Establish AppContainer and Consolidate Factories)**: 建立应用级 `AppContainer` 接口并由 `WebDavApplication` 实现，提供统一 `AppViewModelFactory`，彻底清除 `DirectoryBrowserViewModelFactory` 中手写的 50 行影子依赖图与单测断点，ViewModel 获取彻底解耦。([02-establish-app-container-and-consolidate-factories.md](issues/02-establish-app-container-and-consolidate-factories.md))
+
 
