@@ -2,9 +2,7 @@ package com.webdav.player.ui.browser.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,11 +37,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
+import com.webdav.player.ui.common.AudioTrackRow
 import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 import java.util.Locale
@@ -330,7 +328,6 @@ fun CueAlbumCard(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VirtualTrackItemRow(
     track: VirtualTrack,
@@ -340,91 +337,44 @@ fun VirtualTrackItemRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val trackWaveState =
+    val trackNum = if (track.trackNumber > 0) track.trackNumber else index + 1
+    val durationText = if (track.durationMs > 0L) PlaybackProgress.formatMs(track.durationMs) else null
+    val waveState =
         remember(isActive, isPlaying) {
-            EqualizerStateHelper.resolveEqualizerState(
-                isActive = isActive,
-                isPlaying = isPlaying,
-            )
+            EqualizerStateHelper.resolveEqualizerState(isActive, isPlaying)
         }
 
-    val durationText =
-        remember(track.durationMs) {
-            if (track.durationMs > 0L) {
-                PlaybackProgress.formatMs(track.durationMs)
-            } else {
-                null
-            }
-        }
-
-    Row(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .clickable { onClick() }
-                .background(
-                    if (isActive) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                    } else {
-                        Color.Transparent
-                    },
-                ).padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Track number (01, 02...)
-        val trackNum = if (track.trackNumber > 0) track.trackNumber else index + 1
-        Box(
-            modifier = Modifier.size(28.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = String.format(Locale.US, "%02d", trackNum),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        // Title and Performer
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = track.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = if (isActive) Modifier.basicMarquee() else Modifier,
-            )
-
-            if (!track.performer.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(1.dp))
+    AudioTrackRow(
+        title = track.title,
+        subtitle = track.performer,
+        durationText = durationText,
+        isActive = isActive,
+        isPlaying = isPlaying,
+        onClick = onClick,
+        modifier = modifier,
+        leadingContent = {
+            Box(
+                modifier = Modifier.size(28.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text = track.performer,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    text = String.format(Locale.US, "%02d", trackNum),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // Dynamic Equalizer Indicator or Duration
-        if (trackWaveState != EqualizerWaveState.IDLE) {
-            EqualizerTrackIndicator(
-                waveState = trackWaveState,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        } else if (durationText != null) {
-            Text(
-                text = durationText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
+        },
+        trailingContent =
+            if (waveState != EqualizerWaveState.IDLE) {
+                {
+                    EqualizerTrackIndicator(
+                        waveState = waveState,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+            } else {
+                null
+            },
+    )
 }
