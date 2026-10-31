@@ -24,54 +24,13 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 @OptIn(UnstableApi::class)
-interface WebDavMediaSourceAdapter {
-    /**
-     * Creates a fully configured MediaItem for a single AudioTrack on the given WebDAV server.
-     * Encapsulates stream URL, media ID, MIME type, and metadata mapping.
-     */
-    fun createMediaItem(
-        server: WebDavServer,
-        track: AudioTrack,
-    ): MediaItem
-
-    /**
-     * Creates a fully configured MediaSource for a single AudioTrack on the given WebDAV server.
-     * Encapsulates authentication, timeouts, retries, and format-specific extractor binding.
-     */
-    fun createMediaSource(
-        server: WebDavServer,
-        track: AudioTrack,
-    ): MediaSource
-
-    /**
-     * Creates a list of fully configured MediaSources for a list of AudioTracks on the given WebDAV server.
-     */
-    fun createMediaSources(
-        server: WebDavServer,
-        tracks: List<AudioTrack>,
-    ): List<MediaSource>
-
-    /**
-     * Returns a DataSource.Factory configured for the given WebDAV server,
-     * including authentication credentials, timeouts, and custom SSL configuration.
-     */
-    fun getDataSourceFactory(server: WebDavServer): DataSource.Factory
-
-    /**
-     * Dedicated streaming connection pool reused across audio stream sessions.
-     */
-    val streamingConnectionPool: ConnectionPool?
-        get() = null
-}
-
-@OptIn(UnstableApi::class)
-class DefaultWebDavMediaSourceAdapter(
+internal class WebDavMediaSourceBuilder(
     @Suppress("UNUSED_PARAMETER")
     context: Context? = null,
     val webDavClient: OkHttpWebDavClient = OkHttpWebDavClient(),
     val loadErrorHandlingPolicy: LoadErrorHandlingPolicy = WebDavLoadErrorHandlingPolicy(),
     val resilientSleeper: ((Long) -> Unit)? = null,
-) : WebDavMediaSourceAdapter {
+) {
     private data class DataSourceCacheKey(
         val serverId: Long,
         val endpointUrl: String,
@@ -82,13 +41,13 @@ class DefaultWebDavMediaSourceAdapter(
 
     private val dataSourceFactoryCache = ConcurrentHashMap<DataSourceCacheKey, DataSource.Factory>()
 
-    override val streamingConnectionPool: ConnectionPool
+    val streamingConnectionPool: ConnectionPool
         get() = webDavClient.streamingConnectionPool
 
     @VisibleForTesting
     fun getStreamingClientForServer(server: WebDavServer): OkHttpClient = webDavClient.getStreamingClientForServer(server)
 
-    override fun getDataSourceFactory(server: WebDavServer): DataSource.Factory = getOrCreateDataSourceFactory(server)
+    fun getDataSourceFactory(server: WebDavServer): DataSource.Factory = getOrCreateDataSourceFactory(server)
 
     private fun getOrCreateDataSourceFactory(server: WebDavServer): DataSource.Factory {
         val cacheKey =
@@ -113,7 +72,7 @@ class DefaultWebDavMediaSourceAdapter(
         }
     }
 
-    override fun createMediaSource(
+    fun createMediaSource(
         server: WebDavServer,
         track: AudioTrack,
     ): MediaSource {
@@ -127,7 +86,7 @@ class DefaultWebDavMediaSourceAdapter(
             .createMediaSource(mediaItem)
     }
 
-    override fun createMediaSources(
+    fun createMediaSources(
         server: WebDavServer,
         tracks: List<AudioTrack>,
     ): List<MediaSource> = tracks.map { track -> createMediaSource(server, track) }
@@ -180,7 +139,7 @@ class DefaultWebDavMediaSourceAdapter(
             }
         }
 
-    override fun createMediaItem(
+    fun createMediaItem(
         server: WebDavServer,
         track: AudioTrack,
     ): MediaItem {

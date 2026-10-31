@@ -20,10 +20,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import com.webdav.player.MainActivity
 import com.webdav.player.data.player.DefaultStreamingHardwareLockManager
-import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.StreamingHardwareLockManager
-import com.webdav.player.data.player.WebDavMediaSourceAdapter
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.WebDavServer
@@ -166,7 +164,6 @@ class PlaybackSessionHost(
 
     constructor(
         context: Context,
-        mediaSourceAdapter: WebDavMediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context),
         coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main),
         demotionTimeoutMs: Long = DEFAULT_DEMOTION_TIMEOUT_MS,
         hardwareLockManager: StreamingHardwareLockManager = DefaultStreamingHardwareLockManager(context),
@@ -175,7 +172,6 @@ class PlaybackSessionHost(
         engine =
             Media3AudioPlayerEngine(
                 context = context,
-                mediaSourceAdapter = mediaSourceAdapter,
                 coroutineScope = coroutineScope,
             ),
         coroutineScope = coroutineScope,
@@ -549,13 +545,16 @@ class PlaybackSessionHost(
 
         fun getInstance(
             context: Context,
-            mediaSourceAdapter: WebDavMediaSourceAdapter? = null,
+            engine: Media3AudioPlayerEngine? = null,
         ): PlaybackSessionHost {
             val targetContext = context.applicationContext ?: context
             return instance?.takeIf { it.context === targetContext } ?: synchronized(this) {
                 instance?.takeIf { it.context === targetContext } ?: run {
-                    val adapter = mediaSourceAdapter ?: DefaultWebDavMediaSourceAdapter(targetContext)
-                    PlaybackSessionHost(targetContext, adapter).also { instance = it }
+                    if (engine != null) {
+                        PlaybackSessionHost(targetContext, engine = engine).also { instance = it }
+                    } else {
+                        PlaybackSessionHost(targetContext).also { instance = it }
+                    }
                 }
             }
         }

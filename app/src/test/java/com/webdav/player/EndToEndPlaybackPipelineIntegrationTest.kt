@@ -23,9 +23,9 @@ import com.webdav.player.data.local.CoverArtStorageImpl
 import com.webdav.player.data.metadata.AudioMetadataParser
 import com.webdav.player.data.metadata.ImageHeaderValidator
 import com.webdav.player.data.player.AsfExtractor
-import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.WebDavLoadErrorHandlingPolicy
+import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
@@ -105,7 +105,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
     private lateinit var webDavClient: OkHttpWebDavClient
     private lateinit var serverRepository: ServerRepositoryImpl
     private lateinit var directoryRepository: DirectoryRepositoryImpl
-    private lateinit var mediaSourceAdapter: DefaultWebDavMediaSourceAdapter
+    private lateinit var mediaSourceBuilder: WebDavMediaSourceBuilder
     private lateinit var sessionStore: FakePlaybackSessionStore
     private lateinit var testServer: WebDavServer
     private lateinit var trackMetadataRepository: TrackMetadataRepositoryImpl
@@ -132,7 +132,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
         webDavClient = OkHttpWebDavClient()
         serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
         directoryRepository = DirectoryRepositoryImpl(webDavClient, database.directoryCacheDao())
-        mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, webDavClient)
+        mediaSourceBuilder = WebDavMediaSourceBuilder(context, webDavClient)
         sessionStore = FakePlaybackSessionStore()
 
         trackMetadataRepository =
@@ -292,7 +292,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
 
@@ -322,7 +322,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals(AudioFormat.FLAC, state.currentTrack?.format)
 
             // Step 5: Verify MediaSource chunk request has correct Basic Auth and URI
-            val mediaSource = mediaSourceAdapter.createMediaSource(testServer, state.currentTrack!!)
+            val mediaSource = mediaSourceBuilder.createMediaSource(testServer, state.currentTrack!!)
             assertNotNull(mediaSource)
             val expectedStreamUrl = state.currentTrack!!.streamUrl(testServer)
             assertTrue("Stream URL resolves to mock server", expectedStreamUrl.contains(mockWebServer.port.toString()))
@@ -376,7 +376,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     size = 2048L,
                 )
 
-            val policy = mediaSourceAdapter.loadErrorHandlingPolicy
+            val policy = mediaSourceBuilder.loadErrorHandlingPolicy
             val dataSpec =
                 DataSpec
                     .Builder()
@@ -477,7 +477,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     .setBody("recovered-audio-stream-chunk-data"),
             )
 
-            val dataSource = mediaSourceAdapter.getDataSourceFactory(testServer).createDataSource()
+            val dataSource = mediaSourceBuilder.getDataSourceFactory(testServer).createDataSource()
             dataSource.open(dataSpec)
             val buffer = ByteArray(64)
             val bytesRead = dataSource.read(buffer, 0, buffer.size)
@@ -495,7 +495,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             )
 
             // 6. Verify streaming client has >=30s read timeout for resilient streaming
-            val streamingClient = mediaSourceAdapter.getStreamingClientForServer(testServer)
+            val streamingClient = mediaSourceBuilder.getStreamingClientForServer(testServer)
             assertTrue(
                 "Streaming client read timeout must be >= 30s",
                 streamingClient.readTimeoutMillis >= 30_000,
@@ -879,7 +879,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
                 size = 4096L,
             )
 
-        val dataSource = mediaSourceAdapter.getDataSourceFactory(testServer).createDataSource()
+        val dataSource = mediaSourceBuilder.getDataSourceFactory(testServer).createDataSource()
         val dataSpec =
             DataSpec
                 .Builder()
@@ -913,20 +913,20 @@ class EndToEndPlaybackPipelineIntegrationTest {
     @Test
     fun e2e_specializedAudioFormatExtractors_autoResolveAndBind() {
         // WMA
-        val wmaExtractors = mediaSourceAdapter.resolveExtractorsFactory(AudioFormat.WMA).createExtractors()
+        val wmaExtractors = mediaSourceBuilder.resolveExtractorsFactory(AudioFormat.WMA).createExtractors()
         assertTrue("WMA extractor list must not be empty", wmaExtractors.isNotEmpty())
         assertTrue("WMA must bind AsfExtractor", wmaExtractors.any { it is AsfExtractor })
 
         // FLAC
-        val flacExtractors = mediaSourceAdapter.resolveExtractorsFactory(AudioFormat.FLAC).createExtractors()
+        val flacExtractors = mediaSourceBuilder.resolveExtractorsFactory(AudioFormat.FLAC).createExtractors()
         assertTrue("FLAC must bind FlacExtractor", flacExtractors.any { it is androidx.media3.extractor.flac.FlacExtractor })
 
         // MP3
-        val mp3Extractors = mediaSourceAdapter.resolveExtractorsFactory(AudioFormat.MP3).createExtractors()
+        val mp3Extractors = mediaSourceBuilder.resolveExtractorsFactory(AudioFormat.MP3).createExtractors()
         assertTrue("MP3 must bind Mp3Extractor", mp3Extractors.any { it is androidx.media3.extractor.mp3.Mp3Extractor })
 
         // WAV
-        val wavExtractors = mediaSourceAdapter.resolveExtractorsFactory(AudioFormat.WAV).createExtractors()
+        val wavExtractors = mediaSourceBuilder.resolveExtractorsFactory(AudioFormat.WAV).createExtractors()
         assertTrue("WAV must bind WavExtractor", wavExtractors.any { it is androidx.media3.extractor.wav.WavExtractor })
     }
 
@@ -1221,7 +1221,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -1382,7 +1382,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -1512,7 +1512,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -1675,7 +1675,7 @@ class EndToEndPlaybackPipelineIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)

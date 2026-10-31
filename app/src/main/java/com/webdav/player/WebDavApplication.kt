@@ -5,7 +5,6 @@ import android.content.ComponentCallbacks2
 import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
-import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DataStorePlaybackSessionStore
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
@@ -84,8 +83,7 @@ class WebDavApplication : Application() {
                 trackMetadataRepository = trackMetadataRepository,
             )
 
-        val mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(this, webDavClient)
-        val sessionHost = PlaybackSessionHost.getInstance(this, mediaSourceAdapter)
+        val sessionHost = PlaybackSessionHost.getInstance(this)
         playerEngine = sessionHost
 
         val sessionStore = DataStorePlaybackSessionStore(this)

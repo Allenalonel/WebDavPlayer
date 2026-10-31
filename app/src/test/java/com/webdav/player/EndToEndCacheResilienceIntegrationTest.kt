@@ -15,8 +15,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
-import com.webdav.player.data.player.DefaultWebDavMediaSourceAdapter
 import com.webdav.player.data.player.Media3AudioPlayerEngine
+import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
 import com.webdav.player.data.repository.LyricsRepositoryImpl
@@ -93,7 +93,7 @@ class EndToEndCacheResilienceIntegrationTest {
     private lateinit var webDavClient: OkHttpWebDavClient
     private lateinit var serverRepository: ServerRepositoryImpl
     private lateinit var directoryRepository: DirectoryRepositoryImpl
-    private lateinit var mediaSourceAdapter: DefaultWebDavMediaSourceAdapter
+    private lateinit var mediaSourceBuilder: WebDavMediaSourceBuilder
     private lateinit var trackMetadataRepository: TrackMetadataRepositoryImpl
     private lateinit var lyricsRepository: LyricsRepositoryImpl
     private lateinit var sessionStore: FakePlaybackSessionStore
@@ -119,7 +119,7 @@ class EndToEndCacheResilienceIntegrationTest {
         coverArtStorage = CoverArtStorageImpl(context)
         webDavClient = OkHttpWebDavClient()
         serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
-        mediaSourceAdapter = DefaultWebDavMediaSourceAdapter(context, webDavClient)
+        mediaSourceBuilder = WebDavMediaSourceBuilder(context, webDavClient)
         sessionStore = FakePlaybackSessionStore()
 
         trackMetadataRepository =
@@ -348,7 +348,7 @@ class EndToEndCacheResilienceIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -586,7 +586,7 @@ class EndToEndCacheResilienceIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
             val sessionScope = TestScope(testDispatcher)
@@ -801,7 +801,7 @@ class EndToEndCacheResilienceIntegrationTest {
             val engine =
                 Media3AudioPlayerEngine(
                     context = context,
-                    mediaSourceAdapter = mediaSourceAdapter,
+                    mediaSourceBuilder = mediaSourceBuilder,
                     coroutineScope = this,
                 )
 

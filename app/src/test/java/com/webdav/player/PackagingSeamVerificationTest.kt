@@ -47,11 +47,15 @@ class PackagingSeamVerificationTest {
                 assertFalse("Media3AudioPlayerEngine must not reference '$leak'", engine.contains(leak))
             }
 
-        // Media source adapter stays focused on authenticated streaming sources
-        val adapter = source("data/player/WebDavMediaSourceAdapter.kt")
+        // Media source builder stays focused on authenticated streaming sources
+        val builder = source("data/player/WebDavMediaSourceBuilder.kt")
         assertFalse(
-            "WebDavMediaSourceAdapter must not carry hardware lock dependencies",
-            adapter.contains("hardwareLockManager") || adapter.contains("StreamingHardwareLockManager"),
+            "WebDavMediaSourceBuilder must not carry hardware lock dependencies",
+            builder.contains("hardwareLockManager") || builder.contains("StreamingHardwareLockManager"),
+        )
+        assertFalse(
+            "WebDavMediaSourceAdapter file must be eliminated",
+            File(sourceRoot, "data/player/WebDavMediaSourceAdapter.kt").exists(),
         )
 
         // AudioPlayerEngine interface exposes no routing or host concerns
