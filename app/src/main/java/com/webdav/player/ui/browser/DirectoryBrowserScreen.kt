@@ -1,5 +1,6 @@
 package com.webdav.player.ui.browser
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -35,7 +36,9 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -43,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -87,15 +91,29 @@ fun DirectoryBrowserScreen(
         }
     }
 
+    val context = LocalContext.current
+    val isUserInitiatedRefresh = remember { mutableStateOf(false) }
+
     val pullRefreshState = rememberPullToRefreshState()
     if (pullRefreshState.isRefreshing) {
         LaunchedEffect(true) {
+            isUserInitiatedRefresh.value = true
             viewModel.onRefresh()
         }
     }
     LaunchedEffect(uiState.isRefreshing) {
         if (!uiState.isRefreshing) {
             pullRefreshState.endRefresh()
+            if (isUserInitiatedRefresh.value) {
+                isUserInitiatedRefresh.value = false
+                val error = uiState.errorMessage
+                if (error != null) {
+                    Toast.makeText(context, "刷新失败: $error", Toast.LENGTH_SHORT).show()
+                } else {
+                    val count = (uiState.currentDirectory?.subDirectories?.size ?: 0) + (uiState.currentDirectory?.files?.size ?: 0)
+                    Toast.makeText(context, "刷新完成 (共 ${count} 项)", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -239,7 +257,11 @@ fun DirectoryBrowserScreen(
                     },
                     actions = {
                         if (!uiState.isInitializing) {
-                            IconButton(onClick = { viewModel.onRefresh() }) {
+                            IconButton(onClick = {
+                                isUserInitiatedRefresh.value = true
+                                Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
+                                viewModel.onRefresh()
+                            }) {
                                 Icon(
                                     imageVector = AppIcons.Refresh,
                                     contentDescription = "刷新目录",
@@ -329,7 +351,11 @@ fun DirectoryBrowserScreen(
                         }
 
                         uiState.isEmpty -> {
-                            EmptyFolderState(onRefresh = { viewModel.onRefresh() })
+                            EmptyFolderState(onRefresh = {
+                                isUserInitiatedRefresh.value = true
+                                Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
+                                viewModel.onRefresh()
+                            })
                         }
 
                         else -> {

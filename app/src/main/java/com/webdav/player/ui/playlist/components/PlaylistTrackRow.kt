@@ -52,9 +52,6 @@ internal fun PlaylistTrackRow(
         label = "drag_elevation",
     )
 
-    val durationText = remember(track.durationMs) {
-        if (track.durationMs > 0L) PlaybackProgress.formatMs(track.durationMs) else null
-    }
     val subtitle = remember(track.artist, track.album) {
         AudioTrackRowDefaults.formatSubtitle(track.artist, track.album)
     }
@@ -117,7 +114,7 @@ internal fun PlaylistTrackRow(
                     title = track.title,
                     subtitle = subtitle,
                     modifier = Modifier.alpha(if (track.isInactive) PlaylistTrackRowDefaults.InactiveAlpha else 1f),
-                    durationText = durationText,
+                    durationText = null,
                     audioQualityBadge = qualityBadge,
                     onClick = onClick,
                     leadingContent = {

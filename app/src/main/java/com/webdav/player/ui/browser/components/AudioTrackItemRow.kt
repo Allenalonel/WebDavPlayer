@@ -52,9 +52,17 @@ fun AudioTrackItemRow(
         val displayTitle = remember(file.name, metadata?.title) { metadata?.displayTitle(file.name) ?: file.name }
         val subtitle = remember(file, metadata) { resolveAudioSubtitle(file, metadata) }
         val durationStr =
-            remember(metadata?.durationMs) {
+            remember(metadata?.durationMs, file.size) {
                 val d = metadata?.durationMs ?: 0L
-                if (d > 0L) PlaybackProgress.formatMs(d) else null
+                if (d > 0L) {
+                    PlaybackProgress.formatMs(d)
+                } else if (file.size > 0L) {
+                    val bitrateKbps = badgeInfo?.estimatedBitrateKbps ?: 320
+                    val estMs = (file.size * 8000L) / (bitrateKbps * 1000L)
+                    if (estMs > 0L) PlaybackProgress.formatMs(estMs) else null
+                } else {
+                    null
+                }
             }
         AudioTrackRow(
             title = displayTitle,

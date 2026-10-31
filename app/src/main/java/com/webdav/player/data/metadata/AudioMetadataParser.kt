@@ -6,6 +6,22 @@ object AudioMetadataParser {
     fun parse(
         bytes: ByteArray,
         formatHint: AudioFormat? = null,
+        fileSize: Long = 0L,
+    ): ParsedAudioMetadata {
+        val parsed = parseRaw(bytes, formatHint)
+        if (parsed.durationMs == 0L && (formatHint == AudioFormat.MP3 || isId3At(bytes, 0) || findId3HeaderOffset(bytes) != null)) {
+            val id3EndOffset = detectRequiredTagSize(bytes)?.toInt() ?: 0
+            val mpegDuration = MpegAudioFrameParser.parseDuration(bytes, offset = id3EndOffset, fileSize = fileSize)
+            if (mpegDuration > 0L) {
+                return parsed.copy(durationMs = mpegDuration)
+            }
+        }
+        return parsed
+    }
+
+    private fun parseRaw(
+        bytes: ByteArray,
+        formatHint: AudioFormat? = null,
     ): ParsedAudioMetadata {
         if (bytes.size < 4) {
             return ParsedAudioMetadata()
