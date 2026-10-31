@@ -18,7 +18,7 @@ Refactor `ui/playlist/components/PlaylistTrackRow.kt` (currently 440 lines) to d
 
 **Blocked by:** 01
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Wrap `AudioTrackRow` inside `SwipeToDismissBox`
 - [ ] Strictly verify 50% physical threshold and haptic vibration feedback
