@@ -73,25 +73,6 @@ internal fun rememberArtworkBackgroundBrush(
 }
 
 /**
- * Artwork page displaying album cover artwork, track metadata, and format badges.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun ArtworkPage(
-    currentTrack: AudioTrack?,
-    sessionState: PlayerSessionState,
-    onArtworkClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    PlayerVinylArtwork(
-        currentTrack = currentTrack,
-        sessionState = sessionState,
-        onArtworkClick = onArtworkClick,
-        modifier = modifier,
-    )
-}
-
-/**
  * Vinyl record and album artwork presentation composable with soft shadow and rounded corners.
  */
 @OptIn(ExperimentalFoundationApi::class)

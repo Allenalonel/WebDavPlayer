@@ -12,6 +12,7 @@ import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.formatAudiophileSpecs
 import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
+import com.webdav.player.ui.player.components.isFullPlayerRetryBannerVisible
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

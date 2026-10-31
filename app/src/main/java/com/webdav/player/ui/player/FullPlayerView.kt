@@ -380,24 +380,3 @@ fun formatTrackArtistAndFormat(track: AudioTrack?): String {
     val format = track.format.extension.uppercase()
     return if (format.isNotBlank()) "$artist · $format" else artist
 }
-
-/**
- * Forwarding alias for [isFullPlayerRetryBannerVisible] preserving existing API compatibility.
- */
-internal fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean =
-    com.webdav.player.ui.player.components
-        .isFullPlayerRetryBannerVisible(sessionState)
-
-/**
- * Forwarding alias for [FullPlayerRetryBanner] preserving existing API compatibility.
- */
-@Composable
-internal fun FullPlayerRetryBanner(
-    onRetryPlayback: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    com.webdav.player.ui.player.components.FullPlayerRetryBanner(
-        onRetryPlayback = onRetryPlayback,
-        modifier = modifier,
-    )
-}

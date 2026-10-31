@@ -47,7 +47,7 @@ import com.webdav.player.ui.playlist.components.PlaylistTrackDetailDialog
 import com.webdav.player.ui.playlist.components.PlaylistTrackRow
 import com.webdav.player.ui.theme.AppIcons
 
-class DragDropState(
+internal class DragDropState(
     val lazyListState: LazyListState,
     private val onMove: (Int, Int) -> Unit,
     private val onDragEnd: () -> Unit,
