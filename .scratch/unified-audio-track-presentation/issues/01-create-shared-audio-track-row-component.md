@@ -14,12 +14,12 @@ This component serves as the unified presentation seam for audio track items acr
 
 **Blocked by:** None
 
-**Status:** claimed
+**Status:** completed
 
-- [ ] Create `ui/common/AudioTrackRow.kt` with clean slot-based API
-- [ ] Implement cover thumbnail with equalizer pulse overlay for active & playing states
-- [ ] Implement title marquee scrolling and formatted subtitle layout
-- [ ] Implement audio quality badge and duration rendering
-- [ ] Implement overflow dropdown menu with standard action callbacks
-- [ ] Provide comprehensive `@Preview` variants (idle, active playing, active paused, without cover)
-- [ ] Verify clean compilation and formatting
+- [x] Create `ui/common/AudioTrackRow.kt` with clean slot-based API
+- [x] Implement cover thumbnail with equalizer pulse overlay for active & playing states
+- [x] Implement title marquee scrolling and formatted subtitle layout
+- [x] Implement audio quality badge and duration rendering
+- [x] Implement overflow dropdown menu with standard action callbacks
+- [x] Provide comprehensive `@Preview` variants (idle, active playing, active paused, without cover)
+- [x] Verify clean compilation and formatting
