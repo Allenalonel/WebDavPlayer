@@ -3,28 +3,18 @@ package com.webdav.player.ui.common
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioQualityBadge
 import com.webdav.player.domain.model.AudioQualityLevel
-import com.webdav.player.ui.theme.AppIcons
 import com.webdav.player.ui.theme.WebDavPlayerTheme
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -71,18 +60,20 @@ fun AudioTrackRow(
                 }
             },
             headlineContent = {
+                val marqueeMod = if (isActive) Modifier.basicMarquee() else Modifier
+                val titleColor = AudioTrackRowDefaults.resolveTitleColor(isActive, MaterialTheme.colorScheme)
+                val titleWeight = AudioTrackRowDefaults.resolveTitleFontWeight(isActive)
+                val overflow = if (isActive) TextOverflow.Clip else TextOverflow.Ellipsis
                 if (tagContent != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = title,
-                            modifier =
-                                (if (isActive) Modifier.basicMarquee() else Modifier)
-                                    .weight(1f, fill = false),
+                            modifier = marqueeMod.weight(1f, fill = false),
                             style = MaterialTheme.typography.titleMedium,
-                            color = AudioTrackRowDefaults.resolveTitleColor(isActive, MaterialTheme.colorScheme),
-                            fontWeight = AudioTrackRowDefaults.resolveTitleFontWeight(isActive),
+                            color = titleColor,
+                            fontWeight = titleWeight,
                             maxLines = 1,
-                            overflow = if (isActive) TextOverflow.Clip else TextOverflow.Ellipsis,
+                            overflow = overflow,
                         )
                         Spacer(modifier = Modifier.width(AudioTrackRowDefaults.TagSpacing))
                         tagContent()
@@ -90,12 +81,12 @@ fun AudioTrackRow(
                 } else {
                     Text(
                         text = title,
-                        modifier = if (isActive) Modifier.basicMarquee() else Modifier,
+                        modifier = marqueeMod,
                         style = MaterialTheme.typography.titleMedium,
-                        color = AudioTrackRowDefaults.resolveTitleColor(isActive, MaterialTheme.colorScheme),
-                        fontWeight = AudioTrackRowDefaults.resolveTitleFontWeight(isActive),
+                        color = titleColor,
+                        fontWeight = titleWeight,
                         maxLines = 1,
-                        overflow = if (isActive) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        overflow = overflow,
                     )
                 }
             },
@@ -114,45 +105,12 @@ fun AudioTrackRow(
             trailingContent = {
                 if (trailingContent != null) {
                     trailingContent()
-                } else if (audioQualityBadge != null || !durationText.isNullOrBlank() || actionsMenu != null) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AudioTrackRowDefaults.TrailingSpacing),
-                    ) {
-                        if (audioQualityBadge != null) {
-                            AudioQualityBadgePill(badge = audioQualityBadge)
-                        }
-                        if (!durationText.isNullOrBlank()) {
-                            Text(
-                                text = durationText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(end = 2.dp),
-                            )
-                        }
-                        if (actionsMenu != null) {
-                            var showMenu by remember { mutableStateOf(false) }
-                            Box {
-                                IconButton(
-                                    onClick = { showMenu = true },
-                                    modifier = Modifier.size(AudioTrackRowDefaults.OverflowButtonSize),
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.MoreVert,
-                                        contentDescription = "更多操作",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(AudioTrackRowDefaults.OverflowIconSize),
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showMenu,
-                                    onDismissRequest = { showMenu = false },
-                                ) {
-                                    actionsMenu { showMenu = false }
-                                }
-                            }
-                        }
-                    }
+                } else {
+                    AudioTrackTrailing(
+                        durationText = durationText,
+                        audioQualityBadge = audioQualityBadge,
+                        actionsMenu = actionsMenu,
+                    )
                 }
             },
             colors =
@@ -183,22 +141,19 @@ private val PreviewHiResBadge =
 
 @Preview(name = "Idle Track", showBackground = true)
 @Composable
-fun AudioTrackRowIdlePreview() {
+fun AudioTrackRowIdlePreview() =
     WebDavPlayerTheme {
         AudioTrackRow(
             title = "Comfortably Numb",
             subtitle = "Pink Floyd · The Wall",
             durationText = "06:22",
             audioQualityBadge = PreviewFlacBadge,
-            isActive = false,
-            isPlaying = false,
         )
     }
-}
 
 @Preview(name = "Active Playing Track", showBackground = true)
 @Composable
-fun AudioTrackRowActivePlayingPreview() {
+fun AudioTrackRowActivePlayingPreview() =
     WebDavPlayerTheme {
         AudioTrackRow(
             title = "Time (2023 Remastered Edition)",
@@ -209,11 +164,10 @@ fun AudioTrackRowActivePlayingPreview() {
             isPlaying = true,
         )
     }
-}
 
 @Preview(name = "Active Paused Track", showBackground = true)
 @Composable
-fun AudioTrackRowActivePausedPreview() {
+fun AudioTrackRowActivePausedPreview() =
     WebDavPlayerTheme {
         AudioTrackRow(
             title = "Money",
@@ -224,19 +178,15 @@ fun AudioTrackRowActivePausedPreview() {
             isPlaying = false,
         )
     }
-}
 
 @Preview(name = "Without Cover Track", showBackground = true)
 @Composable
-fun AudioTrackRowWithoutCoverPreview() {
+fun AudioTrackRowWithoutCoverPreview() =
     WebDavPlayerTheme {
         AudioTrackRow(
             title = "Acoustic Session",
             subtitle = "Unknown Artist",
             durationText = "03:45",
             coverThumbnailPath = null,
-            isActive = false,
-            isPlaying = false,
         )
     }
-}

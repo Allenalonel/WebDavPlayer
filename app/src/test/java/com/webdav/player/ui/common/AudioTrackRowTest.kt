@@ -205,4 +205,12 @@ class AudioTrackRowTest {
             assertTrue("Method $name must be a @Composable accepting Composer", paramTypes.contains("Composer"))
         }
     }
+
+    @Test
+    fun audioTrackRow_lineCountWithinBudget() {
+        val file = java.io.File("src/main/java/com/webdav/player/ui/common/AudioTrackRow.kt")
+        assertTrue("AudioTrackRow.kt must exist", file.exists())
+        val lines = file.readLines().size
+        assertTrue("AudioTrackRow.kt line count must be < 200 lines, was $lines", lines < 200)
+    }
 }

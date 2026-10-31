@@ -21,8 +21,8 @@ Complete the migration across the remaining two track lists and execute the full
 
 **Status:** claimed
 
-- [ ] Refactor `SearchAudioTrackItem` in `SearchResultsViews.kt` to use `AudioTrackRow`
-- [ ] Refactor `QueueTrackItemRow` in `PlaybackQueueBottomSheet.kt` to use `AudioTrackRow`
-- [ ] Remove duplicate equalizer indicator helpers and redundant local row styling
-- [ ] Verify line counts for all affected files stay strictly under 600 lines
-- [ ] Run full test suite (`./gradlew testDebugUnitTest`) and ensure 100% pass rate
+- [x] Refactor `SearchAudioTrackItem` in `SearchResultsViews.kt` to use `AudioTrackRow`
+- [x] Refactor `QueueTrackItemRow` in `PlaybackQueueBottomSheet.kt` to use `AudioTrackRow`
+- [x] Remove duplicate equalizer indicator helpers and redundant local row styling
+- [x] Verify line counts for all affected files stay strictly under 600 lines
+- [x] Run full test suite (`./gradlew testDebugUnitTest`) and ensure 100% pass rate

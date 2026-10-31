@@ -1,14 +1,11 @@
 package com.webdav.player.ui.player
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -18,11 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -30,33 +24,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
-import com.webdav.player.ui.browser.components.EqualizerStateHelper
-import com.webdav.player.ui.browser.components.EqualizerTrackIndicator
-import com.webdav.player.ui.browser.components.EqualizerWaveState
-import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,198 +177,6 @@ fun PlaybackQueueBottomSheet(
                             onClick = { onTrackClick(index) },
                             onRemove = { onRemoveTrack(index) },
                             onAddToPlaylist = onAddToPlaylist,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun QueueTrackItemRow(
-    track: AudioTrack,
-    index: Int,
-    isActive: Boolean,
-    isPlaying: Boolean = false,
-    onClick: () -> Unit,
-    onRemove: () -> Unit,
-    onAddToPlaylist: (AudioTrack) -> Unit = {},
-    modifier: Modifier = Modifier,
-    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    val dismissState =
-        rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                if (value == SwipeToDismissBoxValue.EndToStart || value == SwipeToDismissBoxValue.StartToEnd) {
-                    onRemove()
-                    true
-                } else {
-                    false
-                }
-            },
-        )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        modifier = modifier.fillMaxWidth(),
-        backgroundContent = {
-            val color = MaterialTheme.colorScheme.errorContainer
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(color)
-                        .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Icon(
-                    imageVector = AppIcons.DeleteOutline,
-                    contentDescription = "删除",
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        },
-    ) {
-        val backgroundColor =
-            if (isActive) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-
-        Surface(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { onClick() },
-            color = backgroundColor,
-        ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val waveState =
-                    EqualizerStateHelper.resolveEqualizerState(
-                        isActive = isActive,
-                        isPlaying = isPlaying,
-                    )
-
-                // Leading Icon or Track Number or Cover Art
-                Box(
-                    modifier =
-                        Modifier
-                            .size(36.dp)
-                            .clip(MaterialTheme.shapes.extraSmall),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (track.coverThumbnailPath != null) {
-                        CoverThumbnailImage(
-                            thumbnailPath = track.coverThumbnailPath,
-                            contentDescription = "封面",
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            if (waveState != EqualizerWaveState.IDLE) {
-                                EqualizerTrackIndicator(waveState = waveState)
-                            } else {
-                                Text(
-                                    text = "${index + 1}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    } else if (waveState != EqualizerWaveState.IDLE) {
-                        EqualizerTrackIndicator(waveState = waveState)
-                    } else {
-                        Text(
-                            text = "${index + 1}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Title and Artist
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = track.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    val artistText = track.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家"
-                    val subtitle =
-                        if (isActive && playbackProgress.durationMs > 0L) {
-                            "$artistText · ${playbackProgress.formattedCurrentPosition} / ${playbackProgress.formattedDuration}"
-                        } else {
-                            artistText
-                        }
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Box {
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.MoreVert,
-                            contentDescription = "更多操作",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("添加到歌单") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = AppIcons.PlaylistAdd,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onAddToPlaylist(track)
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("从队列移除") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = AppIcons.Close,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onRemove()
-                            },
                         )
                     }
                 }
