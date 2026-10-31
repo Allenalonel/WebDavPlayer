@@ -63,16 +63,9 @@ import kotlinx.coroutines.launch
 fun FullPlayerView(
     sessionState: PlayerSessionState,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
+    playbackActions: PlaybackActions = PlaybackActions.EMPTY,
     onCollapse: () -> Unit,
-    onTogglePlayPause: () -> Unit,
-    onSeek: (Long) -> Unit,
-    onSkipToNext: () -> Unit,
-    onSkipToPrevious: () -> Unit,
-    onCyclePlaybackMode: () -> Unit,
-    onPlayQueueIndex: (Int) -> Unit,
-    onRemoveQueueTrack: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    onRetryPlayback: () -> Unit = onTogglePlayPause,
     batteryWhitelistManager: BatteryWhitelistManager = remember { DefaultBatteryWhitelistManager() },
     onDismissBatteryBanner: () -> Unit = {},
     onConfirmUnsupportedRangeReplay: () -> Unit = {},
@@ -178,7 +171,7 @@ fun FullPlayerView(
 
             if (isFullPlayerRetryBannerVisible(sessionState)) {
                 FullPlayerRetryBanner(
-                    onRetryPlayback = onRetryPlayback,
+                    onRetryPlayback = { playbackActions.retryPlayback() },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -212,7 +205,7 @@ fun FullPlayerView(
                             sessionState = sessionState,
                             playbackProgress = playbackProgress,
                             currentPositionMs = displayPositionMs,
-                            onSeekTo = onSeek,
+                            onSeekTo = { playbackActions.seekTo(it) },
                             onReturnToArtwork = {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(0)
@@ -267,12 +260,12 @@ fun FullPlayerView(
                     isScrubbing = scrubbing
                     scrubbedPositionMs = pos
                 },
-                onSeek = onSeek,
-                onTogglePlayPause = onTogglePlayPause,
-                onRetryPlayback = onRetryPlayback,
-                onSkipToNext = onSkipToNext,
-                onSkipToPrevious = onSkipToPrevious,
-                onCyclePlaybackMode = onCyclePlaybackMode,
+                onSeek = { playbackActions.seekTo(it) },
+                onTogglePlayPause = { playbackActions.togglePlayPause() },
+                onRetryPlayback = { playbackActions.retryPlayback() },
+                onSkipToNext = { playbackActions.skipToNext() },
+                onSkipToPrevious = { playbackActions.skipToPrevious() },
+                onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
                 onOpenQueue = { showQueueSheet = true },
             )
         }
@@ -286,12 +279,12 @@ fun FullPlayerView(
             playbackProgress = playbackProgress,
             isPlaying = sessionState.isPlaying,
             onTrackClick = { index ->
-                onPlayQueueIndex(index)
+                playbackActions.playQueueIndex(index)
             },
             onRemoveTrack = { index ->
-                onRemoveQueueTrack(index)
+                playbackActions.removeQueueTrack(index)
             },
-            onCyclePlaybackMode = onCyclePlaybackMode,
+            onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
             onDismissRequest = { showQueueSheet = false },
             onAddToPlaylist = onAddToPlaylist,
         )

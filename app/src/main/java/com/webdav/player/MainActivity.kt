@@ -56,6 +56,7 @@ import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.DockedMiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
+import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
 import com.webdav.player.ui.playlist.PlaylistDetailViewModel
 import com.webdav.player.ui.playlist.PlaylistListScreen
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity() {
                 RequestNotificationPermissionEffect()
 
                 val musicSession = appContainer.musicPlayerAppSession
+                val playbackActions = rememberPlaybackActions(musicSession)
                 val playerSessionState by (
                     musicSession?.sessionState?.collectAsStateWithLifecycle()
                         ?: remember { mutableStateOf(PlayerSessionState()) }
@@ -336,18 +338,11 @@ class MainActivity : ComponentActivity() {
                         FullPlayerView(
                             sessionState = playerSessionState,
                             playbackProgress = playbackProgress,
+                            playbackActions = playbackActions,
                             onCollapse = { coordinator.collapseFullPlayer() },
-                            onTogglePlayPause = { musicSession?.togglePlayPause() },
-                            onSeek = { musicSession?.seekTo(it) },
-                            onSkipToNext = { musicSession?.skipToNext() },
-                            onSkipToPrevious = { musicSession?.skipToPrevious() },
-                            onCyclePlaybackMode = { musicSession?.cyclePlaybackMode() },
-                            onPlayQueueIndex = { musicSession?.playQueueIndex(it) },
-                            onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) },
-                            onRetryPlayback = { musicSession?.retryPlayback() },
-                            onDismissBatteryBanner = { musicSession?.clearKilledBySystemFlag() },
-                            onConfirmUnsupportedRangeReplay = { musicSession?.confirmUnsupportedRangeReplay() },
-                            onDismissUnsupportedRange = { musicSession?.dismissUnsupportedRange() },
+                            onDismissBatteryBanner = { musicSession.clearKilledBySystemFlag() },
+                            onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
+                            onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
                             onAddToPlaylist = { track ->
                                 trackToAddToPlaylist = track
                             },
