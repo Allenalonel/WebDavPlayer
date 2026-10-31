@@ -66,6 +66,29 @@ class DefaultCueSheetResolver(
         cuePath: String,
     ): String = "${serverId ?: 0L}:$cuePath"
 
+    override fun resolveInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem> {
+        val cueFiles = directory.files.filter { it.isCue }
+        val audioFiles = directory.files.filter { it.isAudio }
+        if (cueFiles.isEmpty()) return emptyList()
+
+        return cueFiles.map { cueFile ->
+            val matchedAudio =
+                CueAssociationHelper.findMatchingAudioFile(
+                    cueFile = cueFile,
+                    audioFiles = audioFiles,
+                    totalCueFilesCount = cueFiles.size,
+                )
+            CueAlbumItem(
+                cueFile = cueFile,
+                audioFile = matchedAudio,
+                tracks = emptyList(),
+                isExpanded = false,
+                isLoading = true,
+                errorMessage = null,
+            )
+        }
+    }
+
     override suspend fun resolveDirectoryCueAlbums(
         server: WebDavServer,
         directory: RemoteDirectory,

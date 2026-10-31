@@ -8,12 +8,21 @@
 
 **Blocked by:** 03
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Add `resolveInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem>` to `CueSheetResolver` & `DefaultCueSheetResolver`
-- [ ] Refactor `DirectoryRepositoryImpl` to call `cueSheetResolver.resolveInitialCueAlbums`, removing `CueAssociationHelper` import
-- [ ] Prune unused `observeDirectory` and `listDirectory` from `DirectoryRepository` & `DirectoryRepositoryImpl`
-- [ ] Update `ServerRepositoryImpl.deleteServer(id)` to cascade delete from `directoryCacheDao` and `trackMetadataDao`
-- [ ] Migrate/update tests in `DirectoryRepositoryTest`, `ServerRepositoryTest`, and integration suites
-- [ ] Run full test suite (`gradle test`) to verify 100% pass rate
-- [ ] Check file line counts to verify all files are < 600 lines
+- [x] Add `resolveInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem>` to `CueSheetResolver` & `DefaultCueSheetResolver`
+- [x] Refactor `DirectoryRepositoryImpl` to call `cueSheetResolver.resolveInitialCueAlbums`, removing `CueAssociationHelper` import
+- [x] Prune unused `observeDirectory` and `listDirectory` from `DirectoryRepository` & `DirectoryRepositoryImpl`
+- [x] Update `ServerRepositoryImpl.deleteServer(id)` to cascade delete from `directoryCacheDao` and `trackMetadataDao`
+- [x] Migrate/update tests in `DirectoryRepositoryTest`, `ServerRepositoryTest`, and integration suites
+- [x] Run full test suite (`gradle test`) to verify 100% pass rate
+- [x] Check file line counts to verify all files are < 600 lines
+
+## Answer
+Pruned legacy directory interfaces, encapsulated initial CUE skeleton, and cascaded server deletion:
+1. Added `resolveInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem>` to `CueSheetResolver` and implemented in `DefaultCueSheetResolver`.
+2. Refactored `DirectoryRepositoryImpl` to delegate initial CUE placeholder generation to `CueSheetResolver.resolveInitialCueAlbums`, eliminating the cross-package import of `CueAssociationHelper`.
+3. Pruned unused legacy methods `observeDirectory` and `listDirectory` from `DirectoryRepository` and `DirectoryRepositoryImpl`.
+4. Updated `ServerRepositoryImpl.deleteServer(id)` to cascade delete records from `directoryCacheDao` and `trackMetadataDao`, wiping orphan caches upon server deletion.
+5. Migrated and cleaned up `DirectoryRepositoryTest`, `ServerRepositoryTest`, and integration suites.
+6. Ran full test suite with 100% test pass rate and verified all files remain strictly under the 600-line budget.

@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
+import com.webdav.player.data.local.DirectoryCacheEntity
+import com.webdav.player.data.local.TrackMetadataEntity
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.repository.ServerRepository
@@ -40,7 +42,13 @@ class ServerRepositoryTest {
             .allowMainThreadQueries()
             .build()
         coverArtStorage = CoverArtStorageImpl(context)
-        repository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage)
+        repository =
+            ServerRepositoryImpl(
+                serverDao = database.webDavServerDao(),
+                coverArtStorage = coverArtStorage,
+                directoryCacheDao = database.directoryCacheDao(),
+                trackMetadataDao = database.trackMetadataDao(),
+            )
     }
 
     @After
@@ -181,5 +189,36 @@ class ServerRepositoryTest {
 
         repoWithClient.deleteServer(id)
         assertEquals(0, webDavClient.cachedClientCount)
+    }
+
+    @Test
+    fun deleteServer_cascadesRemovalOfDirectoryCacheAndTrackMetadata() = runTest {
+        val s1 = WebDavServer(name = "Server 1", url = "http://srv1")
+        val id1 = repository.saveServer(s1)
+
+        val dirDao = database.directoryCacheDao()
+        val metaDao = database.trackMetadataDao()
+
+        dirDao.insertOrUpdate(DirectoryCacheEntity(serverId = id1, path = "/Music/", dataJson = "{}", lastUpdatedMs = System.currentTimeMillis()))
+        metaDao.insertOrUpdate(
+            TrackMetadataEntity(
+                serverId = id1,
+                remotePath = "/Music/song.mp3",
+                title = "Song",
+                artist = null,
+                album = null,
+                trackNumber = null,
+                durationMs = 0L,
+                coverThumbnailPath = null,
+            ),
+        )
+
+        assertNotNull(dirDao.getCache(id1, "/Music/"))
+        assertNotNull(metaDao.getMetadata(id1, "/Music/song.mp3"))
+
+        repository.deleteServer(id1)
+
+        assertNull(dirDao.getCache(id1, "/Music/"))
+        assertNull(metaDao.getMetadata(id1, "/Music/song.mp3"))
     }
 }

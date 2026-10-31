@@ -67,7 +67,14 @@ class WebDavApplication : Application() {
         val coverArtStorage = CoverArtStorageImpl(this)
         val webDavClient = OkHttpWebDavClient()
         this.webDavClient = webDavClient
-        serverRepository = ServerRepositoryImpl(database.webDavServerDao(), coverArtStorage, webDavClient)
+        serverRepository =
+            ServerRepositoryImpl(
+                serverDao = database.webDavServerDao(),
+                coverArtStorage = coverArtStorage,
+                webDavClient = webDavClient,
+                directoryCacheDao = database.directoryCacheDao(),
+                trackMetadataDao = database.trackMetadataDao(),
+            )
 
         trackMetadataRepository =
             TrackMetadataRepositoryImpl(

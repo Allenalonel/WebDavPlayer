@@ -263,9 +263,8 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     .setBody(directoryXml),
             )
 
-            val listResult = directoryRepository.listDirectory(testServer, "/Music/")
-            assertTrue("Directory list must succeed", listResult is ListDirectoryResult.Success)
-            val directory = (listResult as ListDirectoryResult.Success).directory
+            val contentList = directoryRepository.observeDirectoryContent(testServer, "/Music/").toList()
+            val directory = contentList.last().directory
             assertEquals(3, directory.files.size)
 
             val flacFile = directory.files[0]
@@ -276,9 +275,9 @@ class EndToEndPlaybackPipelineIntegrationTest {
             assertEquals("03-Sonata.wma", wmaFile.name)
 
             // Step 2b: Verify WebDAV directory caching persists and returns cached results without additional network calls
-            val cachedResult = directoryRepository.listDirectory(testServer, "/Music/", forceRefresh = false)
-            assertTrue("Cached directory must succeed without new network calls", cachedResult is ListDirectoryResult.Success)
-            assertEquals(3, (cachedResult as ListDirectoryResult.Success).directory.files.size)
+            val cachedDir = directoryRepository.getCachedDirectory(testServer, "/Music/")
+            assertNotNull("Cached directory must succeed without new network calls", cachedDir)
+            assertEquals(3, cachedDir!!.files.size)
 
             // Step 3: Enqueue tracks and start playback through MusicPlayerAppSessionImpl
             val engine =

@@ -1561,10 +1561,10 @@ class DirectoryBrowserViewModelTest {
             path: String,
         ): RemoteDirectory? = cachedDirectories[path]
 
-        override suspend fun listDirectory(
+        suspend fun listDirectory(
             server: WebDavServer,
             path: String,
-            forceRefresh: Boolean,
+            forceRefresh: Boolean = false,
         ): ListDirectoryResult {
             listCalls++
             if (forceRefresh) {
@@ -1577,7 +1577,7 @@ class DirectoryBrowserViewModelTest {
             results.clear()
         }
 
-        override fun observeDirectory(
+        fun observeDirectory(
             server: WebDavServer,
             path: String,
             forceRefresh: Boolean,

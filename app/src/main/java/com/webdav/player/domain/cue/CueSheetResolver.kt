@@ -14,6 +14,12 @@ import com.webdav.player.domain.model.WebDavServer
  */
 interface CueSheetResolver {
     /**
+     * Resolves initial placeholder skeleton [CueAlbumItem] list synchronously without network I/O.
+     * Maps each CUE file to candidate audio file using local association heuristics.
+     */
+    fun resolveInitialCueAlbums(directory: RemoteDirectory): List<CueAlbumItem> = emptyList()
+
+    /**
      * Discovers, caches, associates, and parses all CUE sheet albums within a remote directory.
      *
      * @param server The target [WebDavServer].
