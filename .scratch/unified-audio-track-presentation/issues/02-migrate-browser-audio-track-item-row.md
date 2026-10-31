@@ -11,7 +11,15 @@ The directory browser's row component will focus strictly on directory-specific 
 
 **Blocked by:** 01
 
-**Status:** claimed
+**Status:** resolved
+
+## Answer
+Migrated `ui/browser/components/AudioTrackItemRow.kt` to delegate to `AudioTrackRow`:
+- Shrunk `AudioTrackItemRow.kt` from 585 lines to 118 lines (≤130 lines budget).
+- Extracted `NonAudioFileRow.kt` for fallback rendering of LRC, CUE, and generic files.
+- Extracted `AudioTrackItemRowCompat.kt` for backward compatibility aliases (`FileItemRow`, `AudioBadge`, etc.).
+- Added unit tests in `AudioTrackItemRowTest.kt` verifying subtitle resolution, badges, aliases, and file line budgets.
+- Merge commit: `bfdc120`
 
 - [x] Refactor `AudioTrackItemRow` to delegate to `AudioTrackRow`
 - [x] Connect `RemoteFile` badge resolution and metadata formatting
