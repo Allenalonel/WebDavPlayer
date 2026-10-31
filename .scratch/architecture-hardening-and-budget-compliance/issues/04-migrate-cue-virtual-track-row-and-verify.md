@@ -18,7 +18,7 @@ Complete the app-wide 100% unification of audio track presentation by migrating 
 
 **Blocked by:** 01, 02, 03
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Refactor `VirtualTrackItemRow` in `CueAlbumCard.kt` to delegate to `AudioTrackRow`
 - [ ] Connect track number pill via `leadingContent` slot
