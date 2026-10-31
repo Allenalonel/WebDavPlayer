@@ -18,3 +18,7 @@
 - [x] Update imports in `PlaylistDetailScreen.kt` and verify clean compilation
 - [x] Verify `PlaylistDetailScreen.kt` line count is under 450 lines (strictly complying with 600-line budget)
 - [x] Verify all playlist tests pass cleanly (`./gradlew testDebugUnitTest`)
+
+## Answer
+
+Extracted `PlaylistTrackRow.kt`, `PlaylistTrackDetailDialog.kt`, and `PlaylistHeaderArea.kt` under `ui/playlist/components/`. All extracted components are marked `internal` and include standard `@Preview` composables. `PlaylistDetailScreen.kt` was reduced from 1,009 lines to 354 lines (under 400 lines), and all unit tests pass cleanly.

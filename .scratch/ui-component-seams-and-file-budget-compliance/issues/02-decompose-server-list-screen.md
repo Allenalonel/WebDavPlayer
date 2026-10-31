@@ -14,3 +14,7 @@
 - [x] Update `ServerListScreen.kt` imports and call the extracted `ServerCardItem`
 - [x] Verify `ServerListScreen.kt` line count is under 220 lines (strictly complying with 600-line budget)
 - [x] Verify all server management tests pass cleanly (`./gradlew testDebugUnitTest`)
+
+## Answer
+
+Extracted `ServerCardItem.kt` under `ui/server/components/` (493 lines) with internal visibility and `@Preview` support. `ServerListScreen.kt` was reduced from 623 lines to 170 lines (under 200 lines target). All server tests pass cleanly.

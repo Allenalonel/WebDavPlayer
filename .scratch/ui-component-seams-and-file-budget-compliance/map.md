@@ -14,8 +14,9 @@ Decomposing monolithic Compose screen files into focused component seams under t
   - `ui/playlist/components/` gains `PlaylistTrackRow.kt`, `PlaylistTrackDetailDialog.kt`, `PlaylistHeaderArea.kt`.
   - `ui/server/components/` gains `ServerCardItem.kt`.
   - `ui/player/components/` gains `PlayerVinylArtwork.kt`, `PlayerTransportControls.kt`, `FullPlayerRetryBanner.kt`.
-- **Decision 3 (Scope & Budget)**:
-  - `PlaylistDetailScreen.kt` reduces from 1,009 to < 400 lines.
-  - `ServerListScreen.kt` reduces from 623 to < 200 lines.
-  - `FullPlayerView.kt` reduces from 867 to < 450 lines.
-  - Brings 100% of Kotlin source files under the 600-line cohesion limit.
+- **Decision 3 (Scope & Budget Compliance Achieved)**:
+  - `PlaylistDetailScreen.kt` reduced from 1,009 to 354 lines (< 400 target). See [01-decompose-playlist-detail-screen.md](issues/01-decompose-playlist-detail-screen.md).
+  - `ServerListScreen.kt` reduced from 623 to 170 lines (< 200 target). See [02-decompose-server-list-screen.md](issues/02-decompose-server-list-screen.md).
+  - `FullPlayerView.kt` reduced from 867 to 403 lines (< 450 target). See [03-decompose-full-player-view.md](issues/03-decompose-full-player-view.md).
+  - All non-asset executable source files strictly adhere to the 600-line budget in `AGENTS.md`.
+- **Decision 4 (Review & Quality Remediations)**: All extracted components marked `internal`, provided with standard `@Preview` composables, and verified across all 956 unit tests.

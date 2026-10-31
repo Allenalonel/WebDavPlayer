@@ -18,3 +18,7 @@
 - [x] Update imports in `FullPlayerView.kt` and ensure clean compilation
 - [x] Verify `FullPlayerView.kt` line count is under 450 lines (strictly complying with 600-line budget)
 - [x] Verify all player and end-to-end tests pass cleanly (`./gradlew testDebugUnitTest`)
+
+## Answer
+
+Extracted `PlayerVinylArtwork.kt` (205 lines), `PlayerTransportControls.kt` (505 lines), and `FullPlayerRetryBanner.kt` (124 lines) under `ui/player/components/`. All extracted components are marked `internal` and include `@Preview` annotations. `FullPlayerView.kt` was reduced from 867 lines to 403 lines (under 450 lines target). All playback and player unit tests pass cleanly.
