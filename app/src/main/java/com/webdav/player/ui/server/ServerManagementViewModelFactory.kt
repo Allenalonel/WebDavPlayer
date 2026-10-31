@@ -4,24 +4,16 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.webdav.player.WebDavApplication
-import com.webdav.player.data.local.AppDatabase
-import com.webdav.player.data.local.CoverArtStorageImpl
-import com.webdav.player.data.remote.OkHttpWebDavClient
-import com.webdav.player.data.repository.ServerRepositoryImpl
+import com.webdav.player.di.AppViewModelFactory
 
-class ServerManagementViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
+class ServerManagementViewModelFactory(
+    private val context: Context,
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ServerManagementViewModel::class.java)) {
-            val app = context.applicationContext as? WebDavApplication
-            val repository = app?.serverRepository ?: run {
-                val database = AppDatabase.getInstance(context)
-                val storage = CoverArtStorageImpl(context)
-                ServerRepositoryImpl(database.webDavServerDao(), storage)
+        val app =
+            requireNotNull(context.applicationContext as? WebDavApplication) {
+                "Application context must be an instance of WebDavApplication"
             }
-            val client = app?.webDavClient ?: OkHttpWebDavClient()
-            return ServerManagementViewModel(repository, client) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+        return AppViewModelFactory(app).create(modelClass)
     }
 }

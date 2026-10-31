@@ -15,6 +15,7 @@ import com.webdav.player.data.repository.PlaylistRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
+import com.webdav.player.di.AppContainer
 import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
@@ -26,38 +27,38 @@ import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
 import com.webdav.player.domain.session.MusicPlayerAppSessionImpl
 
-class WebDavApplication : Application() {
-    lateinit var serverRepository: ServerRepository
+class WebDavApplication : Application(), AppContainer {
+    override lateinit var serverRepository: ServerRepository
         private set
 
-    lateinit var webDavClient: OkHttpWebDavClient
+    override lateinit var webDavClient: OkHttpWebDavClient
         private set
 
-    lateinit var trackMetadataRepository: TrackMetadataRepository
+    override lateinit var trackMetadataRepository: TrackMetadataRepository
         private set
 
-    lateinit var sessionStore: PlaybackSessionStore
+    override lateinit var sessionStore: PlaybackSessionStore
         private set
 
-    lateinit var directoryRepository: DirectoryRepository
+    override lateinit var directoryRepository: DirectoryRepository
         private set
 
-    lateinit var librarySearchRepository: LibrarySearchRepository
+    override lateinit var librarySearchRepository: LibrarySearchRepository
         private set
 
-    lateinit var playlistRepository: PlaylistRepository
+    override lateinit var playlistRepository: PlaylistRepository
         private set
 
-    lateinit var cueSheetResolver: CueSheetResolver
+    override lateinit var cueSheetResolver: CueSheetResolver
         private set
 
-    lateinit var playerEngine: AudioPlayerEngine
+    override lateinit var playerEngine: AudioPlayerEngine
         private set
 
     lateinit var sessionHost: PlaybackSessionHost
         private set
 
-    lateinit var musicPlayerAppSession: MusicPlayerAppSession
+    override lateinit var musicPlayerAppSession: MusicPlayerAppSession
         private set
 
     override fun onCreate() {

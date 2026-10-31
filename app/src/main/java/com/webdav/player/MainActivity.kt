@@ -45,9 +45,10 @@ import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.di.AppContainer
+import com.webdav.player.di.AppViewModelFactory
 import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
-import com.webdav.player.ui.browser.DirectoryBrowserViewModelFactory
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
 import com.webdav.player.ui.common.ThumbnailMemoryCache
 import com.webdav.player.ui.navigation.AppDestination
@@ -55,16 +56,14 @@ import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.DockedMiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
+import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
 import com.webdav.player.ui.playlist.PlaylistDetailViewModel
-import com.webdav.player.ui.playlist.PlaylistDetailViewModelFactory
 import com.webdav.player.ui.playlist.PlaylistListScreen
 import com.webdav.player.ui.playlist.PlaylistListViewModel
-import com.webdav.player.ui.playlist.PlaylistListViewModelFactory
 import com.webdav.player.ui.playlist.components.AddToPlaylistDialog
 import com.webdav.player.ui.server.ServerListScreen
 import com.webdav.player.ui.server.ServerManagementViewModel
-import com.webdav.player.ui.server.ServerManagementViewModelFactory
 import com.webdav.player.ui.theme.AppIcons
 import com.webdav.player.ui.theme.WebDavPlayerTheme
 import kotlinx.coroutines.launch
@@ -73,16 +72,22 @@ import kotlinx.coroutines.launch
  * Main application activity hosting edge-to-edge navigation and playback sheets.
  */
 class MainActivity : ComponentActivity() {
+    private val appContainer: AppContainer by lazy {
+        requireNotNull(applicationContext as? WebDavApplication) {
+            "Application context must be an instance of WebDavApplication"
+        }
+    }
+
     private val serverViewModel: ServerManagementViewModel by viewModels {
-        ServerManagementViewModelFactory(applicationContext)
+        AppViewModelFactory(appContainer)
     }
 
     private val browserViewModel: DirectoryBrowserViewModel by viewModels {
-        DirectoryBrowserViewModelFactory(applicationContext)
+        AppViewModelFactory(appContainer)
     }
 
     private val playlistViewModel: PlaylistListViewModel by viewModels {
-        PlaylistListViewModelFactory(applicationContext)
+        AppViewModelFactory(appContainer)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,16 +97,10 @@ class MainActivity : ComponentActivity() {
             WebDavPlayerTheme {
                 RequestNotificationPermissionEffect()
 
-                val app = applicationContext as? WebDavApplication
-                val musicSession = app?.musicPlayerAppSession ?: browserViewModel.musicPlayerAppSession
-                val playerSessionState by (
-                    musicSession?.sessionState?.collectAsStateWithLifecycle()
-                        ?: remember { mutableStateOf(PlayerSessionState()) }
-                )
-                val playbackProgress by (
-                    musicSession?.playbackProgress?.collectAsStateWithLifecycle()
-                        ?: remember { mutableStateOf(PlaybackProgress.ZERO) }
-                )
+                val musicSession = appContainer.musicPlayerAppSession
+                val playbackActions = rememberPlaybackActions(musicSession)
+                val playerSessionState by musicSession.sessionState.collectAsStateWithLifecycle()
+                val playbackProgress by musicSession.playbackProgress.collectAsStateWithLifecycle()
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()
                 val playlistState by playlistViewModel.uiState.collectAsStateWithLifecycle()
@@ -161,10 +160,10 @@ class MainActivity : ComponentActivity() {
                                     DockedMiniPlayer(
                                         sessionState = playerSessionState,
                                         playbackProgress = playbackProgress,
-                                        onTogglePlayPause = { musicSession?.togglePlayPause() },
-                                        onSkipToNext = { musicSession?.skipToNext() },
+                                        onTogglePlayPause = { playbackActions.togglePlayPause() },
+                                        onSkipToNext = { playbackActions.skipToNext() },
                                         onMiniPlayerClick = { coordinator.expandFullPlayer() },
-                                        onRetryPlayback = { musicSession?.retryPlayback() },
+                                        onRetryPlayback = { playbackActions.retryPlayback() },
                                         modifier =
                                             Modifier
                                                 .fillMaxWidth()
@@ -269,7 +268,7 @@ class MainActivity : ComponentActivity() {
                                     val detailViewModel: PlaylistDetailViewModel =
                                         androidx.lifecycle.viewmodel.compose.viewModel(
                                             key = "playlist_detail_$selectedId",
-                                            factory = PlaylistDetailViewModelFactory(context, selectedId),
+                                            factory = AppViewModelFactory(appContainer, selectedId),
                                         )
                                     PlaylistDetailScreen(
                                         viewModel = detailViewModel,
@@ -333,18 +332,11 @@ class MainActivity : ComponentActivity() {
                         FullPlayerView(
                             sessionState = playerSessionState,
                             playbackProgress = playbackProgress,
+                            playbackActions = playbackActions,
                             onCollapse = { coordinator.collapseFullPlayer() },
-                            onTogglePlayPause = { musicSession?.togglePlayPause() },
-                            onSeek = { musicSession?.seekTo(it) },
-                            onSkipToNext = { musicSession?.skipToNext() },
-                            onSkipToPrevious = { musicSession?.skipToPrevious() },
-                            onCyclePlaybackMode = { musicSession?.cyclePlaybackMode() },
-                            onPlayQueueIndex = { musicSession?.playQueueIndex(it) },
-                            onRemoveQueueTrack = { musicSession?.removeQueueTrack(it) },
-                            onRetryPlayback = { musicSession?.retryPlayback() },
-                            onDismissBatteryBanner = { musicSession?.clearKilledBySystemFlag() },
-                            onConfirmUnsupportedRangeReplay = { musicSession?.confirmUnsupportedRangeReplay() },
-                            onDismissUnsupportedRange = { musicSession?.dismissUnsupportedRange() },
+                            onDismissBatteryBanner = { musicSession.clearKilledBySystemFlag() },
+                            onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
+                            onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
                             onAddToPlaylist = { track ->
                                 trackToAddToPlaylist = track
                             },
