@@ -1,11 +1,30 @@
 package com.webdav.player.ui.common
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.webdav.player.domain.model.AudioQualityBadge
 import com.webdav.player.domain.model.AudioQualityLevel
+import com.webdav.player.ui.theme.AppIcons
 
 object AudioTrackRowDefaults {
     val ThumbnailSize: Dp = 46.dp
@@ -66,4 +85,48 @@ object AudioTrackRowDefaults {
     ): Color = if (isActive) colorScheme.primary else Color.Unspecified
 
     fun resolveTitleFontWeight(isActive: Boolean): FontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
+}
+
+@Composable
+fun AudioTrackTrailing(
+    durationText: String?,
+    audioQualityBadge: AudioQualityBadge?,
+    actionsMenu: (@Composable (() -> Unit) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    if (audioQualityBadge == null && durationText.isNullOrBlank() && actionsMenu == null) return
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(AudioTrackRowDefaults.TrailingSpacing),
+    ) {
+        if (audioQualityBadge != null) AudioQualityBadgePill(badge = audioQualityBadge)
+        if (!durationText.isNullOrBlank()) {
+            Text(
+                text = durationText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(end = 2.dp),
+            )
+        }
+        if (actionsMenu != null) {
+            var showMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(AudioTrackRowDefaults.OverflowButtonSize),
+                ) {
+                    Icon(
+                        imageVector = AppIcons.MoreVert,
+                        contentDescription = "更多操作",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(AudioTrackRowDefaults.OverflowIconSize),
+                    )
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    actionsMenu { showMenu = false }
+                }
+            }
+        }
+    }
 }
