@@ -20,7 +20,7 @@ Extract `internal class PlaybackTimelineCoordinator` to encapsulate all engine e
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Create `domain/session/PlaybackTimelineCoordinator.kt` as an internal collaborator
 - [ ] Move the 5 coroutine observation jobs and `mapEngineProgress` into `PlaybackTimelineCoordinator`
