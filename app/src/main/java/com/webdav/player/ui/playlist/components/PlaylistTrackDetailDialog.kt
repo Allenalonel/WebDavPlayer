@@ -16,14 +16,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import com.webdav.player.ui.theme.AppIcons
 import java.util.Locale
 
 @Composable
-fun PlaylistTrackDetailDialog(
+internal fun PlaylistTrackDetailDialog(
     track: PlaylistTrackEntry,
     onDismiss: () -> Unit,
     onPlay: () -> Unit,
@@ -99,7 +101,7 @@ fun PlaylistTrackDetailDialog(
 }
 
 @Composable
-fun PlaylistInfoRow(
+internal fun PlaylistInfoRow(
     label: String,
     value: String,
 ) {
@@ -118,9 +120,35 @@ fun PlaylistInfoRow(
     }
 }
 
-fun formatTrackFileSize(bytes: Long): String {
+internal fun formatTrackFileSize(bytes: Long): String {
     if (bytes <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
     return String.format(Locale.getDefault(), "%.2f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun PlaylistTrackDetailDialogPreview() {
+    MaterialTheme {
+        PlaylistTrackDetailDialog(
+            track =
+                PlaylistTrackEntry(
+                    id = 1L,
+                    playlistId = 1L,
+                    serverId = 1L,
+                    remotePath = "/Music/Hi-Res/Symphony No. 5.flac",
+                    sortOrder = 0,
+                    title = "Symphony No. 5",
+                    artist = "Ludwig van Beethoven",
+                    album = "Beethoven: Complete Symphonies",
+                    durationMs = 432000L,
+                    size = 45200000L,
+                    format = AudioFormat.FLAC,
+                ),
+            onDismiss = {},
+            onPlay = {},
+        )
+    }
+}
+

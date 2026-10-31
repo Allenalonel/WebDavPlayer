@@ -40,11 +40,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.webdav.player.domain.model.AudioFormat
+import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.AudiophileSpecs
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
+import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.theme.AppIcons
@@ -53,7 +57,7 @@ import com.webdav.player.ui.theme.AppIcons
  * Audiophile format specification badge capsule (e.g. "96kHz · 24bit · FLAC" or "Hi-Res").
  */
 @Composable
-fun AudiophileSpecsBadge(
+internal fun AudiophileSpecsBadge(
     specs: AudiophileSpecs?,
     modifier: Modifier = Modifier,
 ) {
@@ -101,7 +105,7 @@ fun AudiophileSpecsBadge(
  * Playback mode button cycling through LIST_LOOP, SINGLE_LOOP, and SHUFFLE.
  */
 @Composable
-fun PlaybackModeButton(
+internal fun PlaybackModeButton(
     mode: PlaybackMode,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -134,7 +138,7 @@ fun PlaybackModeButton(
  * Dual-layer buffered progress slider with elapsed and remaining timestamps.
  */
 @Composable
-fun PlayerProgressSlider(
+internal fun PlayerProgressSlider(
     playbackProgress: PlaybackProgress,
     sessionDurationMs: Long,
     displayPositionMs: Long,
@@ -252,7 +256,7 @@ fun PlayerProgressSlider(
  * Expressive transport playback control buttons: mode, previous, play/pause/buffer, next, and queue.
  */
 @Composable
-fun PlayerPlaybackControls(
+internal fun PlayerPlaybackControls(
     sessionState: PlayerSessionState,
     onTogglePlayPause: () -> Unit,
     onRetryPlayback: () -> Unit,
@@ -387,7 +391,7 @@ fun PlayerPlaybackControls(
  * Transport controls aggregating the progress slider and playback control actions.
  */
 @Composable
-fun PlayerTransportControls(
+internal fun PlayerTransportControls(
     sessionState: PlayerSessionState,
     playbackProgress: PlaybackProgress,
     isScrubbing: Boolean,
@@ -430,7 +434,7 @@ fun PlayerTransportControls(
  * Standalone overload of [PlayerTransportControls] managing scrubbing state internally.
  */
 @Composable
-fun PlayerTransportControls(
+internal fun PlayerTransportControls(
     sessionState: PlayerSessionState,
     playbackProgress: PlaybackProgress,
     onSeek: (Long) -> Unit,
@@ -464,4 +468,38 @@ fun PlayerTransportControls(
         onOpenQueue = onOpenQueue,
         modifier = modifier,
     )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PlayerTransportControlsPreview() {
+    val sampleTrack =
+        AudioTrack(
+            id = "1:/track.flac",
+            serverId = 1L,
+            remotePath = "/track.flac",
+            title = "Preview Song",
+            artist = "Preview Artist",
+            durationMs = 180000L,
+            format = AudioFormat.FLAC,
+        )
+    MaterialTheme {
+        PlayerTransportControls(
+            sessionState =
+                PlayerSessionState(
+                    queue = PlaybackQueue(tracks = listOf(sampleTrack), currentIndex = 0),
+                    playbackState = PlaybackState.Playing,
+                    playbackMode = PlaybackMode.LIST_LOOP,
+                    durationMs = 180000L,
+                ),
+            playbackProgress = PlaybackProgress(currentPositionMs = 60000L, durationMs = 180000L),
+            onSeek = {},
+            onTogglePlayPause = {},
+            onRetryPlayback = {},
+            onSkipToNext = {},
+            onSkipToPrevious = {},
+            onCyclePlaybackMode = {},
+            onOpenQueue = {},
+        )
+    }
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.domain.model.WebDavServer
@@ -43,32 +44,24 @@ import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ServerCardItem(
+internal fun ServerCardItem(
     server: WebDavServer,
     isActive: Boolean,
     modifier: Modifier = Modifier,
     isTestingConnection: Boolean = false,
     connectionTestResult: ConnectionResult? = null,
-    onCardClick: (() -> Unit)? = null,
+    onCardClick: () -> Unit = {},
     onTestConnection: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
-    onSelect: () -> Unit = {},
-    onBrowse: () -> Unit = {},
 ) {
     var showMenu by remember { mutableStateOf(false) }
-
-    val handleCardClick =
-        onCardClick ?: {
-            onSelect()
-            onBrowse()
-        }
 
     ElevatedCard(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clickable(onClick = handleCardClick),
+                .clickable(onClick = onCardClick),
         shape = MaterialTheme.shapes.medium,
         colors =
             CardDefaults.elevatedCardColors(
@@ -472,3 +465,29 @@ fun ServerCardItem(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun ServerCardItemPreview() {
+    MaterialTheme {
+        ServerCardItem(
+            server =
+                WebDavServer(
+                    id = 1L,
+                    name = "Home NAS",
+                    url = "https://nas.local",
+                    port = 5006,
+                    pathPrefix = "/music",
+                    username = "user",
+                    isDefault = true,
+                ),
+            isActive = true,
+            isTestingConnection = false,
+            onCardClick = {},
+            onTestConnection = {},
+            onEdit = {},
+            onDelete = {},
+        )
+    }
+}
+

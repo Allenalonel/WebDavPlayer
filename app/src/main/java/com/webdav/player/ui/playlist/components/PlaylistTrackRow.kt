@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -51,8 +52,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaylistTrackEntry
 import com.webdav.player.ui.common.CoverThumbnailImage
@@ -62,7 +65,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaylistTrackRow(
+internal fun PlaylistTrackRow(
     track: PlaylistTrackEntry,
     index: Int,
     dragDropState: DragDropState,
@@ -421,5 +424,36 @@ fun PlaylistTrackRow(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PlaylistTrackRowPreview() {
+    MaterialTheme {
+        val listState = rememberLazyListState()
+        val dragDropState = remember(listState) { DragDropState(listState, { _, _ -> }, {}) }
+        PlaylistTrackRow(
+            track =
+                PlaylistTrackEntry(
+                    id = 1L,
+                    playlistId = 1L,
+                    serverId = 1L,
+                    remotePath = "/Music/Artist/Track 01.flac",
+                    sortOrder = 0,
+                    title = "Sample Track",
+                    artist = "Sample Artist",
+                    album = "Sample Album",
+                    durationMs = 215000L,
+                    size = 14200000L,
+                    format = AudioFormat.FLAC,
+                ),
+            index = 0,
+            dragDropState = dragDropState,
+            onClick = {},
+            onRemove = {},
+            onPlayNext = {},
+            onShowDetails = {},
+        )
     }
 }

@@ -31,7 +31,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
@@ -42,7 +44,7 @@ import com.webdav.player.ui.theme.AppIcons
  * Dynamic atmospheric gradient sampled from cover art with MD3 fallback.
  */
 @Composable
-fun rememberArtworkBackgroundBrush(
+internal fun rememberArtworkBackgroundBrush(
     thumbnailPath: String?,
     defaultSurfaceColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     defaultBackgroundColor: Color = MaterialTheme.colorScheme.surface,
@@ -75,7 +77,7 @@ fun rememberArtworkBackgroundBrush(
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ArtworkPage(
+internal fun ArtworkPage(
     currentTrack: AudioTrack?,
     sessionState: PlayerSessionState,
     onArtworkClick: () -> Unit,
@@ -94,7 +96,7 @@ fun ArtworkPage(
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlayerVinylArtwork(
+internal fun PlayerVinylArtwork(
     currentTrack: AudioTrack?,
     sessionState: PlayerSessionState,
     onArtworkClick: () -> Unit,
@@ -177,3 +179,27 @@ fun PlayerVinylArtwork(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun PlayerVinylArtworkPreview() {
+    MaterialTheme {
+        PlayerVinylArtwork(
+            currentTrack =
+                AudioTrack(
+                    id = "1:/Music/demo.flac",
+                    serverId = 1L,
+                    remotePath = "/Music/demo.flac",
+                    title = "Sample Hi-Res Song",
+                    artist = "Master Artist",
+                    album = "Masterpiece Album",
+                    durationMs = 240000L,
+                    size = 30000000L,
+                    format = AudioFormat.FLAC,
+                ),
+            sessionState = PlayerSessionState(),
+            onArtworkClick = {},
+        )
+    }
+}
+

@@ -48,9 +48,9 @@ import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
-import com.webdav.player.ui.player.components.ArtworkPage
 import com.webdav.player.ui.player.components.FullPlayerRetryBanner
 import com.webdav.player.ui.player.components.PlayerTransportControls
+import com.webdav.player.ui.player.components.PlayerVinylArtwork
 import com.webdav.player.ui.player.components.isFullPlayerRetryBannerVisible
 import com.webdav.player.ui.player.components.rememberArtworkBackgroundBrush
 import kotlinx.coroutines.launch
@@ -194,7 +194,7 @@ fun FullPlayerView(
                 when (page) {
                     0 -> {
                         // Page 0: Cover Artwork & Metadata view
-                        ArtworkPage(
+                        PlayerVinylArtwork(
                             currentTrack = currentTrack,
                             sessionState = sessionState,
                             onArtworkClick = {
@@ -384,7 +384,7 @@ fun formatTrackArtistAndFormat(track: AudioTrack?): String {
 /**
  * Forwarding alias for [isFullPlayerRetryBannerVisible] preserving existing API compatibility.
  */
-fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean =
+internal fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean =
     com.webdav.player.ui.player.components
         .isFullPlayerRetryBannerVisible(sessionState)
 
@@ -392,7 +392,7 @@ fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean =
  * Forwarding alias for [FullPlayerRetryBanner] preserving existing API compatibility.
  */
 @Composable
-fun FullPlayerRetryBanner(
+internal fun FullPlayerRetryBanner(
     onRetryPlayback: () -> Unit,
     modifier: Modifier = Modifier,
 ) {

@@ -73,12 +73,9 @@ class DragDropState(
         for (item in visibleItems) {
             if (item.index != currentIndex) {
                 val itemMidY = item.offset + item.size / 2f
-                if (dragOffset > 0 && currentMidY > itemMidY && item.index > currentIndex) {
-                    onMove(currentIndex, item.index)
-                    dragOffset -= (item.offset - currentItemInfo.offset)
-                    draggedIndex = item.index
-                    break
-                } else if (dragOffset < 0 && currentMidY < itemMidY && item.index < currentIndex) {
+                val movingDown = dragOffset > 0 && currentMidY > itemMidY && item.index > currentIndex
+                val movingUp = dragOffset < 0 && currentMidY < itemMidY && item.index < currentIndex
+                if (movingDown || movingUp) {
                     onMove(currentIndex, item.index)
                     dragOffset -= (item.offset - currentItemInfo.offset)
                     draggedIndex = item.index
@@ -174,91 +171,37 @@ fun PlaylistDetailScreen(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false },
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("自定义排序") },
-                                    trailingIcon = {
-                                        if (uiState.activeSortOption == PlaylistSortOption.CUSTOM) {
-                                            Icon(
-                                                imageVector = AppIcons.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        showSortMenu = false
-                                        viewModel.enterCustomReorderMode()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("添加时间（最新优先）") },
-                                    trailingIcon = {
-                                        if (uiState.activeSortOption == PlaylistSortOption.DATE_ADDED_DESC) {
-                                            Icon(
-                                                imageVector = AppIcons.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        showSortMenu = false
-                                        viewModel.sortTracks(PlaylistSortOption.DATE_ADDED_DESC)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("添加时间（最早优先）") },
-                                    trailingIcon = {
-                                        if (uiState.activeSortOption == PlaylistSortOption.DATE_ADDED_ASC) {
-                                            Icon(
-                                                imageVector = AppIcons.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        showSortMenu = false
-                                        viewModel.sortTracks(PlaylistSortOption.DATE_ADDED_ASC)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("歌曲标题（A-Z）") },
-                                    trailingIcon = {
-                                        if (uiState.activeSortOption == PlaylistSortOption.TITLE_ASC) {
-                                            Icon(
-                                                imageVector = AppIcons.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        showSortMenu = false
-                                        viewModel.sortTracks(PlaylistSortOption.TITLE_ASC)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("艺术家（A-Z）") },
-                                    trailingIcon = {
-                                        if (uiState.activeSortOption == PlaylistSortOption.ARTIST_ASC) {
-                                            Icon(
-                                                imageVector = AppIcons.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        showSortMenu = false
-                                        viewModel.sortTracks(PlaylistSortOption.ARTIST_ASC)
-                                    },
-                                )
+                                val sortOptions =
+                                    listOf(
+                                        PlaylistSortOption.CUSTOM to "自定义排序",
+                                        PlaylistSortOption.DATE_ADDED_DESC to "添加时间（最新优先）",
+                                        PlaylistSortOption.DATE_ADDED_ASC to "添加时间（最早优先）",
+                                        PlaylistSortOption.TITLE_ASC to "歌曲标题（A-Z）",
+                                        PlaylistSortOption.ARTIST_ASC to "艺术家（A-Z）",
+                                    )
+                                sortOptions.forEach { (option, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        trailingIcon = {
+                                            if (uiState.activeSortOption == option) {
+                                                Icon(
+                                                    imageVector = AppIcons.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp),
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            showSortMenu = false
+                                            if (option == PlaylistSortOption.CUSTOM) {
+                                                viewModel.enterCustomReorderMode()
+                                            } else {
+                                                viewModel.sortTracks(option)
+                                            }
+                                        },
+                                    )
+                                }
                             }
                         }
 

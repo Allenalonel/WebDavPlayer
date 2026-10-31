@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.Playlist
 import com.webdav.player.ui.theme.AppIcons
@@ -31,7 +32,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun PlaylistHeaderArea(
+internal fun PlaylistHeaderArea(
     playlist: Playlist?,
     trackCount: Int,
     onPlayAll: () -> Unit,
@@ -122,3 +123,23 @@ fun PlaylistHeaderArea(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun PlaylistHeaderAreaPreview() {
+    MaterialTheme {
+        PlaylistHeaderArea(
+            playlist =
+                Playlist(
+                    id = 1L,
+                    name = "My Favorite Tracks",
+                    createdAtMs = 1700000000000L,
+                    updatedAtMs = 1700000000000L,
+                ),
+            trackCount = 42,
+            onPlayAll = {},
+            onShufflePlay = {},
+        )
+    }
+}
+

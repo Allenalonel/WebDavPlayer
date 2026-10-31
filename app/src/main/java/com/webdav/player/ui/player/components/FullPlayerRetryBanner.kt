@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.theme.AppIcons
@@ -31,14 +32,14 @@ import com.webdav.player.ui.theme.AppIcons
 /**
  * Returns true if the full player retry banner should be visible for the given [sessionState].
  */
-fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean = sessionState.isSuspendedRetry
+internal fun isFullPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean = sessionState.isSuspendedRetry
 
 /**
  * Persistent card banner alerting users when network reconnection attempts are suspended,
  * offering a manual retry button.
  */
 @Composable
-fun FullPlayerRetryBanner(
+internal fun FullPlayerRetryBanner(
     onRetryPlayback: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -110,3 +111,14 @@ fun FullPlayerRetryBanner(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun FullPlayerRetryBannerPreview() {
+    MaterialTheme {
+        FullPlayerRetryBanner(
+            onRetryPlayback = {},
+        )
+    }
+}
+
