@@ -13,9 +13,10 @@
   - 在 `ServerRepository.deleteServer` 中实现事务级联清除 `directory_cache` 与 `track_metadata` 孤儿记录。
 - **Ticket 01 Decision**: 媒体源组装与连接池管理收拢至 `WebDavMediaSourceBuilder` 并由 `Media3AudioPlayerEngine` 私有协作者持有，废除 `WebDavMediaSourceAdapter` 虚设接缝，清除全量 10 处测试强转与宿主参数穿透。详见 [.scratch/deepen-playback-and-repositories/issues/01-fold-media-source-adapter-into-player-engine.md](issues/01-fold-media-source-adapter-into-player-engine.md)。
 - **Ticket 02 Decision**: 剥离 `PlaybackSessionHost` 的 `by playerEngine` 假性类委托，清除 `ForwardingPlayer` 空桩并对接 `appSession`；会话直连纯 `Media3AudioPlayerEngine`，启动期彻底消除 `as? PlaybackSessionHost` 向下转型。详见 [.scratch/deepen-playback-and-repositories/issues/02-decouple-playback-session-host-and-break-circular-loop.md](issues/02-decouple-playback-session-host-and-break-circular-loop.md)。
+- **Ticket 03 Decision**: 歌词双源探测全量沉降至 `TrackMetadataRepository`，彻底拔除 `LyricsRepository` 与冗余的二级 LRU 内存缓存，全系统归口单一元数据仓储。详见 [.scratch/deepen-playback-and-repositories/issues/03-consolidate-dual-source-lyrics-into-track-metadata-repository.md](issues/03-consolidate-dual-source-lyrics-into-track-metadata-repository.md)。
 
 ## Ticket Graph & Frontier
 1. `01-fold-media-source-adapter-into-player-engine.md`: 内化媒体源构建至播放引擎，拔除 10 处测试强转 (Status: resolved, Blocked by: None)
 2. `02-decouple-playback-session-host-and-break-circular-loop.md`: 解耦宿主伪委托，消除启动循环依赖与强转 (Status: resolved, Blocked by: 01)
-3. `03-consolidate-dual-source-lyrics-into-track-metadata-repository.md`: 收拢双源歌词至元数据仓储，删除多余仓储 (Status: open, Blocked by: 02)
+3. `03-consolidate-dual-source-lyrics-into-track-metadata-repository.md`: 收拢双源歌词至元数据仓储，删除多余仓储 (Status: resolved, Blocked by: 02)
 4. `04-prune-directory-repository-and-cascade-server-deletion.md`: 剪除目录仓储死接口，级联清理服务器孤儿缓存并全量回归验证 (Status: open, Blocked by: 03)

@@ -29,7 +29,6 @@ import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
-import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
@@ -109,7 +108,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
     private lateinit var sessionStore: FakePlaybackSessionStore
     private lateinit var testServer: WebDavServer
     private lateinit var trackMetadataRepository: TrackMetadataRepositoryImpl
-    private lateinit var lyricsRepository: LyricsRepositoryImpl
 
     private var previousHost: PlaybackSessionHost? = null
 
@@ -140,12 +138,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
                 trackMetadataDao = database.trackMetadataDao(),
                 webDavClient = webDavClient,
                 coverArtStorage = coverArtStorage,
-                ioDispatcher = testDispatcher,
-            )
-        lyricsRepository =
-            LyricsRepositoryImpl(
-                webDavClient = webDavClient,
-                trackMetadataRepository = trackMetadataRepository,
                 ioDispatcher = testDispatcher,
             )
 
@@ -1230,7 +1222,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -1391,7 +1382,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -1521,7 +1511,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -1684,7 +1673,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -1781,7 +1769,6 @@ class EndToEndPlaybackPipelineIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,

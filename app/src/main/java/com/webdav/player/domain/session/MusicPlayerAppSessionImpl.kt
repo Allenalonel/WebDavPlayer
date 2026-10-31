@@ -15,7 +15,6 @@ import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import com.webdav.player.domain.player.AudioPlayerEngine
-import com.webdav.player.domain.repository.LyricsRepository
 import com.webdav.player.domain.repository.PlaybackSessionStore
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
@@ -43,7 +42,6 @@ class MusicPlayerAppSessionImpl(
     private val playerEngine: AudioPlayerEngine,
     private val serverRepository: ServerRepository? = null,
     trackMetadataRepository: TrackMetadataRepository? = null,
-    lyricsRepository: LyricsRepository? = null,
     sessionStore: PlaybackSessionStore? = null,
     private val cueSheetResolver: CueSheetResolver? = null,
     private val playlistRepository: PlaylistRepository? = null,
@@ -80,7 +78,7 @@ class MusicPlayerAppSessionImpl(
 
     private val queueManager = PlaybackQueueManager(_sessionState, serverRepository, cueSheetResolver) { coroutineScope.launch { flushSession() } }
     private val faultTolerance = PlaybackFaultTolerance(_sessionState, playerEngine, playlistRepository, queueManager, coroutineScope)
-    private val metadataCoordinator = PlaybackMetadataCoordinator(trackMetadataRepository, lyricsRepository, playerEngine, _sessionState, coroutineScope)
+    private val metadataCoordinator = PlaybackMetadataCoordinator(trackMetadataRepository, playerEngine, _sessionState, coroutineScope)
 
     private val _pausedByTransientAudioFocus = AtomicBoolean(false)
     override val pausedByTransientAudioFocus: Boolean get() = _pausedByTransientAudioFocus.get()

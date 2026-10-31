@@ -70,6 +70,14 @@ class PackagingSeamVerificationTest {
             "WebDavMediaSourceAdapter file must be eliminated",
             File(sourceRoot, "data/player/WebDavMediaSourceAdapter.kt").exists(),
         )
+        assertFalse(
+            "LyricsRepository file must be eliminated",
+            File(sourceRoot, "domain/repository/LyricsRepository.kt").exists(),
+        )
+        assertFalse(
+            "LyricsRepositoryImpl file must be eliminated",
+            File(sourceRoot, "data/repository/LyricsRepositoryImpl.kt").exists(),
+        )
 
         // AudioPlayerEngine interface exposes no routing or host concerns
         val engineInterface = source("domain/player/AudioPlayerEngine.kt")

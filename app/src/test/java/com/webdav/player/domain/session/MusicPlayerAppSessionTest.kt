@@ -1047,7 +1047,7 @@ class MusicPlayerAppSessionTest {
     @Test
     fun sessionState_lyricsLoadedAutomatically_whenTrackStartsPlaying() =
         runTest(testDispatcher) {
-            val fakeLyricsRepo = FakeLyricsRepo()
+            val fakeMetadataRepo = FakeTrackMetadataRepo()
             val expectedLyrics =
                 com.webdav.player.domain.model.Lyrics(
                     lines =
@@ -1057,14 +1057,13 @@ class MusicPlayerAppSessionTest {
                         ),
                     isSynchronized = true,
                 )
-            fakeLyricsRepo.lyricsMap["/music/song1.mp3"] = expectedLyrics
+            fakeMetadataRepo.lyricsMap["/music/song1.mp3"] = expectedLyrics
 
             val sessionWithLyrics =
                 MusicPlayerAppSessionImpl(
                     playerEngine = fakeEngine,
                     serverRepository = null,
-                    trackMetadataRepository = null,
-                    lyricsRepository = fakeLyricsRepo,
+                    trackMetadataRepository = fakeMetadataRepo,
                     coroutineScope = sessionScope,
                 )
 
@@ -1096,19 +1095,16 @@ class MusicPlayerAppSessionTest {
             sessionWithLyrics.release()
         }
 
-    private class FakeLyricsRepo : com.webdav.player.domain.repository.LyricsRepository {
+    private class FakeTrackMetadataRepo : TrackMetadataRepository {
+        val flow = MutableStateFlow<List<TrackMetadata>>(emptyList())
+        var resolveMetadataCalls = 0
+        var resolvedFiles: List<RemoteFile> = emptyList()
         val lyricsMap = mutableMapOf<String, com.webdav.player.domain.model.Lyrics>()
 
         override suspend fun resolveLyrics(
             server: WebDavServer,
             track: AudioTrack,
         ): com.webdav.player.domain.model.Lyrics = lyricsMap[track.remotePath] ?: com.webdav.player.domain.model.Lyrics.EMPTY
-    }
-
-    private class FakeTrackMetadataRepo : TrackMetadataRepository {
-        val flow = MutableStateFlow<List<TrackMetadata>>(emptyList())
-        var resolveMetadataCalls = 0
-        var resolvedFiles: List<RemoteFile> = emptyList()
 
         fun emit(list: List<TrackMetadata>) {
             flow.value = list

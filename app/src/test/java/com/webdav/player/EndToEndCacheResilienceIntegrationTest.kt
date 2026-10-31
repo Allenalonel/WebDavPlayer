@@ -19,7 +19,6 @@ import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.data.repository.DirectoryRepositoryImpl
-import com.webdav.player.data.repository.LyricsRepositoryImpl
 import com.webdav.player.data.repository.ServerRepositoryImpl
 import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
@@ -95,7 +94,6 @@ class EndToEndCacheResilienceIntegrationTest {
     private lateinit var directoryRepository: DirectoryRepositoryImpl
     private lateinit var mediaSourceBuilder: WebDavMediaSourceBuilder
     private lateinit var trackMetadataRepository: TrackMetadataRepositoryImpl
-    private lateinit var lyricsRepository: LyricsRepositoryImpl
     private lateinit var sessionStore: FakePlaybackSessionStore
     private lateinit var testServer: WebDavServer
 
@@ -135,12 +133,6 @@ class EndToEndCacheResilienceIntegrationTest {
                 webDavClient = webDavClient,
                 directoryCacheDao = database.directoryCacheDao(),
                 trackMetadataRepository = trackMetadataRepository,
-            )
-        lyricsRepository =
-            LyricsRepositoryImpl(
-                webDavClient = webDavClient,
-                trackMetadataRepository = trackMetadataRepository,
-                ioDispatcher = testDispatcher,
             )
 
         testServer =
@@ -357,7 +349,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -595,7 +586,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
@@ -825,7 +815,6 @@ class EndToEndCacheResilienceIntegrationTest {
                     playerEngine = engine,
                     serverRepository = serverRepository,
                     trackMetadataRepository = trackMetadataRepository,
-                    lyricsRepository = lyricsRepository,
                     sessionStore = sessionStore,
                     coroutineScope = sessionScope,
                     progressDispatcher = testDispatcher,
