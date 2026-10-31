@@ -5,14 +5,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,20 +27,25 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -136,6 +143,8 @@ internal fun PlaybackModeButton(
 
 /**
  * Dual-layer buffered progress slider with elapsed and remaining timestamps.
+ *
+ * Supports free dragging and tap-to-seek across the entire track hitbox.
  */
 @Composable
 internal fun PlayerProgressSlider(
@@ -148,76 +157,132 @@ internal fun PlayerProgressSlider(
     modifier: Modifier = Modifier,
 ) {
     var showRemainingTime by remember { mutableStateOf(false) }
-    var localDragPosition by remember { mutableStateOf<Float?>(null) }
+    var isDragging by remember { mutableStateOf(false) }
+    var dragPositionMs by remember { mutableLongStateOf(0L) }
+
+    val maxDuration =
+        if (playbackProgress.durationMs > 0L) {
+            playbackProgress.durationMs
+        } else {
+            sessionDurationMs.coerceAtLeast(0L)
+        }
+
+    val currentPosition = if (isDragging) dragPositionMs else displayPositionMs
+    val progressFraction =
+        if (maxDuration > 0L) {
+            (currentPosition.toFloat() / maxDuration.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+    val bufferedFraction = playbackProgress.bufferedFraction.coerceIn(0f, 1f)
+
+    val activeTrackColor = MaterialTheme.colorScheme.primary
+    val inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val bufferedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
+    val thumbColor = MaterialTheme.colorScheme.primary
 
     Column(modifier = modifier.fillMaxWidth()) {
-        val maxDuration =
-            if (playbackProgress.durationMs > 0L) {
-                playbackProgress.durationMs
-            } else {
-                sessionDurationMs.coerceAtLeast(0L)
-            }
-        val currentPosition = localDragPosition?.toLong() ?: displayPositionMs
-        val sliderValue =
-            if (maxDuration > 0L) {
-                currentPosition.coerceIn(0L, maxDuration).toFloat()
-            } else {
-                0f
-            }
-
         Box(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(36.dp),
+                    .height(36.dp)
+                    .semantics {
+                        progressBarRangeInfo =
+                            ProgressBarRangeInfo(
+                                current = currentPosition.toFloat(),
+                                range = 0f..(if (maxDuration > 0L) maxDuration.toFloat() else 1f),
+                            )
+                    }.pointerInput(maxDuration) {
+                        if (maxDuration <= 0L) return@pointerInput
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val trackWidth = size.width
+                            if (trackWidth <= 0) return@awaitEachGesture
+
+                            var frac = (down.position.x / trackWidth).coerceIn(0f, 1f)
+                            var seekMs = (frac * maxDuration).toLong().coerceIn(0L, maxDuration)
+                            isDragging = true
+                            dragPositionMs = seekMs
+                            onScrubbingChange(true, seekMs)
+                            down.consume()
+
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    change.consume()
+                                    isDragging = false
+                                    onSeek(seekMs)
+                                    onScrubbingChange(false, seekMs)
+                                    break
+                                }
+                                frac = (change.position.x / trackWidth).coerceIn(0f, 1f)
+                                seekMs = (frac * maxDuration).toLong().coerceIn(0L, maxDuration)
+                                dragPositionMs = seekMs
+                                onScrubbingChange(true, seekMs)
+                                change.consume()
+                            }
+                        }
+                    },
             contentAlignment = Alignment.CenterStart,
         ) {
-            // Layer 1 (bottom): Translucent secondary track/indicator showing WebDAV remote buffer progress
-            Box(
+            Canvas(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
+                        .height(36.dp),
             ) {
-                val bufferedFraction = playbackProgress.bufferedFraction.coerceIn(0f, 1f)
+                val trackY = size.height / 2f
+                val barHeight = if (isDragging) 6.dp.toPx() else 4.dp.toPx()
+                val thumbRadius = if (isDragging) 8.dp.toPx() else 6.dp.toPx()
+                val cornerRadius = CornerRadius(barHeight / 2f, barHeight / 2f)
+
+                // 1. Inactive background track
+                drawRoundRect(
+                    color = inactiveTrackColor,
+                    topLeft = Offset(0f, trackY - barHeight / 2f),
+                    size = Size(size.width, barHeight),
+                    cornerRadius = cornerRadius,
+                )
+
+                // 2. Buffered progress track
                 if (bufferedFraction > 0f) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(fraction = bufferedFraction)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)),
+                    drawRoundRect(
+                        color = bufferedTrackColor,
+                        topLeft = Offset(0f, trackY - barHeight / 2f),
+                        size = Size(size.width * bufferedFraction, barHeight),
+                        cornerRadius = cornerRadius,
+                    )
+                }
+
+                // 3. Active playback track
+                if (progressFraction > 0f) {
+                    drawRoundRect(
+                        color = activeTrackColor,
+                        topLeft = Offset(0f, trackY - barHeight / 2f),
+                        size = Size(size.width * progressFraction, barHeight),
+                        cornerRadius = cornerRadius,
+                    )
+                }
+
+                // 4. Thumb Knob with dragging halo
+                if (maxDuration > 0L) {
+                    val thumbX = (size.width * progressFraction).coerceIn(thumbRadius, size.width - thumbRadius)
+                    if (isDragging) {
+                        drawCircle(
+                            color = activeTrackColor.copy(alpha = 0.22f),
+                            radius = thumbRadius + 5.dp.toPx(),
+                            center = Offset(thumbX, trackY),
+                        )
+                    }
+                    drawCircle(
+                        color = thumbColor,
+                        radius = thumbRadius,
+                        center = Offset(thumbX, trackY),
                     )
                 }
             }
-
-            // Layer 2 (top): Interactive M3 Slider with thumb showing elapsed playback progress
-            Slider(
-                value = sliderValue,
-                onValueChange = { newPos ->
-                    localDragPosition = newPos
-                    onScrubbingChange(true, newPos.toLong())
-                },
-                onValueChangeFinished = {
-                    val finalSeekMs = (localDragPosition?.toLong() ?: displayPositionMs).coerceIn(0L, maxDuration)
-                    localDragPosition = null
-                    onSeek(finalSeekMs)
-                    onScrubbingChange(false, finalSeekMs)
-                },
-                valueRange = 0f..(if (maxDuration > 0L) maxDuration.toFloat() else 1f),
-                enabled = maxDuration > 0L,
-                colors =
-                    SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = Color.Transparent,
-                    ),
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
 
         Row(
@@ -229,7 +294,7 @@ internal fun PlayerProgressSlider(
         ) {
             Text(
                 text =
-                    if (isScrubbing || localDragPosition != null) {
+                    if (isDragging || isScrubbing) {
                         PlaybackProgress.formatMs(currentPosition)
                     } else {
                         playbackProgress.formattedCurrentPosition
@@ -241,7 +306,7 @@ internal fun PlayerProgressSlider(
                 text =
                     if (showRemainingTime && maxDuration > currentPosition) {
                         "-${PlaybackProgress.formatMs(maxDuration - currentPosition)}"
-                    } else if (!isScrubbing && localDragPosition == null) {
+                    } else if (!isDragging && !isScrubbing) {
                         playbackProgress.formattedDuration
                     } else {
                         PlaybackProgress.formatMs(maxDuration)
