@@ -14,7 +14,14 @@ This component serves as the unified presentation seam for audio track items acr
 
 **Blocked by:** None
 
-**Status:** completed
+**Status:** resolved
+
+## Answer
+Implemented foundational `AudioTrackRow` in `ui/common/AudioTrackRow.kt` (242 lines) along with collaborating helpers (`AudioTrackRowDefaults`, `TrackThumbnailLeading`, `EqualizerTrackIndicator`, `AudioQualityBadgePill`).
+- Supports slot API: `leadingContent`, `trailingContent`, `tagContent`, `actionsMenu`.
+- Integrated marquee scrolling on active tracks, equalizer wave state overlays, quality badges, and overflow dropdown menus.
+- Added comprehensive unit tests in `AudioTrackRowTest.kt` verifying formatting, tokens, layout constants, and previews.
+- Merge commit: `761dd7c`
 
 - [x] Create `ui/common/AudioTrackRow.kt` with clean slot-based API
 - [x] Implement cover thumbnail with equalizer pulse overlay for active & playing states

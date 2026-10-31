@@ -12,20 +12,23 @@
 - **600-Line Budget Compliance**:
   重构后 `AudioTrackItemRow.kt`、`PlaylistTrackRow.kt`、`SearchResultsViews.kt` 与 `PlaybackQueueBottomSheet.kt` 代码行数全部下降至 200 行以内。
 
+## Decisions so far
+- **Ticket 01 resolved**: Created `ui/common/AudioTrackRow.kt` (242 lines) and collaborators (`AudioTrackRowDefaults.kt`, `TrackThumbnailLeading.kt`, `EqualizerTrackIndicator.kt`, `AudioQualityBadgePill.kt`), unit tested in `AudioTrackRowTest.kt`. Gist: Slot-based audio row component adhering to <600 line limit with built-in marquee, equalizer, and quality badge. ([01-create-shared-audio-track-row-component.md](issues/01-create-shared-audio-track-row-component.md))
+
 ## Ticket Graph & Frontier
 ```text
-[01-create-shared-audio-track-row] (创建公共条目组件与插槽契约)
+[01-create-shared-audio-track-row] (resolved)
              │
    ┌─────────┴─────────┐
    ▼                   ▼
-[02-migrate-browser] [03-migrate-playlist] (迁移媒体库与歌单)
+[02-migrate-browser] [03-migrate-playlist] (ready)
    │                   │
    └─────────┬─────────┘
              ▼
-[04-migrate-search-and-queue-and-verify] (迁移搜索与底抽，全量验证)
+[04-migrate-search-and-queue-and-verify] (blocked by 02, 03)
 ```
 
-1. `01-create-shared-audio-track-row-component.md`: 构建通用 `AudioTrackRow` 组件 (Status: open, Blocked by: None)
-2. `02-migrate-browser-audio-track-item-row.md`: 迁移媒体库 `AudioTrackItemRow` (Status: open, Blocked by: 01)
-3. `03-migrate-playlist-track-row-with-gestures.md`: 迁移歌单 `PlaylistTrackRow` 保持 50% 阈值手势 (Status: open, Blocked by: 01)
+1. `01-create-shared-audio-track-row-component.md`: 构建通用 `AudioTrackRow` 组件 (Status: resolved)
+2. `02-migrate-browser-audio-track-item-row.md`: 迁移媒体库 `AudioTrackItemRow` (Status: open, Blocked by: None)
+3. `03-migrate-playlist-track-row-with-gestures.md`: 迁移歌单 `PlaylistTrackRow` 保持 50% 阈值手势 (Status: open, Blocked by: None)
 4. `04-migrate-search-and-queue-and-verify-compliance.md`: 迁移搜索与队列底抽，全量 UI 编译与回归验证 (Status: open, Blocked by: 02, 03)
