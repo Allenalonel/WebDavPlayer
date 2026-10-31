@@ -18,7 +18,16 @@ Refactor `ui/playlist/components/PlaylistTrackRow.kt` (currently 440 lines) to d
 
 **Blocked by:** 01
 
-**Status:** claimed
+**Status:** resolved
+
+## Answer
+Migrated `ui/playlist/components/PlaylistTrackRow.kt` to delegate to `AudioTrackRow`:
+- Shrunk `PlaylistTrackRow.kt` from 440 lines to 150 lines (≤160 lines budget).
+- Extracted `PlaylistTrackRowCollaborators.kt` with `PlaylistTrackSwipeHelper`, `PlaylistTrackRowDefaults`, `PlaylistSwipeBackground`, `PlaylistTrackLeadingContent`, and `PlaylistTrackActionsMenu`.
+- Preserved strict 50% physical width threshold (`positionalThreshold = { it * 0.5f }`) with haptic feedback and two-way actions (right swipe delete, left swipe play next).
+- Preserved custom playlist reorder mode with vertical drag handle and drag elevation (6.dp).
+- Added comprehensive unit tests in `PlaylistTrackRowTest.kt` verifying thresholds, dismissal actions, drag elevation, and line budget.
+- Merge commit: `f68a867`
 
 - [x] Wrap `AudioTrackRow` inside `SwipeToDismissBox`
 - [x] Strictly verify 50% physical threshold and haptic vibration feedback
