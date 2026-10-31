@@ -148,6 +148,7 @@ internal fun PlayerProgressSlider(
     modifier: Modifier = Modifier,
 ) {
     var showRemainingTime by remember { mutableStateOf(false) }
+    var localDragPosition by remember { mutableStateOf<Float?>(null) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         val maxDuration =
@@ -156,9 +157,10 @@ internal fun PlayerProgressSlider(
             } else {
                 sessionDurationMs.coerceAtLeast(0L)
             }
+        val currentPosition = localDragPosition?.toLong() ?: displayPositionMs
         val sliderValue =
             if (maxDuration > 0L) {
-                displayPositionMs.coerceIn(0L, maxDuration).toFloat()
+                currentPosition.coerceIn(0L, maxDuration).toFloat()
             } else {
                 0f
             }
@@ -197,11 +199,14 @@ internal fun PlayerProgressSlider(
             Slider(
                 value = sliderValue,
                 onValueChange = { newPos ->
+                    localDragPosition = newPos
                     onScrubbingChange(true, newPos.toLong())
                 },
                 onValueChangeFinished = {
-                    onSeek(displayPositionMs)
-                    onScrubbingChange(false, displayPositionMs)
+                    val finalSeekMs = (localDragPosition?.toLong() ?: displayPositionMs).coerceIn(0L, maxDuration)
+                    localDragPosition = null
+                    onSeek(finalSeekMs)
+                    onScrubbingChange(false, finalSeekMs)
                 },
                 valueRange = 0f..(if (maxDuration > 0L) maxDuration.toFloat() else 1f),
                 enabled = maxDuration > 0L,
@@ -224,8 +229,8 @@ internal fun PlayerProgressSlider(
         ) {
             Text(
                 text =
-                    if (isScrubbing) {
-                        PlaybackProgress.formatMs(displayPositionMs)
+                    if (isScrubbing || localDragPosition != null) {
+                        PlaybackProgress.formatMs(currentPosition)
                     } else {
                         playbackProgress.formattedCurrentPosition
                     },
@@ -234,9 +239,9 @@ internal fun PlayerProgressSlider(
             )
             Text(
                 text =
-                    if (showRemainingTime && maxDuration > displayPositionMs) {
-                        "-${PlaybackProgress.formatMs(maxDuration - displayPositionMs)}"
-                    } else if (!isScrubbing) {
+                    if (showRemainingTime && maxDuration > currentPosition) {
+                        "-${PlaybackProgress.formatMs(maxDuration - currentPosition)}"
+                    } else if (!isScrubbing && localDragPosition == null) {
                         playbackProgress.formattedDuration
                     } else {
                         PlaybackProgress.formatMs(maxDuration)
