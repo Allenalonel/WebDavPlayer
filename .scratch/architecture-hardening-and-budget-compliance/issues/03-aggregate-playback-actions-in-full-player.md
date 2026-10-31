@@ -28,7 +28,7 @@ Aggregate playback intents into a clean, reusable `PlaybackActions` contract:
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Create `ui/player/PlaybackActions.kt` interface and `rememberPlaybackActions` helper
 - [ ] Refactor `FullPlayerView.kt` to accept `playbackActions: PlaybackActions`
