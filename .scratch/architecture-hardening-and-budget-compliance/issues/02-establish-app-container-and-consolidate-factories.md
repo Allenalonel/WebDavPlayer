@@ -23,7 +23,7 @@ Establish a unified `AppContainer` dependency interface and a centralized `AppVi
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Define `AppContainer` interface and implement on `WebDavApplication`
 - [ ] Create unified `AppViewModelFactory` supporting all 4 ViewModels
