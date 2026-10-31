@@ -91,7 +91,7 @@ object AudioTrackRowDefaults {
 fun AudioTrackTrailing(
     durationText: String?,
     audioQualityBadge: AudioQualityBadge?,
-    actionsMenu: (@Composable (() -> Unit) -> Unit)?,
+    actionsMenu: (@Composable (dismiss: () -> Unit) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     if (audioQualityBadge == null && durationText.isNullOrBlank() && actionsMenu == null) return
