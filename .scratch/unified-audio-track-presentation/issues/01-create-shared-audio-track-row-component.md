@@ -14,7 +14,7 @@ This component serves as the unified presentation seam for audio track items acr
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Create `ui/common/AudioTrackRow.kt` with clean slot-based API
 - [ ] Implement cover thumbnail with equalizer pulse overlay for active & playing states
