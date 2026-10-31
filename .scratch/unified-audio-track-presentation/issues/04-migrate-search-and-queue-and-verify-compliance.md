@@ -19,7 +19,7 @@ Complete the migration across the remaining two track lists and execute the full
 
 **Blocked by:** 02, 03
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Refactor `SearchAudioTrackItem` in `SearchResultsViews.kt` to use `AudioTrackRow`
 - [ ] Refactor `QueueTrackItemRow` in `PlaybackQueueBottomSheet.kt` to use `AudioTrackRow`
