@@ -90,7 +90,7 @@ _Avoid_: Last Song, Resume Info, History Record
 _Avoid_: Last Folder, Recent Path, Navigation History
 
 **Lyrics Source**:
-与曲目关联的歌词提供方，支持从远程同目录同名 `.lrc` 文件解析或从音频内嵌标签中提取时间轴文本，具备逐行副歌展开、逐字时间戳清洗及主译双语时间对齐能力。
+与曲目关联的歌词提供方，支持从远程同目录同名 `.lrc` 文件解析或从音频内嵌标签中提取时间轴文本，具备逐行副歌展开、逐字时间戳清洗及主译双语时间对齐能力。由 `TrackMetadataRepository` 内部自主担保双源解析，对外向调用端屏蔽底层网络探测与文件格式提取细节。
 _Avoid_: Lyric File, Lrc Text
 
 **Bilingual Lyric Line**:
@@ -106,7 +106,7 @@ _Avoid_: Sound Priority, Volume Interrupt
 _Avoid_: Background Player, Async Notification, Late Elevation
 
 **Authenticated MediaSource**:
-携带活跃 WebDAV Server 凭据头（Basic Authentication）与自定义 SSL 证书配置的流媒体源实例，确保播放器在发生后台元数据富化、自动重试或播放切歌时身份凭证与安全连接不丢失。
+携带活跃 WebDAV Server 凭据头（Basic Authentication）与自定义 SSL 证书配置的流媒体源实例，确保播放器在发生后台元数据富化、自动重试或播放切歌时身份凭证与安全连接不丢失。完全收拢于 `Media3AudioPlayerEngine` 内部私有构建，对外不暴露冗余的适配器接缝。
 _Avoid_: Naked Stream, Anonymous DataSource, Static Player URL
 
 **Non-Disruptive Metadata Enrichment**:
@@ -204,6 +204,14 @@ _Avoid_: Error Handler, Network Retry Helper, Watchdog Service
 **Internal Seam Discipline**:
 针对高内聚深层模块的架构防御规范：当单一对外接缝背后承载多项正交子领域逻辑时，必须通过包级私有协作者进行内部接缝化解耦，严格防范单文件代码堆砌膨胀与引力黑洞效应。
 _Avoid_: Single File Monolith, Mega Class, Massive File
+
+**Playback Session Host**:
+专职承载 Android 系统前台服务生命周期、系统媒体会话（MediaSession）、前台通知（Notification）及音频焦点（AudioFocus）的系统级宿主适配器。不再伪装实现底层 `AudioPlayerEngine`，专职单向监听与派发 `MusicPlayerAppSession` 意图。
+_Avoid_: Fake Engine, Forwarding Host, Engine Proxy
+
+**Server Deletion Cascade**:
+在用户注销或删除特定 WebDAV Server 节点时，由本地持久层通过事务原子级联清理其在数据库中沉淀的目录镜像快照（`directory_cache`）、音轨元数据（`track_metadata`）、封面缩略图磁盘文件及网络连接池的清理机制，杜绝存储膨胀与孤儿数据泄露。
+_Avoid_: Orphan Data, Server Wipe, Manual Cache Delete
 
 
 ### UI & Navigation
