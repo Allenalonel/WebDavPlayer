@@ -11,7 +11,7 @@ The directory browser's row component will focus strictly on directory-specific 
 
 **Blocked by:** 01
 
-**Status:** open
+**Status:** claimed
 
 - [ ] Refactor `AudioTrackItemRow` to delegate to `AudioTrackRow`
 - [ ] Connect `RemoteFile` badge resolution and metadata formatting
