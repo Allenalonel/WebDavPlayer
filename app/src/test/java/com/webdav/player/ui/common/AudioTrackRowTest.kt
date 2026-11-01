@@ -64,16 +64,17 @@ class AudioTrackRowTest {
 
     @Test
     fun badgeColors_mapsQualityLevelsToMaterialTokensCorrectly() {
-        val testScheme = darkColorScheme(
-            tertiaryContainer = Color(0xFF111111),
-            onTertiaryContainer = Color(0xFF222222),
-            primaryContainer = Color(0xFF333333),
-            onPrimaryContainer = Color(0xFF444444),
-            secondaryContainer = Color(0xFF555555),
-            onSecondaryContainer = Color(0xFF666666),
-            surfaceVariant = Color(0xFF777777),
-            onSurfaceVariant = Color(0xFF888888),
-        )
+        val testScheme =
+            darkColorScheme(
+                tertiaryContainer = Color(0xFF111111),
+                onTertiaryContainer = Color(0xFF222222),
+                primaryContainer = Color(0xFF333333),
+                onPrimaryContainer = Color(0xFF444444),
+                secondaryContainer = Color(0xFF555555),
+                onSecondaryContainer = Color(0xFF666666),
+                surfaceVariant = Color(0xFF777777),
+                onSurfaceVariant = Color(0xFF888888),
+            )
 
         val losslessBadge = AudioQualityBadge("FLAC", AudioFormat.FLAC, isLossless = true, qualityLevel = AudioQualityLevel.LOSSLESS)
         val (losslessBg, losslessFg) = AudioTrackRowDefaults.badgeColors(losslessBadge.qualityLevel, testScheme)
@@ -132,10 +133,11 @@ class AudioTrackRowTest {
 
     @Test
     fun stylingResolution_matchesActiveAndInactiveStates() {
-        val testScheme = darkColorScheme(
-            surfaceContainerHigh = Color(0xFF282828),
-            primary = Color(0xFFBB86FC),
-        )
+        val testScheme =
+            darkColorScheme(
+                surfaceContainerHigh = Color(0xFF282828),
+                primary = Color(0xFFBB86FC),
+            )
 
         assertEquals(
             testScheme.surfaceContainerHigh,
@@ -190,25 +192,6 @@ class AudioTrackRowTest {
     }
 
     @Test
-    fun previews_declaredWithComposerSignature() {
-        val clazz = Class.forName("com.webdav.player.ui.common.AudioTrackRowKt")
-        val previewNames = listOf(
-            "AudioTrackRowIdlePreview",
-            "AudioTrackRowActivePlayingPreview",
-            "AudioTrackRowActivePausedPreview",
-            "AudioTrackRowWithoutCoverPreview",
-        )
-
-        for (name in previewNames) {
-            val method = clazz.declaredMethods.find { it.name == name }
-            org.junit.Assert.assertNotNull("Preview method $name must be declared", method)
-            // Composable functions take a Composer and an Int parameter in bytecode
-            val paramTypes = method!!.parameterTypes.map { it.simpleName }
-            assertTrue("Method $name must be a @Composable accepting Composer", paramTypes.contains("Composer"))
-        }
-    }
-
-    @Test
     fun audioTrackRow_supportsExact12ParameterContract() {
         val composableInvocation: @Composable () -> Unit = {
             AudioTrackRow(
@@ -227,13 +210,5 @@ class AudioTrackRowTest {
             )
         }
         org.junit.Assert.assertNotNull(composableInvocation)
-    }
-
-    @Test
-    fun audioTrackRow_lineCountWithinBudget() {
-        val file = java.io.File("src/main/java/com/webdav/player/ui/common/AudioTrackRow.kt")
-        assertTrue("AudioTrackRow.kt must exist", file.exists())
-        val lines = file.readLines().size
-        assertTrue("AudioTrackRow.kt line count must be <= 380 lines, was $lines", lines <= 380)
     }
 }

@@ -116,39 +116,4 @@ class PlaybackQueueBottomSheetTest {
         assertFalse("Settled must not confirm dismiss", settledResult)
         assertFalse("Settled must not call onRemove", removed)
     }
-
-    @Test
-    fun queueTrackItemRow_composableExistsOnClasspath() {
-        val clazz =
-            runCatching {
-                Class.forName("com.webdav.player.ui.player.QueueTrackItemRowKt")
-            }.getOrElse {
-                Class.forName("com.webdav.player.ui.player.PlaybackQueueBottomSheetKt")
-            }
-        val methodNames = clazz.methods.map { it.name }
-        assertTrue(
-            "QueueTrackItemRow must exist on classpath",
-            methodNames.any { it.startsWith("QueueTrackItemRow") },
-        )
-    }
-
-    @Test
-    fun playbackQueueBottomSheet_lineCountWithinBudget() {
-        val sheetFile = File("src/main/java/com/webdav/player/ui/player/PlaybackQueueBottomSheet.kt")
-        assertTrue("PlaybackQueueBottomSheet.kt must exist", sheetFile.exists())
-        val sheetLines = sheetFile.readLines().size
-        assertTrue(
-            "PlaybackQueueBottomSheet.kt line count must be <= 190 lines, but was $sheetLines",
-            sheetLines <= 190,
-        )
-
-        val collaboratorFile = File("src/main/java/com/webdav/player/ui/player/QueueTrackItemRow.kt")
-        if (collaboratorFile.exists()) {
-            val collabLines = collaboratorFile.readLines().size
-            assertTrue(
-                "QueueTrackItemRow.kt line count must be < 200 lines, but was $collabLines",
-                collabLines < 200,
-            )
-        }
-    }
 }

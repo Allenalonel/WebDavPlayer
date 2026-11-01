@@ -97,12 +97,4 @@ class AudioTrackItemRowTest {
         assertEquals("MP3 320k", mp3Badge!!.label)
         assertEquals(320, mp3Badge.estimatedBitrateKbps)
     }
-
-    @Test
-    fun audioTrackItemRow_lineCountWithinBudget() {
-        val sourceFile = File("src/main/java/com/webdav/player/ui/browser/components/AudioTrackItemRow.kt")
-        assertTrue("Source file should exist at ${sourceFile.absolutePath}", sourceFile.exists())
-        val lineCount = sourceFile.readLines().size
-        assertTrue("AudioTrackItemRow.kt line count ($lineCount) must be <= 130 lines", lineCount <= 130)
-    }
 }

@@ -107,6 +107,62 @@ class PackagingSeamVerificationTest {
     }
 
     @Test
+    fun moduleLayeringAndSeamBoundaries_haveNoReverseImportsOrLeaks() {
+        // 1. ui.common must never reverse-import screen-specific UI packages
+        val uiCommonReverseImport =
+            Regex(
+                """^import com\.webdav\.player\.ui\.(browser|playlist|player|server)\.""",
+                RegexOption.MULTILINE,
+            )
+        val uiCommonOffenders =
+            File(sourceRoot, "ui/common")
+                .walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .filter { uiCommonReverseImport.containsMatchIn(it.readText()) }
+                .map { it.name }
+                .toList()
+        assertTrue(
+            "ui.common must not reverse-import screen-specific packages (browser/playlist/player/server): $uiCommonOffenders",
+            uiCommonOffenders.isEmpty(),
+        )
+
+        // 2. CueAssociationHelper must remain encapsulated inside data/cue
+        val cueLeakImport =
+            Regex(
+                """^import com\.webdav\.player\.data\.cue\.(CueAssociationHelper|CueTextCache)\b""",
+                RegexOption.MULTILINE,
+            )
+        val cueDirCanonical = File(sourceRoot, "data/cue").canonicalPath
+        val cueLeakOffenders =
+            sourceRoot
+                .walkTopDown()
+                .filter { it.isFile && it.extension == "kt" && !it.canonicalPath.startsWith(cueDirCanonical) }
+                .filter { cueLeakImport.containsMatchIn(it.readText()) }
+                .map { it.name }
+                .toList()
+        assertTrue(
+            "Internal CUE helpers must not leak outside data/cue (route through CueSheetResolver): $cueLeakOffenders",
+            cueLeakOffenders.isEmpty(),
+        )
+
+        // 3. Deleted zombie forwarding shells must not reappear
+        val bannedZombiePaths =
+            listOf(
+                "ui/browser/DirectoryBrowserViewModelFactory.kt",
+                "ui/server/ServerManagementViewModelFactory.kt",
+                "ui/playlist/PlaylistListViewModelFactory.kt",
+                "ui/playlist/PlaylistDetailViewModelFactory.kt",
+                "data/cue/CueTextCache.kt",
+                "ui/browser/components/AudioTrackItemRowCompat.kt",
+            )
+        val existingZombies = bannedZombiePaths.filter { File(sourceRoot, it).exists() }
+        assertTrue(
+            "Zombie forwarding shells and deprecated compatibility files must remain deleted: $existingZombies",
+            existingZombies.isEmpty(),
+        )
+    }
+
+    @Test
     fun proguardRules_enforcePreciseKeepRulesWithoutBloatedWildcards() {
         val proguardFile = File("proguard-rules.pro")
         assertTrue("proguard-rules.pro must exist", proguardFile.exists())

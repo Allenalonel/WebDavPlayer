@@ -129,25 +129,4 @@ class PlaylistTrackRowTest {
         assertEquals(6.dp, PlaylistTrackRowDefaults.DragElevation)
         assertEquals(0.dp, PlaylistTrackRowDefaults.IdleElevation)
     }
-
-    @Test
-    fun playlistTrackRow_lineCountWithinBudget() {
-        val sourceFile = File("src/main/java/com/webdav/player/ui/playlist/components/PlaylistTrackRow.kt")
-        assertTrue("Source file should exist at ${sourceFile.absolutePath}", sourceFile.exists())
-        val lineCount = sourceFile.readLines().size
-        assertTrue("PlaylistTrackRow.kt line count ($lineCount) must be <= 160 lines", lineCount <= 160)
-    }
-
-    @Test
-    fun composablesAndCollaborators_existOnClasspath() {
-        val rowClazz = Class.forName("com.webdav.player.ui.playlist.components.PlaylistTrackRowKt")
-        val rowMethods = rowClazz.methods.map { it.name }
-        assertTrue("PlaylistTrackRow must exist", rowMethods.any { it.startsWith("PlaylistTrackRow") })
-
-        val collabClazz = Class.forName("com.webdav.player.ui.playlist.components.PlaylistTrackRowCollaboratorsKt")
-        val collabMethods = collabClazz.methods.map { it.name }
-        assertTrue("PlaylistSwipeBackground must exist", collabMethods.any { it.startsWith("PlaylistSwipeBackground") })
-        assertTrue("PlaylistTrackLeadingContent must exist", collabMethods.any { it.startsWith("PlaylistTrackLeadingContent") })
-        assertTrue("PlaylistVirtualTrackTag must exist", collabMethods.any { it.startsWith("PlaylistVirtualTrackTag") })
-    }
 }

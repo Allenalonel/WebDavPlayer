@@ -75,6 +75,15 @@
 - **水平滑动自适应面包屑（Directory Breadcrumb Strip）**：MD3 胶囊 Chip 路径条，支持任意祖先层级瞬时穿梭回跳。
 - **跳动音浪状态指示器（Equalizer Track Indicator）**：目录浏览时即时呈现当前正在播放的曲目动态三柱等化器跳动脉冲。
 
+### 💽 8. CUE 虚拟分轨与目录闭环流式播放（CUE Virtual Tracks & Gapless Streaming）
+- **单物理流流内无缝映射**：针对整轨 FLAC/WAV/APE 专辑，底层始终保持单条持久化网络流，无需断开重连，在会话层精确换算相对时间轴，提供 0 爆音、0 声学卡顿的纯流式 Gapless 体验。
+- **目录环形闭环回流（Folder Ring Playback）**：列表循环时严格约束在当前活跃目录，末曲播放完自然回流至目录首曲，绝不跨越同级或父级兄弟目录。
+
+### 🌐 9. 跨服务器多源歌单与毫秒级曲库全文检索（Cross-Server Playlists & Instant Search）
+- **跨服务器自由收藏**：单一歌单支持混合收录来自多个不同 WebDAV 服务器的音轨，自动隔离与装配对应服务器鉴权凭据。
+- **失效曲目优雅置灰与自愈**：服务器离线或文件丢失时呈现置灰减淡音轨（`InactivePlaylistTrack`），提供清晰失效原因诊断，流式切歌平滑静默跳跃；内置后台异步封面自愈补全。
+- **即时全文搜索与历史管理**：毫秒级多维匹配已访问目录镜像、音频标签与 CUE 虚拟分轨，集成 LRU 搜索历史。
+
 ---
 
 ## 🏗️ 架构设计与代码组织
@@ -89,11 +98,16 @@ app/src/main/
 │
 ├── java/com/webdav/player/
 │   ├── data/
+│   │   ├── cue/                             # CUE 领域解析适配与内存 LRU 缓存
+│   │   │   ├── CueParser.kt                 # 词法与分轨时间轴状态机解析器
+│   │   │   ├── CueAssociationHelper.kt      # 启发式物理音频文件关联辅助器
+│   │   │   └── DefaultCueSheetResolver.kt   # 深层 CUE 解析器生产实现
 │   │   ├── local/                           # 本地持久层 (Room / DataStore)
-│   │   │   ├── AppDatabase.kt               # Room 核心数据库定义
+│   │   │   ├── AppDatabase.kt               # Room 核心数据库定义 (版本 5)
 │   │   │   ├── CoverArtStorage.kt           # 本地封面缩略图磁盘压制与存活性校验
 │   │   │   ├── DirectoryCacheDao.kt         # SWR 目录缓存数据访问接口
 │   │   │   ├── TrackMetadataDao.kt          # 音频元数据本地索引访问接口
+│   │   │   ├── PlaylistDao.kt               # 跨服务器歌单数据访问接口
 │   │   │   └── WebDavServerDao.kt           # WebDAV 服务器配置仓储持久化
 │   │   ├── lyrics/
 │   │   │   └── LrcParser.kt                 # 工业级 LRC 解析器（清洗行内词标签与双语归并）
@@ -105,51 +119,80 @@ app/src/main/
 │   │   │   └── DefaultTrackMetadataResolver.kt # 内部两阶段 Range 提取与双源封面探测器
 │   │   ├── player/                          # 媒体引擎适配与流媒体数据源
 │   │   │   ├── Media3AudioPlayerEngine.kt   # AndroidX Media3 (ExoPlayer) 核心实现
-│   │   │   ├── WebDavDataSourceFactory.kt   # 动态凭据注入的 OkHttp 数据源工厂
-│   │   │   ├── WebDavMediaSourceAdapter.kt  # 服务上下文自适应媒体源构建器
-│   │   │   └── AudioFocusHandler.kt         # 系统音频焦点监听与自动暂挂恢复
+│   │   │   ├── WebDavMediaSourceBuilder.kt  # 引擎内部流式媒体源与数据源工厂构建器
+│   │   │   ├── CanonicalResamplingAudioProcessor.kt # 低采样率规范化重采样管道
+│   │   │   ├── AudioRoutingObserver.kt      # 物理音频路由监听与缓冲区刷新器
+│   │   │   └── StreamingHardwareLockManager.kt # CPU 与 Wi-Fi 硬件流式唤醒锁
 │   │   ├── remote/                          # WebDAV 网络协议客户端
 │   │   │   ├── OkHttpWebDavClient.kt        # 基于 OkHttp 的 WebDAV PROPFIND / 请求执行器
 │   │   │   └── WebDavXmlParser.kt           # 高性能 XML 解析远程多状态响应 (Multistatus)
-│   │   ├── repository/                      # 领域仓储契约的具体实现
-│   │   │   ├── DirectoryRepositoryImpl.kt   # SWR 目录缓存与远程拉取协调仓储
-│   │   │   ├── TrackMetadataRepositoryImpl.kt # 自愈式元数据与双源封面缓存仓储
-│   │   │   ├── LyricsRepositoryImpl.kt      # 双源歌词检索与规范化仓储
+│   │   ├── repository/                      # 领域仓储契约的具体实现 (Deep Repositories)
+│   │   │   ├── DirectoryRepositoryImpl.kt   # 目录富化 SWR 协调仓储
+│   │   │   ├── TrackMetadataRepositoryImpl.kt # 自愈式元数据、双源封面与歌词整合仓储
+│   │   │   ├── PlaylistRepositoryImpl.kt    # 跨服务器歌单管理与连通性自愈仓储
+│   │   │   ├── LibrarySearchRepositoryImpl.kt # 曲库即时全文检索与搜索历史仓储
 │   │   │   └── ServerRepositoryImpl.kt      # WebDAV 服务器配置响应式仓储
-│   │   └── service/                         # Android 系统前台媒体服务
+│   │   └── service/                         # Android 系统前台媒体服务与宿主
 │   │       ├── WebDavMediaService.kt        # MediaSessionService 系统前台服务
-│   │       ├── PlaybackSessionHost.kt       # 首帧同步前台提升与通知控制器
+│   │       ├── PlaybackSessionHost.kt       # 专职前台提升、通知控制器与 MediaSession 宿主
+│   │       ├── AudioFocusHandler.kt         # 系统音频焦点监听与单向意图仲裁
 │   │       └── WebDavNotificationProvider.kt # 媒体样式通知与按键操作构建器
 │   │
+│   ├── di/                                  # 依赖注入容器与统一工厂
+│   │   ├── AppContainer.kt                  # 应用全局依赖容器接口契约
+│   │   └── AppViewModelFactory.kt           # 类型分发的单一通用 ViewModelProvider 工厂
+│   │
 │   ├── domain/                              # 纯业务领域模型与业务逻辑（无 Android 框架依赖）
+│   │   ├── cue/                             # CUE 虚拟分轨领域抽象
+│   │   │   └── CueSheetResolver.kt          # 深层 CUE 探测与解析领域接口
 │   │   ├── model/                           # 核心不可变领域模型
 │   │   │   ├── AudioTrack.kt                # 音频曲目
 │   │   │   ├── TrackMetadata.kt             # 音频元数据与封面
+│   │   │   ├── VirtualTrack.kt              # CUE 虚拟分轨模型
+│   │   │   ├── Playlist.kt / PlaylistTrackEntry.kt # 跨服务器歌单及失效原因模型
+│   │   │   ├── DirectoryContent.kt          # 目录聚合富化内容模型
 │   │   │   ├── Lyrics.kt / LyricLine.kt     # 双语歌词时间轴模型
-│   │   │   ├── PlaybackQueue.kt             # 播放队列
+│   │   │   ├── PlaybackQueue.kt             # 播放队列 (含 QueueOrigin 拓扑)
 │   │   │   └── WebDavServer.kt              # WebDAV 服务器配置与连接上下文
 │   │   ├── repository/                      # 抽象仓储接口定义（Repository Seams）
-│   │   └── session/                         # 全局单例播放业务会话中枢
-│   │       └── MusicPlayerAppSession.kt     # 播放队列流转、状态轮询与元数据富化中枢
+│   │   └── session/                         # 全局播放业务会话中枢 (Internal Seam Architecture)
+│   │       ├── MusicPlayerAppSession.kt     # 播放会话公共接口 (Playback Intent 入口)
+│   │       ├── MusicPlayerAppSessionImpl.kt # 轻量总调度器 (Lean Orchestrator)
+│   │       ├── PlaybackTimelineCoordinator.kt # 时间轴与事件流监听内部协作者
+│   │       ├── SessionPersistenceCoordinator.kt # 会话落盘与冷恢复内部协作者
+│   │       ├── PlaybackQueueManager.kt      # 播放队列状态机流转内部协作者
+│   │       ├── PlaybackFaultTolerance.kt    # 流式故障自愈与弱网看门狗内部协作者
+│   │       ├── PlaybackMetadataCoordinator.kt # 元数据与歌词流协调内部协作者
+│   │       └── VirtualTimelineEngine.kt     # 纯物理流到虚拟分轨时间换算引擎
 │   │
 │   ├── ui/                                  # 表现层 (Jetpack Compose / Material Design 3)
+│   │   ├── common/                          # 跨视窗通用表现组件
+│   │   │   ├── AudioTrackRow.kt             # 通用槽位音轨行呈现组件 (100% 覆盖)
+│   │   │   ├── EqualizerTrackIndicator.kt   # 三柱跳动音浪状态指示器
+│   │   │   └── CoverThumbnailImage.kt       # 封面缩略图加载器
 │   │   ├── browser/                         # 远程目录浏览器组件
 │   │   │   ├── DirectoryBrowserScreen.kt    # 曲库浏览主视图
-│   │   │   └── DirectoryBrowserViewModel.kt # 目录浏览 ViewModel（暴露 SWR 状态流）
+│   │   │   ├── DirectoryBrowserViewModel.kt # 目录浏览纯状态投影器
+│   │   │   └── components/                  # 目录面包屑、CUE专辑卡片、搜索面板
 │   │   ├── player/                          # 播放器核心组件
 │   │   │   ├── MiniPlayer.kt                # 全局悬浮底栏 Mini-Player 胶囊
 │   │   │   ├── FullPlayerView.kt            # 全屏沉浸式渐变播放器
+│   │   │   ├── PlaybackActions.kt           # 聚合播控意图契约
 │   │   │   ├── LyricsView.kt                # 双语歌词毫秒级平滑联动视图
 │   │   │   └── PlaybackQueueBottomSheet.kt  # 底部全高/半高播放队列浮层
+│   │   ├── playlist/                        # 跨服务器歌单管理视图
+│   │   │   ├── PlaylistListScreen.kt        # 歌单列表与创建
+│   │   │   ├── PlaylistDetailScreen.kt      # 歌单详情 (带 50% 阈值侧滑与自定义拖拽排序)
+│   │   │   └── PlaylistDetailViewModel.kt   # 歌单详情 ViewModel
 │   │   ├── server/                          # WebDAV 服务器管理
 │   │   │   ├── ServerListScreen.kt          # 服务器列表与连接状态指示
 │   │   │   └── ServerEditDialog.kt          # 服务器新增/编辑弹窗（含自签名 SSL 开关）
 │   │   ├── navigation/                      # 顶层导航调度
-│   │   │   └── MainNavigationCoordinator.kt # 主导航底栏协调器
+│   │   │   └── MainNavigationCoordinator.kt # 纯粹视窗路由协调器
 │   │   └── theme/                           # Material 3 调色板与动态主题
 │   │
 │   ├── MainActivity.kt                      # 单 Activity 顶层脚手架（Edge-to-Edge 边到边窗口）
-│   └── WebDavApplication.kt                 # 全局单例生命周期与依赖注入容器
+│   └── WebDavApplication.kt                 # 全局单例生命周期与 AppContainer 实现
 │
 └── res/                                     # 资源清单
     ├── drawable/ic_launcher_*.xml           # MD3 舒展超椭圆与重心校准的大圆角应用图标
@@ -259,6 +302,19 @@ app/src/main/
 - [ADR 0010: 首帧零延迟前台服务提升与动态凭据化媒体源](docs/adr/0010-synchronous-service-elevation-and-dynamic-authenticated-mediasource.md)
 - [ADR 0011: 加深 TrackMetadataRepository 并内化封面存活性与自愈机制](docs/adr/0011-deepen-track-metadata-repository-and-internalize-resolver.md)
 - [ADR 0012: 主流流式单向驱动模式与 ASF 时间戳下溢归一化防护](docs/adr/0012-stream-only-demuxing-and-timestamp-underflow-protection.md)
+- [ADR 0013: 64 位单架构 Native ABI、R8 二进制瘦身与打包接缝](docs/adr/0013-64bit-only-abi-and-r8-binary-thinning.md)
+- [ADR 0014: CUE 虚拟分轨流内映射与目录闭环流式播放](docs/adr/0014-cue-virtual-track-and-folder-ring-gapless-streaming.md)
+- [ADR 0015: 会话级集中管控播放队列与容错自愈流媒体管线](docs/adr/0015-session-managed-queue-and-fault-tolerant-streaming-pipeline.md)
+- [ADR 0016: 加深播放引擎并收窄为流式渲染管道](docs/adr/0016-deepen-player-engine-to-stream-rendering-pipeline.md)
+- [ADR 0017: 弹性后台播放、硬件级防断流与全机型电池白名单策略](docs/adr/0017-resilient-background-playback-and-battery-optimization-whitelist.md)
+- [ADR 0018: 统一系统级播控意图接缝至应用会话层及音频路由防外放与自愈补遗](docs/adr/0018-unify-system-playback-intent-routing-through-app-session.md)
+- [ADR 0019: 精简回放流渲染管道并强化会话宿主所有权](docs/adr/0019-streamline-playback-pipeline-and-consolidate-session-host.md)
+- [ADR 0020: 跨服务器歌单体系与即时曲库全文搜索](docs/adr/0020-cross-server-playlists-and-incremental-library-search.md)
+- [ADR 0021: 深层 CUE 解析器下沉与消除网络客户端泄漏](docs/adr/0021-deepen-cue-sheet-resolver-and-purge-network-leakage.md)
+- [ADR 0022: 歌单仓储加深与下沉连通性及封面自愈](docs/adr/0022-deepen-playlist-repository-with-reachability-and-artwork-self-healing.md)
+- [ADR 0023: 播放会话内部接缝化与解构上帝类](docs/adr/0023-internal-seams-and-session-decomposition.md)
+- [ADR 0024: 下沉目录富化与搜索历史至仓储层并轻量化视图模型](docs/adr/0024-deepen-directory-and-search-repositories-and-slim-viewmodel.md)
+- [ADR 0025: 深化播放引擎与收敛仓储层](docs/adr/0025-deepen-player-engine-and-consolidate-repositories.md)
 
 ---
 

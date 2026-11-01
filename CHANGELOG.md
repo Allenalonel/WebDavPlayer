@@ -4,6 +4,27 @@
 
 ---
 
+## [3.0] - 2026-11-01
+
+### 🚀 新增 (Added)
+- **跨服务器多源歌单与自愈式离线置灰体系 (Cross-Server Playlists & Self-Healing)**：全新支持跨多个 WebDAV Server 收藏音频资产构建自定义歌单。建立服务器离线与文件丢失（401/403/404）的置灰减淡状态（`InactivePlaylistTrack`），提供精准失效原因反馈，流式切歌平滑静默跳跃；内置后台异步封面自愈机制，自动修补缺失的缩略图快照。
+- **即时曲库全文检索与历史管理 (Instant Library Search & History)**：基于已访问目录镜像在本地构建毫秒级全文索引，支持多维即时匹配目录、音频标题/艺术家/专辑及 CUE 虚拟分轨；原生集成 LRU 20 项搜索历史持久化。
+- **通用音轨呈现接缝组件 (Unified AudioTrackRow Seam)**：提炼高内聚、基于 Slot API 的通用条目组件 `AudioTrackRow`，内置跑马灯标题、副标题拼接、自适应等化器动态脉冲及高解析度音质角标；100% 覆盖媒体库、歌单、搜索、播放队列及 CUE 专辑分轨，削减逾千行重复 UI 样板。
+- **全应用统一依赖容器 (Unified AppContainer & AppViewModelFactory)**：在 Application 层确立 `AppContainer` 契约，以单一依赖源泉统领仓储与会话单例，提供集中类型分发的 `AppViewModelFactory`，彻底消灭散落的工厂文件与并行影子依赖图。
+- **聚合播控意图契约 (Cohesive PlaybackActions Seam)**：提炼强类型 `PlaybackActions` 契约，收敛大播放器与 MiniPlayer 的散碎回调参数（由 17 个缩减至 5 个），终结外部容器接线板代码。
+- **架构边界确定性门禁 (Deterministic Architecture Seam Verification)**：在 `PackagingSeamVerificationTest` 中建立自动化边界守卫，强制断言 `ui.common` 单向依赖、CUE 内部类封装及防僵尸壳文件复活，并以 `CODING_STANDARDS.md` 确立基于职责正交性与模块深度的代码审查标尺。
+
+### ⚡ 优化与架构深化 (Changed & Refactored)
+- **播放引擎内核深度化与媒体源内聚 (Deepen Player Engine & Consolidate MediaSource)**：折叠单一适配器假性接口 `WebDavMediaSourceAdapter`，将流式数据源与 `ProgressiveMediaSource` 装配收敛为引擎内部私有协作者 `WebDavMediaSourceBuilder`，拔除单测中全部 10 处强制向下强转。
+- **解除宿主伪引擎委托并打破启动循环依赖 (Decouple PlaybackSessionHost & Session)**：移除 `PlaybackSessionHost` 对底层播放引擎的类委托，宿主专职作为 Android 系统前台服务与 `MediaSession` 适配器；纯物理流引擎直连会话，彻底根除启动期 `(playerEngine as? PlaybackSessionHost)` 运行时强转。
+- **双源歌词完全并入元数据仓储 (Consolidate Dual-Source Lyrics)**：将远程 `.lrc` 探测与内嵌歌词回退统一收拢至深层 `TrackMetadataRepository` 内部，消除独立的 100 条二级歌词内存缓存，彻底删除浅层仓储 `LyricsRepository` 与 `LyricsRepositoryImpl`，消除双重 Mock 负担。
+- **会话中枢时间轴协作者解耦 (PlaybackTimelineCoordinator)**：引入第 5 个包级私有协作者，将底层 5 处协程流监听与虚拟时间轴双向换算完全剥离，核心会话类 `MusicPlayerAppSessionImpl` 由 789 行精简至 497 行，彻底回归至 600 行熔断线内。
+- **物理清除过渡期僵尸壳文件 (Purge Zombie Forwarding Shells)**：删除 4 个旧 ViewModel 工厂、废弃的全局静态缓存 `CueTextCache` 及 105 行未使用的兼容别名文件 `AudioTrackItemRowCompat.kt`。
+- **拔除字节码反射测试 (Purge Implementation-Locking Reflection Tests)**：清理所有针对内部 Kotlin 文件名的 `Class.forName` 测试与局部死板行数限制，测试表面 100% 聚焦于真实行为契约。
+- **架构决策记录 (ADR)**：归档落地 [ADR 0020](docs/adr/0020-cross-server-playlists-and-incremental-library-search.md)、[ADR 0021](docs/adr/0021-deepen-cue-sheet-resolver-and-purge-network-leakage.md)、[ADR 0022](docs/adr/0022-deepen-playlist-repository-with-reachability-and-artwork-self-healing.md)、[ADR 0023](docs/adr/0023-internal-seams-and-session-decomposition.md)、[ADR 0024](docs/adr/0024-deepen-directory-and-search-repositories-and-slim-viewmodel.md) 与 [ADR 0025](docs/adr/0025-deepen-player-engine-and-consolidate-repositories.md)。
+
+---
+
 ## [2.6] - 2026-10-26
 
 ### 🚀 新增 (Added)
