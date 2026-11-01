@@ -29,6 +29,13 @@
 ---
 
 ## Tickets Breakdown
-1. `01-purge-zombie-forwarding-and-dead-code.md`: 剪除 6 个零调用僵尸文件与过时别名 (Status: open, Blocked by: None)
-2. `02-fix-reverse-dependencies-and-consolidate-common-components.md`: 扶正 Equalizer 依赖并合并 ui/common 微模块 (Status: open, Blocked by: None)
-3. `03-align-miniplayer-to-playback-actions.md`: MiniPlayer 对齐 PlaybackActions 并执行全量回归 (Status: open, Blocked by: 01, 02)
+1. `01-purge-zombie-forwarding-and-dead-code.md`: 剪除 6 个零调用僵尸文件与过时别名 (Status: resolved, Blocked by: None)
+2. `02-fix-reverse-dependencies-and-consolidate-common-components.md`: 扶正 Equalizer 依赖并合并 ui/common 微模块 (Status: resolved, Blocked by: None)
+3. `03-align-miniplayer-to-playback-actions.md`: MiniPlayer 对齐 PlaybackActions 并执行全量回归 (Status: resolved, Blocked by: 01, 02)
+
+---
+
+## Decisions-so-far
+- **Ticket 01 Resolved**: 彻底移除 4 个冗余的 `*ViewModelFactory.kt` 转发壳、废弃的 `CueTextCache.kt` 及 `AudioTrackItemRowCompat.kt` 别名文件。单测表面对齐真实组件接口。
+- **Ticket 02 Resolved**: 倒置依赖，将 `EqualizerWaveState` 和 `EqualizerStateHelper` 归入 `ui/common/`；将 `TrackThumbnailLeading`、`AudioQualityBadgePill`、`TrackTagPill` 及 `AudioTrackRowDefaults` 合并至 `AudioTrackRow.kt`（379 行，严格控制在 ≤380 行及 600 行熔断线内）。
+- **Ticket 03 Resolved**: `MiniPlayer` 重构为直接消费 `PlaybackActions` 契约，彻底删除冗余包装 `DockedMiniPlayer`；全量单测通过，所有源码文件严格遵守 600 行单文件红线。
