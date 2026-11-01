@@ -63,12 +63,10 @@ object MiniPlayerDefaults {
 @Composable
 fun MiniPlayer(
     sessionState: PlayerSessionState,
-    onTogglePlayPause: () -> Unit,
+    playbackActions: PlaybackActions,
     modifier: Modifier = Modifier,
-    onSkipToNext: () -> Unit = {},
     onMiniPlayerClick: () -> Unit = {},
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
-    onRetryPlayback: () -> Unit = onTogglePlayPause,
 ) {
     val currentTrack = sessionState.currentTrack ?: return
 
@@ -100,7 +98,7 @@ fun MiniPlayer(
         Column(modifier = Modifier.fillMaxWidth()) {
             if (isMiniPlayerRetryBannerVisible(sessionState)) {
                 MiniPlayerRetryBanner(
-                    onRetryPlayback = onRetryPlayback,
+                    onRetryPlayback = { playbackActions.retryPlayback() },
                 )
             }
             Row(
@@ -158,14 +156,20 @@ fun MiniPlayer(
                 // Play / Pause / Buffering Toggle Button
                 PlayPauseToggleButton(
                     sessionState = sessionState,
-                    onTogglePlayPause = if (sessionState.isSuspendedRetry) onRetryPlayback else onTogglePlayPause,
+                    onTogglePlayPause = {
+                        if (sessionState.isSuspendedRetry) {
+                            playbackActions.retryPlayback()
+                        } else {
+                            playbackActions.togglePlayPause()
+                        }
+                    },
                 )
 
                 Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
 
                 // Skip Next Button
                 IconButton(
-                    onClick = onSkipToNext,
+                    onClick = { playbackActions.skipToNext() },
                     modifier =
                         Modifier
                             .size(MiniPlayerDefaults.SkipNextButtonSize)
@@ -192,27 +196,6 @@ fun MiniPlayer(
             )
         }
     }
-}
-
-@Composable
-fun DockedMiniPlayer(
-    sessionState: PlayerSessionState,
-    onTogglePlayPause: () -> Unit,
-    modifier: Modifier = Modifier,
-    onSkipToNext: () -> Unit = {},
-    onMiniPlayerClick: () -> Unit = {},
-    playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
-    onRetryPlayback: () -> Unit = onTogglePlayPause,
-) {
-    MiniPlayer(
-        sessionState = sessionState,
-        onTogglePlayPause = onTogglePlayPause,
-        modifier = modifier,
-        onSkipToNext = onSkipToNext,
-        onMiniPlayerClick = onMiniPlayerClick,
-        playbackProgress = playbackProgress,
-        onRetryPlayback = onRetryPlayback,
-    )
 }
 
 @Composable

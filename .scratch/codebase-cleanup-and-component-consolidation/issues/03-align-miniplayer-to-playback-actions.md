@@ -26,11 +26,18 @@ Align the docked mini-player to the cohesive `PlaybackActions` contract and exec
 
 **Blocked by:** 01, 02
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Refactor `MiniPlayer.kt` signature to take `playbackActions: PlaybackActions`
-- [ ] Delete `DockedMiniPlayer` pass-through wrapper
-- [ ] Update `MainActivity.kt` to invoke `MiniPlayer` directly
-- [ ] Update `MiniPlayerTest` unit tests to supply `PlaybackActions`
-- [ ] Verify line counts for all files in `app/src/main/java` are strictly under 600 lines
-- [ ] Run `./gradlew testDebugUnitTest` and confirm 100% pass rate
+- [x] Refactor `MiniPlayer.kt` signature to take `playbackActions: PlaybackActions`
+- [x] Delete `DockedMiniPlayer` pass-through wrapper
+- [x] Update `MainActivity.kt` to invoke `MiniPlayer` directly
+- [x] Update `MiniPlayerTest` unit tests to supply `PlaybackActions`
+- [x] Verify line counts for all files in `app/src/main/java` are strictly under 600 lines
+- [x] Run `./gradlew testDebugUnitTest` and confirm 100% pass rate
+
+## Answer
+- Refactored `MiniPlayer` to directly consume `PlaybackActions`, matching the architecture of `FullPlayerView`. Connected transport controls (play/pause toggle, skip next, retry banner) directly to the unified intent contract.
+- Deleted the redundant `DockedMiniPlayer` pass-through wrapper in `MiniPlayer.kt` and updated `MainActivity.kt` to call `MiniPlayer` directly.
+- Added tests in `MiniPlayerPresentationTest.kt` verifying `MiniPlayer` signature against `PlaybackActions` and verifying reflection absence of `DockedMiniPlayer`.
+- Audited line counts across `app/src/main/java`: all business logic and UI files strictly adhere to the < 600 lines budget.
+- Executed the full unit test suite (`./gradlew testDebugUnitTest`), achieving 100% pass rate with zero errors.
