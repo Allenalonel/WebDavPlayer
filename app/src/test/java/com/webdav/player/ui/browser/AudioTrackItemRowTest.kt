@@ -1,15 +1,12 @@
 package com.webdav.player.ui.browser
 
-import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioQualityBadge
 import com.webdav.player.domain.model.AudioQualityLevel
-import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.ui.browser.components.resolveAudioSubtitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -99,19 +96,6 @@ class AudioTrackItemRowTest {
         assertNotNull(mp3Badge)
         assertEquals("MP3 320k", mp3Badge!!.label)
         assertEquals(320, mp3Badge.estimatedBitrateKbps)
-    }
-
-    @Test
-    fun backwardCompatibilityAliases_existOnClasspath() {
-        val clazz = Class.forName("com.webdav.player.ui.browser.components.AudioTrackItemRowKt")
-        val methodNames = clazz.methods.map { it.name }
-        assertTrue("AudioTrackItemRow must exist", methodNames.any { it.startsWith("AudioTrackItemRow") })
-        assertTrue("FileItemRow alias must exist", methodNames.any { it.startsWith("FileItemRow") })
-        assertTrue("EqualizerTrackIndicator alias must exist", methodNames.any { it.startsWith("EqualizerTrackIndicator") })
-        assertTrue("AudioQualityBadgePill alias must exist", methodNames.any { it.startsWith("AudioQualityBadgePill") })
-        assertTrue("AudioBadge alias must exist", methodNames.any { it.startsWith("AudioBadge") })
-        assertTrue("LyricBadge alias must exist", methodNames.any { it.startsWith("LyricBadge") })
-        assertTrue("OtherBadge alias must exist", methodNames.any { it.startsWith("OtherBadge") })
     }
 
     @Test

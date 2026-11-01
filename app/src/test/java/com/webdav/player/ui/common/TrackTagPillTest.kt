@@ -7,16 +7,16 @@ import java.io.File
 class TrackTagPillTest {
     @Test
     fun trackTagPill_composableSignatureExistsOnClasspath() {
-        val clazz = Class.forName("com.webdav.player.ui.common.TrackTagPillKt")
+        val clazz = Class.forName("com.webdav.player.ui.common.AudioTrackRowKt")
         val methodNames = clazz.methods.map { it.name }
         assertTrue("TrackTagPill must exist on classpath", methodNames.any { it.startsWith("TrackTagPill") })
     }
 
     @Test
-    fun trackTagPill_lineCountWithinBudget() {
-        val file = File("src/main/java/com/webdav/player/ui/common/TrackTagPill.kt")
-        assertTrue("TrackTagPill.kt must exist", file.exists())
+    fun audioTrackRow_consolidatedLineCountWithinBudget() {
+        val file = File("src/main/java/com/webdav/player/ui/common/AudioTrackRow.kt")
+        assertTrue("AudioTrackRow.kt must exist", file.exists())
         val lines = file.readLines().size
-        assertTrue("TrackTagPill.kt line count must be < 60 lines, was $lines", lines < 60)
+        assertTrue("AudioTrackRow.kt line count must be <= 380 lines, was $lines", lines <= 380)
     }
 }

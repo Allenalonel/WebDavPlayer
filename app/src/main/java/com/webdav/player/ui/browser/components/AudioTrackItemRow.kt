@@ -1,6 +1,3 @@
-@file:JvmName("AudioTrackItemRowKt")
-@file:JvmMultifileClass
-
 package com.webdav.player.ui.browser.components
 
 import androidx.compose.foundation.layout.size
