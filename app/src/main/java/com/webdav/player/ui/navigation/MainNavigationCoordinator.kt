@@ -7,10 +7,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-enum class AppDestination(val label: String) {
+enum class AppDestination(
+    val label: String,
+) {
     DIRECTORY_BROWSER("媒体库"),
     PLAYLISTS("歌单"),
-    SERVER_LIST("服务器")
+    SERVER_LIST("服务器"),
 }
 
 data class MainNavigationUiState(
@@ -26,12 +28,13 @@ class MainNavigationCoordinator(
     initialIsMiniPlayerVisible: Boolean = false,
     private val onDestinationChanged: ((AppDestination) -> Unit)? = null,
 ) {
-    private val _uiState = MutableStateFlow(
-        MainNavigationUiState(
-            currentDestination = initialDestination,
-            isMiniPlayerVisible = initialIsMiniPlayerVisible,
+    private val _uiState =
+        MutableStateFlow(
+            MainNavigationUiState(
+                currentDestination = initialDestination,
+                isMiniPlayerVisible = initialIsMiniPlayerVisible,
+            ),
         )
-    )
     val uiState: StateFlow<MainNavigationUiState> = _uiState.asStateFlow()
 
     private var hasCheckedInitialActiveServer = hasExplicitInitialDestination
@@ -43,7 +46,10 @@ class MainNavigationCoordinator(
                 _uiState.update { it.copy(currentDestination = AppDestination.DIRECTORY_BROWSER) }
                 onDestinationChanged?.invoke(AppDestination.DIRECTORY_BROWSER)
             }
-        } else if (!hasExplicitInitialDestination && activeServer == null && _uiState.value.currentDestination == AppDestination.DIRECTORY_BROWSER) {
+        } else if (!hasExplicitInitialDestination &&
+            activeServer == null &&
+            _uiState.value.currentDestination == AppDestination.DIRECTORY_BROWSER
+        ) {
             _uiState.update { it.copy(currentDestination = AppDestination.SERVER_LIST) }
             onDestinationChanged?.invoke(AppDestination.SERVER_LIST)
         }
@@ -51,7 +57,10 @@ class MainNavigationCoordinator(
 
     fun selectDestination(destination: AppDestination) {
         _uiState.update {
-            if (destination == AppDestination.PLAYLISTS && it.currentDestination == AppDestination.PLAYLISTS && it.selectedPlaylistId != null) {
+            if (destination == AppDestination.PLAYLISTS &&
+                it.currentDestination == AppDestination.PLAYLISTS &&
+                it.selectedPlaylistId != null
+            ) {
                 it.copy(selectedPlaylistId = null)
             } else if (destination != AppDestination.PLAYLISTS) {
                 it.copy(currentDestination = destination, selectedPlaylistId = null)
@@ -70,7 +79,10 @@ class MainNavigationCoordinator(
         _uiState.update { it.copy(selectedPlaylistId = null) }
     }
 
-    fun onServerCardClicked(@Suppress("UNUSED_PARAMETER") server: WebDavServer, onResetToRoot: (() -> Unit)? = null) {
+    fun onServerCardClicked(
+        @Suppress("UNUSED_PARAMETER") server: WebDavServer,
+        onResetToRoot: (() -> Unit)? = null,
+    ) {
         onResetToRoot?.invoke()
         selectDestination(AppDestination.DIRECTORY_BROWSER)
     }
@@ -79,7 +91,7 @@ class MainNavigationCoordinator(
         _uiState.update {
             it.copy(
                 isMiniPlayerVisible = sessionState.hasTrack,
-                isFullPlayerExpanded = if (!sessionState.hasTrack) false else it.isFullPlayerExpanded
+                isFullPlayerExpanded = if (!sessionState.hasTrack) false else it.isFullPlayerExpanded,
             )
         }
     }

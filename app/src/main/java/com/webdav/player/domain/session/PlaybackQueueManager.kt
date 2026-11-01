@@ -243,7 +243,12 @@ internal class PlaybackQueueManager(
                 resolveDirectoryCueMap(directory, audioFiles, server)
             }
 
-        val queue = PlaybackQueue.fromTracks(tracks = tracks, virtualTracksMap = resolvedVirtualMap, selectedIndex = selectedIndex)
+        val queue =
+            PlaybackQueue.fromTracks(
+                tracks = tracks,
+                virtualTracksMap = resolvedVirtualMap,
+                selectedIndex = selectedIndex,
+            )
         val selectedTrack = queue.currentTrack ?: return null
 
         return if (selectedTrack.isVirtualTrack) {
@@ -252,8 +257,13 @@ internal class PlaybackQueueManager(
                     ?: selectedTrack.copy(id = selectedTrack.id.substringBefore("#cue_"))
             val virtualTracks = resolvedVirtualMap[selectedTrack.remotePath] ?: emptyList()
             val targetVirtualIndex =
-                virtualTracks.indexOfFirst { it.trackNumber == selectedTrack.id.substringAfter("#cue_").toIntOrNull() }.takeIf { it >= 0 } ?: 0
-            val cuePath = directory.files.firstOrNull { it.isCue }?.path ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
+                virtualTracks
+                    .indexOfFirst { it.trackNumber == selectedTrack.id.substringAfter("#cue_").toIntOrNull() }
+                    .takeIf { it >= 0 }
+                    ?: 0
+            val cuePath =
+                directory.files.firstOrNull { it.isCue }?.path
+                    ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
             QueueLoadRequest(
                 queue = queue,
                 targetTrack = selectedTrack,

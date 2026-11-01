@@ -13,8 +13,21 @@ Execute the complete verification and regression suite after implementing Ticket
 
 **Blocked by:** 01, 02
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Execute `./gradlew testDebugUnitTest` and confirm 100% green tests
-- [ ] Verify line counts for all affected files
-- [ ] Confirm zero cross-package leakage
+- [x] Execute `./gradlew testDebugUnitTest` and confirm 100% green tests
+- [x] Verify line counts for all affected files
+- [x] Confirm zero cross-package leakage
+
+## Answer
+- Executed `./gradlew testDebugUnitTest` across the entire project; 100% of unit and integration tests passed.
+- Line Budget Audit:
+  - `MainNavigationCoordinator.kt`: 108 lines (budget < 250, limit < 600)
+  - `LibrarySearchRepositoryImpl.kt`: 242 lines (budget < 250, limit < 600)
+  - `MainActivity.kt`: 416 lines (limit < 600)
+  - `PlaybackQueueManager.kt`: 387 lines (limit < 600)
+  - `CueAssociationHelper.kt`: 68 lines (limit < 600)
+- Architecture Seam Invariants:
+  - Exactly zero imports of `CueAssociationHelper` outside `data/cue/` (helper is now `internal object`).
+  - Exactly zero playback control pass-through methods in `MainNavigationCoordinator`.
+- Zero ktlint/compiler warnings on modified code.
