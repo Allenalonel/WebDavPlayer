@@ -28,6 +28,7 @@ internal class WebDavDigestAuthenticator(
     private val username: String,
     private val password: String,
     private val secureRandom: SecureRandom = SecureRandom(),
+    private val onDigestAuthenticated: (() -> Unit)? = null,
 ) : Authenticator {
     private val nonceCountMap = ConcurrentHashMap<String, AtomicInteger>()
 
@@ -53,23 +54,12 @@ internal class WebDavDigestAuthenticator(
                 }
             }
 
+            onDigestAuthenticated?.invoke()
             val authorizationHeader = buildDigestAuthorization(response.request, challenge)
             return response.request
                 .newBuilder()
                 .header("Authorization", authorizationHeader)
                 .build()
-        }
-
-        // Fallback for Basic authentication challenge if not yet attempted
-        val basicHeader = challenges.firstOrNull { it.trimStart().startsWith("Basic", ignoreCase = true) }
-        if (basicHeader != null) {
-            val currentAuth = response.request.header("Authorization")
-            if (currentAuth == null) {
-                return response.request
-                    .newBuilder()
-                    .header("Authorization", Credentials.basic(username, password))
-                    .build()
-            }
         }
 
         return null

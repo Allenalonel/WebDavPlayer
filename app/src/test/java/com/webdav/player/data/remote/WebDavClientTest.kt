@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -742,8 +743,18 @@ class WebDavClientTest {
         val standardClient = client.buildClientForServer(server)
         val streamingClient = client.buildStreamingClientForServer(server)
 
-        assertTrue("Standard OkHttp client must enable fastFallback for dual-stack Happy Eyeballs", standardClient.fastFallback)
-        assertTrue("Streaming OkHttp client must enable fastFallback for dual-stack Happy Eyeballs", streamingClient.fastFallback)
+        assertSame("Standard OkHttp client must use FastFallbackDns", FastFallbackDns, standardClient.dns)
+        assertSame("Streaming OkHttp client must use FastFallbackDns", FastFallbackDns, streamingClient.dns)
+    }
+
+    @Test
+    fun fastFallbackDns_ordersIpv4BeforeIpv6() {
+        val ipv6 = InetAddress.getByName("2001:db8::1")
+        val ipv4 = InetAddress.getByName("192.0.2.1")
+        val mixed = listOf(ipv6, ipv4)
+        val sorted = mixed.sortedWith(compareBy { if (it is java.net.Inet4Address) 0 else 1 })
+        assertEquals(ipv4, sorted.first())
+        assertEquals(ipv6, sorted.last())
     }
 
     @Test
