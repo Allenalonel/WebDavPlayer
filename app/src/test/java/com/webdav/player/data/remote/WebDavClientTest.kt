@@ -13,6 +13,7 @@ import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -733,4 +734,181 @@ class WebDavClientTest {
             standardClient.readTimeoutMillis,
         )
     }
+
+    @Test
+    fun fastFallback_isConfiguredOnStandardAndStreamingClients() {
+        val client = OkHttpWebDavClient()
+        val server = WebDavServer(id = 12L, name = "FastFallbackServer", url = "http://192.168.1.50:8080/dav")
+        val standardClient = client.buildClientForServer(server)
+        val streamingClient = client.buildStreamingClientForServer(server)
+
+        assertTrue("Standard OkHttp client must enable fastFallback for dual-stack Happy Eyeballs", standardClient.fastFallback)
+        assertTrue("Streaming OkHttp client must enable fastFallback for dual-stack Happy Eyeballs", streamingClient.fastFallback)
+    }
+
+    @Test
+    fun testConnection_withDigestAuthentication_succeedsAfterChallenge() =
+        runTest {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(401)
+                    .setHeader("WWW-Authenticate", """Digest realm="SynologyNAS", nonce="nonce123456", qop="auth""""),
+            )
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(207)
+                    .setBody("""<?xml version="1.0" encoding="utf-8"?><multistatus xmlns="DAV:"></multistatus>"""),
+            )
+            server.start()
+
+            val webDavServer =
+                WebDavServer(
+                    id = 13L,
+                    name = "Digest NAS",
+                    url = "http://${server.hostName}",
+                    port = server.port,
+                    pathPrefix = "/dav",
+                    username = "admin",
+                    password = "secretpassword",
+                )
+
+            val result = client.testConnection(webDavServer)
+
+            assertTrue("Expected Success on valid Digest authentication, but got $result", result is ConnectionResult.Success)
+            assertEquals("Expected exactly 2 requests (challenge then replay)", 2, server.requestCount)
+
+            val req1 = server.takeRequest()
+            assertEquals("PROPFIND", req1.method)
+
+            val req2 = server.takeRequest()
+            assertEquals("PROPFIND", req2.method)
+            val authHeader = req2.getHeader("Authorization")
+            assertNotNull(authHeader)
+            assertTrue("Replayed request must contain Digest authorization header", authHeader!!.startsWith("Digest "))
+            assertTrue("Digest auth must contain username", authHeader.contains("""username="admin""""))
+            assertTrue("Digest auth must contain realm", authHeader.contains("""realm="SynologyNAS""""))
+            assertTrue("Digest auth must contain nonce", authHeader.contains("""nonce="nonce123456""""))
+            assertTrue("Digest auth must contain response hash", authHeader.contains("response="))
+        }
+
+    @Test
+    fun listDirectory_withDigestAuthentication_succeedsAfterChallenge() =
+        runTest {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(401)
+                    .setHeader("WWW-Authenticate", """Digest realm="SynologyNAS", nonce="nonce789", qop="auth""""),
+            )
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(207)
+                    .setBody(
+                        """
+                        <?xml version="1.0" encoding="utf-8"?>
+                        <multistatus xmlns="DAV:">
+                          <response>
+                            <href>/dav/music/</href>
+                            <propstat><prop><resourcetype><collection/></resourcetype></prop><status>HTTP/1.1 200 OK</status></propstat>
+                          </response>
+                          <response>
+                            <href>/dav/music/track1.mp3</href>
+                            <propstat><prop><getcontentlength>1024</getcontentlength></prop><status>HTTP/1.1 200 OK</status></propstat>
+                          </response>
+                        </multistatus>
+                        """.trimIndent(),
+                    ),
+            )
+            server.start()
+
+            val webDavServer =
+                WebDavServer(
+                    id = 14L,
+                    name = "Digest List",
+                    url = "http://${server.hostName}",
+                    port = server.port,
+                    pathPrefix = "/dav",
+                    username = "user",
+                    password = "password123",
+                )
+
+            val result = client.listDirectory(webDavServer, "/music/")
+
+            assertTrue("Expected ListDirectoryResult.Success, but got $result", result is ListDirectoryResult.Success)
+            val dir = (result as ListDirectoryResult.Success).directory
+            assertEquals(1, dir.files.size)
+            assertEquals("track1.mp3", dir.files[0].name)
+        }
+
+    @Test
+    fun testConnection_withDigestAuthentication_badCredentials_terminatesGracefullyWithoutLoop() =
+        runTest {
+            // First 401 returns challenge
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(401)
+                    .setHeader("WWW-Authenticate", """Digest realm="SynologyNAS", nonce="nonceBad", qop="auth""""),
+            )
+            // Second 401 indicates invalid credentials for the replayed request
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(401)
+                    .setHeader("WWW-Authenticate", """Digest realm="SynologyNAS", nonce="nonceBad", qop="auth""""),
+            )
+            server.start()
+
+            val webDavServer =
+                WebDavServer(
+                    id = 15L,
+                    name = "Digest Bad Auth",
+                    url = "http://${server.hostName}",
+                    port = server.port,
+                    pathPrefix = "/dav",
+                    username = "admin",
+                    password = "wrongpassword",
+                )
+
+            val result = client.testConnection(webDavServer)
+
+            assertTrue("Expected Failure on bad credentials", result is ConnectionResult.Failure)
+            assertEquals(401, (result as ConnectionResult.Failure).statusCode)
+            assertEquals("Authenticator must give up after 1 challenge retry, terminating without infinite loop", 2, server.requestCount)
+        }
+
+    @Test
+    fun streamingClient_withDigestAuthentication_succeeds() =
+        runTest {
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(401)
+                    .setHeader("WWW-Authenticate", """Digest realm="StreamRealm", nonce="streamNonce", qop="auth""""),
+            )
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("audio stream payload bytes"),
+            )
+            server.start()
+
+            val webDavServer =
+                WebDavServer(
+                    id = 16L,
+                    name = "Stream Digest",
+                    url = "http://${server.hostName}",
+                    port = server.port,
+                    pathPrefix = "/dav",
+                    username = "streamUser",
+                    password = "streamPassword",
+                )
+
+            val streamClient = (client as OkHttpWebDavClient).getStreamingClientForServer(webDavServer)
+            val request = okhttp3.Request.Builder()
+                .url(webDavServer.resolveFileUrl("/song.flac"))
+                .get()
+                .build()
+
+            val response = streamClient.newCall(request).execute()
+            assertEquals(200, response.code)
+            assertEquals("audio stream payload bytes", response.body?.string())
+            assertEquals(2, server.requestCount)
+        }
 }

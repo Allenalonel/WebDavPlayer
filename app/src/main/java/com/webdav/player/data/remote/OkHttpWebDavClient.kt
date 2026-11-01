@@ -28,6 +28,7 @@ class OkHttpWebDavClient(
     private val baseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
+            .dns(FastFallbackDns)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
@@ -35,6 +36,7 @@ class OkHttpWebDavClient(
     private val streamingBaseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
+            .dns(FastFallbackDns)
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectionPool(streamingConnectionPool)
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -367,17 +369,7 @@ class OkHttpWebDavClient(
                     chain.proceed(request)
                 }
             }
-            builder.authenticator { _, response ->
-                if (response.request.header("Authorization") != null) {
-                    // Already tried with authorization and failed, prevent 401 retry loop
-                    null
-                } else {
-                    response.request
-                        .newBuilder()
-                        .header("Authorization", credential)
-                        .build()
-                }
-            }
+            builder.authenticator(WebDavDigestAuthenticator(server.username, server.password))
         }
 
         if (server.allowSelfSigned) {
@@ -402,7 +394,10 @@ class OkHttpWebDavClient(
             sslContext.init(null, trustAllCerts, SecureRandom())
             val sslSocketFactory = sslContext.socketFactory
 
-            builder.sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+            val x509TrustManager = trustAllCerts[0] as? X509TrustManager
+            if (x509TrustManager != null) {
+                builder.sslSocketFactory(sslSocketFactory, x509TrustManager)
+            }
             builder.hostnameVerifier { _, _ -> true }
         }
 
