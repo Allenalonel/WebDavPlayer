@@ -27,12 +27,16 @@
 ---
 
 ## Tickets Breakdown
-1. `01-rfc3986-path-decoding-and-plus-sign-resilience.md`: RFC 3986 路径解码与加号对称保真 (Status: ready-for-agent, Blocked by: None)
-2. `02-manifest-aware-artwork-probe-filtering.md`: 内存清单感知的外置封面探测过滤 (Status: ready-for-agent, Blocked by: None)
-3. `03-digest-authentication-and-fast-fallback.md`: HTTP Digest 认证与 Happy Eyeballs 竞速 (Status: ready-for-agent, Blocked by: None)
-4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: ready-for-agent, Blocked by: 01, 02, 03)
+1. `01-rfc3986-path-decoding-and-plus-sign-resilience.md`: RFC 3986 路径解码与加号对称保真 (Status: resolved, Blocked by: None)
+2. `02-manifest-aware-artwork-probe-filtering.md`: 内存清单感知的外置封面探测过滤 (Status: resolved, Blocked by: None)
+3. `03-digest-authentication-and-fast-fallback.md`: HTTP Digest 认证与 Happy Eyeballs 竞速 (Status: resolved, Blocked by: None)
+4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: resolved, Blocked by: 01, 02, 03)
 
 ---
 
 ## Decisions-so-far
-- (In progress)
+- **Ticket 01 Resolved**: 实现了 RFC 3986 路径解码算法 `WebDavXmlParser.decodeRfc3986Path`，保留字面量 `+` 并安全处理残缺 `%` 序列；`WebDavServer.resolveFileUrl` 严格保证空格编码为 `%20`、加号编码为 `%2B` 并保留目录斜杠，彻底根除包含加号文件浏览与播放 404 错误。
+- **Ticket 02 Resolved**: 元数据解析流水线引入可选的 `directoryFiles` 内存清单，在发起 HTTP 请求前通过忽略大小写的查找表预过滤候选封面文件；未出现的文件直接在内存中剔除并设置哨兵，将外部封面探测网络请求从几十次压降至 0 次或 1 次。
+- **Ticket 03 Resolved**: 实现标准的 RFC 7616 / RFC 2617 `WebDavDigestAuthenticator`，支持 `MD5` 与 `qop="auth"`，携带安全随机 `cnonce` 与单调递增 `nc`，并在重试失败后立即中止退出；通过 `FastFallbackDns` 在常规与流媒体连接池实现 IPv4-first 双栈快速回退；动态记录 Digest 服务端主机防止向 Digest 服务端重复发送明文凭据。
+- **Ticket 04 Resolved**: 全量 1012 个单元测试与端到端测试 100% 通过（0 失败）；`./gradlew verifyReleasePackaging` 验证通过（APK: 6.68 MB <= 7.5 MB, classes.dex: 3.98 MB <= 4.0 MB, arm64-v8a 单一架构且无 32 位遗留库）。
+- **Code Review Remediations Resolved**: 消除单调用卫星文件 `FastFallbackDns.kt`，将其并入 `OkHttpWebDavClient.kt` 消除碎片化并保证深模块内聚；移除投机性拓展属性 `OkHttpClient.fastFallback`，以真实接口为测试表面；纯化 `WebDavDigestAuthenticator` 剔除冗余 Basic 逻辑；清理业务方法中冗余的手动 Auth 构建代码。
