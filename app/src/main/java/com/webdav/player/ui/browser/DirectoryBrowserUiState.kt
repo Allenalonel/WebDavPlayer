@@ -8,7 +8,7 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
-import com.webdav.player.ui.browser.components.EqualizerStateHelper
+import com.webdav.player.ui.common.EqualizerStateHelper
 
 data class DirectoryBrowserUiState(
     val isInitializing: Boolean = true,
