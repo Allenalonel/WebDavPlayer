@@ -54,7 +54,7 @@ import com.webdav.player.ui.common.ThumbnailMemoryCache
 import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
-import com.webdav.player.ui.player.DockedMiniPlayer
+import com.webdav.player.ui.player.MiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
@@ -158,13 +158,11 @@ class MainActivity : ComponentActivity() {
                                             animationSpec = tween(200),
                                         ) + fadeOut(animationSpec = tween(200)),
                                 ) {
-                                    DockedMiniPlayer(
+                                    MiniPlayer(
                                         sessionState = playerSessionState,
+                                        playbackActions = playbackActions,
                                         playbackProgress = playbackProgress,
-                                        onTogglePlayPause = { playbackActions.togglePlayPause() },
-                                        onSkipToNext = { playbackActions.skipToNext() },
                                         onMiniPlayerClick = { coordinator.expandFullPlayer() },
-                                        onRetryPlayback = { playbackActions.retryPlayback() },
                                         modifier =
                                             Modifier
                                                 .fillMaxWidth()

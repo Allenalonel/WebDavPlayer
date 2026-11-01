@@ -199,4 +199,24 @@ class MiniPlayerPresentationTest {
         assertEquals(1, retryCount)
         assertEquals(1, playPauseCount)
     }
+
+    @Test
+    fun miniPlayer_signatureAcceptsPlaybackActionsContract() {
+        val session = sessionWithTrack(createTrack())
+        val composableInvocation: @androidx.compose.runtime.Composable () -> Unit = {
+            MiniPlayer(
+                sessionState = session,
+                playbackActions = PlaybackActions.EMPTY,
+            )
+        }
+        org.junit.Assert.assertNotNull(composableInvocation)
+    }
+
+    @Test
+    fun dockedMiniPlayer_wrapperIsRemovedFromClasspath() {
+        val clazz = Class.forName("com.webdav.player.ui.player.MiniPlayerKt")
+        val methodNames = clazz.methods.map { it.name }
+        assertFalse("DockedMiniPlayer must be eliminated", methodNames.any { it.startsWith("DockedMiniPlayer") })
+        assertTrue("MiniPlayer must exist", methodNames.any { it.startsWith("MiniPlayer") })
+    }
 }
