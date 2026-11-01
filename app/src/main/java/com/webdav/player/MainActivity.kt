@@ -54,8 +54,8 @@ import com.webdav.player.ui.common.ThumbnailMemoryCache
 import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
-import com.webdav.player.ui.player.MiniPlayer
 import com.webdav.player.ui.player.FullPlayerView
+import com.webdav.player.ui.player.MiniPlayer
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
 import com.webdav.player.ui.playlist.PlaylistDetailViewModel
@@ -272,6 +272,7 @@ class MainActivity : ComponentActivity() {
                                     PlaylistDetailScreen(
                                         viewModel = detailViewModel,
                                         onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
+                                        isCurrentTab = isPlaylists,
                                         onTrackClick = { track, index ->
                                             detailViewModel.onTrackClick(track, index)
                                         },

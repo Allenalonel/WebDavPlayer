@@ -14,7 +14,9 @@
 
 ## 活跃任务 (Active)
 
-> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
+| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
+| :--- | :--- | :---: | :---: | :--- |
+| `webdav-protocol-and-artwork-resilience` | WebDAV 路径 RFC 3986 百分号解码、外置封面内存预过滤与 Digest 认证加速 | 4 | Ready for Agent | [`webdav-protocol-and-artwork-resilience/spec.md`](webdav-protocol-and-artwork-resilience/spec.md) |
 
 ---
 

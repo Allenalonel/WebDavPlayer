@@ -100,6 +100,7 @@ internal class DragDropState(
 fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel,
     onBackClick: () -> Unit,
+    isCurrentTab: Boolean = true,
     onTrackClick: (PlaylistTrackEntry, Int) -> Unit = { track, index -> viewModel.onTrackClick(track, index) },
     onPlayAll: () -> Unit = { viewModel.playAll() },
     modifier: Modifier = Modifier,
@@ -118,10 +119,16 @@ fun PlaylistDetailScreen(
         }
     }
 
-    BackHandler(enabled = uiState.isCustomReorderMode) {
+    LaunchedEffect(isCurrentTab) {
+        if (!isCurrentTab && uiState.isCustomReorderMode) {
+            viewModel.saveCustomReorder()
+        }
+    }
+
+    BackHandler(enabled = isCurrentTab && uiState.isCustomReorderMode) {
         viewModel.saveCustomReorder()
     }
-    BackHandler(enabled = !uiState.isCustomReorderMode, onBack = onBackClick)
+    BackHandler(enabled = isCurrentTab && !uiState.isCustomReorderMode, onBack = onBackClick)
 
     val listState = rememberLazyListState()
     val dragDropState =

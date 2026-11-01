@@ -14,11 +14,19 @@ interface CoverArtStorage {
     suspend fun saveThumbnail(
         serverId: Long,
         remotePath: String,
-        artworkBytes: ByteArray
+        artworkBytes: ByteArray,
     ): String?
 
-    fun getThumbnailFile(serverId: Long, remotePath: String): File?
-    fun deleteThumbnail(serverId: Long, remotePath: String)
+    fun getThumbnailFile(
+        serverId: Long,
+        remotePath: String,
+    ): File?
+
+    fun deleteThumbnail(
+        serverId: Long,
+        remotePath: String,
+    )
+
     suspend fun deleteServerCovers(serverId: Long)
 
     /**
@@ -40,22 +48,22 @@ class CoverArtStorageImpl(
     private val context: Context,
     private val maxDimension: Int = DEFAULT_MAX_DIMENSION,
     private val maxCacheSizeBytes: Long = DEFAULT_MAX_CACHE_SIZE_BYTES,
-    private val customDir: File? = null
+    private val customDir: File? = null,
 ) : CoverArtStorage {
-
     companion object {
         const val DEFAULT_MAX_DIMENSION = 512
         const val DEFAULT_MAX_CACHE_SIZE_BYTES = 50L * 1024 * 1024L // 50 MB
     }
 
-    private val legacyMigrationDone = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val legacyMigrationDone =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
 
     val coversDir: File
         get() = getCoversDir(createIfMissing = false)
 
-    private fun getBaseCoversDirectory(): File {
-        return customDir ?: context.cacheDir?.let { File(it, "covers") } ?: File(context.filesDir, "covers")
-    }
+    private fun getBaseCoversDirectory(): File =
+        customDir ?: context.cacheDir?.let { File(it, "covers") } ?: File(context.filesDir, "covers")
 
     private fun getCoversDir(createIfMissing: Boolean = false): File {
         val baseDir = getBaseCoversDirectory()
@@ -84,7 +92,10 @@ class CoverArtStorageImpl(
         }
     }
 
-    private fun migrateLegacyCoversDir(targetDir: File, legacyDir: File) {
+    private fun migrateLegacyCoversDir(
+        targetDir: File,
+        legacyDir: File,
+    ) {
         try {
             val files = legacyDir.listFiles() ?: return
             for (file in files) {
@@ -109,78 +120,115 @@ class CoverArtStorageImpl(
     override suspend fun saveThumbnail(
         serverId: Long,
         remotePath: String,
-        artworkBytes: ByteArray
-    ): String? = withContext(Dispatchers.IO) {
-        if (artworkBytes.isEmpty()) return@withContext null
-        if (ImageHeaderValidator.isRecognizedImage(artworkBytes) && !ImageHeaderValidator.isCompleteImage(artworkBytes)) {
-            return@withContext null
-        }
-        try {
-            val coversDir = getCoversDir(createIfMissing = true)
-            val fileName = buildFileName(serverId, remotePath)
-            val targetFile = File(coversDir, fileName)
-
-            // Ensure parent directory exists before any file write
-            val parentDir = targetFile.parentFile
-            if (parentDir != null && !parentDir.exists()) {
-                parentDir.mkdirs()
+        artworkBytes: ByteArray,
+    ): String? =
+        withContext(Dispatchers.IO) {
+            if (artworkBytes.isEmpty()) return@withContext null
+            if (ImageHeaderValidator.isRecognizedImage(artworkBytes) && !ImageHeaderValidator.isCompleteImage(artworkBytes)) {
+                return@withContext null
             }
-
-            var bitmapDecoded = false
             try {
-                val originalBitmap = BitmapFactory.decodeByteArray(artworkBytes, 0, artworkBytes.size)
-                if (originalBitmap != null) {
-                    val width = originalBitmap.width
-                    val height = originalBitmap.height
-
-                    val scaledBitmap = if (width > maxDimension || height > maxDimension) {
-                        val ratio = minOf(maxDimension.toFloat() / width, maxDimension.toFloat() / height)
-                        val targetW = (width * ratio).toInt().coerceAtLeast(1)
-                        val targetH = (height * ratio).toInt().coerceAtLeast(1)
-                        Bitmap.createScaledBitmap(originalBitmap, targetW, targetH, true)
-                    } else {
-                        originalBitmap
-                    }
-
-                    FileOutputStream(targetFile).use { out ->
-                        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                    }
-
-                    if (scaledBitmap !== originalBitmap) {
-                        scaledBitmap.recycle()
-                    }
-                    originalBitmap.recycle()
-                    bitmapDecoded = true
-                }
-            } catch (e: Throwable) {
-                bitmapDecoded = false
-            }
-
-            // Fallback if Bitmap decoding fails (e.g. JVM unit tests or raw image format)
-            if (!bitmapDecoded) {
-                FileOutputStream(targetFile).use { out ->
-                    out.write(artworkBytes)
-                }
-            }
-
-            pruneDiskQuota(maxCacheSizeBytes, justSavedFile = targetFile)
-
-            targetFile.absolutePath
-        } catch (e: Exception) {
-            try {
+                val coversDir = getCoversDir(createIfMissing = true)
                 val fileName = buildFileName(serverId, remotePath)
-                val baseDir = getBaseCoversDirectory()
-                val partialFile = File(baseDir, fileName)
-                if (partialFile.exists()) {
-                    partialFile.delete()
+                val targetFile = File(coversDir, fileName)
+
+                // Ensure parent directory exists before any file write
+                val parentDir = targetFile.parentFile
+                if (parentDir != null && !parentDir.exists()) {
+                    parentDir.mkdirs()
                 }
-            } catch (_: Exception) {
+
+                val bitmapDecoded =
+                    try {
+                        val boundsOptions =
+                            BitmapFactory.Options().apply {
+                                inJustDecodeBounds = true
+                            }
+                        BitmapFactory.decodeByteArray(artworkBytes, 0, artworkBytes.size, boundsOptions)
+                        val rawWidth = boundsOptions.outWidth
+                        val rawHeight = boundsOptions.outHeight
+
+                        val sampledBitmap =
+                            if (rawWidth > 0 && rawHeight > 0) {
+                                val sampleSize = calculateInSampleSize(rawWidth, rawHeight, maxDimension)
+                                val decodeOptions =
+                                    BitmapFactory.Options().apply {
+                                        inSampleSize = sampleSize
+                                    }
+                                BitmapFactory.decodeByteArray(artworkBytes, 0, artworkBytes.size, decodeOptions)
+                            } else {
+                                BitmapFactory.decodeByteArray(artworkBytes, 0, artworkBytes.size)
+                            }
+
+                        if (sampledBitmap != null) {
+                            val width = sampledBitmap.width
+                            val height = sampledBitmap.height
+
+                            val scaledBitmap =
+                                if (width > maxDimension || height > maxDimension) {
+                                    val ratio = minOf(maxDimension.toFloat() / width, maxDimension.toFloat() / height)
+                                    val targetW = (width * ratio).toInt().coerceAtLeast(1)
+                                    val targetH = (height * ratio).toInt().coerceAtLeast(1)
+                                    Bitmap.createScaledBitmap(sampledBitmap, targetW, targetH, true)
+                                } else {
+                                    sampledBitmap
+                                }
+
+                            FileOutputStream(targetFile).use { out ->
+                                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                            }
+
+                            if (scaledBitmap !== sampledBitmap) {
+                                scaledBitmap.recycle()
+                            }
+                            sampledBitmap.recycle()
+                            true
+                        } else {
+                            false
+                        }
+                    } catch (_: Throwable) {
+                        false
+                    }
+
+                // Fallback if Bitmap decoding fails (e.g. JVM unit tests or raw image format)
+                if (!bitmapDecoded) {
+                    FileOutputStream(targetFile).use { out ->
+                        out.write(artworkBytes)
+                    }
+                }
+
+                pruneDiskQuota(maxCacheSizeBytes, justSavedFile = targetFile)
+
+                targetFile.absolutePath
+            } catch (e: Exception) {
+                try {
+                    val fileName = buildFileName(serverId, remotePath)
+                    val baseDir = getBaseCoversDirectory()
+                    val partialFile = File(baseDir, fileName)
+                    if (partialFile.exists()) {
+                        partialFile.delete()
+                    }
+                } catch (_: Exception) {
+                }
+                null
             }
-            null
         }
+
+    private fun calculateInSampleSize(
+        rawWidth: Int,
+        rawHeight: Int,
+        maxDimension: Int,
+    ): Int {
+        val halfWidth = rawWidth / 2
+        val halfHeight = rawHeight / 2
+        return generateSequence(1) { it * 2 }
+            .first { (halfWidth / it) < maxDimension || (halfHeight / it) < maxDimension }
     }
 
-    override fun getThumbnailFile(serverId: Long, remotePath: String): File? {
+    override fun getThumbnailFile(
+        serverId: Long,
+        remotePath: String,
+    ): File? {
         return try {
             val dir = getCoversDir(createIfMissing = false)
             if (!dir.exists() || !dir.isDirectory) return null
@@ -201,7 +249,10 @@ class CoverArtStorageImpl(
         }
     }
 
-    override fun deleteThumbnail(serverId: Long, remotePath: String) {
+    override fun deleteThumbnail(
+        serverId: Long,
+        remotePath: String,
+    ) {
         try {
             val dir = getCoversDir(createIfMissing = false)
             if (!dir.exists()) return
@@ -239,7 +290,10 @@ class CoverArtStorageImpl(
         }
     }
 
-    fun pruneDiskQuota(quotaBytes: Long = maxCacheSizeBytes, justSavedFile: File? = null) {
+    fun pruneDiskQuota(
+        quotaBytes: Long = maxCacheSizeBytes,
+        justSavedFile: File? = null,
+    ) {
         try {
             val dir = getCoversDir(createIfMissing = false)
             if (!dir.exists() || !dir.isDirectory) return
@@ -248,11 +302,12 @@ class CoverArtStorageImpl(
             if (currentSize <= quotaBytes) return
 
             // Sort candidates: prune files other than the just-saved one first, oldest lastModified first
-            val sortedFiles = files.sortedWith(
-                compareBy<File> { if (justSavedFile != null && it.absolutePath == justSavedFile.absolutePath) 1 else 0 }
-                    .thenBy { it.lastModified() }
-                    .thenBy { it.name }
-            )
+            val sortedFiles =
+                files.sortedWith(
+                    compareBy<File> { if (justSavedFile != null && it.absolutePath == justSavedFile.absolutePath) 1 else 0 }
+                        .thenBy { it.lastModified() }
+                        .thenBy { it.name },
+                )
 
             for (file in sortedFiles) {
                 if (currentSize <= quotaBytes) break
@@ -287,7 +342,10 @@ class CoverArtStorageImpl(
         }
     }
 
-    private fun buildFileName(serverId: Long, remotePath: String): String {
+    private fun buildFileName(
+        serverId: Long,
+        remotePath: String,
+    ): String {
         val key = "$serverId:$remotePath"
         val md = MessageDigest.getInstance("MD5")
         val digest = md.digest(key.toByteArray(Charsets.UTF_8))

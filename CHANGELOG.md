@@ -4,6 +4,15 @@
 
 ---
 
+## [3.1] - 2026-11-02
+
+### 🛡️ 安全与韧性加固 (Security & Resilience)
+- **凭据安全基线加固 (Credential Backup Protection)**：在 `AndroidManifest.xml` 中将 `android:allowBackup` 显式声明为 `false`，彻底封闭通过 `adb backup` 导出本地沙盒并提取数据库 WebDAV 凭据的攻击面。
+- **封面大图两阶段亚采样解码防 OOM (Two-Phase inSampleSize Thumbnail Sampling)**：在 `CoverArtStorageImpl.saveThumbnail` 中引入两阶段解码防线，先以 `inJustDecodeBounds` 零内存探测图像真实宽高，再通过 `calculateInSampleSize` 计算几何降采样系数（2 的次幂）。在 Native 解码层将 4000×4000 以上的高分辨率母带封面内存占用直接压降 94% 以上，随后平滑微调至 512px 规格化压缩落盘，根除主堆内存 `OutOfMemoryError` 风险。
+- **歌单手势与返回事件隔离守卫 (PlaylistDetail Tab BackHandler Guard)**：为 `PlaylistDetailScreen` 引入 `isCurrentTab` 契约与双重条件约束，彻底消除后台隐藏 Tab 抢占消费全局系统返回手势的缺陷；引入离焦无感自动提交机制（Blur-to-commit），当用户在自定义排序模式下直接切换底部导航栏时，协程自动提交并持久化当前调整后的最新音轨排序。
+
+---
+
 ## [3.0] - 2026-11-01
 
 ### 🚀 新增 (Added)
