@@ -6,6 +6,12 @@
 
 ## [3.1] - 2026-11-02
 
+### 🌐 WebDAV 协议与网络韧性加固 (WebDAV Protocol & Network Resilience)
+- **WebDAV 路径 RFC 3986 规范百分号解码与双向加号对称保真 (RFC 3986 Path Decoding & Plus Sign Resilience)**：实现专用路径百分号解码器 `WebDavXmlParser.decodeRfc3986Path`，严格保留字面量 `+`，杜绝传统表单解码器将路径中的 `+` 误替换为空格；在 URL 解析中将空格编码为 `%20`、字面量加号编码为 `%2B`，两端严格对称，彻底根除如 `1+1.mp3` 或 `AC+DC/` 等含加号文件 404 播放与目录浏览失败。
+- **内存清单感知的外置封面探测过滤 (Manifest-Aware Artwork Candidate Pre-Filtering)**：元数据解析与富化链路接入内存目录文件清单 `directoryFiles`，在发起任何网络 Range 请求探测候选封面（`$basename.jpg`、`cover.jpg` 等）前在内存中进行忽略大小写比对；未包含的文件一律直接在内存中跳过并设置哨兵，将无内嵌封面专辑浏览时的外部封面探测请求从数十次盲目 404 压降至 0 次（若无封面）或 1 次（精准命中），彻底杜绝网络请求风暴与 NAS 防火墙误封锁。
+- **RFC 7616 / RFC 2617 HTTP 摘要认证支持 (HTTP Digest Authentication)**：实现 OkHttp `WebDavDigestAuthenticator`，原生支持标准 `MD5` 算法及 `qop="auth"` 认证流程，携带安全随机 `cnonce` 与单调递增 `nc`，同一次质询失败立即中止退出以防 401 死循环，完美支持群晖 DSM 等仅开启 Digest 认证的 WebDAV 私有云；动态追踪已认证 Digest 的服务端，杜绝向 Digest 节点重复发送明文凭据。
+- **Happy Eyeballs 双栈快速回退 (Happy Eyeballs IPv4 Fast Fallback)**：常规与流媒体连接池接入深层内聚的 `FastFallbackDns`，在双栈主机解析时将 IPv4 地址优先排序快速回退，消除家庭双栈网络 IPv6 路由黑洞导致的 10-15 秒起播握手挂死。
+
 ### 🛡️ 安全与韧性加固 (Security & Resilience)
 - **凭据安全基线加固 (Credential Backup Protection)**：在 `AndroidManifest.xml` 中将 `android:allowBackup` 显式声明为 `false`，彻底封闭通过 `adb backup` 导出本地沙盒并提取数据库 WebDAV 凭据的攻击面。
 - **封面大图两阶段亚采样解码防 OOM (Two-Phase inSampleSize Thumbnail Sampling)**：在 `CoverArtStorageImpl.saveThumbnail` 中引入两阶段解码防线，先以 `inJustDecodeBounds` 零内存探测图像真实宽高，再通过 `calculateInSampleSize` 计算几何降采样系数（2 的次幂）。在 Native 解码层将 4000×4000 以上的高分辨率母带封面内存占用直接压降 94% 以上，随后平滑微调至 512px 规格化压缩落盘，根除主堆内存 `OutOfMemoryError` 风险。
