@@ -20,11 +20,18 @@ Resolve package dependency inversion and consolidate fragmented micro-components
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Move `EqualizerStateHelper` & `EqualizerWaveState` to `ui/common/`
-- [ ] Delete `ui/browser/components/EqualizerStateHelper.kt` and update caller imports
-- [ ] Merge `TrackThumbnailLeading`, `AudioQualityBadgePill`, `TrackTagPill`, and defaults into `AudioTrackRow.kt`
-- [ ] Delete the 4 satellite micro-files in `ui/common/`
-- [ ] Verify `AudioTrackRow.kt` line count is ≤380 lines (strictly complying with 600-line limit)
-- [ ] Run test suite to verify 100% pass rate
+- [x] Move `EqualizerStateHelper` & `EqualizerWaveState` to `ui/common/`
+- [x] Delete `ui/browser/components/EqualizerStateHelper.kt` and update caller imports
+- [x] Merge `TrackThumbnailLeading`, `AudioQualityBadgePill`, `TrackTagPill`, and defaults into `AudioTrackRow.kt`
+- [x] Delete the 4 satellite micro-files in `ui/common/`
+- [x] Verify `AudioTrackRow.kt` line count is ≤380 lines (strictly complying with 600-line limit)
+- [x] Run test suite to verify 100% pass rate
+
+## Answer
+- Relocated `EqualizerWaveState` and `EqualizerStateHelper` to `com.webdav.player.ui.common` (inside `EqualizerTrackIndicator.kt`), resolving the architectural reverse dependency smell where `ui/common` was importing from `ui/browser`.
+- Removed `ui/browser/components/EqualizerStateHelper.kt` and updated callers in `DirectoryBrowserUiState.kt`, `CueAlbumCard.kt`, `EqualizerStateHelperTest.kt`.
+- Consolidated 4 micro-module files (`TrackThumbnailLeading.kt`, `AudioQualityBadgePill.kt`, `TrackTagPill.kt`, `AudioTrackRowDefaults.kt`) into `AudioTrackRow.kt`. The consolidated file stands at 379 lines (well under the 600-line ceiling and ≤ 380 lines budget).
+- Removed the 4 satellite micro-files in `ui/common/`.
+- Updated `TrackTagPillTest.kt` and `AudioTrackRowTest.kt` for the consolidated structure and verified 100% test pass rate across the test suite.
