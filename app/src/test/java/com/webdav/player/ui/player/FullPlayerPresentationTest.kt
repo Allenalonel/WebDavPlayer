@@ -56,7 +56,7 @@ class FullPlayerPresentationTest {
     @Before
     fun setUp() {
         fakeSession = FakeMusicPlayerAppSession()
-        coordinator = MainNavigationCoordinator(fakeSession)
+        coordinator = MainNavigationCoordinator()
     }
 
     @Test
@@ -250,7 +250,10 @@ class FullPlayerPresentationTest {
         assertFalse(normalState.isSuspendedRetry)
 
         val weakNetworkOnly = PlayerSessionState(isWeakNetwork = true, canManualRetry = false)
-        assertFalse("During early 15s quiet reconnection, full player banner must not show yet", isFullPlayerRetryBannerVisible(weakNetworkOnly))
+        assertFalse(
+            "During early 15s quiet reconnection, full player banner must not show yet",
+            isFullPlayerRetryBannerVisible(weakNetworkOnly),
+        )
         assertFalse(weakNetworkOnly.isSuspendedRetry)
 
         val manualRetryOnly = PlayerSessionState(isWeakNetwork = false, canManualRetry = true)
@@ -311,11 +314,12 @@ class FullPlayerPresentationTest {
                 canManualRetry = true,
             )
         fakeSession._sessionState.value = state
-        fakeSession._playbackProgress.value = PlaybackProgress(
-            currentPositionMs = 75_000L,
-            durationMs = currentTrack.durationMs,
-            bufferedPositionMs = 75_000L,
-        )
+        fakeSession._playbackProgress.value =
+            PlaybackProgress(
+                currentPositionMs = 75_000L,
+                durationMs = currentTrack.durationMs,
+                bufferedPositionMs = 75_000L,
+            )
 
         // Invoke retry
         fakeSession.retryPlayback()
@@ -323,7 +327,11 @@ class FullPlayerPresentationTest {
         // Queue index and tracks must be completely preserved
         assertEquals(1, fakeSession.retryPlaybackCount)
         assertEquals(0, fakeSession.sessionState.value.queue.currentIndex)
-        assertEquals(currentTrack.id, fakeSession.sessionState.value.currentTrack?.id)
+        assertEquals(
+            currentTrack.id,
+            fakeSession.sessionState.value.currentTrack
+                ?.id,
+        )
         assertEquals(2, fakeSession.sessionState.value.queue.tracks.size)
         assertEquals(75_000L, fakeSession.playbackProgress.value.currentPositionMs)
     }

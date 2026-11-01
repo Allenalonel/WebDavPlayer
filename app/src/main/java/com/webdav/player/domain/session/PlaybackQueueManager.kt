@@ -1,6 +1,5 @@
 package com.webdav.player.domain.session
 
-import com.webdav.player.data.cue.CueAssociationHelper
 import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
@@ -86,30 +85,23 @@ internal class PlaybackQueueManager(
 
     fun resolveDirectoryCueMap(
         directory: RemoteDirectory,
-        audioFiles: List<RemoteFile>,
+        @Suppress("UNUSED_PARAMETER") audioFiles: List<RemoteFile> = emptyList(),
         server: WebDavServer,
     ): Map<String, List<VirtualTrack>> {
-        val cueFiles = directory.files.filter { it.isCue }
         val resolver = cueSheetResolver ?: return emptyMap()
-        if (cueFiles.isEmpty()) return emptyMap()
+        val initialAlbums = resolver.resolveInitialCueAlbums(directory)
+        if (initialAlbums.isEmpty()) return emptyMap()
         val map = mutableMapOf<String, List<VirtualTrack>>()
-        for (cueFile in cueFiles) {
-            val matchedAudio =
-                CueAssociationHelper.findMatchingAudioFile(
-                    cueFile = cueFile,
-                    audioFiles = audioFiles,
-                    totalCueFilesCount = cueFiles.size,
+        for (album in initialAlbums) {
+            val matchedAudio = album.audioFile ?: continue
+            val cachedTracks =
+                resolver.getCachedVirtualTracks(
+                    server = server,
+                    cuePath = album.cueFile.path,
+                    parentAudioPath = matchedAudio.path,
                 )
-            if (matchedAudio != null) {
-                val cachedTracks =
-                    resolver.getCachedVirtualTracks(
-                        server = server,
-                        cuePath = cueFile.path,
-                        parentAudioPath = matchedAudio.path,
-                    )
-                if (!cachedTracks.isNullOrEmpty()) {
-                    map[matchedAudio.path] = cachedTracks
-                }
+            if (!cachedTracks.isNullOrEmpty()) {
+                map[matchedAudio.path] = cachedTracks
             }
         }
         return map
@@ -251,7 +243,12 @@ internal class PlaybackQueueManager(
                 resolveDirectoryCueMap(directory, audioFiles, server)
             }
 
-        val queue = PlaybackQueue.fromTracks(tracks = tracks, virtualTracksMap = resolvedVirtualMap, selectedIndex = selectedIndex)
+        val queue =
+            PlaybackQueue.fromTracks(
+                tracks = tracks,
+                virtualTracksMap = resolvedVirtualMap,
+                selectedIndex = selectedIndex,
+            )
         val selectedTrack = queue.currentTrack ?: return null
 
         return if (selectedTrack.isVirtualTrack) {
@@ -260,8 +257,13 @@ internal class PlaybackQueueManager(
                     ?: selectedTrack.copy(id = selectedTrack.id.substringBefore("#cue_"))
             val virtualTracks = resolvedVirtualMap[selectedTrack.remotePath] ?: emptyList()
             val targetVirtualIndex =
-                virtualTracks.indexOfFirst { it.trackNumber == selectedTrack.id.substringAfter("#cue_").toIntOrNull() }.takeIf { it >= 0 } ?: 0
-            val cuePath = directory.files.firstOrNull { it.isCue }?.path ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
+                virtualTracks
+                    .indexOfFirst { it.trackNumber == selectedTrack.id.substringAfter("#cue_").toIntOrNull() }
+                    .takeIf { it >= 0 }
+                    ?: 0
+            val cuePath =
+                directory.files.firstOrNull { it.isCue }?.path
+                    ?: (parentTrack.remotePath.substringBeforeLast('.') + ".cue")
             QueueLoadRequest(
                 queue = queue,
                 targetTrack = selectedTrack,

@@ -4,7 +4,6 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
-import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,32 +12,29 @@ import org.junit.Before
 import org.junit.Test
 
 class PlayerSheetExpansionTest {
-
-    private lateinit var fakeSession: FakeMusicPlayerAppSession
     private lateinit var coordinator: MainNavigationCoordinator
 
-    private val sampleTrack = AudioTrack(
-        id = "1:/music/track1.flac",
-        serverId = 1L,
-        remotePath = "/music/track1.flac",
-        title = "Shine On You Crazy Diamond",
-        artist = "Pink Floyd",
-        album = "Wish You Were Here",
-        format = AudioFormat.FLAC
-    )
+    private val sampleTrack =
+        AudioTrack(
+            id = "1:/music/track1.flac",
+            serverId = 1L,
+            remotePath = "/music/track1.flac",
+            title = "Shine On You Crazy Diamond",
+            artist = "Pink Floyd",
+            album = "Wish You Were Here",
+            format = AudioFormat.FLAC,
+        )
 
-    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState {
-        return if (track == null) {
+    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState =
+        if (track == null) {
             PlayerSessionState()
         } else {
             PlayerSessionState(queue = PlaybackQueue(listOf(track), 0))
         }
-    }
 
     @Before
     fun setUp() {
-        fakeSession = FakeMusicPlayerAppSession()
-        coordinator = MainNavigationCoordinator(fakeSession)
+        coordinator = MainNavigationCoordinator()
     }
 
     @Test

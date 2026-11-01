@@ -5,7 +5,6 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.WebDavServer
-import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,38 +12,36 @@ import org.junit.Before
 import org.junit.Test
 
 class MainNavigationCoordinatorTest {
-
-    private lateinit var fakeSession: FakeMusicPlayerAppSession
     private lateinit var coordinator: MainNavigationCoordinator
 
-    private val sampleServer = WebDavServer(
-        id = 1L,
-        name = "My NAS",
-        url = "http://nas.local",
-        isDefault = true
-    )
+    private val sampleServer =
+        WebDavServer(
+            id = 1L,
+            name = "My NAS",
+            url = "http://nas.local",
+            isDefault = true,
+        )
 
-    private val sampleTrack = AudioTrack(
-        id = "1:/track.flac",
-        serverId = 1L,
-        remotePath = "/track.flac",
-        title = "Comfortably Numb",
-        artist = "Pink Floyd",
-        format = AudioFormat.FLAC
-    )
+    private val sampleTrack =
+        AudioTrack(
+            id = "1:/track.flac",
+            serverId = 1L,
+            remotePath = "/track.flac",
+            title = "Comfortably Numb",
+            artist = "Pink Floyd",
+            format = AudioFormat.FLAC,
+        )
 
-    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState {
-        return if (track == null) {
+    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState =
+        if (track == null) {
             PlayerSessionState()
         } else {
             PlayerSessionState(queue = PlaybackQueue(listOf(track), 0))
         }
-    }
 
     @Before
     fun setUp() {
-        fakeSession = FakeMusicPlayerAppSession()
-        coordinator = MainNavigationCoordinator(fakeSession)
+        coordinator = MainNavigationCoordinator()
     }
 
     @Test
@@ -114,46 +111,12 @@ class MainNavigationCoordinatorTest {
     }
 
     @Test
-    fun togglePlayPause_delegatesToMusicPlayerAppSession() {
-        assertEquals(0, fakeSession.togglePlayPauseCount)
-        coordinator.togglePlayPause()
-        assertEquals(1, fakeSession.togglePlayPauseCount)
-    }
-
-    @Test
-    fun skipToNext_delegatesToMusicPlayerAppSession() {
-        assertEquals(0, fakeSession.skipNextCount)
-        coordinator.skipToNext()
-        assertEquals(1, fakeSession.skipNextCount)
-    }
-
-    @Test
-    fun playbackControls_remainFunctionalRegardlessOfSelectedDestination() {
-        coordinator.onSessionStateChanged(sessionWithTrack(sampleTrack))
-
-        // On Browser tab
-        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
-        coordinator.togglePlayPause()
-        coordinator.skipToNext()
-        assertEquals(1, fakeSession.togglePlayPauseCount)
-        assertEquals(1, fakeSession.skipNextCount)
-
-        // Switch to Server List tab
-        coordinator.selectDestination(AppDestination.SERVER_LIST)
-        coordinator.togglePlayPause()
-        coordinator.skipToNext()
-        assertEquals(2, fakeSession.togglePlayPauseCount)
-        assertEquals(2, fakeSession.skipNextCount)
-
-        // Switch to Playlists tab
-        coordinator.selectDestination(AppDestination.PLAYLISTS)
-        coordinator.togglePlayPause()
-        coordinator.skipToNext()
-        assertEquals(3, fakeSession.togglePlayPauseCount)
-        assertEquals(3, fakeSession.skipNextCount)
-
-        // Mini player remains visible on Playlists
-        assertTrue(coordinator.uiState.value.isMiniPlayerVisible)
+    fun initialState_respectsExplicitMiniPlayerVisibility() {
+        val visibleCoordinator =
+            MainNavigationCoordinator(
+                initialIsMiniPlayerVisible = true,
+            )
+        assertTrue(visibleCoordinator.uiState.value.isMiniPlayerVisible)
     }
 
     @Test
@@ -237,7 +200,6 @@ class MainNavigationCoordinatorTest {
     fun explicitInitialDestination_browser_persistsAcrossNullServerEmission() {
         val restoredCoordinator =
             MainNavigationCoordinator(
-                musicPlayerAppSession = fakeSession,
                 initialDestination = AppDestination.DIRECTORY_BROWSER,
                 hasExplicitInitialDestination = true,
             )
@@ -257,7 +219,6 @@ class MainNavigationCoordinatorTest {
     fun explicitInitialDestination_playlists_persistsAcrossActiveServerLoaded() {
         val restoredCoordinator =
             MainNavigationCoordinator(
-                musicPlayerAppSession = fakeSession,
                 initialDestination = AppDestination.PLAYLISTS,
                 hasExplicitInitialDestination = true,
             )
@@ -273,7 +234,6 @@ class MainNavigationCoordinatorTest {
         var notifiedDestination: AppDestination? = null
         val testCoordinator =
             MainNavigationCoordinator(
-                musicPlayerAppSession = fakeSession,
                 initialDestination = AppDestination.SERVER_LIST,
                 hasExplicitInitialDestination = true,
                 onDestinationChanged = { notifiedDestination = it },
@@ -284,4 +244,3 @@ class MainNavigationCoordinatorTest {
         assertEquals(AppDestination.DIRECTORY_BROWSER, notifiedDestination)
     }
 }
-

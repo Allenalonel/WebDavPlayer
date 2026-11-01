@@ -114,11 +114,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 val coordinator =
-                    remember(musicSession) {
+                    remember {
                         MainNavigationCoordinator(
-                            musicPlayerAppSession = musicSession,
                             initialDestination = savedTab ?: AppDestination.SERVER_LIST,
                             hasExplicitInitialDestination = (savedTab != null),
+                            initialIsMiniPlayerVisible = playerSessionState.hasTrack,
                             onDestinationChanged = { destination ->
                                 navPrefs.edit().putString("last_active_tab", destination.name).apply()
                             },
