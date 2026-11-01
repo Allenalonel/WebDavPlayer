@@ -166,6 +166,15 @@ class TrackMetadataRepositoryImpl internal constructor(
         server: WebDavServer,
         files: List<RemoteFile>,
         forceRefresh: Boolean,
+    ) {
+        resolveMetadata(server, files, forceRefresh, null)
+    }
+
+    override suspend fun resolveMetadata(
+        server: WebDavServer,
+        files: List<RemoteFile>,
+        forceRefresh: Boolean,
+        directoryFiles: Collection<RemoteFile>?,
     ) = withContext(ioDispatcher) {
         knownServers[server.id] = server
         val audioFiles = files.filter { it.isAudio }
@@ -203,7 +212,7 @@ class TrackMetadataRepositoryImpl internal constructor(
                     launch {
                         val metadata =
                             semaphore.withPermit {
-                                trackMetadataResolver.resolve(server, file)
+                                trackMetadataResolver.resolve(server, file, directoryFiles)
                             } ?: return@launch
 
                         val entity = TrackMetadataEntity.fromDomain(metadata)
@@ -244,6 +253,12 @@ class TrackMetadataRepositoryImpl internal constructor(
     override suspend fun resolveSingleTrackMetadata(
         server: WebDavServer,
         file: RemoteFile,
+    ): TrackMetadata = resolveSingleTrackMetadata(server, file, null)
+
+    override suspend fun resolveSingleTrackMetadata(
+        server: WebDavServer,
+        file: RemoteFile,
+        directoryFiles: Collection<RemoteFile>?,
     ): TrackMetadata =
         withContext(ioDispatcher) {
             knownServers[server.id] = server
@@ -256,7 +271,7 @@ class TrackMetadataRepositoryImpl internal constructor(
             }
             val metadata =
                 semaphore.withPermit {
-                    trackMetadataResolver.resolve(server, file)
+                    trackMetadataResolver.resolve(server, file, directoryFiles)
                 }
             if (metadata != null) {
                 trackMetadataDao.insertOrUpdate(TrackMetadataEntity.fromDomain(metadata))

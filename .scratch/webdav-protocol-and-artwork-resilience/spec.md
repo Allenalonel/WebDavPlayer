@@ -1,6 +1,6 @@
 # Spec: WebDAV Protocol Hardening, Path Encoding Compliance, and Artwork Request Resilience
 
-Status: ready-for-agent
+Status: implemented
 
 ## Problem Statement
 

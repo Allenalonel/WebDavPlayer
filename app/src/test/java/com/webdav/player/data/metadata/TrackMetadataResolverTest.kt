@@ -297,6 +297,84 @@ class TrackMetadataResolverTest {
             assertTrue(fakeStorage.isValidThumbnailFile(meta3?.coverThumbnailPath))
         }
 
+    @Test
+    fun resolve_withDirectoryManifest_missingArtwork_issuesZeroNetworkRequestsForCovers() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("Track", "Artist", "Album", artworkBytes = null)
+            val dirFiles = mutableListOf<RemoteFile>()
+            for (i in 1..10) {
+                val path = "/music/silent_album/track%02d.mp3".format(i)
+                fakeClient.stubFileBytes(path, sampleMp3)
+                dirFiles.add(RemoteFile(name = "track%02d.mp3".format(i), path = path, size = 5000L))
+            }
+
+            fakeClient.requestedRanges.clear()
+
+            for (file in dirFiles) {
+                val meta = resolver.resolve(testServer, file, directoryFiles = dirFiles)
+                assertNotNull(meta)
+                assertNull("Artwork should be null when directory lacks images", meta?.coverThumbnailPath)
+            }
+
+            val imageRequests = fakeClient.requestedRanges.filter {
+                it.first.endsWith(".jpg", ignoreCase = true) || it.first.endsWith(".png", ignoreCase = true)
+            }
+            assertTrue("Expected 0 image probe requests, but got ${imageRequests.size}: $imageRequests", imageRequests.isEmpty())
+            assertEquals("Expected exactly 10 requests (1 per audio track)", 10, fakeClient.requestedRanges.size)
+        }
+
+    @Test
+    fun resolve_withDirectoryManifest_validCover_issuesSingleNetworkRequestForCover() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("Track", "Artist", "Album", artworkBytes = null)
+            val dirFiles = mutableListOf<RemoteFile>()
+            for (i in 1..5) {
+                val path = "/music/album_with_art/track%02d.mp3".format(i)
+                fakeClient.stubFileBytes(path, sampleMp3)
+                dirFiles.add(RemoteFile(name = "track%02d.mp3".format(i), path = path, size = 5000L))
+            }
+            val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            val coverFile = RemoteFile(name = "Cover.JPG", path = "/music/album_with_art/Cover.JPG", size = 1024L)
+            dirFiles.add(coverFile)
+            fakeClient.stubFileBytes(coverFile.path, coverJpg)
+
+            fakeClient.requestedRanges.clear()
+
+            for (i in 0 until 5) {
+                val meta = resolver.resolve(testServer, dirFiles[i], directoryFiles = dirFiles)
+                assertNotNull(meta)
+                assertNotNull("All tracks should have resolved the shared folder cover", meta?.coverThumbnailPath)
+            }
+
+            val imageRequests = fakeClient.requestedRanges.filter {
+                it.first.endsWith(".jpg", ignoreCase = true) || it.first.endsWith(".png", ignoreCase = true)
+            }
+            assertEquals("Expected exactly 1 image request for Cover.JPG, but got ${imageRequests.size}", 1, imageRequests.size)
+            assertEquals("/music/album_with_art/Cover.JPG", imageRequests[0].first)
+
+            val blindTrackProbes = fakeClient.requestedRanges.filter {
+                it.first.contains("track") && (it.first.endsWith(".jpg") || it.first.endsWith(".png"))
+            }
+            assertTrue("Expected zero blind track-specific artwork requests", blindTrackProbes.isEmpty())
+        }
+
+    @Test
+    fun resolve_withoutDirectoryManifest_retainsFallbackProbing() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("Track", "Artist", "Album", artworkBytes = null)
+            val trackPath = "/music/standalone/track01.mp3"
+            fakeClient.stubFileBytes(trackPath, sampleMp3)
+
+            val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            fakeClient.stubFileBytes("/music/standalone/cover.jpg", coverJpg)
+
+            val file = RemoteFile(name = "track01.mp3", path = trackPath, size = 5000L)
+            val meta = resolver.resolve(testServer, file, directoryFiles = null)
+
+            assertNotNull(meta)
+            assertNotNull("Without manifest, fallback probing must discover cover.jpg", meta?.coverThumbnailPath)
+        }
+
     private fun buildSampleId3v2Bytes(
         title: String,
         artist: String,

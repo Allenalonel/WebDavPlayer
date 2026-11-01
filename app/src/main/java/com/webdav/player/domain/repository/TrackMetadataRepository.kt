@@ -40,16 +40,32 @@ interface TrackMetadataRepository {
     /**
      * Resolves metadata for remote audio files in the background with bounded concurrency.
      * Uses Room cache to skip previously parsed files, and executes HTTP Range requests for new ones.
+     * Optionally accepts directoryFiles to pre-filter candidate external covers without remote 404 network storms.
      */
     suspend fun resolveMetadata(
         server: WebDavServer,
         files: List<RemoteFile>,
         forceRefresh: Boolean = false,
+        directoryFiles: Collection<RemoteFile>? = null,
+    ) {
+        resolveMetadata(server, files, forceRefresh)
+    }
+
+    suspend fun resolveMetadata(
+        server: WebDavServer,
+        files: List<RemoteFile>,
+        forceRefresh: Boolean,
     )
 
     /**
      * Resolves metadata for a single audio file on demand.
      */
+    suspend fun resolveSingleTrackMetadata(
+        server: WebDavServer,
+        file: RemoteFile,
+        directoryFiles: Collection<RemoteFile>? = null,
+    ): TrackMetadata = resolveSingleTrackMetadata(server, file)
+
     suspend fun resolveSingleTrackMetadata(
         server: WebDavServer,
         file: RemoteFile,

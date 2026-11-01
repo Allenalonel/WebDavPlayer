@@ -6,9 +6,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
 import okhttp3.Credentials
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.URLEncoder
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -28,6 +31,7 @@ class OkHttpWebDavClient(
     private val baseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
+            .dns(FastFallbackDns)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
@@ -35,6 +39,7 @@ class OkHttpWebDavClient(
     private val streamingBaseOkHttpClient: OkHttpClient =
         OkHttpClient
             .Builder()
+            .dns(FastFallbackDns)
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectionPool(streamingConnectionPool)
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -58,24 +63,19 @@ class OkHttpWebDavClient(
     }
 
     private val clientCache = ConcurrentHashMap<String, OkHttpClient>()
+    private val digestServerHosts = ConcurrentHashMap.newKeySet<String>()
 
     override suspend fun testConnection(server: WebDavServer): ConnectionResult =
         withContext(Dispatchers.IO) {
             val client = buildClientForServer(server)
 
-            val requestBuilder =
+            val request =
                 Request
                     .Builder()
                     .url(server.endpointUrl)
                     .method("PROPFIND", null)
                     .header("Depth", "0")
-
-            if (server.username.isNotBlank()) {
-                val credential = Credentials.basic(server.username, server.password)
-                requestBuilder.header("Authorization", credential)
-            }
-
-            val request = requestBuilder.build()
+                    .build()
 
             try {
                 client.newCall(request).execute().use { response ->
@@ -121,19 +121,13 @@ class OkHttpWebDavClient(
             val client = buildClientForServer(server)
             val fullUrl = buildDirectoryUrl(server, path)
 
-            val requestBuilder =
+            val request =
                 Request
                     .Builder()
                     .url(fullUrl)
                     .method("PROPFIND", null)
                     .header("Depth", "1")
-
-            if (server.username.isNotBlank()) {
-                val credential = Credentials.basic(server.username, server.password)
-                requestBuilder.header("Authorization", credential)
-            }
-
-            val request = requestBuilder.build()
+                    .build()
 
             try {
                 client.newCall(request).execute().use { response ->
@@ -200,20 +194,16 @@ class OkHttpWebDavClient(
             val client = buildClientForServer(server)
             val fileUrl = server.resolveFileUrl(remotePath)
 
-            val requestBuilder =
+            val request =
                 Request
                     .Builder()
                     .url(fileUrl)
                     .get()
                     .header("Range", "bytes=$startByte-$endByte")
-
-            if (server.username.isNotBlank()) {
-                val credential = Credentials.basic(server.username, server.password)
-                requestBuilder.header("Authorization", credential)
-            }
+                    .build()
 
             try {
-                client.newCall(requestBuilder.build()).execute().use { response ->
+                client.newCall(request).execute().use { response ->
                     if (response.code == 206 || response.code == 200) {
                         response.body?.bytes()
                     } else if (response.code == 404) {
@@ -237,19 +227,15 @@ class OkHttpWebDavClient(
             val client = buildClientForServer(server)
             val fileUrl = server.resolveFileUrl(remotePath)
 
-            val requestBuilder =
+            val request =
                 Request
                     .Builder()
                     .url(fileUrl)
                     .get()
-
-            if (server.username.isNotBlank()) {
-                val credential = Credentials.basic(server.username, server.password)
-                requestBuilder.header("Authorization", credential)
-            }
+                    .build()
 
             try {
-                client.newCall(requestBuilder.build()).execute().use { response ->
+                client.newCall(request).execute().use { response ->
                     if (response.code == 200) {
                         val bytes = response.body?.bytes() ?: return@withContext null
                         decodeTextWithBom(bytes)
@@ -294,17 +280,7 @@ class OkHttpWebDavClient(
         server: WebDavServer,
         path: String,
     ): String {
-        val baseUrl = server.endpointUrl.trimEnd('/')
-        var cleanPath = path.replace('\\', '/')
-        if (!cleanPath.startsWith("/")) cleanPath = "/$cleanPath"
-        if (!cleanPath.endsWith("/")) cleanPath = "$cleanPath/"
-        val segments = cleanPath.split('/')
-        val encodedSegments =
-            segments.map { segment ->
-                URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
-            }
-        val encodedPath = encodedSegments.joinToString("/")
-        return "$baseUrl$encodedPath"
+        return server.resolveFileUrl(if (path.endsWith("/")) path else "$path/")
     }
 
     fun getClientForServer(server: WebDavServer): OkHttpClient = buildClientForServer(server)
@@ -369,23 +345,35 @@ class OkHttpWebDavClient(
 
         if (server.username.isNotBlank()) {
             val credential = Credentials.basic(server.username, server.password)
+            val digestAuthenticator =
+                WebDavDigestAuthenticator(
+                    username = server.username,
+                    password = server.password,
+                    onDigestAuthenticated = { digestServerHosts.add(server.hostSummary) },
+                )
+
             builder.addInterceptor { chain ->
                 val request = chain.request()
-                if (request.header("Authorization") == null) {
+                val shouldPreemptBasic = !digestServerHosts.contains(server.hostSummary)
+                if (request.header("Authorization") == null && shouldPreemptBasic) {
                     chain.proceed(request.newBuilder().header("Authorization", credential).build())
                 } else {
                     chain.proceed(request)
                 }
             }
-            builder.authenticator { _, response ->
-                if (response.request.header("Authorization") != null) {
-                    // Already tried with authorization and failed, prevent 401 retry loop
-                    null
+
+            builder.authenticator { route, response ->
+                // First attempt Digest authentication
+                val digestRequest = digestAuthenticator.authenticate(route, response)
+                if (digestRequest != null) return@authenticator digestRequest
+
+                // Fallback for servers challenging with Basic (e.g. unencrypted HTTP servers where preemptive basic was suppressed)
+                val challenges = response.headers("WWW-Authenticate")
+                val basicHeader = challenges.firstOrNull { it.trimStart().startsWith("Basic", ignoreCase = true) }
+                if (basicHeader != null && response.request.header("Authorization") == null) {
+                    response.request.newBuilder().header("Authorization", credential).build()
                 } else {
-                    response.request
-                        .newBuilder()
-                        .header("Authorization", credential)
-                        .build()
+                    null
                 }
             }
         }
@@ -412,10 +400,28 @@ class OkHttpWebDavClient(
             sslContext.init(null, trustAllCerts, SecureRandom())
             val sslSocketFactory = sslContext.socketFactory
 
-            builder.sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+            val x509TrustManager = trustAllCerts[0] as? X509TrustManager
+            if (x509TrustManager != null) {
+                builder.sslSocketFactory(sslSocketFactory, x509TrustManager)
+            }
             builder.hostnameVerifier { _, _ -> true }
         }
 
         return builder.build()
+    }
+}
+
+/**
+ * RFC 8305 Happy Eyeballs fast fallback DNS for dual-stack IPv4/IPv6 networks.
+ * Sorts reachable IPv4 addresses before IPv6 addresses when resolving dual-stack hostnames,
+ * mitigating 10-15 second connection timeouts caused by broken or blackholed IPv6 routes on home NAS setups.
+ */
+internal object FastFallbackDns : Dns {
+    override fun lookup(hostname: String): List<InetAddress> {
+        val addresses = Dns.SYSTEM.lookup(hostname)
+        if (addresses.size <= 1) return addresses
+        return addresses.sortedWith(
+            compareBy { if (it is Inet4Address) 0 else 1 },
+        )
     }
 }

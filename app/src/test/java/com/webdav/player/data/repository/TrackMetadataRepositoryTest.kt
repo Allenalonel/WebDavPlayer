@@ -1197,6 +1197,75 @@ class TrackMetadataRepositoryTest {
             )
         }
 
+    @Test
+    fun resolveMetadata_withDirectoryManifest_missingArtwork_issuesZeroNetworkRequestsForCovers() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("Track", "Artist", "Album", artworkBytes = null)
+            val dirFiles = mutableListOf<RemoteFile>()
+            for (i in 1..10) {
+                val path = "/music/no_art/track%02d.mp3".format(i)
+                fakeClient.stubFileBytes(path, sampleMp3)
+                dirFiles.add(RemoteFile(name = "track%02d.mp3".format(i), path = path, size = 1000L))
+            }
+
+            fakeClient.requestedRanges.clear()
+
+            repository.resolveMetadata(
+                server = testServer,
+                files = dirFiles,
+                directoryFiles = dirFiles,
+            )
+
+            for (file in dirFiles) {
+                val cached = repository.getCachedMetadata(testServer.id, file.path)
+                assertNotNull(cached)
+                assertNull(cached?.coverThumbnailPath)
+            }
+
+            val imageRequests = fakeClient.requestedRanges.filter {
+                it.first.endsWith(".jpg", ignoreCase = true) || it.first.endsWith(".png", ignoreCase = true)
+            }
+            assertTrue("Expected 0 image network requests, but got ${imageRequests.size}: $imageRequests", imageRequests.isEmpty())
+            assertEquals("Expected exactly 10 requests (1 per audio track)", 10, fakeClient.requestedRanges.size)
+        }
+
+    @Test
+    fun resolveMetadata_withDirectoryManifest_validCover_issuesSingleNetworkRequestForCover() =
+        runTest {
+            val sampleMp3 = buildSampleId3v2Bytes("Track", "Artist", "Album", artworkBytes = null)
+            val dirFiles = mutableListOf<RemoteFile>()
+            for (i in 1..5) {
+                val path = "/music/with_art/track%02d.mp3".format(i)
+                fakeClient.stubFileBytes(path, sampleMp3)
+                dirFiles.add(RemoteFile(name = "track%02d.mp3".format(i), path = path, size = 1000L))
+            }
+            val coverJpg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0xFF.toByte(), 0xD9.toByte())
+            val coverFile = RemoteFile(name = "cover.jpg", path = "/music/with_art/cover.jpg", size = 2048L)
+            dirFiles.add(coverFile)
+            fakeClient.stubFileBytes(coverFile.path, coverJpg)
+
+            fakeClient.requestedRanges.clear()
+
+            val audioFiles = dirFiles.filter { it.isAudio }
+            repository.resolveMetadata(
+                server = testServer,
+                files = audioFiles,
+                directoryFiles = dirFiles,
+            )
+
+            for (file in audioFiles) {
+                val cached = repository.getCachedMetadata(testServer.id, file.path)
+                assertNotNull(cached)
+                assertNotNull(cached?.coverThumbnailPath)
+            }
+
+            val imageRequests = fakeClient.requestedRanges.filter {
+                it.first.endsWith(".jpg", ignoreCase = true) || it.first.endsWith(".png", ignoreCase = true)
+            }
+            assertEquals("Expected exactly 1 image network request for cover.jpg, but got ${imageRequests.size}", 1, imageRequests.size)
+            assertEquals("/music/with_art/cover.jpg", imageRequests[0].first)
+        }
+
     private fun buildSampleId3v2Bytes(
         title: String,
         artist: String,

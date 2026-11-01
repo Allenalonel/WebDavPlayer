@@ -290,6 +290,7 @@ class DirectoryRepositoryTest {
             assertEquals(1, emissions[1].metadataMap.size)
             assertEquals("song", emissions[1].metadataMap["/Music/song.mp3"]?.title)
             assertEquals(1, fakeTrackMetadataRepository.resolveCount)
+            assertEquals(dir.files, fakeTrackMetadataRepository.lastDirectoryFiles)
         }
 
     @Test
@@ -558,6 +559,17 @@ class DirectoryRepositoryTest {
     private class FakeTrackMetadataRepository : TrackMetadataRepository {
         val metadataStore = mutableMapOf<String, TrackMetadata>()
         var resolveCount = 0
+        var lastDirectoryFiles: Collection<RemoteFile>? = null
+
+        override suspend fun resolveMetadata(
+            server: WebDavServer,
+            files: List<RemoteFile>,
+            forceRefresh: Boolean,
+            directoryFiles: Collection<RemoteFile>?,
+        ) {
+            lastDirectoryFiles = directoryFiles
+            resolveMetadata(server, files, forceRefresh)
+        }
 
         override fun getAllMetadataFlow(serverId: Long): Flow<List<TrackMetadata>> =
             flowOf(metadataStore.values.filter { it.serverId == serverId })
