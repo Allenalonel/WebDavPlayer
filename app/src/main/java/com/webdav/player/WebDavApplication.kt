@@ -27,7 +27,9 @@ import com.webdav.player.domain.repository.TrackMetadataRepository
 import com.webdav.player.domain.session.MusicPlayerAppSession
 import com.webdav.player.domain.session.MusicPlayerAppSessionImpl
 
-class WebDavApplication : Application(), AppContainer {
+class WebDavApplication :
+    Application(),
+    AppContainer {
     override lateinit var serverRepository: ServerRepository
         private set
 

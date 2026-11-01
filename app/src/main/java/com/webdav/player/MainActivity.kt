@@ -42,11 +42,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.webdav.player.data.service.PlaybackSessionHost
+import com.webdav.player.di.AppContainer
+import com.webdav.player.di.AppViewModelFactory
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
-import com.webdav.player.di.AppContainer
-import com.webdav.player.di.AppViewModelFactory
 import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
@@ -107,11 +107,12 @@ class MainActivity : ComponentActivity() {
 
                 val context = LocalContext.current
                 val navPrefs = remember { context.getSharedPreferences("webdav_nav_prefs", Context.MODE_PRIVATE) }
-                val savedTab = remember {
-                    navPrefs.getString("last_active_tab", null)?.let {
-                        runCatching { AppDestination.valueOf(it) }.getOrNull()
+                val savedTab =
+                    remember {
+                        navPrefs.getString("last_active_tab", null)?.let {
+                            runCatching { AppDestination.valueOf(it) }.getOrNull()
+                        }
                     }
-                }
                 val coordinator =
                     remember(musicSession) {
                         MainNavigationCoordinator(
