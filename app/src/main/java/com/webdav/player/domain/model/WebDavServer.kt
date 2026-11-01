@@ -69,15 +69,20 @@ data class WebDavServer(
 
     /**
      * Resolves the full URL for a remote file path on this server.
+     * Preserves trailing slashes for directory paths and encodes literal '+' as %2B and spaces as %20.
      */
     fun resolveFileUrl(filePath: String): String {
         val baseUrl = endpointUrl.trimEnd('/')
         var cleanPath = filePath.replace('\\', '/')
         if (!cleanPath.startsWith("/")) cleanPath = "/$cleanPath"
+        val endsWithSlash = cleanPath.endsWith("/")
         val segments = cleanPath.split('/').filter { it.isNotEmpty() }
+        if (segments.isEmpty()) {
+            return "$baseUrl/"
+        }
         val encodedPath = segments.joinToString("/") { segment ->
             java.net.URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
         }
-        return "$baseUrl/$encodedPath"
+        return if (endsWithSlash) "$baseUrl/$encodedPath/" else "$baseUrl/$encodedPath"
     }
 }

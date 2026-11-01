@@ -294,17 +294,7 @@ class OkHttpWebDavClient(
         server: WebDavServer,
         path: String,
     ): String {
-        val baseUrl = server.endpointUrl.trimEnd('/')
-        var cleanPath = path.replace('\\', '/')
-        if (!cleanPath.startsWith("/")) cleanPath = "/$cleanPath"
-        if (!cleanPath.endsWith("/")) cleanPath = "$cleanPath/"
-        val segments = cleanPath.split('/')
-        val encodedSegments =
-            segments.map { segment ->
-                URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
-            }
-        val encodedPath = encodedSegments.joinToString("/")
-        return "$baseUrl$encodedPath"
+        return server.resolveFileUrl(if (path.endsWith("/")) path else "$path/")
     }
 
     fun getClientForServer(server: WebDavServer): OkHttpClient = buildClientForServer(server)

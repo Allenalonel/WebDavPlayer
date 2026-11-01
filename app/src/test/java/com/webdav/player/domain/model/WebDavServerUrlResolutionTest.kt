@@ -131,5 +131,28 @@ class WebDavServerUrlResolutionTest {
         assertEquals(false, customPort.isHttps)
         assertEquals("nas.local:5005", customPort.hostSummary)
     }
+
+    @Test
+    fun resolveFileUrl_preservesPlusAsPercent2B_andSpacesAsPercent20() {
+        val server = WebDavServer(
+            id = 1L,
+            name = "Test Server",
+            url = "http://nas.local",
+            port = 80,
+            pathPrefix = "/dav"
+        )
+
+        // Track with literal plus sign
+        val urlWithPlus = server.resolveFileUrl("/Music/1+1.mp3")
+        assertEquals("http://nas.local/dav/Music/1%2B1.mp3", urlWithPlus)
+
+        // Directory with plus and file with space and plus
+        val complexUrl = server.resolveFileUrl("/Pop+Rock/Track 1 + 2.flac")
+        assertEquals("http://nas.local/dav/Pop%2BRock/Track%201%20%2B%202.flac", complexUrl)
+
+        // Directory path with trailing slash
+        val dirUrl = server.resolveFileUrl("/Pop+Rock/")
+        assertEquals("http://nas.local/dav/Pop%2BRock/", dirUrl)
+    }
 }
 

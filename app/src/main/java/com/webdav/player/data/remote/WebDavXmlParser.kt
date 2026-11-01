@@ -7,7 +7,6 @@ import org.w3c.dom.Node
 import org.xml.sax.InputSource
 import java.io.StringReader
 import java.net.URI
-import java.net.URLDecoder
 import javax.xml.parsers.DocumentBuilderFactory
 
 object WebDavXmlParser {
@@ -105,17 +104,57 @@ object WebDavXmlParser {
     private fun decodeAndExtractPath(href: String): String {
         val pathOnly = if (href.startsWith("http://", ignoreCase = true) || href.startsWith("https://", ignoreCase = true)) {
             try {
-                URI(href).rawPath ?: href.substringAfter("://").substringAfter("/")
-            } catch (e: Exception) {
-                href.substringAfter("://").substringAfter("/")
+                URI(href).rawPath?.takeIf { it.isNotEmpty() }
+                    ?: ("/" + href.substringAfter("://").substringAfter("/", ""))
+            } catch (_: Exception) {
+                "/" + href.substringAfter("://").substringAfter("/", "")
             }
         } else {
             href
         }
-        return try {
-            URLDecoder.decode(pathOnly, "UTF-8")
-        } catch (e: Exception) {
-            pathOnly
+        return decodeRfc3986Path(pathOnly)
+    }
+
+    /**
+     * Decodes percent-encoded tokens (%XX) in a URI path according to RFC 3986.
+     * Preserves literal '+' verbatim (unlike form-urlencoded decoders which convert '+' to space).
+     * Decodes consecutive %XX hex sequences strictly into UTF-8 octets.
+     * Malformed sequences (e.g. lone '%', non-hex tokens) are safely preserved as literal text.
+     */
+    fun decodeRfc3986Path(rawPath: String): String {
+        if (rawPath.isEmpty()) return ""
+        val bytes = rawPath.toByteArray(Charsets.UTF_8)
+        val out = java.io.ByteArrayOutputStream(bytes.size)
+        var i = 0
+        while (i < bytes.size) {
+            val b = bytes[i]
+            if (b == '%'.code.toByte()) {
+                if (i + 2 < bytes.size) {
+                    val hex1 = hexDigit(bytes[i + 1])
+                    val hex2 = hexDigit(bytes[i + 2])
+                    if (hex1 != -1 && hex2 != -1) {
+                        out.write((hex1 shl 4) or hex2)
+                        i += 3
+                        continue
+                    }
+                }
+                out.write(b.toInt())
+                i++
+            } else {
+                out.write(b.toInt())
+                i++
+            }
+        }
+        return out.toString(Charsets.UTF_8.name())
+    }
+
+    private fun hexDigit(b: Byte): Int {
+        val c = b.toInt().toChar()
+        return when (c) {
+            in '0'..'9' -> c - '0'
+            in 'a'..'f' -> c - 'a' + 10
+            in 'A'..'F' -> c - 'A' + 10
+            else -> -1
         }
     }
 
