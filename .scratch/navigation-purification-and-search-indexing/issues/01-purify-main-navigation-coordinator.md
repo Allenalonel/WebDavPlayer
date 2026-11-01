@@ -14,9 +14,16 @@ Refactor `ui/navigation/MainNavigationCoordinator.kt` to eliminate the unnecessa
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Remove `musicPlayerAppSession` and playback stubs from `MainNavigationCoordinator.kt`
-- [ ] Update `MainActivity.kt` call site
-- [ ] Update `MainNavigationCoordinatorTest.kt` unit tests
-- [ ] Verify clean compilation and 100% test pass rate for navigation
+- [x] Remove `musicPlayerAppSession` and playback stubs from `MainNavigationCoordinator.kt`
+- [x] Update `MainActivity.kt` call site
+- [x] Update `MainNavigationCoordinatorTest.kt` unit tests
+- [x] Verify clean compilation and 100% test pass rate for navigation
+
+## Answer
+- Removed `musicPlayerAppSession` parameter and pass-through stubs (`togglePlayPause`, `skipToNext`) from `MainNavigationCoordinator.kt`.
+- Provided clean reactive initialization with `initialIsMiniPlayerVisible` parameter while state continues to be updated by `onSessionStateChanged(sessionState)`.
+- Simplified `remember` instantiation in `MainActivity.kt` without session dependency.
+- Updated `MainNavigationCoordinatorTest.kt`, `FullPlayerPresentationTest.kt`, and `PlayerSheetExpansionTest.kt` to construct `MainNavigationCoordinator` purely.
+- All unit tests pass 100%. MainNavigationCoordinator stands at 96 lines (well below the 600-line budget).

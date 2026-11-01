@@ -56,7 +56,7 @@ class FullPlayerPresentationTest {
     @Before
     fun setUp() {
         fakeSession = FakeMusicPlayerAppSession()
-        coordinator = MainNavigationCoordinator(fakeSession)
+        coordinator = MainNavigationCoordinator()
     }
 
     @Test

@@ -4,7 +4,6 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
-import com.webdav.player.domain.session.FakeMusicPlayerAppSession
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,7 +13,6 @@ import org.junit.Test
 
 class PlayerSheetExpansionTest {
 
-    private lateinit var fakeSession: FakeMusicPlayerAppSession
     private lateinit var coordinator: MainNavigationCoordinator
 
     private val sampleTrack = AudioTrack(
@@ -37,8 +35,7 @@ class PlayerSheetExpansionTest {
 
     @Before
     fun setUp() {
-        fakeSession = FakeMusicPlayerAppSession()
-        coordinator = MainNavigationCoordinator(fakeSession)
+        coordinator = MainNavigationCoordinator()
     }
 
     @Test

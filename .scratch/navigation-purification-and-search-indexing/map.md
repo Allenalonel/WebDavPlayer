@@ -11,6 +11,9 @@
 - **Decoupled Navigation**: 导航协调器不承载任何播控动作，所有播控意图由 `PlaybackActions` 契约独家管理。
 - **Encapsulated CUE Association**: CUE 虚拟分轨与物理音频关联严格由 `CueSheetResolver` 封装，曲库搜索仓储不再直接操作底层启发式辅助类。
 
+### Decisions So Far
+- **01 Resolved**: 移除 `MainNavigationCoordinator` 的 `musicPlayerAppSession` 依赖及 `togglePlayPause`/`skipToNext` 存根，导航状态机 100% 专职于路由管理。详见 [01-purify-main-navigation-coordinator.md](issues/01-purify-main-navigation-coordinator.md)。
+
 ---
 
 ## Ticket Topology & Dependency Graph
@@ -27,6 +30,6 @@
 ---
 
 ## Tickets Breakdown
-1. `01-purify-main-navigation-coordinator.md`: 纯粹化导航协调器，剥离会话依赖与冗余播控方法 (Status: open, Blocked by: None)
+1. `01-purify-main-navigation-coordinator.md`: 纯粹化导航协调器，剥离会话依赖与冗余播控方法 (Status: resolved, Blocked by: None)
 2. `02-deepen-search-indexing-and-encapsulate-cue.md`: 深入搜索管道，收敛 CUE 关联算法至 CueSheetResolver (Status: open, Blocked by: None)
 3. `03-verify-search-and-navigation-suite.md`: 运行全量单元测试，验证搜索性能与导航回归 (Status: open, Blocked by: 01, 02)

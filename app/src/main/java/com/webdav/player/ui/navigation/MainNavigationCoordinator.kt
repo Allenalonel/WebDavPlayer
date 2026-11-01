@@ -2,7 +2,6 @@ package com.webdav.player.ui.navigation
 
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.WebDavServer
-import com.webdav.player.domain.session.MusicPlayerAppSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,15 +21,15 @@ data class MainNavigationUiState(
 )
 
 class MainNavigationCoordinator(
-    private val musicPlayerAppSession: MusicPlayerAppSession? = null,
     initialDestination: AppDestination = AppDestination.SERVER_LIST,
     private val hasExplicitInitialDestination: Boolean = false,
+    initialIsMiniPlayerVisible: Boolean = false,
     private val onDestinationChanged: ((AppDestination) -> Unit)? = null,
 ) {
     private val _uiState = MutableStateFlow(
         MainNavigationUiState(
             currentDestination = initialDestination,
-            isMiniPlayerVisible = musicPlayerAppSession?.sessionState?.value?.hasTrack == true
+            isMiniPlayerVisible = initialIsMiniPlayerVisible,
         )
     )
     val uiState: StateFlow<MainNavigationUiState> = _uiState.asStateFlow()
@@ -93,13 +92,5 @@ class MainNavigationCoordinator(
 
     fun collapseFullPlayer() {
         _uiState.update { it.copy(isFullPlayerExpanded = false) }
-    }
-
-    fun togglePlayPause() {
-        musicPlayerAppSession?.togglePlayPause()
-    }
-
-    fun skipToNext() {
-        musicPlayerAppSession?.skipToNext()
     }
 }
