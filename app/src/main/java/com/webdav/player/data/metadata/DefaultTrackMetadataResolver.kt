@@ -34,6 +34,7 @@ internal class DefaultTrackMetadataResolver(
     suspend fun resolve(
         server: WebDavServer,
         file: RemoteFile,
+        directoryFiles: Collection<RemoteFile>? = null,
     ): TrackMetadata? =
         withContext(ioDispatcher) {
             val cleanFallbackTitle = file.name.substringBeforeLast('.').ifBlank { file.name }
@@ -100,7 +101,7 @@ internal class DefaultTrackMetadataResolver(
                     embeddedThumb
                 } else {
                     try {
-                        resolveFolderArtworkFallback(server, file)
+                        resolveFolderArtworkFallback(server, file, directoryFiles)
                     } catch (e: IOException) {
                         // Transient network / decode error probing folder artwork -> do not poison cache with null artwork
                         return@withContext null
@@ -186,30 +187,44 @@ internal class DefaultTrackMetadataResolver(
     private suspend fun resolveFolderArtworkFallback(
         server: WebDavServer,
         file: RemoteFile,
+        directoryFiles: Collection<RemoteFile>? = null,
     ): String? {
         val parentDir = RemoteDirectory.getParentPath(file.path) ?: ""
         val baseName = file.name.substringBeforeLast('.').ifBlank { file.name }
         val folderKey = "${server.id}:$parentDir"
 
+        // Build case-insensitive lookup map of known directory files if manifest provided
+        val manifestMap: Map<String, RemoteFile>? =
+            directoryFiles?.let { dirFiles ->
+                val relevantFiles =
+                    dirFiles.filter {
+                        it.path.isBlank() || RemoteDirectory.getParentPath(it.path) == parentDir
+                    }
+                relevantFiles.associateBy { it.name.lowercase() }
+            }
+
         // 1. Check track-specific artwork first: "${trackName}.jpg", "${trackName}.png", "${filename}.jpg", "${filename}.png"
-        val trackCandidates =
+        val rawTrackCandidates =
             listOf(
                 "$baseName.jpg",
                 "$baseName.png",
                 "${file.name}.jpg",
                 "${file.name}.png",
             )
-        val trackResult = probeCandidates(server, parentDir, trackCandidates)
-        when (trackResult) {
-            is ProbeResult.Found -> {
-                return trackResult.path
-            }
+        val trackCandidates = filterCandidatesByManifest(rawTrackCandidates, manifestMap)
+        if (trackCandidates.isNotEmpty()) {
+            val trackResult = probeCandidates(server, parentDir, trackCandidates)
+            when (trackResult) {
+                is ProbeResult.Found -> {
+                    return trackResult.path
+                }
 
-            is ProbeResult.NetworkError -> {
-                throw trackResult.cause
-            }
+                is ProbeResult.NetworkError -> {
+                    throw trackResult.cause
+                }
 
-            ProbeResult.NotFound -> { /* Continue to folder-level artwork */ }
+                ProbeResult.NotFound -> { /* Continue to folder-level artwork */ }
+            }
         }
 
         // 2. If folder artwork has already been resolved for this directory, reuse it immediately if physical file exists
@@ -240,13 +255,19 @@ internal class DefaultTrackMetadataResolver(
                 }
             }
 
-            val folderCandidates =
+            val rawFolderCandidates =
                 listOf(
                     "cover.jpg",
                     "folder.jpg",
                     "front.jpg",
                     "cover.png",
                 )
+            val folderCandidates = filterCandidatesByManifest(rawFolderCandidates, manifestMap)
+            if (folderCandidates.isEmpty()) {
+                folderArtworkCache[folderKey] = NO_FOLDER_ARTWORK_SENTINEL
+                return@withLock null
+            }
+
             val folderResult = probeCandidates(server, parentDir, folderCandidates)
             when (folderResult) {
                 is ProbeResult.Found -> {
@@ -263,6 +284,19 @@ internal class DefaultTrackMetadataResolver(
                     throw folderResult.cause
                 }
             }
+        }
+    }
+
+    private fun filterCandidatesByManifest(
+        candidateNames: List<String>,
+        manifestMap: Map<String, RemoteFile>?,
+    ): List<String> {
+        if (manifestMap == null) {
+            return candidateNames
+        }
+        return candidateNames.mapNotNull { candidate ->
+            val match = manifestMap[candidate.lowercase()]
+            match?.name
         }
     }
 

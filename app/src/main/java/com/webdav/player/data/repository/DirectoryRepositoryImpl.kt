@@ -174,6 +174,7 @@ class DirectoryRepositoryImpl(
                 server = server,
                 files = audioFiles,
                 forceRefresh = forceRefresh,
+                directoryFiles = directory.files,
             )
         }
 
