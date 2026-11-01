@@ -12,32 +12,32 @@ import org.junit.Before
 import org.junit.Test
 
 class MainNavigationCoordinatorTest {
-
     private lateinit var coordinator: MainNavigationCoordinator
 
-    private val sampleServer = WebDavServer(
-        id = 1L,
-        name = "My NAS",
-        url = "http://nas.local",
-        isDefault = true
-    )
+    private val sampleServer =
+        WebDavServer(
+            id = 1L,
+            name = "My NAS",
+            url = "http://nas.local",
+            isDefault = true,
+        )
 
-    private val sampleTrack = AudioTrack(
-        id = "1:/track.flac",
-        serverId = 1L,
-        remotePath = "/track.flac",
-        title = "Comfortably Numb",
-        artist = "Pink Floyd",
-        format = AudioFormat.FLAC
-    )
+    private val sampleTrack =
+        AudioTrack(
+            id = "1:/track.flac",
+            serverId = 1L,
+            remotePath = "/track.flac",
+            title = "Comfortably Numb",
+            artist = "Pink Floyd",
+            format = AudioFormat.FLAC,
+        )
 
-    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState {
-        return if (track == null) {
+    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState =
+        if (track == null) {
             PlayerSessionState()
         } else {
             PlayerSessionState(queue = PlaybackQueue(listOf(track), 0))
         }
-    }
 
     @Before
     fun setUp() {
@@ -244,4 +244,3 @@ class MainNavigationCoordinatorTest {
         assertEquals(AppDestination.DIRECTORY_BROWSER, notifiedDestination)
     }
 }
-

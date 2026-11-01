@@ -12,26 +12,25 @@ import org.junit.Before
 import org.junit.Test
 
 class PlayerSheetExpansionTest {
-
     private lateinit var coordinator: MainNavigationCoordinator
 
-    private val sampleTrack = AudioTrack(
-        id = "1:/music/track1.flac",
-        serverId = 1L,
-        remotePath = "/music/track1.flac",
-        title = "Shine On You Crazy Diamond",
-        artist = "Pink Floyd",
-        album = "Wish You Were Here",
-        format = AudioFormat.FLAC
-    )
+    private val sampleTrack =
+        AudioTrack(
+            id = "1:/music/track1.flac",
+            serverId = 1L,
+            remotePath = "/music/track1.flac",
+            title = "Shine On You Crazy Diamond",
+            artist = "Pink Floyd",
+            album = "Wish You Were Here",
+            format = AudioFormat.FLAC,
+        )
 
-    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState {
-        return if (track == null) {
+    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState =
+        if (track == null) {
             PlayerSessionState()
         } else {
             PlayerSessionState(queue = PlaybackQueue(listOf(track), 0))
         }
-    }
 
     @Before
     fun setUp() {
