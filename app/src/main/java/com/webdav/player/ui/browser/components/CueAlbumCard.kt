@@ -41,8 +41,10 @@ import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
+import com.webdav.player.ui.common.AudioQualityBadgePill
 import com.webdav.player.ui.common.AudioTrackRow
 import com.webdav.player.ui.common.CoverThumbnailImage
+import com.webdav.player.ui.common.EqualizerTrackIndicator
 import com.webdav.player.ui.theme.AppIcons
 import java.util.Locale
 

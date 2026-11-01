@@ -17,10 +17,25 @@ Physically remove 6 zero-production-usage files left over as transitional scaffo
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Remove 4 obsolete `*ViewModelFactory.kt` forwarding files
-- [ ] Remove deprecated `data/cue/CueTextCache.kt`
-- [ ] Remove `ui/browser/components/AudioTrackItemRowCompat.kt`
-- [ ] Update `AudioTrackItemRowTest.kt` to align with real component surface
-- [ ] Verify clean compilation and 100% test pass rate
+- [x] Remove 4 obsolete `*ViewModelFactory.kt` forwarding files
+- [x] Remove deprecated `data/cue/CueTextCache.kt`
+- [x] Remove `ui/browser/components/AudioTrackItemRowCompat.kt`
+- [x] Update `AudioTrackItemRowTest.kt` to align with real component surface
+- [x] Verify clean compilation and 100% test pass rate
+
+## Answer
+
+### Changes Made
+1. **Purged Obsolete ViewModel Factories**:
+   - Physically deleted `DirectoryBrowserViewModelFactory.kt`, `ServerManagementViewModelFactory.kt`, `PlaylistListViewModelFactory.kt`, and `PlaylistDetailViewModelFactory.kt`. All ViewModel creation across the codebase now flows exclusively through `AppViewModelFactory` or `AppContainer`.
+2. **Purged Deprecated Static Cache**:
+   - Physically deleted `CueTextCache.kt`, completing the migration to `CueSheetResolver`'s bounded LRU cache (ADR-0021).
+3. **Purged Compatibility Aliases & Aligned Imports**:
+   - Physically deleted `AudioTrackItemRowCompat.kt` (removing dead aliases `FileItemRow`, `AudioBadge`, `LyricBadge`, `OtherBadge`).
+   - Added direct imports for `EqualizerTrackIndicator` and `AudioQualityBadgePill` from `com.webdav.player.ui.common` in `CueAlbumCard.kt`.
+4. **Test Alignment**:
+   - Pruned obsolete reflection assertions in `AudioTrackItemRowTest.kt` that inspected bytecode aliases from `AudioTrackItemRowCompat`, focusing test surface strictly on real UI behaviors (`resolveAudioSubtitle`, `resolveBadge`, and file budget compliance).
+5. **Verification**:
+   - Ran `./gradlew testDebugUnitTest` verifying 100% test pass rate (998 passing tests, 0 failures).
