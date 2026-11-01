@@ -65,8 +65,8 @@ fun MiniPlayer(
     sessionState: PlayerSessionState,
     playbackActions: PlaybackActions,
     modifier: Modifier = Modifier,
-    onMiniPlayerClick: () -> Unit = {},
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
+    onMiniPlayerClick: () -> Unit = {},
 ) {
     val currentTrack = sessionState.currentTrack ?: return
 
@@ -341,9 +341,7 @@ private fun PlayPauseToggleButton(
     }
 }
 
-fun isMiniPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean {
-    return sessionState.isSuspendedRetry
-}
+fun isMiniPlayerRetryBannerVisible(sessionState: PlayerSessionState): Boolean = sessionState.isSuspendedRetry
 
 @Composable
 fun MiniPlayerRetryBanner(
