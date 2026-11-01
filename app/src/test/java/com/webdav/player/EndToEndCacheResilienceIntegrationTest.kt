@@ -502,6 +502,56 @@ class EndToEndCacheResilienceIntegrationTest {
                 </D:multistatus>
                 """.trimIndent()
 
+            val directoryXmlWithCover =
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/Music/Acoustic/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/Music/Acoustic/01-Track.mp3</D:href>
+                    <D:propstat>
+                      <D:prop>
+                        <D:resourcetype/>
+                        <D:getcontenttype>audio/mpeg</D:getcontenttype>
+                        <D:getcontentlength>${audioBytes1.size}</D:getcontentlength>
+                        <D:getlastmodified>Mon, 28 Sep 2026 10:00:00 GMT</D:getlastmodified>
+                      </D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/Music/Acoustic/02-Track.flac</D:href>
+                    <D:propstat>
+                      <D:prop>
+                        <D:resourcetype/>
+                        <D:getcontenttype>audio/flac</D:getcontenttype>
+                        <D:getcontentlength>${audioBytes2.size}</D:getcontentlength>
+                        <D:getlastmodified>Mon, 28 Sep 2026 10:05:00 GMT</D:getlastmodified>
+                      </D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/Music/Acoustic/cover.jpg</D:href>
+                    <D:propstat>
+                      <D:prop>
+                        <D:resourcetype/>
+                        <D:getcontenttype>image/jpeg</D:getcontenttype>
+                        <D:getcontentlength>${folderCoverJpeg.size}</D:getcontentlength>
+                        <D:getlastmodified>Mon, 28 Sep 2026 10:10:00 GMT</D:getlastmodified>
+                      </D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """.trimIndent()
+
             var remoteCoverAvailable = false
 
             mockWebServer.dispatcher =
@@ -511,10 +561,11 @@ class EndToEndCacheResilienceIntegrationTest {
                         val range = request.getHeader("Range")
                         return when {
                             path == "/dav/Music/Acoustic/" -> {
+                                val body = if (remoteCoverAvailable) directoryXmlWithCover else directoryXml
                                 MockResponse()
                                     .setResponseCode(207)
                                     .setHeader("Content-Type", "application/xml; charset=utf-8")
-                                    .setBody(directoryXml)
+                                    .setBody(body)
                             }
 
                             path == "/dav/Music/Acoustic/01-Track.mp3" -> {
