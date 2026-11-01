@@ -17,9 +17,16 @@ Refactor `data/repository/LibrarySearchRepositoryImpl.kt` to optimize the search
 
 **Blocked by:** None
 
-**Status:** open
+**Status:** resolved
 
-- [ ] Remove `CueAssociationHelper` import from `LibrarySearchRepositoryImpl.kt`
-- [ ] Refactor CUE virtual track search to route strictly through `CueSheetResolver`
-- [ ] Optimize search pipeline to prevent redundant JSON deserialization
-- [ ] Run `LibrarySearchRepositoryTest` to confirm all 11 test cases pass 100%
+- [x] Remove `CueAssociationHelper` import from `LibrarySearchRepositoryImpl.kt`
+- [x] Refactor CUE virtual track search to route strictly through `CueSheetResolver`
+- [x] Optimize search pipeline to prevent redundant JSON deserialization
+- [x] Run `LibrarySearchRepositoryTest` to confirm all 11 test cases pass 100%
+
+## Answer
+- Made `CueAssociationHelper` an `internal object` in package `com.webdav.player.data.cue`.
+- Eliminated all imports of `CueAssociationHelper` outside `data/cue/` by having `PlaybackQueueManager` route CUE resolution via `CueSheetResolver.resolveInitialCueAlbums`.
+- Added transient in-memory LRU caching (`directoryCache`) and pre-filtering in `LibrarySearchRepositoryImpl` to eliminate redundant JSON deserialization during typing.
+- Streamlined `LibrarySearchRepositoryImpl.kt` down to 242 lines (well below the 250-line target and 600-line ceiling).
+- All unit tests in `LibrarySearchRepositoryTest` pass 100%.

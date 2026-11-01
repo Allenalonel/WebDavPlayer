@@ -5,7 +5,7 @@ import com.webdav.player.domain.model.RemoteFile
 /**
  * Domain helper for matching `.cue` sheets to their corresponding parent audio files in the same directory.
  */
-object CueAssociationHelper {
+internal object CueAssociationHelper {
     /**
      * Finds the corresponding audio file for a given CUE file among the candidate audio files in the same directory.
      *
