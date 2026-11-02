@@ -38,7 +38,7 @@
 ## Tickets Breakdown
 1. `01-system-network-connectivity-observer.md`: 系统级网络连通性响应式观察者与防抖 (Status: resolved, Blocked by: None)
 2. `02-ghost-proof-transparent-playback-auto-resumption.md`: 防鬼畜误播透明断点无感续播 (Status: resolved, Blocked by: 01)
-3. `03-offline-playlist-reachability-self-healing.md`: 离线歌单网络恢复静默自愈 (Status: ready-for-agent, Blocked by: 01)
+3. `03-offline-playlist-reachability-self-healing.md`: 离线歌单网络恢复静默自愈 (Status: resolved, Blocked by: 01)
 4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: ready-for-agent, Blocked by: 02, 03)
 
 ---
@@ -47,3 +47,4 @@
 - **Task Graph Initialized**: 建立集成分支 `feature/network-awareness-and-auto-resumption`，确定 4 个任务的拓扑关系与依赖图谱。
 - **Ticket 01 Resolved**: 实现 `NetworkStatus` 领域不可变模型与 `NetworkConnectivityObserver` 接口契约；实现基于原生 `ConnectivityManager.NetworkCallback` 的 `DefaultNetworkConnectivityObserver`，内置 500ms 协程防抖以阻断高频信号颠簸；在 `AppContainer` 与 `WebDavApplication` 中完成单例托管生命周期注入；提供 `FakeNetworkConnectivityObserver` 测试桩并通过 `NetworkConnectivityObserverTest` 验证 Wi-Fi、蜂窝、断网及防抖全部 9 项测试。
 - **Ticket 02 Resolved**: 在 `PlaybackFaultTolerance` 中实现 `onNetworkRestored(onAutoResume: () -> Unit)`，前置强制校验 `isWeakNetwork && canManualRetry && hasTrack`；在 `MusicPlayerAppSessionImpl` 中将 `NetworkConnectivityObserver` 状态流直通核心调度器，并在网络自断网恢复连通时平滑自愈续播与清除横幅；在 `pauseInternal()` 中原子清除弱网标记，严格抑制主动暂停与 Becoming Noisy 下的鬼畜误播；在 `PlaybackFaultToleranceTest` 与 `MusicPlayerAppSessionTest` 中全面覆盖正向自愈与防误播用例。
+- **Ticket 03 Resolved**: 在 `PlaylistDao` 中增加 `getDistinctServerIdsForInactiveReason` 与 `clearServerUnreachableStatus` 原生批处理支持；在 `PlaylistRepository` 接口与实现中加入 `triggerReachabilitySelfHealing()`，使用 `AtomicBoolean` 实现并发去重防抖，并使用协程并发对失联服务器派发 `testConnection` 轻量探测；对连通恢复的服务器批量清理 Room 实体与内存状态映射，驱动歌单 UI 灰显曲目静默无感点亮；在 `PlaylistRepositoryTest` 中完成 DAO 批处理与仓储自愈双重验证。

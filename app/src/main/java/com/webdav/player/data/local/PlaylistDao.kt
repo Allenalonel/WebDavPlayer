@@ -111,6 +111,15 @@ interface PlaylistDao {
         reason: String?,
     ): Int
 
+    @Query("SELECT DISTINCT serverId FROM playlist_tracks WHERE isInactive = 1 AND inactiveReason = :reason")
+    suspend fun getDistinctServerIdsForInactiveReason(reason: String): List<Long>
+
+    @Query("UPDATE playlist_tracks SET isInactive = 0, inactiveReason = NULL WHERE serverId = :serverId AND inactiveReason = :reason")
+    suspend fun clearServerUnreachableStatus(
+        serverId: Long,
+        reason: String = "SERVER_UNREACHABLE",
+    ): Int
+
     @Query("SELECT * FROM playlist_tracks WHERE id = :trackEntryId LIMIT 1")
     suspend fun getTrackById(trackEntryId: Long): PlaylistTrackEntity?
 

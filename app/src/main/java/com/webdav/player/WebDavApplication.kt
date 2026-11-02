@@ -129,6 +129,7 @@ class WebDavApplication :
                 playlistDao = database.playlistDao(),
                 serverRepository = serverRepository,
                 trackMetadataRepository = trackMetadataRepository,
+                webDavClient = webDavClient,
             )
 
         val networkConnectivityObserver = DefaultNetworkConnectivityObserver(this)

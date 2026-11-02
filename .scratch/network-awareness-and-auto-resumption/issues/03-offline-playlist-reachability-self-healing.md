@@ -4,10 +4,17 @@
 
 **Blocked by:** 01 (System Network Connectivity Reactive Observer with Debounce)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `PlaylistDao` provides batch queries for unreachable server IDs and batch updates to clear `SERVER_UNREACHABLE` flags
-- [ ] `PlaylistRepository` implements `triggerReachabilitySelfHealing()` dispatching concurrent lightweight connection tests
-- [ ] Successful server connection test updates the database and causes playlist UI to reactively re-enable dimmed tracks
-- [ ] Reachability self-healing runs asynchronously in the background with concurrency deduplication
-- [ ] Unit tests in `PlaylistRepositoryTest` verify dimmed tracks are restored to active status upon successful network probe
+- [x] `PlaylistDao` provides batch queries for unreachable server IDs and batch updates to clear `SERVER_UNREACHABLE` flags
+- [x] `PlaylistRepository` implements `triggerReachabilitySelfHealing()` dispatching concurrent lightweight connection tests
+- [x] Successful server connection test updates the database and causes playlist UI to reactively re-enable dimmed tracks
+- [x] Reachability self-healing runs asynchronously in the background with concurrency deduplication
+- [x] Unit tests in `PlaylistRepositoryTest` verify dimmed tracks are restored to active status upon successful network probe
+
+## Comments
+- Added `getDistinctServerIdsForInactiveReason(reason: String)` and `clearServerUnreachableStatus(serverId: Long, reason: String)` batch operations to `PlaylistDao`.
+- Implemented `triggerReachabilitySelfHealing()` on `PlaylistRepository` / `PlaylistRepositoryImpl` with `AtomicBoolean` deduplication and concurrent async reachability probes via `webDavClient.testConnection`.
+- Clears database status and synchronizes `_inactiveTracksFlow` to reactively re-enable dimmed tracks in UI.
+- Injected `webDavClient` into `PlaylistRepositoryImpl` in `WebDavApplication`.
+- Comprehensive unit tests added in `PlaylistRepositoryTest` covering DAO batch methods and repository self-healing, all passing.
