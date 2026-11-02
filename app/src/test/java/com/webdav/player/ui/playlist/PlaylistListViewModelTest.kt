@@ -104,9 +104,10 @@ class FakePlaylistRepository : PlaylistRepository {
         playlistId: Long,
         tracks: List<AudioTrack>,
     ): List<Long> =
-        tracks.map {
-            addTrackToPlaylist(playlistId, it)
-        }
+        tracks
+            .map {
+                addTrackToPlaylist(playlistId, it)
+            }.filter { it > 0L }
 
     override suspend fun removeTracksFromPlaylist(
         playlistId: Long,
@@ -327,7 +328,9 @@ class PlaylistListViewModelTest {
         runTest(testDispatcher) {
             viewModel.createPlaylist("已有歌单")
             advanceUntilIdle()
-            val playlist = viewModel.uiState.value.playlists.first()
+            val playlist =
+                viewModel.uiState.value.playlists
+                    .first()
             val sampleTrack =
                 AudioTrack(
                     id = "1:/song.flac",
@@ -341,12 +344,74 @@ class PlaylistListViewModelTest {
             viewModel.addTrackToPlaylist(playlist.id, sampleTrack) { firstAdded = it }
             advanceUntilIdle()
             assertEquals(true, firstAdded)
-            assertEquals(1, viewModel.uiState.value.playlists[0].trackCount)
+            assertEquals(
+                1,
+                viewModel.uiState.value.playlists[0]
+                    .trackCount,
+            )
 
             var secondAdded: Boolean? = null
             viewModel.addTrackToPlaylist(playlist.id, sampleTrack) { secondAdded = it }
             advanceUntilIdle()
             assertEquals(false, secondAdded)
-            assertEquals(1, viewModel.uiState.value.playlists[0].trackCount)
+            assertEquals(
+                1,
+                viewModel.uiState.value.playlists[0]
+                    .trackCount,
+            )
+        }
+
+    @Test
+    fun addTracksToPlaylist_batchAddsAndDeduplicates_returnsCorrectCounts() =
+        runTest(testDispatcher) {
+            viewModel.createPlaylist("批量歌单")
+            advanceUntilIdle()
+            val playlist =
+                viewModel.uiState.value.playlists
+                    .first()
+
+            val track1 = AudioTrack(id = "1:/s1.mp3", serverId = 1L, remotePath = "/s1.mp3", title = "S1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/s2.mp3", serverId = 1L, remotePath = "/s2.mp3", title = "S2", format = AudioFormat.MP3)
+            val track3 = AudioTrack(id = "1:/s3.mp3", serverId = 1L, remotePath = "/s3.mp3", title = "S3", format = AudioFormat.MP3)
+
+            // First add track1
+            viewModel.addTrackToPlaylist(playlist.id, track1)
+            advanceUntilIdle()
+
+            // Now batch add track1 (duplicate), track2 (new), track3 (new)
+            var added: Int? = null
+            var skipped: Int? = null
+            viewModel.addTracksToPlaylist(playlist.id, listOf(track1, track2, track3)) { a, s ->
+                added = a
+                skipped = s
+            }
+            advanceUntilIdle()
+
+            assertEquals(2, added)
+            assertEquals(1, skipped)
+            assertEquals(
+                3,
+                viewModel.uiState.value.playlists[0]
+                    .trackCount,
+            )
+        }
+
+    @Test
+    fun createPlaylistAndAddTracks_createsNewPlaylistAndBatchAdds() =
+        runTest(testDispatcher) {
+            val track1 = AudioTrack(id = "1:/s1.mp3", serverId = 1L, remotePath = "/s1.mp3", title = "S1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "1:/s2.mp3", serverId = 1L, remotePath = "/s2.mp3", title = "S2", format = AudioFormat.MP3)
+
+            var addedCount: Int? = null
+            viewModel.createPlaylistAndAddTracks("新华语精选", listOf(track1, track2)) {
+                addedCount = it
+            }
+            advanceUntilIdle()
+
+            assertEquals(2, addedCount)
+            val state = viewModel.uiState.value
+            assertEquals(1, state.playlists.size)
+            assertEquals("新华语精选", state.playlists[0].name)
+            assertEquals(2, state.playlists[0].trackCount)
         }
 }

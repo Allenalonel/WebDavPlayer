@@ -29,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +59,9 @@ fun SearchResultsContent(
     onDirectoryClick: (RemoteDirectory) -> Unit,
     onTrackClick: (AudioTrack) -> Unit,
     onAddToPlaylist: (AudioTrack) -> Unit = {},
+    isSelectionMode: Boolean = false,
+    selectedTrackIds: Set<String> = emptySet(),
+    onTrackLongClick: ((AudioTrack) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val cleanQuery = query.trim()
@@ -128,6 +132,9 @@ fun SearchResultsContent(
                     onDirectoryClick = onDirectoryClick,
                     onTrackClick = onTrackClick,
                     onAddToPlaylist = onAddToPlaylist,
+                    isSelectionMode = isSelectionMode,
+                    selectedTrackIds = selectedTrackIds,
+                    onTrackLongClick = onTrackLongClick,
                 )
             }
         }
@@ -140,6 +147,9 @@ internal fun SearchResultsList(
     onDirectoryClick: (RemoteDirectory) -> Unit,
     onTrackClick: (AudioTrack) -> Unit,
     onAddToPlaylist: (AudioTrack) -> Unit = {},
+    isSelectionMode: Boolean = false,
+    selectedTrackIds: Set<String> = emptySet(),
+    onTrackLongClick: ((AudioTrack) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -149,11 +159,15 @@ internal fun SearchResultsList(
         searchDirectoriesSection(
             directories = searchResult.matchedDirectories,
             onDirectoryClick = onDirectoryClick,
+            isSelectionMode = isSelectionMode,
         )
         searchTracksSection(
             tracks = searchResult.matchedTracks,
             onTrackClick = onTrackClick,
             onAddToPlaylist = onAddToPlaylist,
+            isSelectionMode = isSelectionMode,
+            selectedTrackIds = selectedTrackIds,
+            onTrackLongClick = onTrackLongClick,
         )
     }
 }
@@ -289,7 +303,10 @@ internal fun SearchDirectoryItem(
     directory: RemoteDirectory,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isSelectionMode: Boolean = false,
 ) {
+    val alpha = if (isSelectionMode) 0.38f else 1f
+    val clickModifier = if (isSelectionMode) Modifier else Modifier.clickable(onClick = onClick)
     ListItem(
         headlineContent = {
             Text(
@@ -334,13 +351,14 @@ internal fun SearchDirectoryItem(
             )
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.alpha(alpha).then(clickModifier),
     )
 }
 
 internal fun LazyListScope.searchDirectoriesSection(
     directories: List<RemoteDirectory>,
     onDirectoryClick: (RemoteDirectory) -> Unit,
+    isSelectionMode: Boolean = false,
 ) {
     if (directories.isEmpty()) return
     item(key = "header_directories") {
@@ -351,7 +369,11 @@ internal fun LazyListScope.searchDirectoriesSection(
         )
     }
     items(directories, key = { "dir_${it.path}" }) { dir ->
-        SearchDirectoryItem(directory = dir, onClick = { onDirectoryClick(dir) })
+        SearchDirectoryItem(
+            directory = dir,
+            onClick = { onDirectoryClick(dir) },
+            isSelectionMode = isSelectionMode,
+        )
     }
 }
 
@@ -381,6 +403,9 @@ internal fun CueTagBadge(modifier: Modifier = Modifier) =
 internal fun SearchTrackItem(
     track: AudioTrack,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
     onAddToPlaylist: (AudioTrack) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -403,6 +428,9 @@ internal fun SearchTrackItem(
                 null
             },
         onClick = onClick,
+        onLongClick = onLongClick,
+        isSelectionMode = isSelectionMode,
+        isSelected = isSelected,
         actionsMenu = { dismiss ->
             DropdownMenuItem(
                 text = { Text("添加到歌单") },
@@ -426,6 +454,9 @@ internal fun LazyListScope.searchTracksSection(
     tracks: List<AudioTrack>,
     onTrackClick: (AudioTrack) -> Unit,
     onAddToPlaylist: (AudioTrack) -> Unit,
+    isSelectionMode: Boolean = false,
+    selectedTrackIds: Set<String> = emptySet(),
+    onTrackLongClick: ((AudioTrack) -> Unit)? = null,
 ) {
     if (tracks.isEmpty()) return
     item(key = "header_tracks") {
@@ -439,6 +470,9 @@ internal fun LazyListScope.searchTracksSection(
         SearchTrackItem(
             track = track,
             onClick = { onTrackClick(track) },
+            onLongClick = onTrackLongClick?.let { { it(track) } },
+            isSelectionMode = isSelectionMode,
+            isSelected = track.id in selectedTrackIds,
             onAddToPlaylist = onAddToPlaylist,
         )
     }

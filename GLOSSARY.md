@@ -68,6 +68,10 @@ _Avoid_: Song List, Favorite Folder, Collection
 持久化在本地数据库中的歌单曲目引用，明确记录所属的 WebDAV Server 标识符、远程相对路径、排序索引及快照元数据（标题、艺术家、专辑、时长、封面缩略图路径等），支持后台异步封面自愈补全。
 _Avoid_: Song Item, Playlist Item
 
+**Batch Playlist Addition**:
+在媒体库或全库检索中一次性将多首选定音频曲目收录至指定歌单的批处理操作。具备仓储层原子去重能力，自动过滤目标歌单中已有的同源曲目，并输出精准的增量添加与跳过统计。
+_Avoid_: Multi Song Insert, Bulk Track Dump
+
 **Inactive Playlist Track**:
 当所属 WebDAV Server 处于离线/无法连接状态，或服务器认证凭证失效（401/403），或远程文件返回 404（已被重命名、移动或删除）时，歌单中呈现为置灰减淡的音轨状态。具备显式诊断原因枚举（InactiveReason），点击触发明确 Toast 反馈，流式切歌自动静默平滑跳过。
 _Avoid_: Disabled Song, Dead Link, Error Item
@@ -259,6 +263,10 @@ _Avoid_: Transparent Bars, Fullscreen Hack
 **Directory Breadcrumb Strip**:
 由 Material Design 3 胶囊 Chip 构成的可水平滑动的目录路径条，直观展示自活跃服务器根目录至当前层级的继承关系，支持点选任意祖先目录瞬时跳转。
 _Avoid_: Path Bar, Folder Tree, Location Bar
+
+**Contextual Multi-Select Mode**:
+通过长按音频条目激活的临时选择状态机。顶栏转换为包含取消、已选计数与全选动作的 Contextual Top App Bar，底部悬浮胶囊动作条（Floating Pill Bar）提供批量加入歌单与下一首插队播放，物理返回键优先解除该选择态。
+_Avoid_: Edit Mode, Checkbox View, Batch Mode
 
 **Audio Quality Badge**:
 音频曲目列表中标识音频编码格式（如 FLAC、MP3、WAV、WMA）及无损/高解析度层级的视觉标签胶囊。

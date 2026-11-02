@@ -46,7 +46,27 @@ fun AddToPlaylistDialog(
     onSelectPlaylist: (Playlist) -> Unit,
     onCreatePlaylistAndAdd: (String) -> Unit,
     modifier: Modifier = Modifier,
+) = AddToPlaylistDialog(
+    tracks = listOf(track),
+    playlists = playlists,
+    onDismissRequest = onDismissRequest,
+    onSelectPlaylist = onSelectPlaylist,
+    onCreatePlaylistAndAdd = onCreatePlaylistAndAdd,
+    modifier = modifier,
+)
+
+@Composable
+fun AddToPlaylistDialog(
+    tracks: List<AudioTrack>,
+    playlists: List<Playlist>,
+    onDismissRequest: () -> Unit,
+    onSelectPlaylist: (Playlist) -> Unit,
+    onCreatePlaylistAndAdd: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    if (tracks.isEmpty()) return
+    val singleTrack = tracks.firstOrNull()
+
     var isCreatingNew by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     var createError by remember { mutableStateOf<String?>(null) }
@@ -79,39 +99,74 @@ fun AddToPlaylistDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Track Preview Card
+                // Track Preview / Summary Card
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = if (track.isVirtualTrack) AppIcons.QueueMusic else AppIcons.Audiotrack,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp),
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = track.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                    if (tracks.size == 1 && singleTrack != null) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = if (singleTrack.isVirtualTrack) AppIcons.QueueMusic else AppIcons.Audiotrack,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp),
                             )
-                            val artistText = track.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家"
-                            Text(
-                                text = artistText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = singleTrack.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                val artistText = singleTrack.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家"
+                                Text(
+                                    text = artistText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "${tracks.size}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "已选中 ${tracks.size} 首歌曲",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = "将自动去重，跳过已存在的歌曲",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }

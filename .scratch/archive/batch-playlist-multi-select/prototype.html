@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多选歌曲与批量添加到歌单 · MD3 原型对比 (媒体库 + 搜索页)</title>
+  <style>
+    :root {
+      --md-primary: #a8c7fa;
+      --md-on-primary: #062e6f;
+      --md-primary-container: #0842a0;
+      --md-on-primary-container: #d3e3fd;
+      --md-surface: #111318;
+      --md-surface-container-low: #191b20;
+      --md-surface-container: #1e2025;
+      --md-surface-container-high: #282a2f;
+      --md-surface-container-highest: #33353a;
+      --md-on-surface: #e2e2e9;
+      --md-on-surface-variant: #c4c6d0;
+      --md-outline: #8e9099;
+      --md-outline-variant: #44474f;
+      --md-secondary-container: #3e4758;
+      --md-on-secondary-container: #dae2f9;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: #090a0f;
+      color: var(--md-on-surface);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 16px 80px;
+    }
+
+    header {
+      text-align: center;
+      max-width: 820px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #d3e3fd;
+      margin-bottom: 6px;
+    }
+
+    p.subtitle {
+      font-size: 13.5px;
+      color: var(--md-on-surface-variant);
+      line-height: 1.5;
+    }
+
+    /* 场景切换器（媒体库 vs 搜索） */
+    .scene-controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .scene-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 20px;
+      border-radius: 999px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid var(--md-outline-variant);
+      background: var(--md-surface-container);
+      color: var(--md-on-surface-variant);
+      transition: all 0.2s ease;
+    }
+
+    .scene-tab.active {
+      background: var(--md-primary-container);
+      color: var(--md-on-primary-container);
+      border-color: var(--md-primary);
+      box-shadow: 0 4px 16px rgba(168, 199, 250, 0.2);
+    }
+
+    /* 手机外壳容器 */
+    .device-frame {
+      width: 384px;
+      height: 770px;
+      background: var(--md-surface);
+      border-radius: 42px;
+      border: 10px solid #22242a;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 模拟状态栏 */
+    .status-bar {
+      height: 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 22px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--md-on-surface-variant);
+      z-index: 10;
+    }
+
+    /* 内容滚动区域 */
+    .screen-content {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 110px;
+    }
+
+    /* MD3 Contextual Top App Bar */
+    .top-app-bar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--md-surface-container);
+      border-bottom: 0.5px solid var(--md-outline-variant);
+      z-index: 5;
+    }
+
+    .top-left-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--md-on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255,255,255,0.08);
+    }
+
+    .bar-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .bar-sub {
+      font-size: 11px;
+      color: var(--md-primary);
+      margin-top: 1px;
+    }
+
+    .select-all-btn {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--md-primary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+
+    .select-all-btn:hover {
+      background: rgba(168, 199, 250, 0.1);
+    }
+
+    /* 搜索场景：模拟搜索词提示条 */
+    .search-query-chip-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--md-surface-container-low);
+      border-bottom: 0.5px solid rgba(255,255,255,0.04);
+      font-size: 12px;
+      color: var(--md-on-surface-variant);
+    }
+
+    .query-tag {
+      background: var(--md-surface-container-highest);
+      color: var(--md-primary);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    /* 列表分类标题 */
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--md-primary);
+      padding: 12px 16px 4px;
+    }
+
+    /* 列表项 */
+    .track-list {
+      display: flex;
+      flex-direction: column;
+      padding: 6px 12px;
+      gap: 6px;
+    }
+
+    .track-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: transparent;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .track-item:hover {
+      background: var(--md-surface-container-high);
+    }
+
+    .track-item.selected {
+      background: var(--md-surface-container-highest);
+      border: 1px solid rgba(168, 199, 250, 0.35);
+    }
+
+    /* 匹配到的目录卡片（不可多选，只读预览） */
+    .dir-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--md-surface-container-low);
+      opacity: 0.7;
+      margin: 4px 12px;
+      gap: 12px;
+    }
+
+    .dir-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--md-secondary-container);
+      color: var(--md-on-secondary-container);
+    }
+
+    /* Checkbox */
+    .checkbox {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid var(--md-outline);
+      margin-right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .track-item.selected .checkbox {
+      background: var(--md-primary);
+      border-color: var(--md-primary);
+    }
+
+    .checkbox svg {
+      display: none;
+      width: 14px;
+      height: 14px;
+      fill: var(--md-on-primary);
+    }
+
+    .track-item.selected .checkbox svg {
+      display: block;
+    }
+
+    /* 封面缩略图 */
+    .track-cover {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--md-secondary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      color: var(--md-on-secondary-container);
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .track-meta {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .track-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--md-on-surface);
+      margin-bottom: 2px;
+    }
+
+    .track-title mark {
+      background: rgba(168, 199, 250, 0.3);
+      color: #fff;
+      border-radius: 2px;
+      padding: 0 2px;
+    }
+
+    .track-sub {
+      font-size: 12px;
+      color: var(--md-on-surface-variant);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(168, 199, 250, 0.15);
+      color: var(--md-primary);
+      font-weight: 700;
+    }
+
+    /* ================= 方案 A：底部悬浮胶囊浮岛 (Floating Pill) ================= */
+    .floating-pill-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 16px;
+      right: 16px;
+      background: var(--md-surface-container-highest);
+      border-radius: 28px;
+      padding: 8px 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 20;
+    }
+
+    .pill-btn-secondary {
+      flex: 1;
+      height: 42px;
+      border-radius: 22px;
+      border: none;
+      background: var(--md-surface-container);
+      color: var(--md-on-surface);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .pill-btn-secondary:hover {
+      background: var(--md-surface-container-high);
+    }
+
+    .pill-btn-primary {
+      flex: 1.25;
+      height: 42px;
+      border-radius: 22px;
+      border: none;
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(168, 199, 250, 0.25);
+      transition: all 0.2s;
+    }
+
+    .pill-btn-primary:hover {
+      filter: brightness(1.08);
+    }
+
+    /* ================= 对话框模态层 (AddToPlaylistDialog) ================= */
+    .dialog-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.68);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 50;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .dialog-overlay.open {
+      display: flex;
+    }
+
+    .dialog-card {
+      width: 100%;
+      max-width: 334px;
+      background: var(--md-surface-container-high);
+      border-radius: 26px;
+      padding: 20px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.8), 0 0 0 1px var(--md-outline-variant);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dialog-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .summary-card {
+      background: rgba(168, 199, 250, 0.08);
+      border: 1px solid rgba(168, 199, 250, 0.2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .summary-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--md-primary);
+      color: var(--md-on-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .summary-text {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--md-on-surface);
+    }
+
+    .playlist-list {
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .playlist-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .playlist-item:hover {
+      background: var(--md-surface-container-highest);
+    }
+
+    .playlist-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--md-primary-container);
+      color: var(--md-on-primary-container);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    /* Toast 气泡 */
+    .toast {
+      position: absolute;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--md-on-surface);
+      color: var(--md-surface);
+      padding: 9px 18px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 100;
+      white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.92); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* 方案说明卡片 */
+    .variant-desc-card {
+      margin-top: 24px;
+      background: var(--md-surface-container);
+      border: 1px solid var(--md-outline-variant);
+      border-radius: 16px;
+      padding: 18px 22px;
+      max-width: 620px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .desc-title {
+      font-weight: 700;
+      color: var(--md-primary);
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>歌曲多选与批量加入歌单 · MD3 原型对比</h1>
+    <p class="subtitle">采用<strong>方案 A (底部悬浮胶囊浮岛)</strong>。支持切换查看「媒体库浏览」与「全局搜索结果」下的多选联动。</p>
+  </header>
+
+  <!-- 场景切换 -->
+  <div class="scene-controls">
+    <button class="scene-tab active" id="tab-dir">
+      <span>📁</span> 场景一：媒体库目录多选
+    </button>
+    <button class="scene-tab" id="tab-search">
+      <span>🔍</span> 场景二：全局搜索结果多选
+    </button>
+  </div>
+
+  <!-- 手机外壳 -->
+  <div class="device-frame">
+    <!-- 模拟状态栏 -->
+    <div class="status-bar">
+      <span>22:45</span>
+      <span>5G · 100%</span>
+    </div>
+
+    <!-- 媒体库顶栏 -->
+    <div id="top-bar-dir" class="top-app-bar">
+      <div class="top-left-group">
+        <button class="icon-btn" id="btn-close-dir">✕</button>
+        <div>
+          <div class="bar-title" id="bar-title-dir">已选 3 项</div>
+          <div class="bar-sub">目录：/Music/Hi-Res/</div>
+        </div>
+      </div>
+      <button class="select-all-btn" id="btn-select-all-dir">取消全选</button>
+    </div>
+
+    <!-- 搜索页顶栏 -->
+    <div id="top-bar-search" class="top-app-bar" style="display: none;">
+      <div class="top-left-group">
+        <button class="icon-btn" id="btn-close-search">✕</button>
+        <div>
+          <div class="bar-title" id="bar-title-search">已选 2 项</div>
+          <div class="bar-sub">搜索结果多选</div>
+        </div>
+      </div>
+      <button class="select-all-btn" id="btn-select-all-search">全选</button>
+    </div>
+
+    <!-- 搜索词提示条 (仅搜索场景) -->
+    <div id="search-chip-bar" class="search-query-chip-bar" style="display: none;">
+      <span>当前搜索词：<span class="query-tag">周杰伦</span></span>
+      <span style="font-size: 11px;">匹配 5 首歌曲</span>
+    </div>
+
+    <!-- 列表内容滚动区 -->
+    <div class="screen-content">
+      <!-- 媒体库列表 -->
+      <div id="list-directory" class="track-list">
+        <div class="track-item selected" data-id="d1">
+          <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+          <div class="track-cover">🎵</div>
+          <div class="track-meta">
+            <div class="track-title">七月的极光</div>
+            <div class="track-sub"><span class="badge">FLAC</span><span>星野未来</span><span>·</span><span>03:42</span></div>
+          </div>
+        </div>
+        <div class="track-item selected" data-id="d2">
+          <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+          <div class="track-cover">🎵</div>
+          <div class="track-meta">
+            <div class="track-title">夜航星 (Night Cruise)</div>
+            <div class="track-sub"><span class="badge">FLAC</span><span>不科学的UP主</span><span>·</span><span>04:15</span></div>
+          </div>
+        </div>
+        <div class="track-item" data-id="d3">
+          <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+          <div class="track-cover">🎵</div>
+          <div class="track-meta">
+            <div class="track-title">City Lights & Raindrops</div>
+            <div class="track-sub"><span class="badge">MP3</span><span>Lofi Cafe</span><span>·</span><span>02:58</span></div>
+          </div>
+        </div>
+        <div class="track-item selected" data-id="d4">
+          <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+          <div class="track-cover">🎵</div>
+          <div class="track-meta">
+            <div class="track-title">海风微甜时的告别</div>
+            <div class="track-sub"><span class="badge">FLAC</span><span>海岛乐队</span><span>·</span><span>04:50</span></div>
+          </div>
+        </div>
+        <div class="track-item" data-id="d5">
+          <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+          <div class="track-cover">🎵</div>
+          <div class="track-meta">
+            <div class="track-title">Midnight Espresso</div>
+            <div class="track-sub"><span class="badge">WAV</span><span>Jazz Quartet</span><span>·</span><span>05:12</span></div>
+          </div>
+        </div>
+        <div class="track-item" data-id="d6">
+          <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+          <div class="track-cover">🎵</div>
+          <div class="track-meta">
+            <div class="track-title">追光者 (Acoustic Ver.)</div>
+            <div class="track-sub"><span class="badge">MP3</span><span>岑宁儿</span><span>·</span><span>03:55</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 搜索结果列表 -->
+      <div id="list-search" style="display: none;">
+        <div class="section-title">匹配目录 (不可多选)</div>
+        <div class="dir-item">
+          <span style="font-size: 18px;">📁</span>
+          <div style="flex:1;">
+            <div style="font-size: 13px; font-weight: 600;">周杰伦全集 (FLAC分轨)</div>
+            <div style="font-size: 11px; color: var(--md-on-surface-variant);">/Music/JayChou/</div>
+          </div>
+          <span class="dir-badge">文件夹</span>
+        </div>
+
+        <div class="section-title">匹配歌曲 (5 首 · 支持多选)</div>
+        <div class="track-list">
+          <div class="track-item selected" data-id="s1">
+            <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+            <div class="track-cover">🎶</div>
+            <div class="track-meta">
+              <div class="track-title"><mark>晴天</mark> (Live 2004)</div>
+              <div class="track-sub"><span class="badge">FLAC</span><span>周杰伦</span><span>·</span><span>叶惠美</span></div>
+            </div>
+          </div>
+          <div class="track-item selected" data-id="s2">
+            <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+            <div class="track-cover">🎶</div>
+            <div class="track-meta">
+              <div class="track-title"><mark>夜曲</mark> (Nocturne)</div>
+              <div class="track-sub"><span class="badge">FLAC</span><span>周杰伦</span><span>·</span><span>十一月的萧邦</span></div>
+            </div>
+          </div>
+          <div class="track-item" data-id="s3">
+            <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+            <div class="track-cover">🎶</div>
+            <div class="track-meta">
+              <div class="track-title"><mark>枫</mark> (Autumn Maple)</div>
+              <div class="track-sub"><span class="badge">MP3</span><span>周杰伦</span><span>·</span><span>十一月的萧邦</span></div>
+            </div>
+          </div>
+          <div class="track-item" data-id="s4">
+            <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+            <div class="track-cover">🎶</div>
+            <div class="track-meta">
+              <div class="track-title"><mark>七里香</mark> (Common Jasmine)</div>
+              <div class="track-sub"><span class="badge">FLAC</span><span>周杰伦</span><span>·</span><span>七里香</span></div>
+            </div>
+          </div>
+          <div class="track-item" data-id="s5">
+            <div class="checkbox"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
+            <div class="track-cover">🎶</div>
+            <div class="track-meta">
+              <div class="track-title"><mark>一路向北</mark></div>
+              <div class="track-sub"><span class="badge">WAV</span><span>周杰伦</span><span>·</span><span>头文字D</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部悬浮胶囊操作栏 -->
+    <div id="floating-pill-bar" class="floating-pill-bar">
+      <button class="pill-btn-secondary" id="btn-play-next">
+        <span>⏭</span> 下一首播放
+      </button>
+      <button class="pill-btn-primary" id="btn-add-playlist">
+        <span>➕</span> <span id="label-add-playlist">添加到歌单 (3)</span>
+      </button>
+    </div>
+
+    <!-- 批量添加到歌单对话框模态 -->
+    <div class="dialog-overlay" id="dialog-overlay">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <span class="dialog-title">添加到歌单</span>
+          <button class="icon-btn" id="btn-dialog-close">✕</button>
+        </div>
+
+        <!-- 批量选择摘要 -->
+        <div class="summary-card">
+          <div class="summary-icon" id="dialog-count-badge">3</div>
+          <div>
+            <div class="summary-text" id="dialog-summary-text">已选中 3 首歌曲</div>
+            <div style="font-size: 11px; color: var(--md-on-surface-variant); margin-top: 2px;">将自动去重，跳过已存在的歌曲</div>
+          </div>
+        </div>
+
+        <div style="font-size: 12px; color: var(--md-on-surface-variant); font-weight: 600;">选择目标歌单：</div>
+
+        <div class="playlist-list">
+          <div class="playlist-item" data-name="我的珍藏无损">
+            <div class="playlist-avatar">🎵</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">我的珍藏无损</div>
+              <div style="font-size: 11px; color: var(--md-on-surface-variant);">42 首</div>
+            </div>
+          </div>
+          <div class="playlist-item" data-name="通勤车载循环">
+            <div class="playlist-avatar">🚗</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">通勤车载循环</div>
+              <div style="font-size: 11px; color: var(--md-on-surface-variant);">18 首</div>
+            </div>
+          </div>
+          <div class="playlist-item" data-name="华语经典精选">
+            <div class="playlist-avatar">📻</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">华语经典精选</div>
+              <div style="font-size: 11px; color: var(--md-on-surface-variant);">64 首</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 交互 Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <!-- 方案说明卡片 -->
+  <div class="variant-desc-card" id="desc-dir">
+    <div class="desc-title">📁 场景一：媒体库目录浏览 · 多选模式</div>
+    <p>• <strong>触发方式</strong>：长按任意音频卡片进入多选态，顶栏平滑转换为 Contextual Bar，展示当前目录路径与选中计数。<br>
+    • <strong>操作区域</strong>：底部浮现圆角胶囊浮岛，提供「下一首播放」和突出权重的「添加到歌单」。<br>
+    • <strong>退出机制</strong>：点击左上角 [✕] 或按下手机物理返回键退出多选，恢复常规目录浏览状态。</p>
+  </div>
+
+  <div class="variant-desc-card" id="desc-search" style="display: none;">
+    <div class="desc-title">🔍 场景二：全局搜索结果页 · 多选模式</div>
+    <p>• <strong>触发方式</strong>：在搜索结果中长按任意匹配歌曲，软键盘自动收起，搜索输入框无缝过渡为多选动作条。<br>
+    • <strong>目录保护</strong>：搜索匹配出的文件夹（如 JayChou 目录）明确只读展示，不可勾选，严格杜绝误操作。<br>
+    • <strong>跨曲目批量加歌单</strong>：一次性勾选搜索到的不同专辑音轨，底部胶囊一键批量添加至自定义歌单并自动去重。</p>
+  </div>
+
+  <script>
+    let currentScene = 'DIRECTORY'; // 'DIRECTORY' | 'SEARCH'
+
+    function getSelectedCount(scene) {
+      const containerId = scene === 'DIRECTORY' ? '#list-directory' : '#list-search';
+      return document.querySelectorAll(`${containerId} .track-item.selected`).length;
+    }
+
+    function getTotalCount(scene) {
+      const containerId = scene === 'DIRECTORY' ? '#list-directory' : '#list-search';
+      return document.querySelectorAll(`${containerId} .track-item`).length;
+    }
+
+    function updateUI() {
+      const isDir = currentScene === 'DIRECTORY';
+      document.querySelector('#tab-dir').classList.toggle('active', isDir);
+      document.querySelector('#tab-search').classList.toggle('active', !isDir);
+
+      document.querySelector('#top-bar-dir').style.display = isDir ? 'flex' : 'none';
+      document.querySelector('#top-bar-search').style.display = !isDir ? 'flex' : 'none';
+      document.querySelector('#search-chip-bar').style.display = !isDir ? 'flex' : 'none';
+
+      document.querySelector('#list-directory').style.display = isDir ? 'flex' : 'none';
+      document.querySelector('#list-search').style.display = !isDir ? 'block' : 'none';
+
+      document.querySelector('#desc-dir').style.display = isDir ? 'block' : 'none';
+      document.querySelector('#desc-search').style.display = !isDir ? 'block' : 'none';
+
+      const count = getSelectedCount(currentScene);
+      const total = getTotalCount(currentScene);
+
+      if (isDir) {
+        document.querySelector('#bar-title-dir').textContent = `已选 ${count} 项`;
+        document.querySelector('#btn-select-all-dir').textContent = (count === total && total > 0) ? '取消全选' : '全选';
+      } else {
+        document.querySelector('#bar-title-search').textContent = `已选 ${count} 项`;
+        document.querySelector('#btn-select-all-search').textContent = (count === total && total > 0) ? '取消全选' : '全选';
+      }
+
+      const pillBar = document.querySelector('#floating-pill-bar');
+      if (count > 0) {
+        pillBar.style.display = 'flex';
+        document.querySelector('#label-add-playlist').textContent = `添加到歌单 (${count})`;
+      } else {
+        pillBar.style.display = 'none';
+      }
+    }
+
+    // 事件绑定：场景切换
+    document.querySelector('#tab-dir').addEventListener('click', () => {
+      currentScene = 'DIRECTORY';
+      updateUI();
+    });
+    document.querySelector('#tab-search').addEventListener('click', () => {
+      currentScene = 'SEARCH';
+      updateUI();
+    });
+
+    // 列表项点击切换选中
+    document.querySelectorAll('.track-item').forEach(item => {
+      item.addEventListener('click', () => {
+        item.classList.toggle('selected');
+        updateUI();
+      });
+    });
+
+    // 全选按钮
+    document.querySelector('#btn-select-all-dir').addEventListener('click', () => {
+      const items = document.querySelectorAll('#list-directory .track-item');
+      const allSelected = getSelectedCount('DIRECTORY') === items.length;
+      items.forEach(el => el.classList.toggle('selected', !allSelected));
+      updateUI();
+    });
+
+    document.querySelector('#btn-select-all-search').addEventListener('click', () => {
+      const items = document.querySelectorAll('#list-search .track-item');
+      const allSelected = getSelectedCount('SEARCH') === items.length;
+      items.forEach(el => el.classList.toggle('selected', !allSelected));
+      updateUI();
+    });
+
+    // 关闭按钮
+    document.querySelector('#btn-close-dir').addEventListener('click', () => {
+      showToast('已退出多选模式');
+    });
+    document.querySelector('#btn-close-search').addEventListener('click', () => {
+      showToast('已退出多选模式，恢复搜索');
+    });
+
+    // 底部胶囊按钮
+    document.querySelector('#btn-play-next').addEventListener('click', () => {
+      const count = getSelectedCount(currentScene);
+      showToast(`已将 ${count} 首歌曲添加至下一首播放`);
+    });
+
+    document.querySelector('#btn-add-playlist').addEventListener('click', () => {
+      const count = getSelectedCount(currentScene);
+      if (count === 0) {
+        showToast('请至少选择一首歌曲');
+        return;
+      }
+      document.querySelector('#dialog-count-badge').textContent = count;
+      document.querySelector('#dialog-summary-text').textContent = `已选中 ${count} 首歌曲`;
+      document.querySelector('#dialog-overlay').classList.add('open');
+    });
+
+    document.querySelector('#btn-dialog-close').addEventListener('click', () => {
+      document.querySelector('#dialog-overlay').classList.remove('open');
+    });
+
+    document.querySelector('#dialog-overlay').addEventListener('click', (e) => {
+      if (e.target.id === 'dialog-overlay') {
+        document.querySelector('#dialog-overlay').classList.remove('open');
+      }
+    });
+
+    // 歌单选择
+    document.querySelectorAll('.playlist-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const name = item.getAttribute('data-name');
+        document.querySelector('#dialog-overlay').classList.remove('open');
+        const count = getSelectedCount(currentScene);
+        showToast(`已成功添加 ${count} 首歌曲至「${name}」 (已自动跳过已存在的歌曲)`);
+      });
+    });
+
+    function showToast(msg) {
+      const toast = document.querySelector('#toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    updateUI();
+  </script>
+</body>
+</html>

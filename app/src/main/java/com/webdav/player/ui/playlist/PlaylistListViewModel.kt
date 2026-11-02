@@ -122,6 +122,54 @@ class PlaylistListViewModel(
         }
     }
 
+    fun addTracksToPlaylist(
+        playlistId: Long,
+        tracks: List<AudioTrack>,
+        onResult: ((addedCount: Int, skippedCount: Int) -> Unit)? = null,
+    ) {
+        if (tracks.isEmpty()) {
+            onResult?.invoke(0, 0)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val insertedIds = playlistRepository.addTracksToPlaylist(playlistId, tracks)
+                val addedCount = insertedIds.size
+                val skippedCount = (tracks.size - addedCount).coerceAtLeast(0)
+                onResult?.invoke(addedCount, skippedCount)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = e.message ?: "批量添加歌曲失败") }
+            }
+        }
+    }
+
+    fun createPlaylistAndAddTracks(
+        name: String,
+        tracks: List<AudioTrack>,
+        onSuccess: ((addedCount: Int) -> Unit)? = null,
+    ) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "歌单名称不能为空") }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                if (playlistRepository.isPlaylistNameExists(trimmed)) {
+                    _uiState.update { it.copy(errorMessage = "歌单 “$trimmed” 已存在") }
+                    return@launch
+                }
+                val newId = playlistRepository.createPlaylist(trimmed)
+                val insertedIds = playlistRepository.addTracksToPlaylist(newId, tracks)
+                _uiState.update { it.copy(showCreateDialog = false, errorMessage = null) }
+                onSuccess?.invoke(insertedIds.size)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = e.message ?: "创建并添加失败") }
+            }
+        }
+    }
+
     fun openRenameDialog(playlist: Playlist) {
         _uiState.update { it.copy(playlistToRename = playlist, errorMessage = null) }
     }

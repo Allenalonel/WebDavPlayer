@@ -3,6 +3,7 @@ package com.webdav.player.ui.browser
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -47,6 +48,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +67,7 @@ import com.webdav.player.ui.browser.components.EmptyFolderState
 import com.webdav.player.ui.browser.components.ErrorState
 import com.webdav.player.ui.browser.components.NoActiveServerState
 import com.webdav.player.ui.browser.components.SearchResultsContent
+import com.webdav.player.ui.common.FloatingMultiSelectBottomBar
 import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,14 +80,45 @@ fun DirectoryBrowserScreen(
     onFileClicked: (RemoteFile) -> Unit = { viewModel.onAudioTrackClicked(it) },
     @Suppress("UNUSED_PARAMETER") onOpenFullPlayer: () -> Unit = {},
     onAddToPlaylist: (AudioTrack) -> Unit = {},
+    onAddTracksToPlaylist: (List<AudioTrack>) -> Unit = { tracks -> tracks.firstOrNull()?.let(onAddToPlaylist) },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = isCurrentTab && uiState.isSearchActive) {
+    val (selectedFilePaths, setSelectedFilePaths) = remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode = selectedFilePaths.isNotEmpty()
+
+    val (selectedSearchTrackIds, setSelectedSearchTrackIds) = remember { mutableStateOf(setOf<String>()) }
+    val isSearchSelectionMode = selectedSearchTrackIds.isNotEmpty()
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isSearchSelectionMode) {
+        if (isSearchSelectionMode) {
+            keyboardController?.hide()
+        }
+    }
+
+    LaunchedEffect(uiState.currentPath) {
+        setSelectedFilePaths(emptySet())
+    }
+
+    LaunchedEffect(uiState.isSearchActive) {
+        setSelectedSearchTrackIds(emptySet())
+    }
+
+    BackHandler(enabled = isCurrentTab && isSearchSelectionMode) {
+        setSelectedSearchTrackIds(emptySet())
+    }
+
+    BackHandler(enabled = isCurrentTab && !isSearchSelectionMode && uiState.isSearchActive) {
         viewModel.onSearchActiveChanged(false)
     }
 
-    BackHandler(enabled = isCurrentTab && !uiState.isSearchActive) {
+    BackHandler(enabled = isCurrentTab && isSelectionMode && !uiState.isSearchActive) {
+        setSelectedFilePaths(emptySet())
+    }
+
+    BackHandler(enabled = isCurrentTab && !isSelectionMode && !uiState.isSearchActive) {
         val handled = viewModel.onNavigateUp()
         if (!handled) {
             onNavigateToServerManagement()
@@ -133,86 +167,145 @@ fun DirectoryBrowserScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                ) {
-                    Row(
+                if (isSearchSelectionMode) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier =
                             Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                                .fillMaxWidth()
+                                .height(48.dp),
                     ) {
-                        Icon(
-                            imageVector = AppIcons.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val focusRequester = remember { FocusRequester() }
-                        LaunchedEffect(Unit) {
-                            focusRequester.requestFocus()
-                        }
-                        BasicTextField(
-                            value = uiState.searchQuery,
-                            onValueChange = { viewModel.onSearchQueryChanged(it) },
-                            singleLine = true,
-                            textStyle =
-                                MaterialTheme.typography.bodyLarge.copy(
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        Row(
                             modifier =
                                 Modifier
-                                    .weight(1f)
-                                    .focusRequester(focusRequester),
-                            decorationBox = { innerTextField ->
-                                if (uiState.searchQuery.isEmpty()) {
-                                    Text(
-                                        text = "搜索歌曲、歌手、专辑或文件夹...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                                    .fillMaxSize()
+                                    .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { setSelectedSearchTrackIds(emptySet()) },
+                                    modifier = Modifier.size(36.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.Close,
+                                        contentDescription = "退出多选",
+                                        tint = MaterialTheme.colorScheme.onSurface,
                                     )
                                 }
-                                innerTextField()
-                            },
-                        )
-                        if (uiState.searchQuery.isNotEmpty()) {
-                            IconButton(
-                                onClick = { viewModel.onClearSearchQuery() },
-                                modifier = Modifier.size(28.dp),
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "已选 ${selectedSearchTrackIds.size} 项",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            val selectableTracks = uiState.searchResult.matchedTracks
+                            val isAllSelected = selectableTracks.isNotEmpty() && selectedSearchTrackIds.size == selectableTracks.size
+                            TextButton(
+                                onClick = {
+                                    setSelectedSearchTrackIds(
+                                        if (isAllSelected) {
+                                            emptySet()
+                                        } else {
+                                            selectableTracks.map { it.id }.toSet()
+                                        },
+                                    )
+                                },
                             ) {
-                                Icon(
-                                    imageVector = AppIcons.Close,
-                                    contentDescription = "清空输入",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp),
+                                Text(
+                                    text = if (isAllSelected) "取消全选" else "全选",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
                     }
-                }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                    ) {
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            val focusRequester = remember { FocusRequester() }
+                            LaunchedEffect(Unit) {
+                                focusRequester.requestFocus()
+                            }
+                            BasicTextField(
+                                value = uiState.searchQuery,
+                                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                singleLine = true,
+                                textStyle =
+                                    MaterialTheme.typography.bodyLarge.copy(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier =
+                                    Modifier
+                                        .weight(1f)
+                                        .focusRequester(focusRequester),
+                                decorationBox = { innerTextField ->
+                                    if (uiState.searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "搜索歌曲、歌手、专辑或文件夹...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    innerTextField()
+                                },
+                            )
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { viewModel.onClearSearchQuery() },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.Close,
+                                        contentDescription = "清空输入",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                TextButton(
-                    onClick = { viewModel.onSearchActiveChanged(false) },
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                ) {
-                    Text(
-                        text = "取消",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    TextButton(
+                        onClick = { viewModel.onSearchActiveChanged(false) },
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                    ) {
+                        Text(
+                            text = "取消",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
 
@@ -235,8 +328,47 @@ fun DirectoryBrowserScreen(
                     onClearHistory = { viewModel.onClearSearchHistory() },
                     onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
                     onDirectoryClick = { viewModel.onSearchResultDirectoryClicked(it) },
-                    onTrackClick = { viewModel.onSearchResultTrackClicked(it) },
+                    onTrackClick = { track ->
+                        if (isSearchSelectionMode) {
+                            setSelectedSearchTrackIds(
+                                if (track.id in selectedSearchTrackIds) {
+                                    selectedSearchTrackIds - track.id
+                                } else {
+                                    selectedSearchTrackIds + track.id
+                                },
+                            )
+                        } else {
+                            viewModel.onSearchResultTrackClicked(track)
+                        }
+                    },
                     onAddToPlaylist = onAddToPlaylist,
+                    isSelectionMode = isSearchSelectionMode,
+                    selectedTrackIds = selectedSearchTrackIds,
+                    onTrackLongClick = { track ->
+                        if (!isSearchSelectionMode) {
+                            setSelectedSearchTrackIds(setOf(track.id))
+                        }
+                    },
+                )
+
+                FloatingMultiSelectBottomBar(
+                    selectedCount = selectedSearchTrackIds.size,
+                    onPlayNext = {
+                        val tracks = uiState.searchResult.matchedTracks.filter { it.id in selectedSearchTrackIds }
+                        tracks.reversed().forEach { track ->
+                            viewModel.musicPlayerAppSession?.playNext(track)
+                        }
+                        Toast.makeText(context, "已将 ${tracks.size} 首歌曲添加至下一首播放", Toast.LENGTH_SHORT).show()
+                        setSelectedSearchTrackIds(emptySet())
+                    },
+                    onAddToPlaylist = {
+                        val tracks = uiState.searchResult.matchedTracks.filter { it.id in selectedSearchTrackIds }
+                        if (tracks.isNotEmpty()) {
+                            onAddTracksToPlaylist(tracks)
+                            setSelectedSearchTrackIds(emptySet())
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
                 )
             }
         }
@@ -244,44 +376,99 @@ fun DirectoryBrowserScreen(
         Scaffold(
             modifier = modifier.fillMaxSize(),
             topBar = {
-                TopAppBar(
-                    title = {
-                        val titleText = uiState.headerTitle
-                        Text(
-                            text = titleText,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    actions = {
-                        if (!uiState.isInitializing) {
-                            IconButton(onClick = {
-                                isUserInitiatedRefresh.value = true
-                                Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
-                                viewModel.onRefresh()
-                            }) {
-                                Icon(
-                                    imageVector = AppIcons.Refresh,
-                                    contentDescription = "刷新目录",
+                if (isSelectionMode) {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    text = "已选 ${selectedFilePaths.size} 项",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    text = uiState.headerTitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                        }
-                        if (!uiState.isInitializing && uiState.activeServer != null) {
-                            IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { setSelectedFilePaths(emptySet()) }) {
                                 Icon(
-                                    imageVector = AppIcons.Search,
-                                    contentDescription = "搜索曲库",
+                                    imageVector = AppIcons.Close,
+                                    contentDescription = "退出多选",
                                 )
                             }
-                        }
-                    },
-                    colors =
-                        TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        ),
-                )
+                        },
+                        actions = {
+                            val selectableFiles = uiState.files.filter { it.isAudio }
+                            val isAllSelected = selectableFiles.isNotEmpty() && selectedFilePaths.size == selectableFiles.size
+                            TextButton(
+                                onClick = {
+                                    setSelectedFilePaths(
+                                        if (isAllSelected) {
+                                            emptySet()
+                                        } else {
+                                            selectableFiles.map { it.path }.toSet()
+                                        },
+                                    )
+                                },
+                            ) {
+                                Text(
+                                    text = if (isAllSelected) "取消全选" else "全选",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        },
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ),
+                    )
+                } else {
+                    TopAppBar(
+                        title = {
+                            val titleText = uiState.headerTitle
+                            Text(
+                                text = titleText,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        actions = {
+                            if (!uiState.isInitializing) {
+                                IconButton(onClick = {
+                                    isUserInitiatedRefresh.value = true
+                                    Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
+                                    viewModel.onRefresh()
+                                }) {
+                                    Icon(
+                                        imageVector = AppIcons.Refresh,
+                                        contentDescription = "刷新目录",
+                                    )
+                                }
+                            }
+                            if (!uiState.isInitializing && uiState.activeServer != null) {
+                                IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {
+                                    Icon(
+                                        imageVector = AppIcons.Search,
+                                        contentDescription = "搜索曲库",
+                                    )
+                                }
+                            }
+                        },
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            ),
+                    )
+                }
             },
         ) { innerPadding ->
             Column(
@@ -369,15 +556,64 @@ fun DirectoryBrowserScreen(
                                 isPlaying = uiState.isPlaying,
                                 activeServer = uiState.activeServer,
                                 onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                                onFileClicked = onFileClicked,
+                                onFileClicked = { file ->
+                                    if (isSelectionMode && file.isAudio) {
+                                        setSelectedFilePaths(
+                                            if (file.path in selectedFilePaths) {
+                                                selectedFilePaths - file.path
+                                            } else {
+                                                selectedFilePaths + file.path
+                                            },
+                                        )
+                                    } else {
+                                        onFileClicked(file)
+                                    }
+                                },
                                 onPlayNext = { viewModel.playNext(it) },
                                 onAddToPlaylist = onAddToPlaylist,
                                 onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
                                 onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
                                 onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
+                                isSelectionMode = isSelectionMode,
+                                selectedFilePaths = selectedFilePaths,
+                                onFileLongClicked = { file ->
+                                    if (file.isAudio && !isSelectionMode) {
+                                        setSelectedFilePaths(setOf(file.path))
+                                    }
+                                },
                             )
                         }
                     }
+
+                    FloatingMultiSelectBottomBar(
+                        selectedCount = selectedFilePaths.size,
+                        onPlayNext = {
+                            val server = uiState.activeServer ?: return@FloatingMultiSelectBottomBar
+                            val tracks =
+                                selectedFilePaths.mapNotNull { path ->
+                                    val file = uiState.files.firstOrNull { it.path == path }
+                                    if (file != null) AudioTrack.fromRemoteFile(server, file, uiState.metadataMap[path]) else null
+                                }
+                            tracks.reversed().forEach { track ->
+                                viewModel.musicPlayerAppSession?.playNext(track)
+                            }
+                            Toast.makeText(context, "已将 ${tracks.size} 首歌曲添加至下一首播放", Toast.LENGTH_SHORT).show()
+                            setSelectedFilePaths(emptySet())
+                        },
+                        onAddToPlaylist = {
+                            val server = uiState.activeServer ?: return@FloatingMultiSelectBottomBar
+                            val tracks =
+                                selectedFilePaths.mapNotNull { path ->
+                                    val file = uiState.files.firstOrNull { it.path == path }
+                                    if (file != null) AudioTrack.fromRemoteFile(server, file, uiState.metadataMap[path]) else null
+                                }
+                            if (tracks.isNotEmpty()) {
+                                onAddTracksToPlaylist(tracks)
+                                setSelectedFilePaths(emptySet())
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                    )
 
                     if (pullRefreshState.verticalOffset > 0f || pullRefreshState.isRefreshing) {
                         PullToRefreshContainer(
@@ -408,6 +644,9 @@ fun DirectoryContentList(
     onVirtualTrackClick: (CueAlbumItem, Int) -> Unit = { _, _ -> },
     onPlayCueAlbum: (CueAlbumItem) -> Unit = {},
     onToggleCueAlbumExpanded: (String) -> Unit = {},
+    isSelectionMode: Boolean = false,
+    selectedFilePaths: Set<String> = emptySet(),
+    onFileLongClicked: ((RemoteFile) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val cueAudioPaths = remember(cueAlbums) { cueAlbums.mapNotNull { it.audioFile?.path }.toSet() }
@@ -425,7 +664,7 @@ fun DirectoryContentList(
         items(directories, key = { "dir_${it.path}" }) { dir ->
             DirectoryItemRow(
                 directory = dir,
-                onClick = { onDirectoryClicked(dir) },
+                onClick = { if (!isSelectionMode) onDirectoryClicked(dir) },
             )
         }
 
@@ -446,10 +685,10 @@ fun DirectoryContentList(
                 isAlbumActive = isAlbumActive,
                 activeTrackId = activeTrackId,
                 isPlaying = isPlaying,
-                onPlayAlbum = { onPlayCueAlbum(album) },
-                onVirtualTrackClick = { trackIndex -> onVirtualTrackClick(album, trackIndex) },
-                onToggleExpand = { onToggleCueAlbumExpanded(album.cueFile.path) },
-                onPlayAsWholeAudio = { album.audioFile?.let { onFileClicked(it) } },
+                onPlayAlbum = { if (!isSelectionMode) onPlayCueAlbum(album) },
+                onVirtualTrackClick = { trackIndex -> if (!isSelectionMode) onVirtualTrackClick(album, trackIndex) },
+                onToggleExpand = { if (!isSelectionMode) onToggleCueAlbumExpanded(album.cueFile.path) },
+                onPlayAsWholeAudio = { album.audioFile?.let { if (!isSelectionMode) onFileClicked(it) } },
             )
         }
 
@@ -462,7 +701,10 @@ fun DirectoryContentList(
                 metadata = metadata,
                 isActive = isActive,
                 isPlaying = isPlaying,
+                isSelectionMode = isSelectionMode,
+                isSelected = file.path in selectedFilePaths,
                 onClick = { onFileClicked(file) },
+                onLongClick = onFileLongClicked?.let { { it(file) } },
                 onPlayNext = { onPlayNext(file) },
                 onAddToPlaylist = {
                     if (activeServer != null) {

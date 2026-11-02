@@ -47,6 +47,9 @@ fun AudioTrackItemRow(
     isActive: Boolean = false,
     isPlaying: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
     onPlayNext: () -> Unit = {},
     onAddToPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -93,6 +96,9 @@ fun AudioTrackItemRow(
             isActive = isActive,
             isPlaying = isPlaying,
             onClick = onClick,
+            onLongClick = onLongClick,
+            isSelectionMode = isSelectionMode,
+            isSelected = isSelected,
             showDivider = true,
             actionsMenu = { dismiss ->
                 DropdownMenuItem(

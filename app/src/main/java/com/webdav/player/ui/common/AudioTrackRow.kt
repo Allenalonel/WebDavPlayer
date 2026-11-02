@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +60,9 @@ fun AudioTrackRow(
     isActive: Boolean = false,
     isPlaying: Boolean = false,
     onClick: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     actionsMenu: (@Composable (dismiss: () -> Unit) -> Unit)? = null,
@@ -65,17 +70,46 @@ fun AudioTrackRow(
     containerColor: Color? = null,
     showDivider: Boolean = false,
 ) {
+    val clickModifier =
+        if (onLongClick != null) {
+            Modifier.combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+        } else {
+            Modifier.clickable(onClick = onClick)
+        }
+
+    val resolvedContainerColor =
+        when {
+            isSelectionMode && isSelected -> MaterialTheme.colorScheme.surfaceContainerHighest
+            containerColor != null -> containerColor
+            else -> AudioTrackRowDefaults.resolveContainerColor(isActive, MaterialTheme.colorScheme)
+        }
+
     Column(modifier = modifier.fillMaxWidth()) {
         ListItem(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-            leadingContent =
-                leadingContent ?: {
-                    TrackThumbnailLeading(
-                        coverThumbnailPath = coverThumbnailPath,
-                        isActive = isActive,
-                        isPlaying = isPlaying,
-                    )
-                },
+            modifier = Modifier.fillMaxWidth().then(clickModifier),
+            leadingContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
+                    if (leadingContent != null) {
+                        leadingContent()
+                    } else {
+                        TrackThumbnailLeading(
+                            coverThumbnailPath = coverThumbnailPath,
+                            isActive = isActive,
+                            isPlaying = isPlaying,
+                        )
+                    }
+                }
+            },
             headlineContent = {
                 val marqueeMod = if (isActive) Modifier.basicMarquee() else Modifier
                 val titleColor = AudioTrackRowDefaults.resolveTitleColor(isActive, MaterialTheme.colorScheme)
@@ -119,14 +153,12 @@ fun AudioTrackRow(
                     AudioTrackTrailing(
                         durationText = durationText,
                         audioQualityBadge = audioQualityBadge,
-                        actionsMenu = actionsMenu,
+                        actionsMenu = if (isSelectionMode) null else actionsMenu,
                     )
                 },
             colors =
                 ListItemDefaults.colors(
-                    containerColor =
-                        containerColor
-                            ?: AudioTrackRowDefaults.resolveContainerColor(isActive, MaterialTheme.colorScheme),
+                    containerColor = resolvedContainerColor,
                 ),
         )
         if (showDivider) {
@@ -272,11 +304,15 @@ object AudioTrackRowDefaults {
             AudioQualityLevel.COMPRESSED -> colorScheme.surfaceVariant to colorScheme.onSurfaceVariant
         }
 
-    fun resolveContainerColor(isActive: Boolean, colorScheme: ColorScheme): Color =
-        if (isActive) colorScheme.surfaceContainerHigh else Color.Transparent
+    fun resolveContainerColor(
+        isActive: Boolean,
+        colorScheme: ColorScheme,
+    ): Color = if (isActive) colorScheme.surfaceContainerHigh else Color.Transparent
 
-    fun resolveTitleColor(isActive: Boolean, colorScheme: ColorScheme): Color =
-        if (isActive) colorScheme.primary else Color.Unspecified
+    fun resolveTitleColor(
+        isActive: Boolean,
+        colorScheme: ColorScheme,
+    ): Color = if (isActive) colorScheme.primary else Color.Unspecified
 
     fun resolveTitleFontWeight(isActive: Boolean): FontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
 }
@@ -332,48 +368,52 @@ private val PreviewHiResBadge =
 
 @Preview(name = "Idle Track", showBackground = true)
 @Composable
-fun AudioTrackRowIdlePreview() = WebDavPlayerTheme {
-    AudioTrackRow(
-        title = "Comfortably Numb",
-        subtitle = "Pink Floyd · The Wall",
-        durationText = "06:22",
-        audioQualityBadge = PreviewFlacBadge,
-    )
-}
+fun AudioTrackRowIdlePreview() =
+    WebDavPlayerTheme {
+        AudioTrackRow(
+            title = "Comfortably Numb",
+            subtitle = "Pink Floyd · The Wall",
+            durationText = "06:22",
+            audioQualityBadge = PreviewFlacBadge,
+        )
+    }
 
 @Preview(name = "Active Playing Track", showBackground = true)
 @Composable
-fun AudioTrackRowActivePlayingPreview() = WebDavPlayerTheme {
-    AudioTrackRow(
-        title = "Time (2023 Remastered Edition)",
-        subtitle = "Pink Floyd · The Dark Side of the Moon",
-        durationText = "07:05",
-        audioQualityBadge = PreviewHiResBadge,
-        isActive = true,
-        isPlaying = true,
-    )
-}
+fun AudioTrackRowActivePlayingPreview() =
+    WebDavPlayerTheme {
+        AudioTrackRow(
+            title = "Time (2023 Remastered Edition)",
+            subtitle = "Pink Floyd · The Dark Side of the Moon",
+            durationText = "07:05",
+            audioQualityBadge = PreviewHiResBadge,
+            isActive = true,
+            isPlaying = true,
+        )
+    }
 
 @Preview(name = "Active Paused Track", showBackground = true)
 @Composable
-fun AudioTrackRowActivePausedPreview() = WebDavPlayerTheme {
-    AudioTrackRow(
-        title = "Money",
-        subtitle = "Pink Floyd · The Dark Side of the Moon",
-        durationText = "06:22",
-        audioQualityBadge = PreviewFlacBadge,
-        isActive = true,
-        isPlaying = false,
-    )
-}
+fun AudioTrackRowActivePausedPreview() =
+    WebDavPlayerTheme {
+        AudioTrackRow(
+            title = "Money",
+            subtitle = "Pink Floyd · The Dark Side of the Moon",
+            durationText = "06:22",
+            audioQualityBadge = PreviewFlacBadge,
+            isActive = true,
+            isPlaying = false,
+        )
+    }
 
 @Preview(name = "Without Cover Track", showBackground = true)
 @Composable
-fun AudioTrackRowWithoutCoverPreview() = WebDavPlayerTheme {
-    AudioTrackRow(
-        title = "Acoustic Session",
-        subtitle = "Unknown Artist",
-        durationText = "03:45",
-        coverThumbnailPath = null,
-    )
-}
+fun AudioTrackRowWithoutCoverPreview() =
+    WebDavPlayerTheme {
+        AudioTrackRow(
+            title = "Acoustic Session",
+            subtitle = "Unknown Artist",
+            durationText = "03:45",
+            coverThumbnailPath = null,
+        )
+    }

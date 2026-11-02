@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
                     }
                 val navState by coordinator.uiState.collectAsStateWithLifecycle()
 
-                var trackToAddToPlaylist by remember { mutableStateOf<AudioTrack?>(null) }
+                var tracksToAddToPlaylist by remember { mutableStateOf<List<AudioTrack>?>(null) }
 
                 LaunchedEffect(serverState.activeServer, serverState.isLoading) {
                     if (!serverState.isLoading) {
@@ -246,7 +246,10 @@ class MainActivity : ComponentActivity() {
                                         coordinator.expandFullPlayer()
                                     },
                                     onAddToPlaylist = { track ->
-                                        trackToAddToPlaylist = track
+                                        tracksToAddToPlaylist = listOf(track)
+                                    },
+                                    onAddTracksToPlaylist = { tracks ->
+                                        tracksToAddToPlaylist = tracks
                                     },
                                 )
                             }
@@ -338,46 +341,76 @@ class MainActivity : ComponentActivity() {
                             onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
                             onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
                             onAddToPlaylist = { track ->
-                                trackToAddToPlaylist = track
+                                tracksToAddToPlaylist = listOf(track)
                             },
                         )
                     }
 
-                    if (trackToAddToPlaylist != null) {
-                        val track = trackToAddToPlaylist!!
+                    if (!tracksToAddToPlaylist.isNullOrEmpty()) {
+                        val tracks = tracksToAddToPlaylist!!
                         AddToPlaylistDialog(
-                            track = track,
+                            tracks = tracks,
                             playlists = playlistState.playlists,
-                            onDismissRequest = { trackToAddToPlaylist = null },
+                            onDismissRequest = { tracksToAddToPlaylist = null },
                             onSelectPlaylist = { playlist ->
-                                val trackName = track.title
-                                playlistViewModel.addTrackToPlaylist(playlist.id, track) { isAdded ->
-                                    val message =
-                                        if (isAdded) {
-                                            "已将 “$trackName” 添加到歌单 “${playlist.name}”"
-                                        } else {
-                                            "“$trackName” 已在歌单 “${playlist.name}” 中"
-                                        }
-                                    Toast
-                                        .makeText(
-                                            context,
-                                            message,
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                if (tracks.size == 1) {
+                                    val track = tracks.first()
+                                    val trackName = track.title
+                                    playlistViewModel.addTrackToPlaylist(playlist.id, track) { isAdded ->
+                                        val message =
+                                            if (isAdded) {
+                                                "已将 “$trackName” 添加到歌单 “${playlist.name}”"
+                                            } else {
+                                                "“$trackName” 已在歌单 “${playlist.name}” 中"
+                                            }
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                message,
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                    }
+                                } else {
+                                    playlistViewModel.addTracksToPlaylist(playlist.id, tracks) { addedCount, skippedCount ->
+                                        val message =
+                                            when {
+                                                skippedCount == 0 -> "已成功添加 $addedCount 首歌曲至 “${playlist.name}”"
+                                                addedCount == 0 -> "所选歌曲均已在歌单 “${playlist.name}” 中"
+                                                else -> "已添加 $addedCount 首歌曲至 “${playlist.name}” (跳过已存在的 $skippedCount 首)"
+                                            }
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                message,
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                    }
                                 }
-                                trackToAddToPlaylist = null
+                                tracksToAddToPlaylist = null
                             },
                             onCreatePlaylistAndAdd = { name ->
-                                val trackName = track.title
-                                playlistViewModel.createPlaylistAndAddTrack(name, track) {
-                                    Toast
-                                        .makeText(
-                                            context,
-                                            "已新建歌单 “$name” 并添加 “$trackName”",
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                if (tracks.size == 1) {
+                                    val track = tracks.first()
+                                    val trackName = track.title
+                                    playlistViewModel.createPlaylistAndAddTrack(name, track) {
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                "已新建歌单 “$name” 并添加 “$trackName”",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                    }
+                                } else {
+                                    playlistViewModel.createPlaylistAndAddTracks(name, tracks) { addedCount ->
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                "已新建歌单 “$name” 并添加 $addedCount 首歌曲",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                    }
                                 }
-                                trackToAddToPlaylist = null
+                                tracksToAddToPlaylist = null
                             },
                         )
                     }
