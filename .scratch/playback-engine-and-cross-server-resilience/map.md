@@ -41,3 +41,4 @@
 - **Ticket 02 Resolved**: 将 `ResilientWebDavDataSource` 默认最大重试阈值收敛为 5 次（总退避 19 秒），并在重试耗尽后终止循环抛出底层异常；引入 `activeThread` 跟踪并在 `close()` 时打断休眠线程即时释放 Loader 阻塞；完成重试上限与中断释放单元测试验证。
 - **Ticket 03 Resolved**: 在 `WebDavMediaService.onStartCommand` 中于广播分发窗口内同步执行前台服务提权；在 `PlaybackSessionHost` 中捕获并兜底后台启动异常，通过 `isElevationPendingRef` 暂存未生效提权；在 `prewarmService()` 中实现前台恢复自动对齐；完成 `WebDavMediaServiceTest` 与 `PlaybackSessionHostTest` 测试验证。
 - **Ticket 04 Resolved**: 全量 1025 个单元测试与端到端测试 100% 通过（0 失败）；`./gradlew verifyReleasePackaging` 验证通过（APK: 6.68 MB <= 7.5 MB, classes.dex: 3.98 MB <= 4.0 MB, arm64-v8a 单一架构且无 32 位遗留库）。
+- **Code Review**: Standards 与 Spec 双轴审查通过。无架构分层越界、无僵尸转发中间件、无破坏性变更；代码与测试严格对应公开外部契约，发布包体积与单 dex 约束完全达标。
