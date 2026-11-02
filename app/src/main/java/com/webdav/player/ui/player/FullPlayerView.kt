@@ -273,18 +273,10 @@ fun FullPlayerView(
 
     // Playback Queue Bottom Sheet
     if (showQueueSheet) {
-        PlaybackQueueBottomSheet(
-            queue = sessionState.queue,
-            playbackMode = sessionState.playbackMode,
+        HoistedPlaybackQueueSheet(
+            sessionState = sessionState,
             playbackProgress = playbackProgress,
-            isPlaying = sessionState.isPlaying,
-            onTrackClick = { index ->
-                playbackActions.playQueueIndex(index)
-            },
-            onRemoveTrack = { index ->
-                playbackActions.removeQueueTrack(index)
-            },
-            onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+            playbackActions = playbackActions,
             onDismissRequest = { showQueueSheet = false },
             onAddToPlaylist = onAddToPlaylist,
         )

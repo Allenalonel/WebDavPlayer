@@ -57,8 +57,8 @@ import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.FullPlayerView
+import com.webdav.player.ui.player.HoistedPlaybackQueueSheet
 import com.webdav.player.ui.player.MiniPlayer
-import com.webdav.player.ui.player.PlaybackQueueBottomSheet
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
 import com.webdav.player.ui.playlist.PlaylistDetailViewModel
@@ -324,18 +324,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                     if (showQueueSheet) {
-                        PlaybackQueueBottomSheet(
-                            queue = playerSessionState.queue,
-                            playbackMode = playerSessionState.playbackMode,
+                        HoistedPlaybackQueueSheet(
+                            sessionState = playerSessionState,
                             playbackProgress = playbackProgress,
-                            isPlaying = playerSessionState.isPlaying,
-                            onTrackClick = { index ->
-                                playbackActions.playQueueIndex(index)
-                            },
-                            onRemoveTrack = { index ->
-                                playbackActions.removeQueueTrack(index)
-                            },
-                            onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+                            playbackActions = playbackActions,
                             onDismissRequest = { showQueueSheet = false },
                             onAddToPlaylist = { track ->
                                 tracksToAddToPlaylist = listOf(track)

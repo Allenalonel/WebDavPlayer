@@ -45,9 +45,34 @@ import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
+import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.AudioTrackRow
 import com.webdav.player.ui.common.TrackThumbnailLeading
 import com.webdav.player.ui.theme.AppIcons
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HoistedPlaybackQueueSheet(
+    sessionState: PlayerSessionState,
+    playbackProgress: PlaybackProgress,
+    playbackActions: PlaybackActions,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    onAddToPlaylist: (AudioTrack) -> Unit = {},
+) {
+    PlaybackQueueBottomSheet(
+        queue = sessionState.queue,
+        playbackMode = sessionState.playbackMode,
+        playbackProgress = playbackProgress,
+        isPlaying = sessionState.isPlaying,
+        onTrackClick = { index -> playbackActions.playQueueIndex(index) },
+        onRemoveTrack = { index -> playbackActions.removeQueueTrack(index) },
+        onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        onAddToPlaylist = onAddToPlaylist,
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

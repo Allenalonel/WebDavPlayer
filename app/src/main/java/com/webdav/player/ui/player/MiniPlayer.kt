@@ -1,7 +1,6 @@
 package com.webdav.player.ui.player
 
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -39,8 +38,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -63,7 +60,6 @@ object MiniPlayerDefaults {
         RoundedCornerShape(bottomStart = CapsuleCornerRadius, bottomEnd = CapsuleCornerRadius)
     val PlayPauseButtonSize: Dp = 42.dp
     val QueueMusicButtonSize: Dp = 38.dp
-    val SkipNextButtonSize: Dp = QueueMusicButtonSize
     val ButtonSpacing: Dp = 8.dp
     val MicroBarHeight: Dp = 2.dp
     val SwipeSkipThreshold: Dp = 40.dp
@@ -103,19 +99,6 @@ fun resolveMiniPlayerGesture(
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.S)
-private fun Modifier.glassBlurEffect(blurRadiusPx: Float): Modifier =
-    this.graphicsLayer {
-        renderEffect =
-            android.graphics.RenderEffect
-                .createBlurEffect(
-                    blurRadiusPx,
-                    blurRadiusPx,
-                    android.graphics.Shader.TileMode.CLAMP,
-                )
-                .asComposeRenderEffect()
-    }
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MiniPlayer(
@@ -149,19 +132,10 @@ fun MiniPlayer(
             null
         }
 
-    val blurRadiusPx = with(density) { MiniPlayerDefaults.GlassBlurRadius.toPx() }
-    val glassModifier =
-        if (isModernAndroid) {
-            Modifier.glassBlurEffect(blurRadiusPx)
-        } else {
-            Modifier
-        }
-
     Surface(
         modifier =
             modifier
                 .fillMaxWidth()
-                .then(glassModifier)
                 .clip(MiniPlayerDefaults.CapsuleShape)
                 .pointerInput(playbackActions, onMiniPlayerClick, swipeThresholdPx) {
                     var totalDragX = 0f

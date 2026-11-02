@@ -112,15 +112,11 @@ class MiniPlayerPresentationTest {
     fun miniPlayerTouchClearance_playPauseAndQueueMusicTargets_meetMd3Guidelines() {
         assertEquals(42.dp, MiniPlayerDefaults.PlayPauseButtonSize)
         assertEquals(38.dp, MiniPlayerDefaults.QueueMusicButtonSize)
-        assertEquals(38.dp, MiniPlayerDefaults.SkipNextButtonSize)
         assertEquals(8.dp, MiniPlayerDefaults.ButtonSpacing)
 
         val centerDistanceQueue = (MiniPlayerDefaults.PlayPauseButtonSize / 2) +
             MiniPlayerDefaults.ButtonSpacing +
             (MiniPlayerDefaults.QueueMusicButtonSize / 2)
-        val centerDistanceSkipNext = (MiniPlayerDefaults.PlayPauseButtonSize / 2) +
-            MiniPlayerDefaults.ButtonSpacing +
-            (MiniPlayerDefaults.SkipNextButtonSize / 2)
 
         // Material Design 3 minimum interactive component dimension is 48.dp
         val md3MinimumInteractiveSize = 48.dp
@@ -129,12 +125,7 @@ class MiniPlayerPresentationTest {
             "Queue Music center-to-center distance ($centerDistanceQueue) must be at least $md3MinimumInteractiveSize to avoid touch overlap",
             centerDistanceQueue >= md3MinimumInteractiveSize
         )
-        assertTrue(
-            "Skip Next center-to-center distance ($centerDistanceSkipNext) must be at least $md3MinimumInteractiveSize to avoid touch overlap",
-            centerDistanceSkipNext >= md3MinimumInteractiveSize
-        )
         assertEquals(48.dp, centerDistanceQueue)
-        assertEquals(48.dp, centerDistanceSkipNext)
     }
 
     @Test
