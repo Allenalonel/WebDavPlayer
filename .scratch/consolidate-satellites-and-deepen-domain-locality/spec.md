@@ -1,6 +1,6 @@
 # Spec: Consolidate Satellite Modules, Align Test Surfaces, and Deepen Domain Locality
 
-Status: ready-for-agent
+Status: implemented
 
 ## Problem Statement
 

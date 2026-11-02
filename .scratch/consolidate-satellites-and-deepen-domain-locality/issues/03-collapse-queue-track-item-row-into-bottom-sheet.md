@@ -4,9 +4,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `QueueTrackItemRow.kt` is deleted
-- [ ] `QueueTrackItemRow`, `resolveQueueTrackSubtitle`, `handleQueueDismiss`, and `QueueLeadingContent` are integrated into `PlaybackQueueBottomSheet.kt` as private/internal collaborators
-- [ ] `PlaybackQueueBottomSheet` public signature and presentation behavior remain 100% identical
-- [ ] `PlaybackQueueBottomSheetTest` passes with zero regressions, verifying subtitle formatting and swipe dismissal behavior
+- [x] `QueueTrackItemRow.kt` is deleted
+- [x] `QueueTrackItemRow`, `resolveQueueTrackSubtitle`, `handleQueueDismiss`, and `QueueLeadingContent` are integrated into `PlaybackQueueBottomSheet.kt` as private/internal collaborators
+- [x] `PlaybackQueueBottomSheet` public signature and presentation behavior remain 100% identical
+- [x] `PlaybackQueueBottomSheetTest` passes with zero regressions, verifying subtitle formatting and swipe dismissal behavior
+
+## Comments
+- Folded single-caller `QueueTrackItemRow`, subtitle formatter `resolveQueueTrackSubtitle`, dismiss handler `handleQueueDismiss`, and `QueueLeadingContent` into `PlaybackQueueBottomSheet.kt`.
+- Deleted standalone satellite `QueueTrackItemRow.kt`.
+- Verified `PlaybackQueueBottomSheetTest` passes with zero regressions.

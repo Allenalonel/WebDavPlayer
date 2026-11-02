@@ -4,10 +4,16 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `CueAssociationHelper.kt` is deleted
-- [ ] Heuristic audio matching logic (`findMatchingAudioFile`) is internalized as private logic inside `DefaultCueSheetResolver.kt`
-- [ ] `CueAssociationHelperTest.kt` is deleted
-- [ ] `DefaultCueSheetResolverTest` includes test cases exercising parent audio matching through `resolveDirectoryCueAlbums` across all precedence rules
-- [ ] `CueSheetResolver` public interface remains unchanged and passes all tests
+- [x] `CueAssociationHelper.kt` is deleted
+- [x] Heuristic audio matching logic (`findMatchingAudioFile`) is internalized as private logic inside `DefaultCueSheetResolver.kt`
+- [x] `CueAssociationHelperTest.kt` is deleted
+- [x] `DefaultCueSheetResolverTest` includes test cases exercising parent audio matching through `resolveDirectoryCueAlbums` across all precedence rules
+- [x] `CueSheetResolver` public interface remains unchanged and passes all tests
+
+## Comments
+- Internalized heuristic audio matching algorithm (`findMatchingAudioFile`) as private method in `DefaultCueSheetResolver.kt`.
+- Removed orphaned static helper `CueAssociationHelper.kt` and retired `CueAssociationHelperTest.kt`.
+- Transferred all matching precedence tests (exact match, base name match without extension, single-pair fallback, prefix match, case-insensitivity) into `DefaultCueSheetResolverTest.kt`, verifying behavior through public domain interfaces `resolveDirectoryCueAlbums` and `resolveInitialCueAlbums`.
+- All CUE tests passed with 100% success rate.
