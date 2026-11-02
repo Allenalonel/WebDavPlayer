@@ -73,6 +73,18 @@ class WebDavMediaService : MediaSessionService() {
         val host = sessionHost ?: PlaybackSessionHost.getInstance(applicationContext)
 
         when (intent?.action) {
+            WebDavNotificationProvider.ACTION_PLAY,
+            WebDavNotificationProvider.ACTION_NEXT,
+            WebDavNotificationProvider.ACTION_PREVIOUS,
+            Intent.ACTION_MEDIA_BUTTON -> {
+                val notification = host.buildCurrentNotification()
+                if (startForegroundSafely(notification, host.notificationProvider.notificationId)) {
+                    host.attachService(this)
+                }
+            }
+        }
+
+        when (intent?.action) {
             WebDavNotificationProvider.ACTION_PLAY -> host.appSession?.play()
             WebDavNotificationProvider.ACTION_PAUSE -> host.appSession?.pause()
             WebDavNotificationProvider.ACTION_NEXT -> host.appSession?.skipToNext()

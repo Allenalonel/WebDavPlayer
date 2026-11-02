@@ -12,6 +12,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 
 class UnexpectedEndOfStreamException(
     message: String,
@@ -37,7 +38,7 @@ class ResilientWebDavDataSource(
     private val onReconnectingListener: ((Boolean) -> Unit)? = null,
 ) : HttpDataSource {
     companion object {
-        const val DEFAULT_MAX_RETRIES: Int = Int.MAX_VALUE
+        const val DEFAULT_MAX_RETRIES: Int = 5
         const val DEFAULT_INITIAL_BACKOFF_MS: Long = 1000L
         const val DEFAULT_MAX_BACKOFF_MS: Long = 6000L
         const val DEFAULT_BACKOFF_MULTIPLIER: Double = 2.0
@@ -82,6 +83,8 @@ class ResilientWebDavDataSource(
     @Volatile
     private var isClosed = false
 
+    private val activeThread = AtomicReference<Thread?>(null)
+
     @Volatile
     var isReconnecting: Boolean = false
         private set
@@ -124,45 +127,52 @@ class ResilientWebDavDataSource(
     }
 
     override fun open(dataSpec: DataSpec): Long {
-        originalDataSpec = dataSpec
-        totalBytesRead = 0L
-        retryCount = 0
-        isClosed = false
-        isSourceOpen = false
-        isReconnecting = false
+        activeThread.set(Thread.currentThread())
+        try {
+            originalDataSpec = dataSpec
+            totalBytesRead = 0L
+            retryCount = 0
+            isClosed = false
+            isSourceOpen = false
+            isReconnecting = false
 
-        while (!isClosed && !Thread.currentThread().isInterrupted) {
-            try {
-                val source = underlyingFactory.createDataSource()
-                transferListeners.forEach { source.addTransferListener(it) }
-                requestProperties.forEach { (k, v) -> source.setRequestProperty(k, v) }
-                currentDataSource = source
+            while (!isClosed && !Thread.currentThread().isInterrupted) {
+                try {
+                    val source = underlyingFactory.createDataSource()
+                    transferListeners.forEach { source.addTransferListener(it) }
+                    requestProperties.forEach { (k, v) -> source.setRequestProperty(k, v) }
+                    currentDataSource = source
 
-                val bytesToRead = source.open(dataSpec)
-                isSourceOpen = true
-                expectedContentLength =
-                    when {
-                        dataSpec.length != C.LENGTH_UNSET.toLong() -> dataSpec.length
-                        bytesToRead != C.LENGTH_UNSET.toLong() -> bytesToRead
-                        else -> parseContentLengthFromHeaders(source.responseHeaders)
+                    val bytesToRead = source.open(dataSpec)
+                    isSourceOpen = true
+                    expectedContentLength =
+                        when {
+                            dataSpec.length != C.LENGTH_UNSET.toLong() -> dataSpec.length
+                            bytesToRead != C.LENGTH_UNSET.toLong() -> bytesToRead
+                            else -> parseContentLengthFromHeaders(source.responseHeaders)
+                        }
+                    isReconnecting = false
+                    onReconnectingListener?.invoke(false)
+                    return bytesToRead
+                } catch (e: Exception) {
+                    isSourceOpen = false
+                    if (isClosed || Thread.currentThread().isInterrupted || isNonRetryable(e)) {
+                        throw e
                     }
-                isReconnecting = false
-                onReconnectingListener?.invoke(false)
-                return bytesToRead
-            } catch (e: Exception) {
-                isSourceOpen = false
-                if (isClosed || Thread.currentThread().isInterrupted || isNonRetryable(e)) {
-                    throw e
+                    if (retryCount >= maxRetryAttempts) {
+                        isReconnecting = false
+                        onReconnectingListener?.invoke(false)
+                        throw e
+                    }
+                    isReconnecting = true
+                    onReconnectingListener?.invoke(true)
+                    performBackoff()
                 }
-                if (retryCount >= maxRetryAttempts) {
-                    throw e
-                }
-                isReconnecting = true
-                onReconnectingListener?.invoke(true)
-                performBackoff(e)
             }
+            throw InterruptedIOException("Open cancelled")
+        } finally {
+            activeThread.set(null)
         }
-        throw InterruptedIOException("Open cancelled")
     }
 
     override fun read(
@@ -171,60 +181,67 @@ class ResilientWebDavDataSource(
         length: Int,
     ): Int {
         if (length == 0) return 0
-        if (isClosed || Thread.currentThread().isInterrupted) {
-            throw InterruptedIOException("DataSource closed or interrupted")
-        }
+        activeThread.set(Thread.currentThread())
+        try {
+            if (isClosed || Thread.currentThread().isInterrupted) {
+                throw InterruptedIOException("DataSource closed or interrupted")
+            }
 
-        while (!isClosed && !Thread.currentThread().isInterrupted) {
-            try {
-                if (!isSourceOpen) {
-                    if (expectedContentLength > 0L && totalBytesRead >= expectedContentLength) {
+            while (!isClosed && !Thread.currentThread().isInterrupted) {
+                try {
+                    if (!isSourceOpen) {
+                        if (expectedContentLength > 0L && totalBytesRead >= expectedContentLength) {
+                            return C.RESULT_END_OF_INPUT
+                        }
+                        openRangeSource()
+                        isSourceOpen = true
+                    }
+
+                    val source = currentDataSource ?: throw IOException("DataSource is null")
+                    val readCount = source.read(buffer, offset, length)
+
+                    if (readCount == C.RESULT_END_OF_INPUT) {
+                        if (expectedContentLength > 0L && totalBytesRead < expectedContentLength) {
+                            throw UnexpectedEndOfStreamException(
+                                "Premature EOF: received $totalBytesRead bytes but expected $expectedContentLength bytes",
+                                bytesRead = totalBytesRead,
+                                expectedBytes = expectedContentLength,
+                            )
+                        }
                         return C.RESULT_END_OF_INPUT
                     }
-                    openRangeSource()
-                    isSourceOpen = true
-                }
 
-                val source = currentDataSource ?: throw IOException("DataSource is null")
-                val readCount = source.read(buffer, offset, length)
-
-                if (readCount == C.RESULT_END_OF_INPUT) {
-                    if (expectedContentLength > 0L && totalBytesRead < expectedContentLength) {
-                        throw UnexpectedEndOfStreamException(
-                            "Premature EOF: received $totalBytesRead bytes but expected $expectedContentLength bytes",
-                            bytesRead = totalBytesRead,
-                            expectedBytes = expectedContentLength,
-                        )
+                    if (readCount > 0) {
+                        totalBytesRead += readCount
+                        retryCount = 0
+                        if (isReconnecting) {
+                            isReconnecting = false
+                            onReconnectingListener?.invoke(false)
+                        }
                     }
-                    return C.RESULT_END_OF_INPUT
-                }
-
-                if (readCount > 0) {
-                    totalBytesRead += readCount
-                    retryCount = 0
-                    if (isReconnecting) {
+                    return readCount
+                } catch (e: Exception) {
+                    isSourceOpen = false
+                    if (isRangeNotSatisfiable(e) && totalBytesRead > 0L) {
+                        return C.RESULT_END_OF_INPUT
+                    }
+                    if (isClosed || Thread.currentThread().isInterrupted || isNonRetryable(e)) {
+                        throw e
+                    }
+                    if (retryCount >= maxRetryAttempts) {
                         isReconnecting = false
                         onReconnectingListener?.invoke(false)
+                        throw e
                     }
+                    isReconnecting = true
+                    onReconnectingListener?.invoke(true)
+                    performBackoff()
                 }
-                return readCount
-            } catch (e: Exception) {
-                isSourceOpen = false
-                if (isRangeNotSatisfiable(e) && totalBytesRead > 0L) {
-                    return C.RESULT_END_OF_INPUT
-                }
-                if (isClosed || Thread.currentThread().isInterrupted || isNonRetryable(e)) {
-                    throw e
-                }
-                if (retryCount >= maxRetryAttempts) {
-                    throw e
-                }
-                isReconnecting = true
-                onReconnectingListener?.invoke(true)
-                performBackoff(e)
             }
+            throw InterruptedIOException("Read cancelled")
+        } finally {
+            activeThread.set(null)
         }
-        throw InterruptedIOException("Read cancelled")
     }
 
     private fun openRangeSource() {
@@ -264,11 +281,13 @@ class ResilientWebDavDataSource(
         nextSource.open(rangeSpec)
 
         if (currentOffset > 0L && nextSource.responseCode == 200) {
-            throw UnsupportedRangeReconnectionException("Remote server does not support partial content (HTTP 200 returned on Range request)")
+            throw UnsupportedRangeReconnectionException(
+                "Remote server does not support partial content (HTTP 200 returned on Range request)",
+            )
         }
     }
 
-    private fun performBackoff(cause: Exception) {
+    private fun performBackoff() {
         val delayMs = calculateBackoffDelay(retryCount)
         retryCount++
         try {
@@ -276,6 +295,9 @@ class ResilientWebDavDataSource(
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
             throw InterruptedIOException("Reconnection backoff interrupted: ${e.message}")
+        }
+        if (isClosed || Thread.currentThread().isInterrupted) {
+            throw InterruptedIOException("Reconnection backoff cancelled by close")
         }
     }
 
@@ -289,6 +311,13 @@ class ResilientWebDavDataSource(
     override fun close() {
         isClosed = true
         isSourceOpen = false
+        val threadToInterrupt = activeThread.get()
+        if (threadToInterrupt != null && threadToInterrupt !== Thread.currentThread()) {
+            try {
+                threadToInterrupt.interrupt()
+            } catch (_: Throwable) {
+            }
+        }
         try {
             currentDataSource?.close()
         } finally {
@@ -302,7 +331,7 @@ class ResilientWebDavDataSource(
 
     override fun getResponseHeaders(): Map<String, List<String>> = currentDataSource?.responseHeaders ?: emptyMap()
 
-    override fun getResponseCode(): Int = (currentDataSource as? HttpDataSource)?.responseCode ?: 200
+    override fun getResponseCode(): Int = currentDataSource?.responseCode ?: 200
 
     private fun parseContentLengthFromHeaders(headers: Map<String, List<String>>): Long {
         headers["Content-Range"]?.firstOrNull()?.let { contentRange ->

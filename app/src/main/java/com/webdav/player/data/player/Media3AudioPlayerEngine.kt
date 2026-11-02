@@ -392,6 +392,12 @@ class Media3AudioPlayerEngine internal constructor(
         }
     }
 
+    override fun setActiveServer(server: WebDavServer) {
+        runOnApplicationLooper {
+            activeServerRef.set(server)
+        }
+    }
+
     private fun applyActiveTrackMetadataUpdate(track: AudioTrack) {
         if (player.mediaItemCount <= 0) return
 

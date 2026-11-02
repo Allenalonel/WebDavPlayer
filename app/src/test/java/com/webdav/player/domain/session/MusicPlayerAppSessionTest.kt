@@ -2420,6 +2420,69 @@ class MusicPlayerAppSessionTest {
         }
 
     @Test
+    fun seamlessPreroll_crossServerTrackTransition_atomicallyUpdatesSessionAndEngineActiveServer() =
+        runTest(testDispatcher) {
+            val serverA = testServer.copy(id = 1L, name = "Server A", url = "http://server-a.test/webdav")
+            val serverB = testServer.copy(id = 2L, name = "Server B", url = "http://server-b.test/webdav")
+            val serverRepo = TestServerRepository(listOf(serverA, serverB))
+
+            val playlist = Playlist(id = 100L, name = "Cross Server", createdAtMs = 1000L, updatedAtMs = 1000L, trackCount = 2)
+            val entry1 =
+                PlaylistTrackEntry(
+                    id = 1L,
+                    playlistId = 100L,
+                    serverId = 1L,
+                    remotePath = "/track-a.mp3",
+                    sortOrder = 0,
+                    title = "Track A",
+                    format = AudioFormat.MP3,
+                    durationMs = 100_000L,
+                )
+            val entry2 =
+                PlaylistTrackEntry(
+                    id = 2L,
+                    playlistId = 100L,
+                    serverId = 2L,
+                    remotePath = "/track-b.mp3",
+                    sortOrder = 1,
+                    title = "Track B",
+                    format = AudioFormat.MP3,
+                    durationMs = 120_000L,
+                )
+            val playlistRepo = TestPlaylistRepository(mutableListOf(entry1, entry2))
+
+            val crossServerSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = serverRepo,
+                    playlistRepository = playlistRepo,
+                    cueSheetResolver = cueSheetResolver,
+                    coroutineScope = sessionScope,
+                )
+            crossServerSession.playPlaylist(playlist, startIndex = 0)
+            advanceUntilIdle()
+
+            assertEquals(serverA, crossServerSession.sessionState.value.activeServer)
+            assertEquals(serverA, fakeEngine.lastServer)
+            assertEquals(0, crossServerSession.sessionState.value.queue.currentIndex)
+
+            fakeEngine.simulateTrackTransition()
+            advanceUntilIdle()
+
+            assertEquals(1, crossServerSession.sessionState.value.queue.currentIndex)
+            assertEquals(
+                "Track B",
+                crossServerSession.sessionState.value.currentTrack
+                    ?.title,
+            )
+            assertEquals(serverB, crossServerSession.sessionState.value.activeServer)
+            assertEquals(serverB, fakeEngine.lastServer)
+            assertTrue("setActiveServer must be called on engine", fakeEngine.activeServerCalls > 0)
+
+            crossServerSession.release()
+        }
+
+    @Test
     fun playVirtualTracks_withShuffleMode_generatesDeterministicShuffleOrderStartingWithTargetIndex() =
         runTest(testDispatcher) {
             session.setActiveServer(testServer)

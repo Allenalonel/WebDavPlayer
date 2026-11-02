@@ -199,4 +199,22 @@ class WebDavMediaServiceTest {
         service.onTaskRemoved(Intent())
         assertTrue(shadowOf(service).isStoppedBySelf)
     }
+
+    @Test
+    fun onStartCommand_playbackIntent_synchronouslyElevatesForegroundService() {
+        val shadowService = shadowOf(service)
+        val host = PlaybackSessionHost.getInstance(app)
+        host.demoteForeground(removeNotification = false)
+        assertFalse(host.isForegroundActive)
+
+        val intent =
+            Intent(service, WebDavMediaService::class.java).apply {
+                action = WebDavNotificationProvider.ACTION_PLAY
+            }
+        service.onStartCommand(intent, 0, 1)
+
+        assertTrue("Host foreground status must be elevated synchronously", host.isForegroundActive)
+        assertEquals(service, host.attachedService)
+        assertNotNull(shadowService.lastForegroundNotification)
+    }
 }

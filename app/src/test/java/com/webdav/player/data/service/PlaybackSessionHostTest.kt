@@ -934,4 +934,48 @@ class PlaybackSessionHostTest {
             com.webdav.player.domain.player.AudioPlayerEngine::class.java.isAssignableFrom(PlaybackSessionHost::class.java),
         )
     }
+
+    @Test
+    fun elevateForeground_whenServiceNull_recordsPendingElevationAndHandlesExceptionResiliently() {
+        host.detachService(service)
+        assertNull(host.attachedService)
+        assertFalse(host.isForegroundActive)
+        assertFalse(host.isElevationPending)
+
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.elevateForeground(PlaybackState.Playing)
+
+        assertTrue("Elevation must be marked pending when service is detached", host.isElevationPending)
+        assertFalse("Foreground should not be active without service", host.isForegroundActive)
+        assertEquals(PlaybackState.Playing, host.playerEngine.playbackState.value)
+    }
+
+    @Test
+    fun prewarmService_whenElevationPending_reconcilesForegroundElevation() {
+        host.detachService(service)
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.elevateForeground(PlaybackState.Playing)
+        assertTrue(host.isElevationPending)
+
+        host.attachService(service)
+        host.prewarmService()
+
+        assertFalse("Pending flag should clear once reconciled", host.isElevationPending)
+        assertTrue("Foreground should become active", host.isForegroundActive)
+        assertEquals(service, host.attachedService)
+    }
+
+    @Test
+    fun prewarmService_whenActivelyPlayingAndNotForegroundActive_elevatesForeground() {
+        host.detachService(service)
+        host.attachService(service)
+        host.demoteForeground(removeNotification = false)
+        assertFalse(host.isForegroundActive)
+
+        fakeEngine._playbackState.value = PlaybackState.Playing
+        host.prewarmService()
+
+        assertTrue("prewarmService must elevate foreground if actively playing", host.isForegroundActive)
+        assertEquals(service, host.attachedService)
+    }
 }

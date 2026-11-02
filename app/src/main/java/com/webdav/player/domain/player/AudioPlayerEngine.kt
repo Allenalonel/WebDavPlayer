@@ -30,6 +30,8 @@ interface AudioPlayerEngine {
 
     fun updateTrackMetadata(track: AudioTrack)
 
+    fun setActiveServer(server: WebDavServer)
+
     fun play()
 
     fun pause()

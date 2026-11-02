@@ -210,6 +210,12 @@ class PlaybackSessionHost(
     var isForegroundActive: Boolean = false
         private set
 
+    private val isElevationPendingRef = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    @get:VisibleForTesting
+    val isElevationPending: Boolean
+        get() = isElevationPendingRef.get()
+
     private var hasPlaybackStarted: Boolean = false
 
     private var stateObserverJob: Job? = null
@@ -358,6 +364,7 @@ class PlaybackSessionHost(
     fun attachService(service: WebDavMediaService) {
         this.attachedService = service
         this.isForegroundActive = true
+        this.isElevationPendingRef.set(false)
         val currentState = playerEngine.playbackState.value
         if (currentState !is PlaybackState.Idle) {
             handlePlaybackStateChanged(currentState)
@@ -371,6 +378,7 @@ class PlaybackSessionHost(
             unregisterBecomingNoisyReceiver()
             this.attachedService = null
             this.isForegroundActive = false
+            this.isElevationPendingRef.set(false)
             this.hasPlaybackStarted = false
         }
     }
@@ -393,13 +401,21 @@ class PlaybackSessionHost(
         }
         val service =
             attachedService ?: run {
+                isElevationPendingRef.set(true)
                 startServiceInternal()
                 return
             }
 
         val notification = buildCurrentNotification(playbackState)
-        if (service.startForegroundSafely(notification, notificationProvider.notificationId)) {
-            isForegroundActive = true
+        try {
+            if (service.startForegroundSafely(notification, notificationProvider.notificationId)) {
+                isForegroundActive = true
+                isElevationPendingRef.set(false)
+            } else {
+                isElevationPendingRef.set(true)
+            }
+        } catch (_: Throwable) {
+            isElevationPendingRef.set(true)
         }
     }
 
@@ -407,6 +423,7 @@ class PlaybackSessionHost(
         removeNotification: Boolean,
         playbackState: PlaybackState? = null,
     ) {
+        isElevationPendingRef.set(false)
         if (removeNotification) {
             unregisterBecomingNoisyReceiver()
         }
@@ -441,6 +458,13 @@ class PlaybackSessionHost(
 
     fun prewarmService() {
         ensureServiceStarted()
+        val currentState = playerEngine.playbackState.value
+        val isActivelyPlayingOrBuffering =
+            currentState is PlaybackState.Playing ||
+                (currentState is PlaybackState.Buffering && playerEngine.playWhenReady)
+        if (isElevationPending || (isActivelyPlayingOrBuffering && !isForegroundActive)) {
+            elevateForeground(currentState)
+        }
     }
 
     private fun ensureServiceStarted() {
@@ -467,6 +491,7 @@ class PlaybackSessionHost(
         cancelDemotionTimer()
         unregisterBecomingNoisyReceiver()
         hasPlaybackStarted = false
+        isElevationPendingRef.set(false)
         audioFocusHandler.abandonAudioFocus()
         playerEngine.stop()
         demoteForeground(removeNotification = true)
@@ -490,6 +515,7 @@ class PlaybackSessionHost(
         playerEngine.release()
         attachedService = null
         isForegroundActive = false
+        isElevationPendingRef.set(false)
     }
 
     companion object {

@@ -83,6 +83,13 @@ class FakeAudioPlayerEngine : AudioPlayerEngine {
         loadedTrack = track
     }
 
+    var activeServerCalls = 0
+
+    override fun setActiveServer(server: WebDavServer) {
+        activeServerCalls++
+        lastServer = server
+    }
+
     override fun play() {
         playCount++
         customPlayWhenReady = true

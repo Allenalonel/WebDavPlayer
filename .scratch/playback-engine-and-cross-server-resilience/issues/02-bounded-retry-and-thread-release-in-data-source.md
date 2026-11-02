@@ -4,10 +4,16 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `ResilientWebDavDataSource` uses `DEFAULT_MAX_RETRIES = 5`
-- [ ] After 5 consecutive retry attempts during `open()` or `read()`, the reconnect loop terminates and rethrows the underlying `IOException`
-- [ ] Closing the data source promptly interrupts any pending sleep or backoff wait
-- [ ] Loader thread is released without hanging when network connections are severed
-- [ ] Unit tests in `ResilientWebDavDataSourceTest` verify the 5-attempt retry cap, backoff progression, and exception rethrow
+- [x] `ResilientWebDavDataSource` uses `DEFAULT_MAX_RETRIES = 5`
+- [x] After 5 consecutive retry attempts during `open()` or `read()`, the reconnect loop terminates and rethrows the underlying `IOException`
+- [x] Closing the data source promptly interrupts any pending sleep or backoff wait
+- [x] Loader thread is released without hanging when network connections are severed
+- [x] Unit tests in `ResilientWebDavDataSourceTest` verify the 5-attempt retry cap, backoff progression, and exception rethrow
+
+## Answer
+1. 将 `ResilientWebDavDataSource.DEFAULT_MAX_RETRIES` 从 `Int.MAX_VALUE` 调整为确定的 `5`。
+2. 5 次重试退避调度（1s, 2s, 4s, 6s, 6s，总计 19 秒）耗尽后，立即设置 `isReconnecting = false` 并抛出底层 `IOException`，配合上层 `PlaybackFaultTolerance` 弱网看门狗及时触发错误状态与恢复策略。
+3. 在 `open()` 与 `read()` 期间通过 `activeThread` 记录当前执行线程，当外部调用 `close()` 时若有工作线程处于退避休眠或阻塞状态，主动触发 `interrupt()` 并抛出 `InterruptedIOException`，确保 ExoPlayer 内部 Loader 线程与 NAS 离线时的阻塞调用即时释放。
+4. 在 `ResilientWebDavDataSourceTest` 中新增 `defaultMaxRetries_isFive`、`persistentFailureDuringOpen_terminatesAfterFiveRetries_andRethrows`、`persistentFailureDuringRead_terminatesAfterFiveRetries_andRethrows` 与 `close_whileSleepingInBackoff_promptlyInterruptsThreadAndThrows` 单元测试，全部验证通过。
