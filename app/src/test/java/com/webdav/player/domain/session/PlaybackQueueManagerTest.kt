@@ -106,22 +106,24 @@ class PlaybackQueueManagerTest {
     }
 
     @Test
-    fun calculateNext_shuffle_obeysShuffleOrder() {
-        val q = PlaybackQueue(listOf(t1, t2, t3), currentIndex = 0, shuffleOrder = listOf(0, 2, 1))
+    fun calculateNext_shuffle_advancesLinearlyInShuffledQueue() {
+        val q = PlaybackQueue(listOf(t1, t2, t3), currentIndex = 0, originalTracks = listOf(t1, t3, t2))
         val next = queueManager.calculateNextQueueIndex(q, PlaybackMode.SHUFFLE)
-        assertEquals(2, next)
+        assertEquals(1, next)
     }
 
     @Test
-    fun modeManagement_cycleAndSet_generatesShuffleOrderLazily() {
+    fun modeManagement_cycleAndSet_transformsQueueToShuffledAndRestores() {
         queueManager.setPlaybackMode(PlaybackMode.SHUFFLE)
         assertTrue(flushRequested)
         assertEquals(PlaybackMode.SHUFFLE, sessionStateFlow.value.playbackMode)
-        assertEquals(3, sessionStateFlow.value.queue.shuffleOrder.size)
+        assertTrue(sessionStateFlow.value.queue.isShuffled)
+        assertEquals(3, sessionStateFlow.value.queue.originalTracks.size)
 
         flushRequested = false
         queueManager.cyclePlaybackMode() // SHUFFLE -> LIST_LOOP
         assertEquals(PlaybackMode.LIST_LOOP, sessionStateFlow.value.playbackMode)
+        assertFalse(sessionStateFlow.value.queue.isShuffled)
         assertTrue(flushRequested)
     }
 
@@ -224,17 +226,16 @@ class PlaybackQueueManagerTest {
     @Test
     fun shufflePermutation_remainsStableAcrossQueueProgressionAndSettingMode() {
         queueManager.setPlaybackMode(PlaybackMode.SHUFFLE)
-        val initialOrder = sessionStateFlow.value.queue.shuffleOrder
-        assertEquals(3, initialOrder.size)
+        val initialShuffledTracks = sessionStateFlow.value.queue.tracks
+        assertEquals(3, initialShuffledTracks.size)
 
-        // Advancing next index under shuffle maintains the permutation order
+        // Advancing next index under shuffle advances linearly on shuffled queue
         val nextIdx = queueManager.calculateNextQueueIndex(sessionStateFlow.value.queue, PlaybackMode.SHUFFLE)
-        val targetOrderIndex = (initialOrder.indexOf(sessionStateFlow.value.queue.currentIndex) + 1) % initialOrder.size
-        assertEquals(initialOrder[targetOrderIndex], nextIdx)
+        assertEquals(1, nextIdx)
 
-        // Setting same mode does not regenerate/reshuffle the order
+        // Setting same mode does not re-shuffle the queue
         queueManager.setPlaybackMode(PlaybackMode.SHUFFLE)
-        assertEquals(initialOrder, sessionStateFlow.value.queue.shuffleOrder)
+        assertEquals(initialShuffledTracks, sessionStateFlow.value.queue.tracks)
     }
 
     @Test

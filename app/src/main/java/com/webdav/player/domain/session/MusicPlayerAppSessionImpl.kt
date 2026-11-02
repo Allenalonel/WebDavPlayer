@@ -464,10 +464,17 @@ class MusicPlayerAppSessionImpl(
         if (timelineCoordinator.trySkipVirtualTrackNext(_sessionState.value.playbackMode)) return
         val queue = _sessionState.value.queue
         if (!queue.isEmpty) {
-            transitionToQueueIndex(
-                _sessionState.value.activeServer,
-                queueManager.calculateNextQueueIndex(queue, _sessionState.value.playbackMode),
-            )
+            val mode = _sessionState.value.playbackMode
+            if (mode == PlaybackMode.SHUFFLE && queue.currentIndex >= queue.tracks.lastIndex) {
+                val reshuffled = queue.reshuffle()
+                _sessionState.update { it.copy(queue = reshuffled) }
+                transitionToQueueIndex(_sessionState.value.activeServer, 0)
+            } else {
+                transitionToQueueIndex(
+                    _sessionState.value.activeServer,
+                    queueManager.calculateNextQueueIndex(queue, mode),
+                )
+            }
         }
     }
 
@@ -584,7 +591,4 @@ class MusicPlayerAppSessionImpl(
     override suspend fun flushSession() = persistenceCoordinator.flushSession()
 
     suspend fun flushSessionWithCleanExit(isCleanExit: Boolean) = persistenceCoordinator.flushSessionWithCleanExit(isCleanExit)
-
-    @VisibleForTesting
-    fun setShuffleOrder(order: List<Int>) = queueManager.setShuffleOrder(order)
 }

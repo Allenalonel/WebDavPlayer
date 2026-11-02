@@ -13,21 +13,24 @@ data class PlaybackSessionData(
     val virtualPositionMs: Long? = null,
     val cleanExit: Boolean = true,
     val queueOrigin: QueueOrigin = QueueOrigin.DIRECTORY,
+    val originalTracks: List<AudioTrack> = emptyList(),
 ) {
     companion object {
-        val EMPTY = PlaybackSessionData(
-            activeServerId = null,
-            currentDirectoryPath = "/",
-            queueTracks = emptyList(),
-            currentTrackIndex = -1,
-            positionMs = 0L,
-            playbackMode = PlaybackMode.LIST_LOOP,
-            serverLastDirectories = emptyMap(),
-            cuePath = null,
-            virtualTrackNumber = null,
-            virtualPositionMs = null,
-            cleanExit = true,
-            queueOrigin = QueueOrigin.DIRECTORY,
-        )
+        val EMPTY =
+            PlaybackSessionData(
+                activeServerId = null,
+                currentDirectoryPath = "/",
+                queueTracks = emptyList(),
+                currentTrackIndex = -1,
+                positionMs = 0L,
+                playbackMode = PlaybackMode.LIST_LOOP,
+                serverLastDirectories = emptyMap(),
+                cuePath = null,
+                virtualTrackNumber = null,
+                virtualPositionMs = null,
+                cleanExit = true,
+                queueOrigin = QueueOrigin.DIRECTORY,
+                originalTracks = emptyList(),
+            )
     }
 }

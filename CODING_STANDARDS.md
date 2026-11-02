@@ -40,3 +40,16 @@ These standards are enforced during `/code-review` alongside the Fowler code-sme
 
 - **No Hard SQLite Foreign Keys on Cache Tables**:
   `directory_cache` and `track_metadata` must **not** declare `FOREIGN KEY (serverId) REFERENCES webdav_servers(id) ON DELETE CASCADE`. Cross-server playlists (`ADR-0020`) and background metadata self-healing (`ADR-0022`) require reading and writing track snapshots even when a server is offline, unconfigured, or isolated in DAO tests. Cascade cleanup upon explicit server deletion is handled in `ServerRepositoryImpl.deleteServer`.
+
+---
+
+## 5. Mainstream Engineering Benchmark & Pragmatic Review (对标主流工业级标准与务实审查)
+
+- **Benchmark Against Mainstream Production Engineering (对标主流工业级标准，拒绝教条化审查)**:
+  The sole North Star for architecture review is **mainstream production-grade software engineering**: standard architectural patterns, industry benchmarks, framework-idiomatic conventions, and pragmatic maintainability.
+  Strictly avoid "reviewing for the sake of reviewing" or applying extreme academic/theoretical dogmas that deviate from mainstream industry engineering.
+- **Problem-Driven with Measurable Engineering Value (问题驱动与实质收益)**:
+  Any architectural finding or refactoring proposal must address genuine engineering friction: performance bottlenecks, concurrency/lifecycle hazards, memory leaks, boundary leakage, or real maintenance impediments.
+  If an existing design aligns with mainstream framework idioms, is cleanly structured, and reliably passes all quality/performance gates, it is solid engineering. Strictly prohibit inventing make-work, circular refactorings (endless splitting vs. merging), or aesthetic churn that delivers zero practical engineering value.
+- **Review Stopping Discipline (终止准则与收敛边界)**:
+  An architectural review must converge. When an audit identifies that a subsystem adheres to mainstream standards and exhibits no real-world defects, it must definitively conclude that the architecture is production-ready, rather than perpetually digging for artificial issues.

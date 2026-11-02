@@ -242,6 +242,10 @@ internal class PlaybackTimelineCoordinator(
             playerEngine.seekTo(0L)
             playerEngine.play()
             coroutineScope.launch { persistenceCoordinator.flushSession() }
+        } else if (sessionStateFlow.value.playbackMode == PlaybackMode.SHUFFLE && queue.currentIndex >= queue.tracks.lastIndex) {
+            val reshuffledQueue = queue.reshuffle()
+            sessionStateFlow.update { it.copy(queue = reshuffledQueue) }
+            onTransitionToQueueIndex(server, 0)
         } else {
             onTransitionToQueueIndex(server, queueManager.calculateNextQueueIndex(queue, sessionStateFlow.value.playbackMode))
         }

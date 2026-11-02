@@ -805,26 +805,30 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             session.setPlaybackMode(PlaybackMode.SHUFFLE)
-            session.setShuffleOrder(listOf(0, 2, 1))
             advanceUntilIdle()
 
-            // Track completion moves 0 -> 2
-            fakeEngine.simulateTrackCompletion()
-            advanceUntilIdle()
-            assertEquals(2, session.sessionState.value.queue.currentIndex)
-            assertEquals("03.mp3", fakeEngine.loadedTrack?.title)
+            val shuffledQueue = session.sessionState.value.queue
+            assertTrue(shuffledQueue.isShuffled)
+            assertEquals(0, shuffledQueue.currentIndex)
+            assertEquals("01.mp3", shuffledQueue.currentTrack?.title)
 
-            // Next completion moves 2 -> 1
+            // Track completion moves 0 -> 1 in the shuffled queue
             fakeEngine.simulateTrackCompletion()
             advanceUntilIdle()
             assertEquals(1, session.sessionState.value.queue.currentIndex)
-            assertEquals("02.mp3", fakeEngine.loadedTrack?.title)
+            assertEquals(shuffledQueue.tracks[1].title, fakeEngine.loadedTrack?.title)
 
-            // Next completion wraps back to 0
+            // Next completion moves 1 -> 2
+            fakeEngine.simulateTrackCompletion()
+            advanceUntilIdle()
+            assertEquals(2, session.sessionState.value.queue.currentIndex)
+            assertEquals(shuffledQueue.tracks[2].title, fakeEngine.loadedTrack?.title)
+
+            // Next completion at end of shuffle cycle triggers reshuffle back to 0
             fakeEngine.simulateTrackCompletion()
             advanceUntilIdle()
             assertEquals(0, session.sessionState.value.queue.currentIndex)
-            assertEquals("01.mp3", fakeEngine.loadedTrack?.title)
+            assertNotNull(fakeEngine.loadedTrack)
         }
 
     @Test
@@ -1982,7 +1986,7 @@ class MusicPlayerAppSessionTest {
             advanceUntilIdle()
 
             session.setPlaybackMode(PlaybackMode.SHUFFLE)
-            session.setShuffleOrder(listOf(0, 2, 1))
+            val expectedNextTrack = session.sessionState.value.queue.tracks[1]
 
             fakeEngine._durationMs.value = 200_000L
             fakeEngine._currentPositionMs.value = 192_000L // 96% progress
@@ -1990,10 +1994,10 @@ class MusicPlayerAppSessionTest {
             fakeEngine._playbackState.value = PlaybackState.Ended
             advanceUntilIdle()
 
-            // Next in shuffle order [0, 2, 1] is index 2 ("03.mp3")
-            assertEquals(2, session.sessionState.value.queue.currentIndex)
+            // Next in shuffled queue is index 1
+            assertEquals(1, session.sessionState.value.queue.currentIndex)
             assertEquals(
-                "03.mp3",
+                expectedNextTrack.title,
                 session.sessionState.value.currentTrack
                     ?.title,
             )
@@ -2535,10 +2539,10 @@ class MusicPlayerAppSessionTest {
 
             val queue = session.sessionState.value.queue
             assertEquals(3, queue.size)
-            assertEquals(1, queue.currentIndex)
-            assertTrue("Shuffle order must be generated", queue.shuffleOrder.isNotEmpty())
-            assertEquals("Shuffle order must begin with target index", 1, queue.shuffleOrder.first())
-            assertEquals(setOf(0, 1, 2), queue.shuffleOrder.toSet())
+            assertEquals(0, queue.currentIndex)
+            assertTrue("Queue must be shuffled", queue.isShuffled)
+            assertEquals("Current track must be target track", "Track 2", queue.currentTrack?.title)
+            assertEquals(3, queue.originalTracks.size)
         }
 
     @Test

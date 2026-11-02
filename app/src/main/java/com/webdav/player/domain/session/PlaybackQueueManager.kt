@@ -108,22 +108,23 @@ internal class PlaybackQueueManager(
     }
 
     /**
-     * Sets the shuffle order for the active queue.
-     */
-    fun setShuffleOrder(order: List<Int>) {
-        sessionStateFlow.update { it.copy(queue = it.queue.copy(shuffleOrder = order)) }
-    }
-
-    /**
-     * Updates the playback mode, lazily generating shuffle order if transitioning into SHUFFLE.
+     * Updates the playback mode, transforming to shuffled queue or restoring original order.
      */
     fun setPlaybackMode(mode: PlaybackMode) {
         sessionStateFlow.update { current ->
             val updatedQueue =
-                if (mode == PlaybackMode.SHUFFLE && current.queue.shuffleOrder.isEmpty() && current.queue.tracks.isNotEmpty()) {
-                    current.queue.withGeneratedShuffleOrder()
-                } else {
-                    current.queue
+                when {
+                    mode == PlaybackMode.SHUFFLE && !current.queue.isShuffled && current.queue.tracks.isNotEmpty() -> {
+                        current.queue.toShuffled()
+                    }
+
+                    mode != PlaybackMode.SHUFFLE && current.queue.isShuffled -> {
+                        current.queue.toUnshuffled()
+                    }
+
+                    else -> {
+                        current.queue
+                    }
                 }
             current.copy(playbackMode = mode, queue = updatedQueue)
         }
@@ -243,12 +244,18 @@ internal class PlaybackQueueManager(
                 resolveDirectoryCueMap(directory, audioFiles, server)
             }
 
-        val queue =
+        val rawQueue =
             PlaybackQueue.fromTracks(
                 tracks = tracks,
                 virtualTracksMap = resolvedVirtualMap,
                 selectedIndex = selectedIndex,
             )
+        val queue =
+            if (sessionStateFlow.value.playbackMode == PlaybackMode.SHUFFLE) {
+                rawQueue.toShuffled()
+            } else {
+                rawQueue
+            }
         val selectedTrack = queue.currentTrack ?: return null
 
         return if (selectedTrack.isVirtualTrack) {
@@ -302,7 +309,7 @@ internal class PlaybackQueueManager(
         val mappedTracks = virtualTracks.map { it.toAudioTrack(cleanParentTrack, resolvedCuePath) }
         val initialVirtualTrack = mappedTracks[validStartIndex]
         val rawQueue = PlaybackQueue(tracks = mappedTracks, currentIndex = validStartIndex)
-        val queue = if (playbackMode == PlaybackMode.SHUFFLE) rawQueue.withGeneratedShuffleOrder(validStartIndex) else rawQueue
+        val queue = if (playbackMode == PlaybackMode.SHUFFLE) rawQueue.toShuffled() else rawQueue
         return QueueLoadRequest(
             queue = queue,
             targetTrack = initialVirtualTrack,
@@ -321,7 +328,13 @@ internal class PlaybackQueueManager(
         if (entries.isEmpty()) return null
         val tracks = entries.map { it.toAudioTrack() }
         val safeStartIndex = startIndex.coerceIn(0, tracks.lastIndex)
-        val queue = PlaybackQueue.fromTracks(tracks = tracks, selectedIndex = safeStartIndex, origin = QueueOrigin.PLAYLIST)
+        val rawQueue = PlaybackQueue.fromTracks(tracks = tracks, selectedIndex = safeStartIndex, origin = QueueOrigin.PLAYLIST)
+        val queue =
+            if (sessionStateFlow.value.playbackMode == PlaybackMode.SHUFFLE) {
+                rawQueue.toShuffled()
+            } else {
+                rawQueue
+            }
         val currentTrack = queue.currentTrack ?: tracks[safeStartIndex]
         val (matchedVt, startPositionMs) = resolveVirtualTrackOffset(currentTrack, server)
         return createSingleTrackLoadRequest(queue, currentTrack, matchedVt, startPositionMs)

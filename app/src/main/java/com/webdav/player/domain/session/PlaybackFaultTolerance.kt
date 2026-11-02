@@ -3,6 +3,7 @@ package com.webdav.player.domain.session
 import com.webdav.player.data.player.UnsupportedRangeReconnectionException
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
+import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.player.AudioPlayerEngine
@@ -330,6 +331,7 @@ internal class PlaybackFaultTolerance(
         onPreroll: (server: com.webdav.player.domain.model.WebDavServer, track: AudioTrack) -> Unit,
     ) {
         if (isPrerollAppended.get() || queue.tracks.size <= 1) return
+        if (playbackMode == PlaybackMode.SHUFFLE && queue.currentIndex >= queue.tracks.lastIndex) return
         val remainingMs = progress.durationMs - progress.currentPositionMs
 
         if (remainingMs in 1..PREROLL_TRIGGER_WINDOW_MS) {

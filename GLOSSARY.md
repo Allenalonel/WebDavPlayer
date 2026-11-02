@@ -45,8 +45,16 @@ _Avoid_: ID3, Tag, Audio Info
 _Avoid_: External Image, Folder Icon, Album Photo
 
 **Playback Queue**:
-当前播放会话中排队待播的有序音频曲目运行时集合。具备明确的 Queue Origin 来源标记，与用户持久化保存的 Playlist 解耦。
+当前播放会话中排队待播的有序音频曲目运行时集合。具备明确的 Queue Origin 来源标记，与用户持久化保存的 Playlist 解耦。在随机播放模式下表现为显式洗牌队列并持有原序镜像。
 _Avoid_: Track List, Song Sequence
+
+**Shuffled Playback Queue**:
+在随机播放（Shuffle）模式下将待播音频曲目显式排列打乱的运行时确定性队列。当前播放曲目固定置于首位，后续曲目打乱，用户在播放队列抽屉中所见即真实待播顺序（Up Next），切歌与回溯具备严格数学确定性。
+_Avoid_: Random Walk Queue, Virtual Shuffle, Dynamic Index Map
+
+**Original Queue Mirror**:
+播放队列在进入随机播放模式时在内存中完整保留的原始目录或歌单顺序镜像。用于在关闭随机模式时纯内存无损瞬时恢复原序，并同步维持临时插队（Play Next）曲目的相对拓扑。
+_Avoid_: Backup List, Restore Cache, Unshuffled Copy
 
 **Queue Origin**:
 播放队列的来源拓扑分类标识，包含目录闭环回放（Directory Queue）、跨服务器自定义歌单闭环回放（Playlist Queue）与单曲临时插队起播（Ad-hoc Queue），决定切歌到达末尾时的回流逻辑与跨服媒体流凭据装配。

@@ -2,6 +2,7 @@ package com.webdav.player.domain.session
 
 import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.AudioTrack
+import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackSessionData
@@ -195,7 +196,17 @@ internal class SessionPersistenceCoordinator(
                     ?: (savedSession.positionMs - targetVirtualTrack.startTimeMs).coerceAtLeast(0L)
             ).coerceIn(0L, if (targetVirtualTrack.durationMs > 0L) targetVirtualTrack.durationMs else Long.MAX_VALUE)
 
-        val queue = PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex)
+        val rawQueue = PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex)
+        val queue =
+            if (savedSession.playbackMode == PlaybackMode.SHUFFLE) {
+                if (savedSession.originalTracks.isNotEmpty()) {
+                    PlaybackQueue(tracks = mappedTracks, currentIndex = targetIndex, originalTracks = savedSession.originalTracks)
+                } else {
+                    rawQueue.toShuffled()
+                }
+            } else {
+                rawQueue
+            }
 
         val wasKilled = !savedSession.cleanExit && savedSession.currentTrackIndex >= 0 && savedSession.queueTracks.isNotEmpty()
         sessionStateFlow.update {
@@ -240,6 +251,7 @@ internal class SessionPersistenceCoordinator(
             PlaybackQueue(
                 tracks = savedSession.queueTracks,
                 currentIndex = savedSession.currentTrackIndex.coerceIn(-1, savedSession.queueTracks.lastIndex),
+                originalTracks = savedSession.originalTracks,
                 origin = origin,
             )
         val restoredTrack = restoredQueue.currentTrack
@@ -252,9 +264,15 @@ internal class SessionPersistenceCoordinator(
                         val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, track.remotePath)
                         if (cachedMeta != null) track.withMetadata(cachedMeta) else track
                     }
+                val updatedOriginal =
+                    savedSession.originalTracks.map { track ->
+                        val cachedMeta = trackMetadataRepository?.getCachedMetadata(server.id, track.remotePath)
+                        if (cachedMeta != null) track.withMetadata(cachedMeta) else track
+                    }
                 PlaybackQueue(
                     tracks = updatedTracks,
                     currentIndex = savedSession.currentTrackIndex.coerceIn(-1, updatedTracks.lastIndex),
+                    originalTracks = updatedOriginal,
                     origin = origin,
                 )
             } else {
@@ -370,6 +388,7 @@ internal class SessionPersistenceCoordinator(
                 virtualPositionMs = virtualPosMs,
                 cleanExit = isCleanExit,
                 queueOrigin = current.queue.origin,
+                originalTracks = current.queue.originalTracks,
             )
         store.saveSession(sessionData)
     }

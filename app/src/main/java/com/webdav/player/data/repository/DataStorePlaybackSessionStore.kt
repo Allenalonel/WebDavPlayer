@@ -28,9 +28,8 @@ private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataS
 
 class DataStorePlaybackSessionStore(
     private val dataStore: DataStore<Preferences>,
-    private val testFileProvider: (() -> File)? = null
+    private val testFileProvider: (() -> File)? = null,
 ) : PlaybackSessionStore {
-
     constructor(context: Context) : this(context.sessionDataStore, null)
 
     companion object {
@@ -46,10 +45,12 @@ class DataStorePlaybackSessionStore(
         private val KEY_VIRTUAL_POSITION_MS = longPreferencesKey("virtual_position_ms")
         private val KEY_CLEAN_EXIT = booleanPreferencesKey("clean_exit")
         private val KEY_QUEUE_ORIGIN = stringPreferencesKey("queue_origin")
+        private val KEY_ORIGINAL_TRACKS_JSON = stringPreferencesKey("original_tracks_json")
     }
 
     override suspend fun saveSession(sessionData: PlaybackSessionData) {
         val tracksJson = serializeTracks(sessionData.queueTracks)
+        val originalTracksJson = serializeTracks(sessionData.originalTracks)
         val serverLastDirsJson = serializeServerLastDirs(sessionData.serverLastDirectories)
         dataStore.edit { prefs ->
             testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
@@ -60,6 +61,7 @@ class DataStorePlaybackSessionStore(
             }
             prefs[KEY_CURRENT_DIRECTORY_PATH] = sessionData.currentDirectoryPath
             prefs[KEY_QUEUE_TRACKS_JSON] = tracksJson
+            prefs[KEY_ORIGINAL_TRACKS_JSON] = originalTracksJson
             prefs[KEY_CURRENT_TRACK_INDEX] = sessionData.currentTrackIndex
             prefs[KEY_POSITION_MS] = sessionData.positionMs
             prefs[KEY_PLAYBACK_MODE] = sessionData.playbackMode.name
@@ -88,11 +90,18 @@ class DataStorePlaybackSessionStore(
         savePosition(positionMs, null)
     }
 
-    override suspend fun savePosition(positionMs: Long, virtualPositionMs: Long?) {
+    override suspend fun savePosition(
+        positionMs: Long,
+        virtualPositionMs: Long?,
+    ) {
         savePosition(positionMs, virtualPositionMs, isCleanExit = false)
     }
 
-    override suspend fun savePosition(positionMs: Long, virtualPositionMs: Long?, isCleanExit: Boolean) {
+    override suspend fun savePosition(
+        positionMs: Long,
+        virtualPositionMs: Long?,
+        isCleanExit: Boolean,
+    ) {
         val clamped = positionMs.coerceAtLeast(0L)
         dataStore.edit { prefs ->
             testFileProvider?.invoke()?.let { file -> if (file.exists()) file.delete() }
@@ -105,15 +114,15 @@ class DataStorePlaybackSessionStore(
     }
 
     override suspend fun getSavedSession(): PlaybackSessionData? {
-        val prefs = dataStore.data
-            .catch { exception ->
-                if (exception is IOException) {
-                    emit(emptyPreferences())
-                } else {
-                    throw exception
-                }
-            }
-            .first()
+        val prefs =
+            dataStore.data
+                .catch { exception ->
+                    if (exception is IOException) {
+                        emit(emptyPreferences())
+                    } else {
+                        throw exception
+                    }
+                }.first()
 
         // If no server and no directory path and no tracks, consider it empty
         val serverId = prefs[KEY_ACTIVE_SERVER_ID]
@@ -128,13 +137,14 @@ class DataStorePlaybackSessionStore(
         val trackIndex = prefs[KEY_CURRENT_TRACK_INDEX] ?: -1
         val positionMs = prefs[KEY_POSITION_MS] ?: 0L
         val modeStr = prefs[KEY_PLAYBACK_MODE]
-        val mode = modeStr?.let {
-            try {
-                PlaybackMode.valueOf(it)
-            } catch (e: Exception) {
-                PlaybackMode.LIST_LOOP
-            }
-        } ?: PlaybackMode.LIST_LOOP
+        val mode =
+            modeStr?.let {
+                try {
+                    PlaybackMode.valueOf(it)
+                } catch (e: Exception) {
+                    PlaybackMode.LIST_LOOP
+                }
+            } ?: PlaybackMode.LIST_LOOP
         val serverLastDirs = deserializeServerLastDirs(prefs[KEY_SERVER_LAST_DIRS_JSON])
         val cuePath = prefs[KEY_CUE_PATH]
         val virtualTrackNumber = prefs[KEY_VIRTUAL_TRACK_NUMBER]
@@ -144,13 +154,16 @@ class DataStorePlaybackSessionStore(
         val queueOrigin =
             try {
                 if (queueOriginStr != null) {
-                    com.webdav.player.domain.model.QueueOrigin.valueOf(queueOriginStr)
+                    com.webdav.player.domain.model.QueueOrigin
+                        .valueOf(queueOriginStr)
                 } else {
                     com.webdav.player.domain.model.QueueOrigin.DIRECTORY
                 }
             } catch (e: Exception) {
                 com.webdav.player.domain.model.QueueOrigin.DIRECTORY
             }
+
+        val originalTracks = deserializeTracks(prefs[KEY_ORIGINAL_TRACKS_JSON])
 
         return PlaybackSessionData(
             activeServerId = serverId,
@@ -165,6 +178,7 @@ class DataStorePlaybackSessionStore(
             virtualPositionMs = virtualPositionMs,
             cleanExit = cleanExit,
             queueOrigin = queueOrigin,
+            originalTracks = originalTracks,
         )
     }
 
@@ -204,18 +218,19 @@ class DataStorePlaybackSessionStore(
     private fun serializeTracks(tracks: List<AudioTrack>): String {
         val array = JSONArray()
         for (track in tracks) {
-            val obj = JSONObject().apply {
-                put("id", track.id)
-                put("serverId", track.serverId)
-                put("remotePath", track.remotePath)
-                put("title", track.title)
-                if (track.artist != null) put("artist", track.artist)
-                if (track.album != null) put("album", track.album)
-                put("durationMs", track.durationMs)
-                put("size", track.size)
-                put("format", track.format.name)
-                if (track.coverThumbnailPath != null) put("coverThumbnailPath", track.coverThumbnailPath)
-            }
+            val obj =
+                JSONObject().apply {
+                    put("id", track.id)
+                    put("serverId", track.serverId)
+                    put("remotePath", track.remotePath)
+                    put("title", track.title)
+                    if (track.artist != null) put("artist", track.artist)
+                    if (track.album != null) put("album", track.album)
+                    put("durationMs", track.durationMs)
+                    put("size", track.size)
+                    put("format", track.format.name)
+                    if (track.coverThumbnailPath != null) put("coverThumbnailPath", track.coverThumbnailPath)
+                }
             array.put(obj)
         }
         return array.toString()
@@ -229,11 +244,12 @@ class DataStorePlaybackSessionStore(
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val formatStr = obj.optString("format", "MP3")
-                val format = try {
-                    AudioFormat.valueOf(formatStr)
-                } catch (e: Exception) {
-                    AudioFormat.MP3
-                }
+                val format =
+                    try {
+                        AudioFormat.valueOf(formatStr)
+                    } catch (e: Exception) {
+                        AudioFormat.MP3
+                    }
                 list.add(
                     AudioTrack(
                         id = obj.getString("id"),
@@ -245,10 +261,13 @@ class DataStorePlaybackSessionStore(
                         durationMs = obj.optLong("durationMs", 0L),
                         size = obj.optLong("size", 0L),
                         format = format,
-                        coverThumbnailPath = if (obj.has("coverThumbnailPath") && !obj.isNull("coverThumbnailPath")) {
-                            obj.getString("coverThumbnailPath")
-                        } else null
-                    )
+                        coverThumbnailPath =
+                            if (obj.has("coverThumbnailPath") && !obj.isNull("coverThumbnailPath")) {
+                                obj.getString("coverThumbnailPath")
+                            } else {
+                                null
+                            },
+                    ),
                 )
             }
             list

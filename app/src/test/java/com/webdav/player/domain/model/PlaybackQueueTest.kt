@@ -182,17 +182,32 @@ class PlaybackQueueTest {
     }
 
     @Test
-    fun navigationIndices_shuffleWithExplicitOrder() {
-        val tracks = (0..3).map { createTrack("$it", "Song $it") }
-        val shuffleOrder = listOf(2, 0, 3, 1)
+    fun toShuffled_preservesCurrentTrackAtHead_andToUnshuffledRestoresOriginalOrder() {
+        val t0 = createTrack("0", "Song 0")
+        val t1 = createTrack("1", "Song 1")
+        val t2 = createTrack("2", "Song 2")
+        val t3 = createTrack("3", "Song 3")
+        val originalQueue = PlaybackQueue(tracks = listOf(t0, t1, t2, t3), currentIndex = 2)
 
-        val queueAt2 = PlaybackQueue(tracks = tracks, currentIndex = 2)
-        assertEquals(0, queueAt2.getNextIndex(PlaybackMode.SHUFFLE, shuffleOrder))
-        assertEquals(1, queueAt2.getPreviousIndex(PlaybackMode.SHUFFLE, shuffleOrder))
+        val shuffled = originalQueue.toShuffled()
+        assertTrue(shuffled.isShuffled)
+        assertEquals(0, shuffled.currentIndex)
+        assertEquals(t2, shuffled.currentTrack)
+        assertEquals(listOf(t0, t1, t2, t3), shuffled.originalTracks)
+        assertEquals(4, shuffled.tracks.size)
+        assertEquals(t2, shuffled.tracks[0])
+        assertEquals(setOf(t0, t1, t2, t3), shuffled.tracks.toSet())
 
-        val queueAt1 = PlaybackQueue(tracks = tracks, currentIndex = 1) // last in shuffle order
-        assertEquals(2, queueAt1.getNextIndex(PlaybackMode.SHUFFLE, shuffleOrder)) // wraps to first
-        assertEquals(3, queueAt1.getPreviousIndex(PlaybackMode.SHUFFLE, shuffleOrder))
+        // In shuffle mode, navigation is strictly linear and deterministic on the shuffled list
+        assertEquals(1, shuffled.getNextIndex(PlaybackMode.SHUFFLE))
+        assertEquals(3, shuffled.getPreviousIndex(PlaybackMode.SHUFFLE))
+
+        // Restoring original order restores original tracks and maps current track index back
+        val unshuffled = shuffled.toUnshuffled()
+        assertFalse(unshuffled.isShuffled)
+        assertEquals(listOf(t0, t1, t2, t3), unshuffled.tracks)
+        assertEquals(2, unshuffled.currentIndex)
+        assertEquals(t2, unshuffled.currentTrack)
     }
 
     @Test
@@ -236,22 +251,21 @@ class PlaybackQueueTest {
     }
 
     @Test
-    fun insertNext_withExistingShuffleOrder_appendsNewIndexToShuffleOrder() {
+    fun insertNext_whenShuffled_updatesTracksAndOriginalTracks() {
         val t1 = createTrack("1", "Song 1")
         val t2 = createTrack("2", "Song 2")
         val tNew = createTrack("99", "New Next Song")
 
-        val queue =
-            PlaybackQueue(
-                tracks = listOf(t1, t2),
-                currentIndex = 0,
-                shuffleOrder = listOf(1, 0),
-            )
-        val updated = queue.insertNext(tNew)
+        val baseQueue = PlaybackQueue(tracks = listOf(t1, t2), currentIndex = 0).toShuffled()
+        val updated = baseQueue.insertNext(tNew)
 
         assertEquals(3, updated.size)
         assertEquals(listOf(t1, tNew, t2), updated.tracks)
-        assertEquals(listOf(2, 0, 1), updated.shuffleOrder)
+        assertEquals(listOf(t1, tNew, t2), updated.originalTracks)
+
+        val unrolled = updated.toUnshuffled()
+        assertEquals(listOf(t1, tNew, t2), unrolled.tracks)
+        assertEquals(0, unrolled.currentIndex)
     }
 
     @Test

@@ -3,7 +3,7 @@ package com.webdav.player.domain.model
 data class PlaybackQueue(
     val tracks: List<AudioTrack> = emptyList(),
     val currentIndex: Int = -1,
-    val shuffleOrder: List<Int> = emptyList(),
+    val originalTracks: List<AudioTrack> = emptyList(),
     val origin: QueueOrigin = QueueOrigin.DIRECTORY,
 ) {
     val currentTrack: AudioTrack?
@@ -20,11 +20,18 @@ data class PlaybackQueue(
     val isDirectoryQueue: Boolean get() = origin == QueueOrigin.DIRECTORY
     val isAdHocQueue: Boolean get() = origin == QueueOrigin.AD_HOC
 
+    val isShuffled: Boolean get() = originalTracks.isNotEmpty()
+
     fun playTrackAt(index: Int): PlaybackQueue {
         if (index !in tracks.indices) return this
         return copy(currentIndex = index)
     }
 
+    /**
+     * Inserts a track immediately after the active track.
+     * If currently shuffled, also inserts the track immediately after the active track in [originalTracks]
+     * so that toggling off shuffle preserves the relative inserted position.
+     */
     fun insertNext(track: AudioTrack): PlaybackQueue {
         if (tracks.isEmpty()) {
             return PlaybackQueue(listOf(track), 0, origin = QueueOrigin.AD_HOC)
@@ -34,62 +41,111 @@ data class PlaybackQueue(
             tracks.toMutableList().apply {
                 add(insertIndex, track)
             }
-        val updatedShuffle =
-            if (shuffleOrder.isNotEmpty()) {
-                shuffleOrder.map { if (it >= insertIndex) it + 1 else it } + insertIndex
+        val newOriginal =
+            if (isShuffled) {
+                val curr = currentTrack
+                val origIndex =
+                    if (curr != null) {
+                        originalTracks.indexOfFirst { it.id == curr.id }.takeIf { it >= 0 } ?: originalTracks.lastIndex
+                    } else {
+                        originalTracks.lastIndex
+                    }
+                val targetOrigInsert = (origIndex + 1).coerceIn(0, originalTracks.size)
+                originalTracks.toMutableList().apply {
+                    add(targetOrigInsert, track)
+                }
             } else {
                 emptyList()
             }
-        return copy(tracks = newTracks, shuffleOrder = updatedShuffle)
+        return copy(tracks = newTracks, originalTracks = newOriginal)
     }
 
+    /**
+     * Removes the track at the specified index.
+     * If currently shuffled, also removes the same track from [originalTracks].
+     */
     fun removeTrackAt(index: Int): PlaybackQueue {
         if (index !in tracks.indices) return this
+        val removedTrack = tracks[index]
         val newTracks = tracks.toMutableList().apply { removeAt(index) }
         if (newTracks.isEmpty()) {
             return EMPTY
         }
         val newIndex =
             when {
-                index < currentIndex -> {
-                    currentIndex - 1
-                }
-
-                index == currentIndex -> {
-                    if (index < newTracks.size) index else newTracks.lastIndex
-                }
-
-                else -> {
-                    currentIndex
-                }
+                index < currentIndex -> currentIndex - 1
+                index == currentIndex -> if (index < newTracks.size) index else newTracks.lastIndex
+                else -> currentIndex
             }
-        val updatedShuffle =
-            if (shuffleOrder.isNotEmpty()) {
-                shuffleOrder.filter { it != index }.map { if (it > index) it - 1 else it }
+        val newOriginal =
+            if (isShuffled) {
+                originalTracks.filterNot { it.id == removedTrack.id }
             } else {
                 emptyList()
             }
-        return copy(tracks = newTracks, currentIndex = newIndex, shuffleOrder = updatedShuffle)
+        return copy(tracks = newTracks, currentIndex = newIndex, originalTracks = newOriginal)
     }
 
-    fun withGeneratedShuffleOrder(
-        startingIndex: Int = currentIndex,
-        random: kotlin.random.Random = kotlin.random.Random.Default,
-    ): PlaybackQueue {
-        if (tracks.isEmpty()) return copy(shuffleOrder = emptyList())
-        val indices = tracks.indices.toMutableList()
-        val safeStart = if (startingIndex in indices) startingIndex else 0
-        indices.remove(safeStart)
-        indices.shuffle(random)
-        return copy(shuffleOrder = listOf(safeStart) + indices)
+    /**
+     * Converts queue to shuffled mode:
+     * - The current track is kept playing at index 0.
+     * - The remaining tracks are shuffled.
+     * - [originalTracks] preserves the base sequence before shuffling.
+     */
+    fun toShuffled(random: kotlin.random.Random = kotlin.random.Random.Default): PlaybackQueue {
+        if (tracks.isEmpty()) return copy(originalTracks = emptyList())
+        val baseOriginal = if (originalTracks.isNotEmpty()) originalTracks else tracks
+        val safeIndex = currentIndex.coerceIn(tracks.indices)
+        val current = tracks[safeIndex]
+
+        val remaining = tracks.toMutableList().apply { removeAt(safeIndex) }
+        remaining.shuffle(random)
+
+        val shuffledTracks = listOf(current) + remaining
+        return copy(
+            tracks = shuffledTracks,
+            currentIndex = 0,
+            originalTracks = baseOriginal,
+        )
     }
 
-    fun withShuffleOrder(order: List<Int>): PlaybackQueue = copy(shuffleOrder = order)
+    /**
+     * Reshuffles the queue when a full cycle in shuffle mode completes.
+     * Shuffles all tracks, placing the newly generated sequence with currentIndex = 0.
+     */
+    fun reshuffle(random: kotlin.random.Random = kotlin.random.Random.Default): PlaybackQueue {
+        if (tracks.isEmpty()) return this
+        val baseOriginal = if (originalTracks.isNotEmpty()) originalTracks else tracks
+        val shuffledTracks = tracks.toMutableList().apply { shuffle(random) }
+        return copy(
+            tracks = shuffledTracks,
+            currentIndex = 0,
+            originalTracks = baseOriginal,
+        )
+    }
 
-    fun getNextIndex(
-        mode: PlaybackMode,
-        shuffleOrder: List<Int>? = null,
-    ): Int? {
+    /**
+     * Converts queue from shuffled mode back to original order:
+     * Restores [originalTracks] into [tracks], syncing [currentIndex] to the active track's position in original list.
+     */
+    fun toUnshuffled(): PlaybackQueue {
+        if (!isShuffled) return this
+        val current = currentTrack
+        val restoredTracks = originalTracks
+        val restoredIndex =
+            if (current != null) {
+                restoredTracks.indexOfFirst { it.id == current.id }.takeIf { it >= 0 } ?: 0
+            } else {
+                0
+            }
+        return copy(
+            tracks = restoredTracks,
+            currentIndex = restoredIndex,
+            originalTracks = emptyList(),
+        )
+    }
+
+    fun getNextIndex(mode: PlaybackMode): Int? {
         if (tracks.isEmpty()) return null
         if (tracks.size == 1) return 0
         return when (mode) {
@@ -97,30 +153,15 @@ data class PlaybackQueue(
                 currentIndex.coerceIn(tracks.indices)
             }
 
-            PlaybackMode.LIST_LOOP -> {
+            PlaybackMode.LIST_LOOP,
+            PlaybackMode.SHUFFLE,
+            -> {
                 if (currentIndex >= tracks.lastIndex) 0 else currentIndex + 1
-            }
-
-            PlaybackMode.SHUFFLE -> {
-                val order = if (!shuffleOrder.isNullOrEmpty()) shuffleOrder else this.shuffleOrder
-                if (order.isNotEmpty() && order.contains(currentIndex)) {
-                    val currentPos = order.indexOf(currentIndex)
-                    if (currentPos in 0 until order.lastIndex) {
-                        order[currentPos + 1]
-                    } else {
-                        order.first()
-                    }
-                } else {
-                    tracks.indices.filter { it != currentIndex }.randomOrNull() ?: 0
-                }
             }
         }
     }
 
-    fun getPreviousIndex(
-        mode: PlaybackMode,
-        shuffleOrder: List<Int>? = null,
-    ): Int? {
+    fun getPreviousIndex(mode: PlaybackMode): Int? {
         if (tracks.isEmpty()) return null
         if (tracks.size == 1) return 0
         return when (mode) {
@@ -128,22 +169,10 @@ data class PlaybackQueue(
                 currentIndex.coerceIn(tracks.indices)
             }
 
-            PlaybackMode.LIST_LOOP -> {
+            PlaybackMode.LIST_LOOP,
+            PlaybackMode.SHUFFLE,
+            -> {
                 if (currentIndex <= 0) tracks.lastIndex else currentIndex - 1
-            }
-
-            PlaybackMode.SHUFFLE -> {
-                val order = if (!shuffleOrder.isNullOrEmpty()) shuffleOrder else this.shuffleOrder
-                if (order.isNotEmpty() && order.contains(currentIndex)) {
-                    val currentPos = order.indexOf(currentIndex)
-                    if (currentPos > 0) {
-                        order[currentPos - 1]
-                    } else {
-                        order.last()
-                    }
-                } else {
-                    tracks.indices.filter { it != currentIndex }.randomOrNull() ?: 0
-                }
             }
         }
     }
@@ -177,7 +206,31 @@ data class PlaybackQueue(
                 currentIndex == targetIndex -> targetIndex
                 else -> currentIndex + addedCount
             }
-        return copy(tracks = newTracks, currentIndex = newIndex)
+
+        val newOriginal =
+            if (originalTracks.isNotEmpty()) {
+                val origTarget =
+                    originalTracks.indexOfFirst {
+                        it.remotePath == parentAudioPath || it.id.substringBefore("#cue_") == parentAudioPath
+                    }
+                if (origTarget >= 0) {
+                    val origParent = originalTracks[origTarget]
+                    val origInlined = virtualTracks.map { it.toAudioTrack(origParent) }
+                    buildList {
+                        addAll(originalTracks.subList(0, origTarget))
+                        addAll(origInlined)
+                        if (origTarget + 1 < originalTracks.size) {
+                            addAll(originalTracks.subList(origTarget + 1, originalTracks.size))
+                        }
+                    }
+                } else {
+                    originalTracks
+                }
+            } else {
+                emptyList()
+            }
+
+        return copy(tracks = newTracks, currentIndex = newIndex, originalTracks = newOriginal)
     }
 
     companion object {
@@ -187,25 +240,16 @@ data class PlaybackQueue(
             tracks: List<AudioTrack>,
             virtualTracksMap: Map<String, List<VirtualTrack>> = emptyMap(),
             selectedIndex: Int = 0,
-            shuffleOrder: List<Int> = emptyList(),
+            originalTracks: List<AudioTrack> = emptyList(),
             origin: QueueOrigin = QueueOrigin.DIRECTORY,
         ): PlaybackQueue {
             if (tracks.isEmpty()) return EMPTY
             if (virtualTracksMap.isEmpty()) {
                 val validSelectedIndex = selectedIndex.coerceIn(tracks.indices)
-                val initialShuffle =
-                    if (shuffleOrder.isNotEmpty()) {
-                        shuffleOrder
-                    } else {
-                        val indices = tracks.indices.toMutableList()
-                        indices.remove(validSelectedIndex)
-                        indices.shuffle()
-                        listOf(validSelectedIndex) + indices
-                    }
                 return PlaybackQueue(
                     tracks = tracks,
                     currentIndex = validSelectedIndex,
-                    shuffleOrder = initialShuffle,
+                    originalTracks = originalTracks,
                     origin = origin,
                 )
             }
@@ -228,20 +272,11 @@ data class PlaybackQueue(
                 }
 
             val targetIndex = mappedCurrentIndex.coerceIn(expandedTracks.indices)
-            val initialShuffle =
-                if (shuffleOrder.isNotEmpty()) {
-                    shuffleOrder
-                } else {
-                    val indices = expandedTracks.indices.toMutableList()
-                    indices.remove(targetIndex)
-                    indices.shuffle()
-                    listOf(targetIndex) + indices
-                }
 
             return PlaybackQueue(
                 tracks = expandedTracks,
                 currentIndex = targetIndex,
-                shuffleOrder = initialShuffle,
+                originalTracks = originalTracks,
                 origin = origin,
             )
         }
