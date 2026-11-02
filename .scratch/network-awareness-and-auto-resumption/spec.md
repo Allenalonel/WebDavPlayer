@@ -1,6 +1,6 @@
 # Spec: System-Level Network Connectivity Awareness, Transparent Auto-Resumption, and Offline Playlist Self-Healing
 
-Status: ready-for-agent
+Status: implemented
 
 ## Problem Statement
 
