@@ -14,7 +14,9 @@
 
 ## 活跃任务 (Active)
 
-> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
+| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
+| :--- | :--- | :---: | :---: | :--- |
+| `playback-engine-and-cross-server-resilience` | 播放引擎内核深化、跨服务器凭据原子同步与前台服务生命周期硬化 | 4 | Ready for Agent | [`playback-engine-and-cross-server-resilience/spec.md`](playback-engine-and-cross-server-resilience/spec.md) |
 
 ---
 
