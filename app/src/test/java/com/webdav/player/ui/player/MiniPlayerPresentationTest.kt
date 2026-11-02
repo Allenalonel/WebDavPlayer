@@ -103,7 +103,9 @@ class MiniPlayerPresentationTest {
             "Capsule corner radius must be at least 28.dp for full pill geometry",
             MiniPlayerDefaults.CapsuleCornerRadius >= 28.dp
         )
-        assertEquals(2.dp, MiniPlayerDefaults.MicroBarHeight)
+        assertEquals(3.dp, MiniPlayerDefaults.MicroBarHeight)
+        assertEquals(14.dp, MiniPlayerDefaults.MicroBarHorizontalPadding)
+        assertEquals(6.dp, MiniPlayerDefaults.MicroBarBottomPadding)
         assertEquals(RoundedCornerShape(28.dp), MiniPlayerDefaults.CapsuleShape)
         assertEquals(160.dp, MiniPlayerDefaults.PenetrativeContentBottomPadding)
     }
@@ -135,16 +137,8 @@ class MiniPlayerPresentationTest {
     }
 
     @Test
-    fun miniPlayerMicroBarShape_bottomCornersAreClippedToCapsuleRadius() {
-        val density = Density(density = 2f, fontScale = 1f)
-        val size = Size(width = 360f, height = 4f)
-        val expectedCornerPx = with(density) { MiniPlayerDefaults.CapsuleCornerRadius.toPx() }
-
-        // Top corners must be flush (0px), bottom corners must match capsule radius
-        assertEquals(0f, MiniPlayerDefaults.ProgressMicroBarShape.topStart.toPx(size, density), 0.01f)
-        assertEquals(0f, MiniPlayerDefaults.ProgressMicroBarShape.topEnd.toPx(size, density), 0.01f)
-        assertEquals(expectedCornerPx, MiniPlayerDefaults.ProgressMicroBarShape.bottomStart.toPx(size, density), 0.01f)
-        assertEquals(expectedCornerPx, MiniPlayerDefaults.ProgressMicroBarShape.bottomEnd.toPx(size, density), 0.01f)
+    fun miniPlayerMicroBarShape_isFullyRoundedPillShape() {
+        assertEquals(RoundedCornerShape(MiniPlayerDefaults.MicroBarHeight), MiniPlayerDefaults.ProgressMicroBarShape)
     }
 
     @Test
@@ -225,12 +219,9 @@ class MiniPlayerPresentationTest {
     }
 
     @Test
-    fun miniPlayerSurfaceProperties_adaptiveGlassAndFallbackSpecs_areWellDefined() {
-        assertEquals(20.dp, MiniPlayerDefaults.GlassBlurRadius)
-        assertEquals(0.85f, MiniPlayerDefaults.GlassTranslucentAlpha, 0.001f)
-        assertEquals(0.94f, MiniPlayerDefaults.FallbackSurfaceAlpha, 0.001f)
-        assertEquals(1.dp, MiniPlayerDefaults.GlassBorderWidth)
-        assertEquals(0.35f, MiniPlayerDefaults.GlassBorderAlpha, 0.001f)
+    fun miniPlayerSurfaceProperties_elevatedSolidSurface_matchSpecification() {
+        assertEquals(1.dp, MiniPlayerDefaults.SurfaceBorderWidth)
+        assertEquals(0.25f, MiniPlayerDefaults.SurfaceBorderAlpha, 0.001f)
     }
 
     @Test

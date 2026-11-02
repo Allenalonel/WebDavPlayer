@@ -56,21 +56,19 @@ import com.webdav.player.ui.theme.AppIcons
 object MiniPlayerDefaults {
     val CapsuleCornerRadius: Dp = 28.dp
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
-    val ProgressMicroBarShape =
-        RoundedCornerShape(bottomStart = CapsuleCornerRadius, bottomEnd = CapsuleCornerRadius)
+    val MicroBarHeight: Dp = 3.dp
+    val ProgressMicroBarShape = RoundedCornerShape(MicroBarHeight)
     val PlayPauseButtonSize: Dp = 42.dp
     val QueueMusicButtonSize: Dp = 38.dp
     val ButtonSpacing: Dp = 8.dp
-    val MicroBarHeight: Dp = 2.dp
+    val MicroBarHorizontalPadding: Dp = 14.dp
+    val MicroBarBottomPadding: Dp = 6.dp
     val SwipeSkipThreshold: Dp = 40.dp
     val VerticalDragThreshold: Float = -20f
 
-    // Liquid glass surface styling constants
-    val GlassBlurRadius: Dp = 20.dp
-    const val GlassTranslucentAlpha: Float = 0.85f
-    val GlassBorderWidth: Dp = 1.dp
-    const val GlassBorderAlpha: Float = 0.35f
-    const val FallbackSurfaceAlpha: Float = 0.94f
+    // Elevated solid MD3 surface styling constants
+    val SurfaceBorderWidth: Dp = 1.dp
+    const val SurfaceBorderAlpha: Float = 0.25f
 
     // Penetrative scroll content bottom padding contract
     val PenetrativeContentBottomPadding: Dp = 160.dp
@@ -114,23 +112,12 @@ fun MiniPlayer(
     val haptic = LocalHapticFeedback.current
     val swipeThresholdPx = with(density) { MiniPlayerDefaults.SwipeSkipThreshold.toPx() }
 
-    val isModernAndroid = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val surfaceColor =
-        if (isModernAndroid) {
-            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = MiniPlayerDefaults.GlassTranslucentAlpha)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = MiniPlayerDefaults.FallbackSurfaceAlpha)
-        }
-
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val borderStroke =
-        if (isModernAndroid) {
-            BorderStroke(
-                MiniPlayerDefaults.GlassBorderWidth,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = MiniPlayerDefaults.GlassBorderAlpha),
-            )
-        } else {
-            null
-        }
+        BorderStroke(
+            MiniPlayerDefaults.SurfaceBorderWidth,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = MiniPlayerDefaults.SurfaceBorderAlpha),
+        )
 
     Surface(
         modifier =
@@ -193,7 +180,7 @@ fun MiniPlayer(
         shape = MiniPlayerDefaults.CapsuleShape,
         color = surfaceColor,
         border = borderStroke,
-        tonalElevation = if (isModernAndroid) 0.dp else 6.dp,
+        tonalElevation = 6.dp,
         shadowElevation = 8.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -285,16 +272,25 @@ fun MiniPlayer(
                 }
             }
 
-            LinearProgressIndicator(
-                progress = { playbackProgress.progressFraction },
+            // Inset micro progress track (MD3 Elevated Solid Island)
+            Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(MiniPlayerDefaults.MicroBarHeight)
-                        .clip(MiniPlayerDefaults.ProgressMicroBarShape),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-            )
+                        .padding(horizontal = MiniPlayerDefaults.MicroBarHorizontalPadding)
+                        .padding(bottom = MiniPlayerDefaults.MicroBarBottomPadding),
+            ) {
+                LinearProgressIndicator(
+                    progress = { playbackProgress.progressFraction },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(MiniPlayerDefaults.MicroBarHeight)
+                            .clip(MiniPlayerDefaults.ProgressMicroBarShape),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+            }
         }
     }
 }
