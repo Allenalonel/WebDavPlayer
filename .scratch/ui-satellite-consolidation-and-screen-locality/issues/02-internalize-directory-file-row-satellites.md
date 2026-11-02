@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `NonAudioFileRow.kt` and `FileInfoDialog.kt` are deleted
-- [ ] Non-audio fallback row rendering and the file information inspection dialog are integrated into `AudioTrackItemRow.kt` with private visibility
-- [ ] `AudioTrackItemRow` public composable signature and external presentation behavior remain 100% identical
-- [ ] Internal subtitle formatting helper `resolveAudioSubtitle` is preserved in the package
-- [ ] `AudioTrackItemRowTest` passes with zero regressions, verifying subtitle fallback hierarchies
+- [x] `NonAudioFileRow.kt` and `FileInfoDialog.kt` are deleted
+- [x] Non-audio fallback row rendering and the file information inspection dialog are integrated into `AudioTrackItemRow.kt` with private visibility
+- [x] `AudioTrackItemRow` public composable signature and external presentation behavior remain 100% identical
+- [x] Internal subtitle formatting helper `resolveAudioSubtitle` is preserved in the package
+- [x] `AudioTrackItemRowTest` passes with zero regressions, verifying subtitle fallback hierarchies
