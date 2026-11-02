@@ -66,3 +66,8 @@ data class RemoteDirectory(
         }
     }
 }
+
+data class Breadcrumb(
+    val name: String,
+    val path: String,
+)

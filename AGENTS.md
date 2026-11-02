@@ -20,3 +20,10 @@ Single-context domain documentation at the repository root (`GLOSSARY.md` and `d
 
 Architectural and code-review standards live in `CODING_STANDARDS.md`.
 
+### Subagent execution & concurrency
+
+When running `implement-spec` or multi-agent workflows with implementer subagents:
+- **Concurrency ceiling**: Run up to **2–3 subagents in parallel** in isolated worktrees (`worktree: true`) to balance execution speed and Gradle daemon memory footprint.
+- **Targeted verification**: Subagents in their worktrees must run targeted module tests (`--tests "*<TestClass>*"`), reserving full `./gradlew testDebugUnitTest` and release packaging verification (`verifyReleasePackaging`) for the final integration branch gate.
+
+
