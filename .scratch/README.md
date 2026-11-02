@@ -14,7 +14,9 @@
 
 ## 活跃任务 (Active)
 
-> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
+| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
+| :--- | :--- | :---: | :---: | :--- |
+| `ui-satellite-consolidation-and-screen-locality` | UI 表现层单调用方卫星碎片清零与屏幕模块深度内聚 | 4 | Ready for Agent | [`ui-satellite-consolidation-and-screen-locality/spec.md`](ui-satellite-consolidation-and-screen-locality/spec.md) |
 
 ---
 
