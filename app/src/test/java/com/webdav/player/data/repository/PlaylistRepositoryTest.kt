@@ -220,22 +220,24 @@ class PlaylistRepositoryTest {
             val track = AudioTrack(id = "1:/i_do.mp3", serverId = 1L, remotePath = "/i_do.mp3", title = "I Do", format = AudioFormat.MP3)
 
             // Manually insert duplicate rows directly into DAO to simulate existing legacy duplicates
-            val entity1 = com.webdav.player.data.local.PlaylistTrackEntity(
-                playlistId = playlistId,
-                serverId = track.serverId,
-                remotePath = track.remotePath,
-                sortOrder = 0,
-                title = track.title,
-                format = "MP3",
-            )
-            val entity2 = com.webdav.player.data.local.PlaylistTrackEntity(
-                playlistId = playlistId,
-                serverId = track.serverId,
-                remotePath = track.remotePath,
-                sortOrder = 1,
-                title = track.title,
-                format = "MP3",
-            )
+            val entity1 =
+                com.webdav.player.data.local.PlaylistTrackEntity(
+                    playlistId = playlistId,
+                    serverId = track.serverId,
+                    remotePath = track.remotePath,
+                    sortOrder = 0,
+                    title = track.title,
+                    format = "MP3",
+                )
+            val entity2 =
+                com.webdav.player.data.local.PlaylistTrackEntity(
+                    playlistId = playlistId,
+                    serverId = track.serverId,
+                    remotePath = track.remotePath,
+                    sortOrder = 1,
+                    title = track.title,
+                    format = "MP3",
+                )
             database.playlistDao().insertTrack(entity1)
             database.playlistDao().insertTrack(entity2)
 
@@ -771,8 +773,10 @@ class PlaylistRepositoryTest {
                 )
 
             val playlistId = healingRepo.createPlaylist("自愈恢复测试")
-            val track1 = AudioTrack(id = "1:/online.mp3", serverId = 1L, remotePath = "/online.mp3", title = "Online", format = AudioFormat.MP3)
-            val track2 = AudioTrack(id = "2:/offline.mp3", serverId = 2L, remotePath = "/offline.mp3", title = "Offline", format = AudioFormat.MP3)
+            val track1 =
+                AudioTrack(id = "1:/online.mp3", serverId = 1L, remotePath = "/online.mp3", title = "Online", format = AudioFormat.MP3)
+            val track2 =
+                AudioTrack(id = "2:/offline.mp3", serverId = 2L, remotePath = "/offline.mp3", title = "Offline", format = AudioFormat.MP3)
 
             val e1 = healingRepo.addTrackToPlaylist(playlistId, track1)
             val e2 = healingRepo.addTrackToPlaylist(playlistId, track2)

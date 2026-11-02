@@ -42,7 +42,9 @@ class PlaylistRepositoryImpl(
 ) : PlaylistRepository {
     private val _inactiveTracksFlow = MutableStateFlow<Map<TrackKey, InactiveReason>>(emptyMap())
     private val inFlightCoverHealing = java.util.concurrent.ConcurrentHashMap<Long, Job>()
-    private val isSelfHealingInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val isSelfHealingInProgress =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
 
     private fun triggerBackgroundCoverHealing(
         trackEntryId: Long,
