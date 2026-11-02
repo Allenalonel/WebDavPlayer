@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -132,6 +133,7 @@ class MainActivity : ComponentActivity() {
 
                 var tracksToAddToPlaylist by remember { mutableStateOf<List<AudioTrack>?>(null) }
                 var showQueueSheet by remember { mutableStateOf(false) }
+                var isBrowserSelectionActive by remember { mutableStateOf(false) }
 
                 LaunchedEffect(serverState.activeServer, serverState.isLoading) {
                     if (!serverState.isLoading) {
@@ -195,6 +197,11 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                     ) { innerPadding ->
+                        val fabBottomPadding by animateDpAsState(
+                            targetValue = if (navState.isMiniPlayerVisible) 168.dp else (innerPadding.calculateBottomPadding() + 16.dp),
+                            label = "fab_bottom_padding",
+                        )
+
                         Box(modifier = Modifier.fillMaxSize()) {
                             // Preserved view hierarchy across tab transitions
                             Box(
@@ -226,6 +233,8 @@ class MainActivity : ComponentActivity() {
                                     onAddTracksToPlaylist = { tracks ->
                                         tracksToAddToPlaylist = tracks
                                     },
+                                    bottomBarPadding = innerPadding.calculateBottomPadding() + 8.dp,
+                                    onSelectionModeChanged = { isBrowserSelectionActive = it },
                                 )
                             }
 
@@ -264,6 +273,7 @@ class MainActivity : ComponentActivity() {
                                         onPlaylistClick = { playlist ->
                                             coordinator.navigateToPlaylistDetail(playlist.id)
                                         },
+                                        fabBottomPadding = fabBottomPadding,
                                     )
                                 }
                             }
@@ -288,13 +298,14 @@ class MainActivity : ComponentActivity() {
                                         serverViewModel.onSelectActiveServer(server.id)
                                         coordinator.onServerCardClicked(server)
                                     },
+                                    fabBottomPadding = fabBottomPadding,
                                 )
                             }
                         }
 
                         // Independent Floating Capsule MiniPlayer Overlay
                         AnimatedVisibility(
-                            visible = navState.isMiniPlayerVisible,
+                            visible = navState.isMiniPlayerVisible && !isBrowserSelectionActive,
                             modifier =
                                 Modifier
                                     .align(Alignment.BottomCenter)

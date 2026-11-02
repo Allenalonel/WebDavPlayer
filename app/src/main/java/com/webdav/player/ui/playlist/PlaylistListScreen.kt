@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.Playlist
@@ -61,6 +62,7 @@ fun PlaylistListScreen(
     viewModel: PlaylistListViewModel,
     onPlaylistClick: (Playlist) -> Unit = {},
     modifier: Modifier = Modifier,
+    fabBottomPadding: Dp = 96.dp,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -86,6 +88,7 @@ fun PlaylistListScreen(
                 onClick = { viewModel.openCreateDialog() },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(bottom = fabBottomPadding),
             ) {
                 Icon(
                     imageVector = AppIcons.Add,

@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.AudioTrack
@@ -82,6 +83,8 @@ fun DirectoryBrowserScreen(
     @Suppress("UNUSED_PARAMETER") onOpenFullPlayer: () -> Unit = {},
     onAddToPlaylist: (AudioTrack) -> Unit = {},
     onAddTracksToPlaylist: (List<AudioTrack>) -> Unit = { tracks -> tracks.firstOrNull()?.let(onAddToPlaylist) },
+    bottomBarPadding: Dp = 88.dp,
+    onSelectionModeChanged: (Boolean) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -90,6 +93,11 @@ fun DirectoryBrowserScreen(
 
     val (selectedSearchTrackIds, setSelectedSearchTrackIds) = remember { mutableStateOf(setOf<String>()) }
     val isSearchSelectionMode = selectedSearchTrackIds.isNotEmpty()
+
+    val isSelectionActive = isSelectionMode || isSearchSelectionMode
+    LaunchedEffect(isSelectionActive) {
+        onSelectionModeChanged(isSelectionActive)
+    }
 
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -369,7 +377,7 @@ fun DirectoryBrowserScreen(
                             setSelectedSearchTrackIds(emptySet())
                         }
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarPadding),
                 )
             }
         }
@@ -613,7 +621,7 @@ fun DirectoryBrowserScreen(
                                 setSelectedFilePaths(emptySet())
                             }
                         },
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarPadding),
                     )
 
                     if (pullRefreshState.verticalOffset > 0f || pullRefreshState.isRefreshing) {

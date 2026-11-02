@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.WebDavServer
@@ -44,6 +45,7 @@ fun ServerListScreen(
         viewModel.onSelectActiveServer(server.id)
         onNavigateToBrowser()
     },
+    fabBottomPadding: Dp = 96.dp,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -77,6 +79,7 @@ fun ServerListScreen(
                 onClick = { viewModel.onAddServerClicked() },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(bottom = fabBottomPadding),
             ) {
                 Icon(imageVector = AppIcons.Add, contentDescription = "添加服务器")
             }
