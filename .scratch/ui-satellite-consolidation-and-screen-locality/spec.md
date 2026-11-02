@@ -1,6 +1,6 @@
 # Spec: UI Satellite Consolidation and Screen Locality Deepening
 
-Status: ready-for-agent
+Status: implemented
 
 ## Problem Statement
 
