@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `DeleteConfirmationDialog.kt` is deleted
-- [ ] Delete confirmation dialogue is integrated into `ServerListScreen.kt` as a private composable function
-- [ ] `ServerListScreen` public signature and presentation behavior remain 100% identical
-- [ ] Existing server management tests (`ServerCardPresentationTest`, `ServerManagementViewModelTest`) pass without modification
+- [x] `DeleteConfirmationDialog.kt` is deleted
+- [x] Delete confirmation dialogue is integrated into `ServerListScreen.kt` as a private composable function
+- [x] `ServerListScreen` public signature and presentation behavior remain 100% identical
+- [x] Existing server management tests (`ServerCardPresentationTest`, `ServerManagementViewModelTest`) pass without modification
