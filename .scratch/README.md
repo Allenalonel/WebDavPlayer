@@ -14,9 +14,7 @@
 
 ## 活跃任务 (Active)
 
-| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
-| :--- | :--- | :---: | :---: | :--- |
-| `network-awareness-and-auto-resumption` | 系统级网络连通性感知、弱网挂起断点无感自愈续播与离线曲目静默健康恢复 | 4 | Ready for Agent | [`network-awareness-and-auto-resumption/spec.md`](network-awareness-and-auto-resumption/spec.md) |
+> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
 
 ---
 
@@ -26,6 +24,7 @@
 
 | 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 归档路径 |
 | :--- | :--- | :---: | :---: | :--- |
+| `network-awareness-and-auto-resumption` | 系统级网络连通性感知、弱网挂起断点无感自愈续播与离线曲目静默健康恢复 | 4 | Completed | [`archive/network-awareness-and-auto-resumption/`](archive/network-awareness-and-auto-resumption/) |
 | `playback-engine-and-cross-server-resilience` | 播放引擎内核深化、跨服务器凭据原子同步与前台服务生命周期硬化 | 4 | Completed | [`archive/playback-engine-and-cross-server-resilience/`](archive/playback-engine-and-cross-server-resilience/) |
 | `webdav-protocol-and-artwork-resilience` | WebDAV 路径 RFC 3986 百分号解码、外置封面内存预过滤与 Digest 认证加速 | 4 | Completed | [`archive/webdav-protocol-and-artwork-resilience/`](archive/webdav-protocol-and-artwork-resilience/) |
 | `core-webdav-music-player` | 基础 WebDAV 音乐播放器核心架构与播放链路 | 10 | Completed | [`archive/core-webdav-music-player/`](archive/core-webdav-music-player/) |
