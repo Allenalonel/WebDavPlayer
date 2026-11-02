@@ -1,14 +1,17 @@
 package com.webdav.player.ui.player
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +39,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +68,50 @@ object MiniPlayerDefaults {
     val MicroBarHeight: Dp = 2.dp
     val SwipeSkipThreshold: Dp = 40.dp
     val VerticalDragThreshold: Float = -20f
+
+    // Liquid glass surface styling constants
+    val GlassBlurRadius: Dp = 20.dp
+    const val GlassTranslucentAlpha: Float = 0.85f
+    val GlassBorderWidth: Dp = 1.dp
+    const val GlassBorderAlpha: Float = 0.35f
+    const val FallbackSurfaceAlpha: Float = 0.94f
 }
+
+enum class MiniPlayerGestureAction {
+    NONE,
+    SKIP_TO_NEXT,
+    SKIP_TO_PREVIOUS,
+    EXPAND_FULL_PLAYER,
+}
+
+fun resolveMiniPlayerGesture(
+    dragX: Float,
+    dragY: Float,
+    swipeThresholdPx: Float,
+    verticalDragThresholdPx: Float = MiniPlayerDefaults.VerticalDragThreshold,
+): MiniPlayerGestureAction {
+    val absX = kotlin.math.abs(dragX)
+    val absY = kotlin.math.abs(dragY)
+    return when {
+        dragY < verticalDragThresholdPx && absY > absX -> MiniPlayerGestureAction.EXPAND_FULL_PLAYER
+        dragX < -swipeThresholdPx && absX > absY -> MiniPlayerGestureAction.SKIP_TO_NEXT
+        dragX > swipeThresholdPx && absX > absY -> MiniPlayerGestureAction.SKIP_TO_PREVIOUS
+        else -> MiniPlayerGestureAction.NONE
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.S)
+private fun Modifier.glassBlurEffect(blurRadiusPx: Float): Modifier =
+    this.graphicsLayer {
+        renderEffect =
+            android.graphics.RenderEffect
+                .createBlurEffect(
+                    blurRadiusPx,
+                    blurRadiusPx,
+                    android.graphics.Shader.TileMode.CLAMP,
+                )
+                .asComposeRenderEffect()
+    }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -70,32 +121,102 @@ fun MiniPlayer(
     modifier: Modifier = Modifier,
     playbackProgress: PlaybackProgress = PlaybackProgress.ZERO,
     onMiniPlayerClick: () -> Unit = {},
+    onOpenQueue: () -> Unit = {},
 ) {
     val currentTrack = sessionState.currentTrack ?: return
+    val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
+    val swipeThresholdPx = with(density) { MiniPlayerDefaults.SwipeSkipThreshold.toPx() }
+
+    val isModernAndroid = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val surfaceColor =
+        if (isModernAndroid) {
+            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = MiniPlayerDefaults.GlassTranslucentAlpha)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = MiniPlayerDefaults.FallbackSurfaceAlpha)
+        }
+
+    val borderStroke =
+        if (isModernAndroid) {
+            BorderStroke(
+                MiniPlayerDefaults.GlassBorderWidth,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = MiniPlayerDefaults.GlassBorderAlpha),
+            )
+        } else {
+            null
+        }
+
+    val blurRadiusPx = with(density) { MiniPlayerDefaults.GlassBlurRadius.toPx() }
+    val glassModifier =
+        if (isModernAndroid) {
+            Modifier.glassBlurEffect(blurRadiusPx)
+        } else {
+            Modifier
+        }
 
     Surface(
         modifier =
             modifier
                 .fillMaxWidth()
+                .then(glassModifier)
                 .clip(MiniPlayerDefaults.CapsuleShape)
-                .pointerInput(Unit) {
-                    var upwardDrag = 0f
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { change, dragAmount ->
-                            upwardDrag += dragAmount
-                            if (upwardDrag < MiniPlayerDefaults.VerticalDragThreshold) {
-                                change.consume()
-                                onMiniPlayerClick()
-                                upwardDrag = 0f
+                .pointerInput(playbackActions, onMiniPlayerClick, swipeThresholdPx) {
+                    var totalDragX = 0f
+                    var totalDragY = 0f
+                    var actionTriggered = false
+
+                    detectDragGestures(
+                        onDragStart = {
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            actionTriggered = false
+                        },
+                        onDragEnd = {
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            actionTriggered = false
+                        },
+                        onDragCancel = {
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            actionTriggered = false
+                        },
+                        onDrag = { change, dragAmount ->
+                            if (actionTriggered) return@detectDragGestures
+
+                            totalDragX += dragAmount.x
+                            totalDragY += dragAmount.y
+
+                            when (resolveMiniPlayerGesture(totalDragX, totalDragY, swipeThresholdPx)) {
+                                MiniPlayerGestureAction.EXPAND_FULL_PLAYER -> {
+                                    actionTriggered = true
+                                    change.consume()
+                                    onMiniPlayerClick()
+                                }
+                                MiniPlayerGestureAction.SKIP_TO_NEXT -> {
+                                    actionTriggered = true
+                                    change.consume()
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    playbackActions.skipToNext()
+                                }
+                                MiniPlayerGestureAction.SKIP_TO_PREVIOUS -> {
+                                    actionTriggered = true
+                                    change.consume()
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    playbackActions.skipToPrevious()
+                                }
+                                MiniPlayerGestureAction.NONE -> {
+                                    // Keep accumulating drag
+                                }
                             }
                         },
-                        onDragEnd = { upwardDrag = 0f },
-                        onDragCancel = { upwardDrag = 0f },
                     )
-                }.clickable { onMiniPlayerClick() },
+                }
+                .clickable { onMiniPlayerClick() },
         shape = MiniPlayerDefaults.CapsuleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
+        color = surfaceColor,
+        border = borderStroke,
+        tonalElevation = if (isModernAndroid) 0.dp else 6.dp,
         shadowElevation = 8.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -170,17 +291,17 @@ fun MiniPlayer(
 
                 Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
 
-                // Skip Next Button
+                // Queue Music Button
                 IconButton(
-                    onClick = { playbackActions.skipToNext() },
+                    onClick = onOpenQueue,
                     modifier =
                         Modifier
-                            .size(MiniPlayerDefaults.SkipNextButtonSize)
+                            .size(MiniPlayerDefaults.QueueMusicButtonSize)
                             .clip(CircleShape),
                 ) {
                     Icon(
-                        imageVector = AppIcons.SkipNext,
-                        contentDescription = "下一首",
+                        imageVector = AppIcons.QueueMusic,
+                        contentDescription = "播放队列",
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(22.dp),
                     )

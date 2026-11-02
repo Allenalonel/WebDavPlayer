@@ -233,6 +233,66 @@ class MiniPlayerPresentationTest {
     }
 
     @Test
+    fun miniPlayerSurfaceProperties_adaptiveGlassAndFallbackSpecs_areWellDefined() {
+        assertEquals(20.dp, MiniPlayerDefaults.GlassBlurRadius)
+        assertEquals(0.85f, MiniPlayerDefaults.GlassTranslucentAlpha, 0.001f)
+        assertEquals(0.94f, MiniPlayerDefaults.FallbackSurfaceAlpha, 0.001f)
+        assertEquals(1.dp, MiniPlayerDefaults.GlassBorderWidth)
+        assertEquals(0.35f, MiniPlayerDefaults.GlassBorderAlpha, 0.001f)
+    }
+
+    @Test
+    fun resolveMiniPlayerGesture_swipesAndDrags_mapToCorrectActions() {
+        val swipeThreshold = 80f // e.g. 40.dp with density 2
+        val verticalThreshold = -20f
+
+        // Left swipe beyond threshold -> next track
+        assertEquals(
+            MiniPlayerGestureAction.SKIP_TO_NEXT,
+            resolveMiniPlayerGesture(dragX = -90f, dragY = 0f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+        )
+
+        // Right swipe beyond threshold -> previous track
+        assertEquals(
+            MiniPlayerGestureAction.SKIP_TO_PREVIOUS,
+            resolveMiniPlayerGesture(dragX = 90f, dragY = 0f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+        )
+
+        // Upward drag beyond vertical threshold -> expand full player
+        assertEquals(
+            MiniPlayerGestureAction.EXPAND_FULL_PLAYER,
+            resolveMiniPlayerGesture(dragX = 0f, dragY = -35f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+        )
+
+        // Subtle drags below thresholds -> NONE
+        assertEquals(
+            MiniPlayerGestureAction.NONE,
+            resolveMiniPlayerGesture(dragX = 15f, dragY = -10f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+        )
+
+        // Downward drag -> NONE
+        assertEquals(
+            MiniPlayerGestureAction.NONE,
+            resolveMiniPlayerGesture(dragX = 0f, dragY = 50f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+        )
+    }
+
+    @Test
+    fun miniPlayer_signatureAcceptsQueueCallback() {
+        val session = sessionWithTrack(createTrack())
+        var queueClicked = false
+        val composableInvocation: @androidx.compose.runtime.Composable () -> Unit = {
+            MiniPlayer(
+                sessionState = session,
+                playbackActions = PlaybackActions.EMPTY,
+                onOpenQueue = { queueClicked = true },
+            )
+        }
+        org.junit.Assert.assertNotNull(composableInvocation)
+        assertFalse(queueClicked)
+    }
+
+    @Test
     fun dockedMiniPlayer_wrapperIsRemovedFromClasspath() {
         val clazz = Class.forName("com.webdav.player.ui.player.MiniPlayerKt")
         val methodNames = clazz.methods.map { it.name }
