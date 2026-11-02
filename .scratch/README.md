@@ -14,7 +14,9 @@
 
 ## 活跃任务 (Active)
 
-> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
+| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
+| :--- | :--- | :---: | :---: | :--- |
+| `consolidate-satellites-and-deepen-domain-locality` | 消除卫星碎片文件、收敛测试表面与深化领域模型局部性 | 5 | Ready for Agent | [`consolidate-satellites-and-deepen-domain-locality/spec.md`](consolidate-satellites-and-deepen-domain-locality/spec.md) |
 
 ---
 
