@@ -26,8 +26,10 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Unit tests for ResilientWebDavDataSource.
@@ -366,5 +368,140 @@ class ResilientWebDavDataSourceTest {
 
         val wrappedEx = IOException("Wrapper exception", ex)
         assertTrue("Wrapped UnsupportedRangeReconnectionException must be non-retryable", resilientSource.isNonRetryable(wrappedEx))
+    }
+
+    @Test
+    fun defaultMaxRetries_isFive() {
+        assertEquals(5, ResilientWebDavDataSource.DEFAULT_MAX_RETRIES)
+        val source = ResilientWebDavDataSource(underlyingFactory = baseHttpDataSourceFactory)
+        assertEquals(5, source.maxRetryAttempts)
+    }
+
+    @Test
+    fun persistentFailureDuringOpen_terminatesAfterFiveRetries_andRethrows() {
+        repeat(6) {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(500)
+                    .setBody("Server Error"),
+            )
+        }
+
+        val reconnectingEvents = CopyOnWriteArrayList<Boolean>()
+        val resilientSource =
+            ResilientWebDavDataSource(
+                underlyingFactory = baseHttpDataSourceFactory,
+                sleeper = { recordedBackoffs.add(it) },
+                onReconnectingListener = { reconnectingEvents.add(it) },
+            )
+
+        val dataSpec =
+            DataSpec.Builder()
+                .setUri(mockWebServer.url("/stream.mp3").toString())
+                .build()
+
+        try {
+            resilientSource.open(dataSpec)
+            fail("Expected exception after 5 retries")
+        } catch (e: HttpDataSource.InvalidResponseCodeException) {
+            assertEquals(500, e.responseCode)
+        }
+
+        assertEquals(5, recordedBackoffs.size)
+        assertEquals(listOf(1000L, 2000L, 4000L, 6000L, 6000L), recordedBackoffs)
+        assertEquals(5, resilientSource.retryCount)
+        assertFalse("isReconnecting must be false after max retries exceeded", resilientSource.isReconnecting)
+        assertEquals(false, reconnectingEvents.lastOrNull())
+    }
+
+    @Test
+    fun persistentFailureDuringRead_terminatesAfterFiveRetries_andRethrows() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(okio.Buffer().write("12345".toByteArray()))
+                .setHeader("Content-Length", "20")
+                .setSocketPolicy(SocketPolicy.DISCONNECT_AT_END),
+        )
+        repeat(6) {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(500)
+                    .setBody("Server Error"),
+            )
+        }
+
+        val resilientSource =
+            ResilientWebDavDataSource(
+                underlyingFactory = baseHttpDataSourceFactory,
+                sleeper = { recordedBackoffs.add(it) },
+            )
+
+        val dataSpec =
+            DataSpec.Builder()
+                .setUri(mockWebServer.url("/stream.mp3").toString())
+                .build()
+
+        resilientSource.open(dataSpec)
+        val buffer = ByteArray(20)
+        val read1 = resilientSource.read(buffer, 0, 5)
+        assertEquals(5, read1)
+
+        try {
+            resilientSource.read(buffer, 5, 15)
+            fail("Expected exception after 5 retries during read")
+        } catch (e: HttpDataSource.InvalidResponseCodeException) {
+            assertEquals(500, e.responseCode)
+        }
+
+        assertEquals(5, recordedBackoffs.size)
+        assertEquals(listOf(1000L, 2000L, 4000L, 6000L, 6000L), recordedBackoffs)
+    }
+
+    @Test
+    fun close_whileSleepingInBackoff_promptlyInterruptsThreadAndThrows() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(500)
+                .setBody("Server Error"),
+        )
+
+        val sleepStartedLatch = CountDownLatch(1)
+        val resilientSource =
+            ResilientWebDavDataSource(
+                underlyingFactory = baseHttpDataSourceFactory,
+                sleeper = { _ ->
+                    sleepStartedLatch.countDown()
+                    Thread.sleep(30_000L)
+                },
+            )
+
+        val dataSpec =
+            DataSpec.Builder()
+                .setUri(mockWebServer.url("/stream.mp3").toString())
+                .build()
+
+        val threadException = AtomicReference<Throwable>()
+        val workerThread =
+            Thread {
+                try {
+                    resilientSource.open(dataSpec)
+                } catch (t: Throwable) {
+                    threadException.set(t)
+                }
+            }
+        workerThread.start()
+
+        assertTrue("Worker thread should enter sleeper", sleepStartedLatch.await(3, TimeUnit.SECONDS))
+
+        val startTime = System.currentTimeMillis()
+        resilientSource.close()
+        workerThread.join(2000)
+
+        assertFalse("Worker thread should have terminated promptly without waiting 30 seconds", workerThread.isAlive)
+        val elapsed = System.currentTimeMillis() - startTime
+        assertTrue("Thread should unblock within 2000ms, elapsed was $elapsed ms", elapsed < 2000)
+        assertNotNull("Worker thread must capture an InterruptedIOException", threadException.get())
+        assertTrue(threadException.get() is InterruptedIOException)
     }
 }
