@@ -1,4 +1,4 @@
-# WebDavPlayer
+# WebDAVPlayer
 
 Android 平台上的 WebDAV 音频流式播放器，通过 HTTP/HTTPS 协议直接访问并播放远程 WebDAV 服务器上的音频资源。
 
@@ -229,12 +229,20 @@ _Avoid_: Orphan Data, Server Wipe, Manual Cache Delete
 ### UI & Navigation
 
 **Primary Navigation Bar**:
-应用底部的顶层导航容器，以「歌单」（Playlists）—「媒体库」（Directory Browser）—「服务器」（Server Management）有序承载应用三大一级视窗，并具备持久化记忆能力，应用冷启动时精准恢复至上次退出时停留的底栏目的地。
+应用底部的顶层导航容器，以「歌单」（Playlists）—「媒体库」（Directory Browser）—「服务器」（Server Management）有序承载应用三大一级视窗，高度由默认 80dp 收敛精炼至 58dp 紧凑高度，并具备持久化记忆能力，应用冷启动时精准恢复至上次退出时停留的底栏目的地。
 _Avoid_: Bottom Bar, Tab Bar, Footer Menu
 
-**Borderless Immersive Search**:
-基于 Material Design 3 规范构建的全通透极简搜索视图，完全剔除粗生硬的通栏底部分割横线（Divider-free），以浅灰圆角容器内嵌输入框搭配右侧平滑「取消」动作，向下直通纵向时钟搜索历史与标准 MD3 ListItem 结果。
-_Avoid_: SearchBar with Divider, Flat Search Header, Line Search
+**Global Dynamic Artwork Palette**:
+全天候全域音轨动态取色系统。在音频回放流转时，由 `ArtworkColorExtractor` 从当前音轨封面提取种子色（Dominant Color），基于 HCT Tonal Palette 算法在深色模式与浅色模式下分别自适应推导整机大背景（Background）、表面容器色（SurfaceContainer）、底栏指示器、顶栏折叠雾化层及在播高亮，实现应用全局大背景与核心组件 100% 随当前在播专辑平滑换肤。
+_Avoid_: Static Theme, Dark Only Ambient, Wallpaper Color Only
+
+**Continuous Fluid Top App Bar**:
+Material 3 Expressive 规范下的连续流体折叠顶栏。展开时左对齐呈现大气标题与次级信息；向上滑动时大标题容器物理高度平滑收缩至 0，无空白悬空占位，且文字全程严格锁定左侧垂直基准线微缩淡入紧凑顶栏（绝不突兀横向居中跳跃），伴随 24px 毛玻璃弥散雾化，顶栏彻底移除冗余加号。
+_Avoid_: Boxy Band Header, Center-Jumping Header, Rigid Instant Collapse
+
+**Floating Search Pill Capsule**:
+纯正 Material 3 Expressive 风格的独立悬浮药丸搜索舱系统。彻底剔除通栏生硬背景大横条与分割线，以 26dp 饱满圆角独立药丸卡片悬浮于顶部安全区（预留 44dp 状态栏避让），集成返回键、放大镜、加粗输入框与清除按钮，无缝呼出全屏搜索视图（SearchView）、历史记录 Chips 及实时过滤切歌。
+_Avoid_: Boxy Search Bar, Search Header Band, Divider Search
 
 **Custom Playlist Reorder Mode**:
 歌单专用的按需编排模式。常规浏览模式下列表彻底隐藏拖拽手柄 `[ ≡ ]` 以保证界面纯净与防止误触；仅在排序菜单显式选择「自定义排序」时，才在条目左侧浮现手柄并于顶栏提供「保存」动作，支持随意跨多曲连续上下拖拽。
@@ -249,11 +257,11 @@ _Avoid_: Fast Swipe Delete, Unidirectional Dismiss, Immediate Trigger, Sensitive
 _Avoid_: File Info Activity, Song Property Window
 
 **Docked Mini-Player**:
-悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊，具备曲目摘要、播放控制与上滑/点击呼出全屏播放器的能力，在应用内任何页面导航切换时均不中断。
+悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊。在 Material 3 Expressive 体系下高度瘦身为 52dp（与 58dp 导航栏组合为 114dp 紧凑底座，立省 32% 屏幕空间），具备曲目摘要、播放控制与上滑/点击以容器形变（Container Morphing）平滑展开全屏播放器的能力，在应用内任何页面导航切换时均不中断。
 _Avoid_: Bottom Player, Small Player, Playback Bar
 
 **Full Player Sheet**:
-全屏沉浸式大播放器视图，采用极致纯净留白顶栏（轻量拖拽手柄，无冗余缩小按钮与标题文本）与自适应封面氛围渐变背景，集成大封面唱片、进度拖拽、播放模式控制与高保真音频规格详情（Hi-Res / 解码采样率 / 码率胶囊），通过轻量顶部拖拽条及下滑手势收起，并支持左右滑动无缝切换至逐行同步高亮歌词页。
+全屏沉浸式大播放器视图，采用极致纯净留白顶栏与自适应封面全域环境光晕背景。核心告别圆形黑胶唱片，升级为 28dp 方形圆角大封面卡片（Squircle 250x250，具备 clamp 流体宽高比），集成流体进度拖拽、Squircle 圆角方块播控键与无损规格胶囊，通过轻量顶部拖拽条及下滑手势收起，支持左右滑动切换至逐行同步高亮双语歌词页，并在平板/折叠大屏模式下自动自适应为左右双栏分屏。
 _Avoid_: Player Activity, Big Player, Music Detail
 
 **Immersive Chrome**:
@@ -273,8 +281,12 @@ _Avoid_: Edit Mode, Checkbox View, Batch Mode
 _Avoid_: Format Icon, Audio Tag
 
 **Equalizer Track Indicator**:
-媒体库列表中标识当前回放状态曲目的动态三柱等化器跳动脉冲视觉指示，用于在切回目录浏览时秒级定位当前正在播放的音轨。
+媒体库与歌单曲目列表中标识当前回放状态曲目的动态三柱等化器跳动脉冲视觉指示。在媒体库文件行与歌单歌曲详情行（PlaylistTrackRow）双向完全对齐，暂停时静止，播放时跳动，配合主标题 Primary 色加粗高亮，秒级定位当前播放音轨。
 _Avoid_: Playing Icon, Waveform GIF
+
+**WindowSizeClass Fluid Viewport**:
+跨设备响应式流体视口规范。依据 Android WindowSizeClass 标准，彻底废除写死绝对 px/dp，采用百分比、`aspect-ratio` 宽高比与 `clamp()` 动态弹性伸缩，在小屏紧凑设备（360dp）、标准主流设备（392dp）、大屏旗舰设备（430dp）及折叠/平板大屏（660dp+ 双栏并排）下自适应无损呈现。
+_Avoid_: Hardcoded Px Layout, Fixed Width Window, Stretched UI
 
 **Adaptive Themed Icon**:
 遵循 Android Material You 规范的自适应启动图标体系，由极简黑胶唱片与云端流媒体意象前景、自适应背景及单色主题层（Monochrome）构成，自适应跟随系统壁纸动态调色板着色。
