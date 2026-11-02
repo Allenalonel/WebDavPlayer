@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.playlist.components.PlaylistHeaderArea
 import com.webdav.player.ui.playlist.components.PlaylistTrackDetailDialog
 import com.webdav.player.ui.playlist.components.PlaylistTrackRow
@@ -310,7 +311,7 @@ fun PlaylistDetailScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 16.dp),
+                        contentPadding = PaddingValues(bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
                     ) {
                         itemsIndexed(
                             items = uiState.tracks,

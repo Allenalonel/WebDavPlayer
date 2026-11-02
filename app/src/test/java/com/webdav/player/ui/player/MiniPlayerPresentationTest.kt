@@ -105,6 +105,7 @@ class MiniPlayerPresentationTest {
         )
         assertEquals(2.dp, MiniPlayerDefaults.MicroBarHeight)
         assertEquals(RoundedCornerShape(28.dp), MiniPlayerDefaults.CapsuleShape)
+        assertEquals(160.dp, MiniPlayerDefaults.PenetrativeContentBottomPadding)
     }
 
     @Test

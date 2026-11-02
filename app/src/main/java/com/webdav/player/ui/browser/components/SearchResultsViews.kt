@@ -41,6 +41,7 @@ import com.webdav.player.ui.common.AudioTrackRow
 import com.webdav.player.ui.common.AudioTrackRowDefaults
 import com.webdav.player.ui.common.TrackTagPill
 import com.webdav.player.ui.common.TrackThumbnailLeading
+import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.theme.AppIcons
 
 /**
@@ -154,7 +155,7 @@ internal fun SearchResultsList(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
     ) {
         searchDirectoriesSection(
             directories = searchResult.matchedDirectories,
@@ -203,7 +204,7 @@ internal fun SearchHistorySection(
     } else {
         LazyColumn(
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 16.dp),
+            contentPadding = PaddingValues(bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
         ) {
             item(key = "header_recent") {
                 Row(

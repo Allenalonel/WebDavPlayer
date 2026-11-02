@@ -75,6 +75,9 @@ object MiniPlayerDefaults {
     val GlassBorderWidth: Dp = 1.dp
     const val GlassBorderAlpha: Float = 0.35f
     const val FallbackSurfaceAlpha: Float = 0.94f
+
+    // Penetrative scroll content bottom padding contract
+    val PenetrativeContentBottomPadding: Dp = 160.dp
 }
 
 enum class MiniPlayerGestureAction {

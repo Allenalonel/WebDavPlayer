@@ -198,10 +198,7 @@ class MainActivity : ComponentActivity() {
                         Box(modifier = Modifier.fillMaxSize()) {
                             // Preserved view hierarchy across tab transitions
                             Box(
-                                modifier =
-                                    Modifier
-                                        .fillMaxSize()
-                                        .padding(bottom = innerPadding.calculateBottomPadding()),
+                                modifier = Modifier.fillMaxSize(),
                             ) {
                             val isBrowser = navState.currentDestination == AppDestination.DIRECTORY_BROWSER
                             Box(

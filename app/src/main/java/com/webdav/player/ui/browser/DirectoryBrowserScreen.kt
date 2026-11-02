@@ -68,6 +68,7 @@ import com.webdav.player.ui.browser.components.ErrorState
 import com.webdav.player.ui.browser.components.NoActiveServerState
 import com.webdav.player.ui.browser.components.SearchResultsContent
 import com.webdav.player.ui.common.FloatingMultiSelectBottomBar
+import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -658,7 +659,7 @@ fun DirectoryContentList(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
     ) {
         // Subdirectories first (Elevated MD3 Cards)
         items(directories, key = { "dir_${it.path}" }) { dir ->

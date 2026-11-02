@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.server.components.ServerCardItem
 import com.webdav.player.ui.theme.AppIcons
 
@@ -118,7 +119,13 @@ fun ServerListScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding =
+                        PaddingValues(
+                            top = 16.dp,
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding,
+                        ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(uiState.servers, key = { it.id }) { server ->

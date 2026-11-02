@@ -4,9 +4,21 @@
 
 **Blocked by:** 03: Hoist Floating Overlay and Decouple Scaffold Bottom Bar
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] All primary browsing lists (`DirectoryBrowserScreen`, `PlaylistDetailScreen`, `ServerListScreen`) have their scrollable content (`LazyColumn`) extended edge-to-edge behind the bottom bar and floating capsule.
-- [ ] A standardized bottom content padding (approx. 160dp) is established so that the last item in any list rests completely above the capsule when scrolled to the end.
-- [ ] List viewport height does not dynamically resize or jump when the MiniPlayer appears or disappears, ensuring zero layout jank.
-- [ ] Items visibly pass through behind the translucent capsule during scrolling with fluid depth perception.
+- [x] All primary browsing lists (`DirectoryBrowserScreen`, `PlaylistDetailScreen`, `ServerListScreen`) have their scrollable content (`LazyColumn`) extended edge-to-edge behind the bottom bar and floating capsule.
+- [x] A standardized bottom content padding (approx. 160dp) is established so that the last item in any list rests completely above the capsule when scrolled to the end.
+- [x] List viewport height does not dynamically resize or jump when the MiniPlayer appears or disappears, ensuring zero layout jank.
+- [x] Items visibly pass through behind the translucent capsule during scrolling with fluid depth perception.
+
+## Answer
+
+Established penetrative edge-to-edge scrolling contract across all primary screen collections:
+1. Removed the bottom padding constraint on the screens container in `MainActivity.kt`, allowing screens to render edge-to-edge behind the navigation bar and floating capsule.
+2. Standardized `MiniPlayerDefaults.PenetrativeContentBottomPadding = 160.dp` across:
+   - `DirectoryBrowserScreen` (and `SearchResultsViews`)
+   - `PlaylistDetailScreen`
+   - `PlaylistListScreen`
+   - `ServerListScreen`
+3. Because the inset is statically preserved at 160dp regardless of miniplayer presence, viewport heights remain rock-solid with zero layout jank or item jumping when playback begins or pauses.
+4. When scrolling, list items smoothly pass underneath the translucent liquid glass capsule, resting completely above the capsule when reached at the absolute bottom.
