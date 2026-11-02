@@ -4,6 +4,7 @@ import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.cue.CueSheetResolver
 import com.webdav.player.domain.model.CueAlbumItem
 import com.webdav.player.domain.model.RemoteDirectory
+import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
 import kotlinx.coroutines.CoroutineDispatcher
@@ -73,7 +74,7 @@ class DefaultCueSheetResolver(
 
         return cueFiles.map { cueFile ->
             val matchedAudio =
-                CueAssociationHelper.findMatchingAudioFile(
+                findMatchingAudioFile(
                     cueFile = cueFile,
                     audioFiles = audioFiles,
                     totalCueFilesCount = cueFiles.size,
@@ -125,13 +126,13 @@ class DefaultCueSheetResolver(
                     } else {
                         val referencedFiles = CueParser.extractReferencedFiles(cueContent)
                         val matchedAudio =
-                            CueAssociationHelper.findMatchingAudioFile(
+                            findMatchingAudioFile(
                                 cueFile = cueFile,
                                 audioFiles = audioFiles,
                                 referencedFileNames = referencedFiles,
                                 totalCueFilesCount = cueFiles.size,
                             ) ?: if (referencedFiles.isEmpty()) {
-                                CueAssociationHelper.findMatchingAudioFile(
+                                findMatchingAudioFile(
                                     cueFile = cueFile,
                                     audioFiles = audioFiles,
                                     totalCueFilesCount = cueFiles.size,
@@ -246,5 +247,55 @@ class DefaultCueSheetResolver(
 
     override fun clearCache() {
         textCache.clear()
+    }
+
+    private fun findMatchingAudioFile(
+        cueFile: RemoteFile,
+        audioFiles: List<RemoteFile>,
+        referencedFileNames: List<String> = emptyList(),
+        totalCueFilesCount: Int = 1,
+    ): RemoteFile? {
+        if (audioFiles.isEmpty()) return null
+
+        // 1. Check referenced file names from CUE FILE directives
+        for (ref in referencedFileNames) {
+            val cleanRef = ref.trim().replace('\\', '/').substringAfterLast('/')
+            // Exact match
+            val exact = audioFiles.firstOrNull { it.name.equals(cleanRef, ignoreCase = true) }
+            if (exact != null) return exact
+
+            // Base name match with different extension (e.g. CUE says CDImage.wav, but file is CDImage.flac)
+            val refBase = cleanRef.substringBeforeLast('.')
+            val baseMatch =
+                audioFiles.firstOrNull {
+                    it.name.substringBeforeLast('.').equals(refBase, ignoreCase = true)
+                }
+            if (baseMatch != null) return baseMatch
+        }
+
+        // 2. Base name match between CUE file and audio file
+        val cueBase = cueFile.name.substringBeforeLast('.')
+        val sameBaseAudio =
+            audioFiles.firstOrNull {
+                it.name.substringBeforeLast('.').equals(cueBase, ignoreCase = true)
+            }
+        if (sameBaseAudio != null) return sameBaseAudio
+
+        // 3. Fallback: If only 1 CUE file and 1 audio file exist in the remote directory, associate them
+        if (referencedFileNames.isEmpty() && totalCueFilesCount == 1 && audioFiles.size == 1) {
+            return audioFiles.first()
+        }
+
+        // 4. Prefix match: if cue file name starts with audio file name base or vice versa
+        if (referencedFileNames.isEmpty()) {
+            val prefixMatch =
+                audioFiles.firstOrNull {
+                    val audioBase = it.name.substringBeforeLast('.')
+                    cueBase.startsWith(audioBase, ignoreCase = true) || audioBase.startsWith(cueBase, ignoreCase = true)
+                }
+            if (prefixMatch != null) return prefixMatch
+        }
+
+        return null
     }
 }
