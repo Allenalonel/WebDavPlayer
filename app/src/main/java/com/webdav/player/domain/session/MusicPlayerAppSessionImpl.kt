@@ -14,6 +14,7 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.network.NetworkConnectivityObserver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.PlaybackSessionStore
 import com.webdav.player.domain.repository.PlaylistRepository
@@ -22,10 +23,14 @@ import com.webdav.player.domain.repository.TrackMetadataRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -47,6 +52,7 @@ class MusicPlayerAppSessionImpl(
             it !is kotlinx.coroutines.MainCoroutineDispatcher
         } ?: Dispatchers.Default,
     periodicDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val networkConnectivityObserver: NetworkConnectivityObserver? = null,
 ) : MusicPlayerAppSession {
     private val _sessionState = MutableStateFlow(PlayerSessionState())
     override val sessionState: StateFlow<PlayerSessionState> = _sessionState.asStateFlow()
@@ -229,6 +235,24 @@ class MusicPlayerAppSessionImpl(
         }
     }
 
+    private val networkObservationJob: Job? =
+        networkConnectivityObserver?.let { observer ->
+            coroutineScope.launch {
+                observer.networkStatus
+                    .map { it.isConnected }
+                    .distinctUntilChanged()
+                    .drop(1)
+                    .collect { isConnected ->
+                        if (isConnected) {
+                            faultTolerance.onNetworkRestored {
+                                resumeCurrentTrack()
+                            }
+                            playlistRepository?.triggerReachabilitySelfHealing()
+                        }
+                    }
+            }
+        }
+
     init {
         timelineCoordinator.startObservations()
         metadataCoordinator.startMetadataObservation()
@@ -369,6 +393,13 @@ class MusicPlayerAppSessionImpl(
         clearPrerollIfActive()
         faultTolerance.cancelWatchdog()
         if (hasStreamLoaded) playerEngine.pause()
+        _sessionState.update {
+            it.copy(
+                isWeakNetwork = false,
+                canManualRetry = false,
+                isReconnecting = false,
+            )
+        }
         coroutineScope.launch {
             val pos = playerEngine.currentPositionMs.value
             if (pos > 0L) {
@@ -537,6 +568,7 @@ class MusicPlayerAppSessionImpl(
     override fun release() {
         resetPlaybackState()
         timelineCoordinator.cancelObservations()
+        networkObservationJob?.cancel()
         playerEngine.release()
         _playbackProgress.value = PlaybackProgress.ZERO
     }

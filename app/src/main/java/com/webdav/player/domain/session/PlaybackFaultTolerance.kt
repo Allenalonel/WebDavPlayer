@@ -95,6 +95,25 @@ internal class PlaybackFaultTolerance(
         }
     }
 
+    fun onNetworkRestored(onAutoResume: () -> Unit): Boolean {
+        val current = sessionStateFlow.value
+        val canResume = current.isWeakNetwork && current.canManualRetry && current.hasTrack
+        if (canResume) {
+            cancelWatchdog()
+            sessionStateFlow.update {
+                it.copy(
+                    isWeakNetwork = false,
+                    canManualRetry = false,
+                    isReconnecting = false,
+                    errorMessage = null,
+                )
+            }
+            onAutoResume()
+            return true
+        }
+        return false
+    }
+
     fun isAuthException(e: Throwable): Boolean {
         val causes = generateSequence(e) { it.cause }
         return causes.any { c ->

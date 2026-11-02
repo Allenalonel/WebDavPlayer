@@ -131,6 +131,9 @@ class WebDavApplication :
                 trackMetadataRepository = trackMetadataRepository,
             )
 
+        val networkConnectivityObserver = DefaultNetworkConnectivityObserver(this)
+        this.networkConnectivityObserver = networkConnectivityObserver
+
         musicPlayerAppSession =
             MusicPlayerAppSessionImpl(
                 playerEngine = playerEngine,
@@ -139,11 +142,9 @@ class WebDavApplication :
                 sessionStore = sessionStore,
                 cueSheetResolver = cueSheetResolver,
                 playlistRepository = playlistRepository,
+                networkConnectivityObserver = networkConnectivityObserver,
             )
         sessionHost.bindAppSession(musicPlayerAppSession)
-
-        val networkConnectivityObserver = DefaultNetworkConnectivityObserver(this)
-        this.networkConnectivityObserver = networkConnectivityObserver
     }
 
     override fun onTrimMemory(level: Int) {
