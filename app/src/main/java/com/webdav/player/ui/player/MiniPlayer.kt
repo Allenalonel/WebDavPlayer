@@ -49,14 +49,17 @@ import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
-    val CapsuleCornerRadius: Dp = 20.dp
+    val CapsuleCornerRadius: Dp = 28.dp
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
     val ProgressMicroBarShape =
         RoundedCornerShape(bottomStart = CapsuleCornerRadius, bottomEnd = CapsuleCornerRadius)
     val PlayPauseButtonSize: Dp = 42.dp
-    val SkipNextButtonSize: Dp = 38.dp
+    val QueueMusicButtonSize: Dp = 38.dp
+    val SkipNextButtonSize: Dp = QueueMusicButtonSize
     val ButtonSpacing: Dp = 8.dp
     val MicroBarHeight: Dp = 2.dp
+    val SwipeSkipThreshold: Dp = 40.dp
+    val VerticalDragThreshold: Float = -20f
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -80,7 +83,7 @@ fun MiniPlayer(
                     detectVerticalDragGestures(
                         onVerticalDrag = { change, dragAmount ->
                             upwardDrag += dragAmount
-                            if (upwardDrag < -20f) {
+                            if (upwardDrag < MiniPlayerDefaults.VerticalDragThreshold) {
                                 change.consume()
                                 onMiniPlayerClick()
                                 upwardDrag = 0f
