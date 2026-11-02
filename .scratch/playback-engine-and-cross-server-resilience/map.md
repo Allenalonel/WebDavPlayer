@@ -31,7 +31,7 @@
 1. `01-cross-server-gapless-credential-synchronization.md`: 跨服务器切歌凭据原子同步 (Status: resolved, Blocked by: None)
 2. `02-bounded-retry-and-thread-release-in-data-source.md`: 流媒体数据源有界重试与线程释放 (Status: resolved, Blocked by: None)
 3. `03-foreground-service-elevation-and-recovery.md`: 前台服务同步提权与容错恢复 (Status: resolved, Blocked by: None)
-4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: ready-for-agent, Blocked by: 01, 02, 03)
+4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: resolved, Blocked by: 01, 02, 03)
 
 ---
 
@@ -40,3 +40,4 @@
 - **Ticket 01 Resolved**: 在 `AudioPlayerEngine` 中扩展 `setActiveServer(server: WebDavServer)`，在 `Media3AudioPlayerEngine` 中通过应用 Looper 更新 `activeServerRef`；在 `PlaybackTimelineCoordinator` 中于曲目过渡时检测跨服务器变更并异步解析新服务器实体，原子同步 `sessionStateFlow.activeServer` 与 `playerEngine.setActiveServer`；完成 `PlaybackTimelineCoordinatorTest` 与 `MusicPlayerAppSessionTest` 验证。
 - **Ticket 02 Resolved**: 将 `ResilientWebDavDataSource` 默认最大重试阈值收敛为 5 次（总退避 19 秒），并在重试耗尽后终止循环抛出底层异常；引入 `activeThread` 跟踪并在 `close()` 时打断休眠线程即时释放 Loader 阻塞；完成重试上限与中断释放单元测试验证。
 - **Ticket 03 Resolved**: 在 `WebDavMediaService.onStartCommand` 中于广播分发窗口内同步执行前台服务提权；在 `PlaybackSessionHost` 中捕获并兜底后台启动异常，通过 `isElevationPendingRef` 暂存未生效提权；在 `prewarmService()` 中实现前台恢复自动对齐；完成 `WebDavMediaServiceTest` 与 `PlaybackSessionHostTest` 测试验证。
+- **Ticket 04 Resolved**: 全量 1025 个单元测试与端到端测试 100% 通过（0 失败）；`./gradlew verifyReleasePackaging` 验证通过（APK: 6.68 MB <= 7.5 MB, classes.dex: 3.98 MB <= 4.0 MB, arm64-v8a 单一架构且无 32 位遗留库）。
