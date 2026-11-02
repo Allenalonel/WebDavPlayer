@@ -422,19 +422,6 @@ internal fun SearchTrackItem(
     )
 }
 
-@Composable
-internal fun SearchAudioTrackItem(
-    track: AudioTrack,
-    onClick: () -> Unit,
-    onAddToPlaylist: (AudioTrack) -> Unit,
-    modifier: Modifier = Modifier,
-) = SearchTrackItem(
-    track = track,
-    onClick = onClick,
-    onAddToPlaylist = onAddToPlaylist,
-    modifier = modifier,
-)
-
 internal fun LazyListScope.searchTracksSection(
     tracks: List<AudioTrack>,
     onTrackClick: (AudioTrack) -> Unit,
