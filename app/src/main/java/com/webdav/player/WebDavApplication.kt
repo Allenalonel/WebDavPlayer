@@ -5,6 +5,7 @@ import android.content.ComponentCallbacks2
 import com.webdav.player.data.cue.DefaultCueSheetResolver
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.CoverArtStorageImpl
+import com.webdav.player.data.network.DefaultNetworkConnectivityObserver
 import com.webdav.player.data.player.Media3AudioPlayerEngine
 import com.webdav.player.data.player.WebDavMediaSourceBuilder
 import com.webdav.player.data.remote.OkHttpWebDavClient
@@ -17,6 +18,7 @@ import com.webdav.player.data.repository.TrackMetadataRepositoryImpl
 import com.webdav.player.data.service.PlaybackSessionHost
 import com.webdav.player.di.AppContainer
 import com.webdav.player.domain.cue.CueSheetResolver
+import com.webdav.player.domain.network.NetworkConnectivityObserver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LibrarySearchRepository
@@ -61,6 +63,9 @@ class WebDavApplication :
         private set
 
     override lateinit var musicPlayerAppSession: MusicPlayerAppSession
+        private set
+
+    override lateinit var networkConnectivityObserver: NetworkConnectivityObserver
         private set
 
     override fun onCreate() {
@@ -124,7 +129,11 @@ class WebDavApplication :
                 playlistDao = database.playlistDao(),
                 serverRepository = serverRepository,
                 trackMetadataRepository = trackMetadataRepository,
+                webDavClient = webDavClient,
             )
+
+        val networkConnectivityObserver = DefaultNetworkConnectivityObserver(this)
+        this.networkConnectivityObserver = networkConnectivityObserver
 
         musicPlayerAppSession =
             MusicPlayerAppSessionImpl(
@@ -134,6 +143,7 @@ class WebDavApplication :
                 sessionStore = sessionStore,
                 cueSheetResolver = cueSheetResolver,
                 playlistRepository = playlistRepository,
+                networkConnectivityObserver = networkConnectivityObserver,
             )
         sessionHost.bindAppSession(musicPlayerAppSession)
     }

@@ -8,6 +8,7 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.ListDirectoryResult
+import com.webdav.player.domain.model.NetworkStatus
 import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
@@ -22,6 +23,7 @@ import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.VirtualTrack
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.network.FakeNetworkConnectivityObserver
 import com.webdav.player.domain.player.FakeAudioPlayerEngine
 import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.TrackMetadataRepository
@@ -3315,4 +3317,132 @@ class MusicPlayerAppSessionTest {
 
         override suspend fun setActiveServer(id: Long) {}
     }
+
+    @Test
+    fun networkRestored_whenSuspendedInWeakNetwork_autoResumesPlaybackAndDismissesBanner() =
+        runTest(testDispatcher) {
+            val fakeNetwork = FakeNetworkConnectivityObserver(NetworkStatus(isConnected = true, isWifi = true))
+            val netSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = null,
+                    cueSheetResolver = cueSheetResolver,
+                    coroutineScope = sessionScope,
+                    networkConnectivityObserver = fakeNetwork,
+                )
+            netSession.setActiveServer(testServer)
+            val track = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track))
+            netSession.playDirectoryTrack(directory, track)
+            advanceUntilIdle()
+
+            // Simulate playback progressing to 20 seconds
+            fakeEngine._currentPositionMs.value = 20_000L
+            advanceUntilIdle()
+
+            // Simulate stream entering weak-network suspended pause
+            fakeEngine.pause()
+            netSession.setWeakNetworkState(isWeakNetwork = true, canManualRetry = true)
+            advanceUntilIdle()
+
+            assertTrue(netSession.sessionState.value.isWeakNetwork)
+            assertTrue(netSession.sessionState.value.canManualRetry)
+            assertEquals(PlaybackState.Paused, netSession.sessionState.value.playbackState)
+
+            val initialLoads = fakeEngine.loadTrackCount
+
+            // Network drops
+            fakeNetwork.emitStatus(NetworkStatus.DISCONNECTED)
+            advanceUntilIdle()
+
+            // Network reconnects
+            fakeNetwork.emitStatus(NetworkStatus(isConnected = true, isWifi = true))
+            advanceUntilIdle()
+
+            // Playback should automatically resume
+            val state = netSession.sessionState.value
+            assertFalse("isWeakNetwork must be cleared", state.isWeakNetwork)
+            assertFalse("canManualRetry must be cleared", state.canManualRetry)
+            assertTrue("loadTrack must be called to resume playback", fakeEngine.loadTrackCount > initialLoads)
+            assertEquals("Engine must resume playing", PlaybackState.Playing, fakeEngine.playbackState.value)
+
+            netSession.release()
+        }
+
+    @Test
+    fun networkRestored_whenUserInitiatedPause_strictlyRemainsPaused() =
+        runTest(testDispatcher) {
+            val fakeNetwork = FakeNetworkConnectivityObserver(NetworkStatus(isConnected = true, isWifi = true))
+            val netSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = null,
+                    cueSheetResolver = cueSheetResolver,
+                    coroutineScope = sessionScope,
+                    networkConnectivityObserver = fakeNetwork,
+                )
+            netSession.setActiveServer(testServer)
+            val track = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track))
+            netSession.playDirectoryTrack(directory, track)
+            advanceUntilIdle()
+
+            // User explicitly pauses playback
+            netSession.pause()
+            advanceUntilIdle()
+
+            assertFalse(netSession.sessionState.value.isWeakNetwork)
+            assertEquals(PlaybackState.Paused, netSession.sessionState.value.playbackState)
+
+            val initialLoads = fakeEngine.loadTrackCount
+
+            // Network drops and reconnects
+            fakeNetwork.emitStatus(NetworkStatus.DISCONNECTED)
+            advanceUntilIdle()
+            fakeNetwork.emitStatus(NetworkStatus(isConnected = true, isWifi = true))
+            advanceUntilIdle()
+
+            // Ghost resumption suppression: music must strictly remain paused
+            val state = netSession.sessionState.value
+            assertEquals("Must remain paused", PlaybackState.Paused, state.playbackState)
+            assertEquals("Load track count must not increase", initialLoads, fakeEngine.loadTrackCount)
+
+            netSession.release()
+        }
+
+    @Test
+    fun networkRestored_whenBecomingNoisyPaused_strictlyRemainsPaused() =
+        runTest(testDispatcher) {
+            val fakeNetwork = FakeNetworkConnectivityObserver(NetworkStatus(isConnected = true, isWifi = true))
+            val netSession =
+                MusicPlayerAppSessionImpl(
+                    playerEngine = fakeEngine,
+                    serverRepository = null,
+                    cueSheetResolver = cueSheetResolver,
+                    coroutineScope = sessionScope,
+                    networkConnectivityObserver = fakeNetwork,
+                )
+            netSession.setActiveServer(testServer)
+            val track = RemoteFile(name = "01.mp3", path = "/01.mp3")
+            val directory = RemoteDirectory(path = "/", name = "root", files = listOf(track))
+            netSession.playDirectoryTrack(directory, track)
+            advanceUntilIdle()
+
+            // Becoming noisy pauses playback
+            netSession.pause()
+            advanceUntilIdle()
+
+            val initialLoads = fakeEngine.loadTrackCount
+
+            // Network transitions from disconnected to connected
+            fakeNetwork.emitStatus(NetworkStatus.DISCONNECTED)
+            advanceUntilIdle()
+            fakeNetwork.emitStatus(NetworkStatus(isConnected = true, isCellular = true, isMetered = true))
+            advanceUntilIdle()
+
+            assertEquals("Playback must strictly remain paused", PlaybackState.Paused, netSession.sessionState.value.playbackState)
+            assertEquals("No auto-resumption on noisy pause", initialLoads, fakeEngine.loadTrackCount)
+
+            netSession.release()
+        }
 }

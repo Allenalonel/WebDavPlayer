@@ -4,12 +4,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `NetworkStatus` immutable domain model encapsulates connection state, Wi-Fi, cellular, and metered attributes
-- [ ] `NetworkConnectivityObserver` interface defined in the domain layer
-- [ ] `DefaultNetworkConnectivityObserver` registers native `ConnectivityManager.NetworkCallback` with proper cleanup
-- [ ] 500ms coroutine debounce filters rapid transitional network state flapping
-- [ ] `AppContainer` and `WebDavApplication` manage singleton observer lifecycle
-- [ ] `FakeNetworkConnectivityObserver` test stand-in provided for deterministic testing
-- [ ] Unit tests in `NetworkConnectivityObserverTest` verify transitions across Wi-Fi, cellular, disconnected, and debounced states
+- [x] `NetworkStatus` immutable domain model encapsulates connection state, Wi-Fi, cellular, and metered attributes
+- [x] `NetworkConnectivityObserver` interface defined in the domain layer
+- [x] `DefaultNetworkConnectivityObserver` registers native `ConnectivityManager.NetworkCallback` with proper cleanup
+- [x] 500ms coroutine debounce filters rapid transitional network state flapping
+- [x] `AppContainer` and `WebDavApplication` manage singleton observer lifecycle
+- [x] `FakeNetworkConnectivityObserver` test stand-in provided for deterministic testing
+- [x] Unit tests in `NetworkConnectivityObserverTest` verify transitions across Wi-Fi, cellular, disconnected, and debounced states
+
+## Comments
+- Implemented `NetworkStatus` immutable model and `NetworkConnectivityObserver` interface in domain.
+- Implemented `DefaultNetworkConnectivityObserver` with `ConnectivityManager.NetworkCallback`, safe unregistering, and 500ms debounce window.
+- Integrated singleton lifecycle into `AppContainer` and `WebDavApplication`.
+- Implemented `FakeNetworkConnectivityObserver` and exhaustive tests in `NetworkConnectivityObserverTest`. All 9 tests passed.

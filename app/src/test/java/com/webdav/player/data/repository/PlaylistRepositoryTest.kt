@@ -5,10 +5,14 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.data.local.AppDatabase
 import com.webdav.player.data.local.PlaylistDao
+import com.webdav.player.data.remote.ConnectionResult
+import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
+import com.webdav.player.domain.model.ListDirectoryResult
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.domain.model.RemoteDirectory
 import com.webdav.player.domain.model.RemoteFile
 import com.webdav.player.domain.model.TrackMetadata
 import com.webdav.player.domain.model.WebDavServer
@@ -216,22 +220,24 @@ class PlaylistRepositoryTest {
             val track = AudioTrack(id = "1:/i_do.mp3", serverId = 1L, remotePath = "/i_do.mp3", title = "I Do", format = AudioFormat.MP3)
 
             // Manually insert duplicate rows directly into DAO to simulate existing legacy duplicates
-            val entity1 = com.webdav.player.data.local.PlaylistTrackEntity(
-                playlistId = playlistId,
-                serverId = track.serverId,
-                remotePath = track.remotePath,
-                sortOrder = 0,
-                title = track.title,
-                format = "MP3",
-            )
-            val entity2 = com.webdav.player.data.local.PlaylistTrackEntity(
-                playlistId = playlistId,
-                serverId = track.serverId,
-                remotePath = track.remotePath,
-                sortOrder = 1,
-                title = track.title,
-                format = "MP3",
-            )
+            val entity1 =
+                com.webdav.player.data.local.PlaylistTrackEntity(
+                    playlistId = playlistId,
+                    serverId = track.serverId,
+                    remotePath = track.remotePath,
+                    sortOrder = 0,
+                    title = track.title,
+                    format = "MP3",
+                )
+            val entity2 =
+                com.webdav.player.data.local.PlaylistTrackEntity(
+                    playlistId = playlistId,
+                    serverId = track.serverId,
+                    remotePath = track.remotePath,
+                    sortOrder = 1,
+                    title = track.title,
+                    format = "MP3",
+                )
             database.playlistDao().insertTrack(entity1)
             database.playlistDao().insertTrack(entity2)
 
@@ -688,5 +694,119 @@ class PlaylistRepositoryTest {
 
             val updatedCachedEntry = dao.getTrackById(entryCachedId)
             assertEquals("/covers/cached_thumb.jpg", updatedCachedEntry?.coverThumbnailPath)
+        }
+
+    private class FakeProbeWebDavClient : WebDavClient {
+        val testConnectionResults = mutableMapOf<Long, ConnectionResult>()
+        var testConnectionCalls = 0
+
+        override suspend fun testConnection(server: WebDavServer): ConnectionResult {
+            testConnectionCalls++
+            return testConnectionResults[server.id] ?: ConnectionResult.Success
+        }
+
+        override suspend fun listDirectory(
+            server: WebDavServer,
+            path: String,
+        ): ListDirectoryResult = ListDirectoryResult.Success(RemoteDirectory(path = path, name = "root", files = emptyList()))
+
+        override suspend fun fetchRange(
+            server: WebDavServer,
+            remotePath: String,
+            startByte: Long,
+            endByte: Long,
+        ): ByteArray? = null
+    }
+
+    @Test
+    fun playlistDao_batchQueriesAndUpdates_forUnreachableServerStatus() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("DAO批处理测试")
+            val t1 = AudioTrack(id = "10:/s1.mp3", serverId = 10L, remotePath = "/s1.mp3", title = "S1", format = AudioFormat.MP3)
+            val t2 = AudioTrack(id = "20:/s2.mp3", serverId = 20L, remotePath = "/s2.mp3", title = "S2", format = AudioFormat.MP3)
+            val t3 = AudioTrack(id = "30:/s3.mp3", serverId = 30L, remotePath = "/s3.mp3", title = "S3", format = AudioFormat.MP3)
+
+            repository.addTrackToPlaylist(playlistId, t1)
+            repository.addTrackToPlaylist(playlistId, t2)
+            repository.addTrackToPlaylist(playlistId, t3)
+
+            dao.updateTrackInactiveStatus(10L, "/s1.mp3", true, InactiveReason.SERVER_UNREACHABLE.name)
+            dao.updateTrackInactiveStatus(20L, "/s2.mp3", true, InactiveReason.SERVER_UNREACHABLE.name)
+            dao.updateTrackInactiveStatus(30L, "/s3.mp3", true, InactiveReason.FILE_NOT_FOUND.name)
+
+            val unreachableServerIds = dao.getDistinctServerIdsForInactiveReason(InactiveReason.SERVER_UNREACHABLE.name)
+            assertEquals(2, unreachableServerIds.size)
+            assertTrue(unreachableServerIds.contains(10L))
+            assertTrue(unreachableServerIds.contains(20L))
+            assertFalse(unreachableServerIds.contains(30L))
+
+            // Clear server 10
+            val cleared = dao.clearServerUnreachableStatus(10L, InactiveReason.SERVER_UNREACHABLE.name)
+            assertEquals(1, cleared)
+
+            val remainingUnreachable = dao.getDistinctServerIdsForInactiveReason(InactiveReason.SERVER_UNREACHABLE.name)
+            assertEquals(listOf(20L), remainingUnreachable)
+
+            val track1FromDb = dao.findTrackInPlaylist(playlistId, 10L, "/s1.mp3", null)
+            assertNotNull(track1FromDb)
+            assertFalse(track1FromDb!!.isInactive)
+            assertNull(track1FromDb.inactiveReason)
+        }
+
+    @Test
+    fun triggerReachabilitySelfHealing_restoresDimmedTracksForSuccessfulServers() =
+        runBlocking {
+            val server1 = WebDavServer(id = 1L, name = "Online NAS", url = "http://192.168.1.100")
+            val server2 = WebDavServer(id = 2L, name = "Offline NAS", url = "http://192.168.1.200")
+            val serverRepo = TestServerRepository(listOf(server1, server2))
+
+            val fakeWebDavClient = FakeProbeWebDavClient()
+            fakeWebDavClient.testConnectionResults[1L] = ConnectionResult.Success
+            fakeWebDavClient.testConnectionResults[2L] = ConnectionResult.Failure("Connection refused")
+
+            val healingRepo =
+                PlaylistRepositoryImpl(
+                    playlistDao = dao,
+                    serverRepository = serverRepo,
+                    webDavClient = fakeWebDavClient,
+                    timeProvider = { simulatedTime },
+                )
+
+            val playlistId = healingRepo.createPlaylist("自愈恢复测试")
+            val track1 =
+                AudioTrack(id = "1:/online.mp3", serverId = 1L, remotePath = "/online.mp3", title = "Online", format = AudioFormat.MP3)
+            val track2 =
+                AudioTrack(id = "2:/offline.mp3", serverId = 2L, remotePath = "/offline.mp3", title = "Offline", format = AudioFormat.MP3)
+
+            val e1 = healingRepo.addTrackToPlaylist(playlistId, track1)
+            val e2 = healingRepo.addTrackToPlaylist(playlistId, track2)
+
+            // Mark both as SERVER_UNREACHABLE
+            healingRepo.markTrackInactive(1L, "/online.mp3", InactiveReason.SERVER_UNREACHABLE)
+            healingRepo.markTrackInactive(2L, "/offline.mp3", InactiveReason.SERVER_UNREACHABLE)
+
+            // Verify both tracks are currently dimmed
+            val beforeTracks = healingRepo.getTracksForPlaylistFlow(playlistId).first()
+            assertTrue(beforeTracks.first { it.id == e1 }.isInactive)
+            assertTrue(beforeTracks.first { it.id == e2 }.isInactive)
+
+            // Trigger self-healing
+            healingRepo.triggerReachabilitySelfHealing()
+
+            // Verify after healing: Server 1 track restored, Server 2 track remains dimmed
+            val afterTracks = healingRepo.getTracksForPlaylistFlow(playlistId).first()
+            val restoredTrack1 = afterTracks.first { it.id == e1 }
+            assertFalse("Track 1 on Online NAS must be restored", restoredTrack1.isInactive)
+            assertNull("Track 1 inactiveReason must be cleared", restoredTrack1.inactiveReason)
+
+            val dimmedTrack2 = afterTracks.first { it.id == e2 }
+            assertTrue("Track 2 on Offline NAS must remain inactive", dimmedTrack2.isInactive)
+            assertEquals(InactiveReason.SERVER_UNREACHABLE, dimmedTrack2.inactiveReason)
+
+            // Verify DB entity state for track 1
+            val dbTrack1 = dao.getTrackById(e1)
+            assertNotNull(dbTrack1)
+            assertFalse(dbTrack1!!.isInactive)
+            assertNull(dbTrack1.inactiveReason)
         }
 }

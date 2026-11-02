@@ -4,10 +4,16 @@
 
 **Blocked by:** 01 (System Network Connectivity Reactive Observer with Debounce)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `PlaybackFaultTolerance` incorporates `onNetworkRestored(onAutoResume: () -> Unit)`
-- [ ] Auto-resumption triggers only when strict preconditions are met (`isWeakNetwork && canManualRetry && hasTrack`)
-- [ ] Successful auto-resumption clears `isWeakNetwork`, `canManualRetry`, and `isReconnecting`, smoothly dismissing UI retry banners
-- [ ] User-initiated pauses and Becoming Noisy headphone disconnection pauses strictly remain paused upon network return
-- [ ] Unit tests in `PlaybackFaultToleranceTest` and `MusicPlayerAppSessionTest` assert positive auto-resumption and ghost resumption suppression
+- [x] `PlaybackFaultTolerance` incorporates `onNetworkRestored(onAutoResume: () -> Unit)`
+- [x] Auto-resumption triggers only when strict preconditions are met (`isWeakNetwork && canManualRetry && hasTrack`)
+- [x] Successful auto-resumption clears `isWeakNetwork`, `canManualRetry`, and `isReconnecting`, smoothly dismissing UI retry banners
+- [x] User-initiated pauses and Becoming Noisy headphone disconnection pauses strictly remain paused upon network return
+- [x] Unit tests in `PlaybackFaultToleranceTest` and `MusicPlayerAppSessionTest` assert positive auto-resumption and ghost resumption suppression
+
+## Comments
+- Implemented `onNetworkRestored(onAutoResume: () -> Unit)` in `PlaybackFaultTolerance` guarded by `isWeakNetwork && canManualRetry && hasTrack`.
+- Bound `NetworkConnectivityObserver` in `MusicPlayerAppSessionImpl` with `drop(1)` transition filtering to trigger auto-resumption from exact playback position.
+- Added explicit state clearance in `pauseInternal()` guaranteeing zero ghost resumption on user pauses and Becoming Noisy events.
+- Unit tests added in `PlaybackFaultToleranceTest` (4 new tests) and `MusicPlayerAppSessionTest` (3 new tests), all passing.

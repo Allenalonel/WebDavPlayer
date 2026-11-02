@@ -3,6 +3,8 @@ package com.webdav.player.data.repository
 import com.webdav.player.data.local.PlaylistDao
 import com.webdav.player.data.local.PlaylistEntity
 import com.webdav.player.data.local.PlaylistTrackEntity
+import com.webdav.player.data.remote.ConnectionResult
+import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.InactiveReason
 import com.webdav.player.domain.model.Playlist
@@ -17,6 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,11 +36,15 @@ class PlaylistRepositoryImpl(
     private val playlistDao: PlaylistDao,
     private val serverRepository: ServerRepository? = null,
     private val trackMetadataRepository: TrackMetadataRepository? = null,
+    private val webDavClient: WebDavClient? = null,
     private val timeProvider: () -> Long = { System.currentTimeMillis() },
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : PlaylistRepository {
     private val _inactiveTracksFlow = MutableStateFlow<Map<TrackKey, InactiveReason>>(emptyMap())
     private val inFlightCoverHealing = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+    private val isSelfHealingInProgress =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
 
     private fun triggerBackgroundCoverHealing(
         trackEntryId: Long,
@@ -389,4 +398,40 @@ class PlaylistRepositoryImpl(
     }
 
     override fun getInactiveTracksFlow(): Flow<Map<TrackKey, InactiveReason>> = _inactiveTracksFlow.asStateFlow()
+
+    override suspend fun triggerReachabilitySelfHealing() {
+        if (webDavClient == null || serverRepository == null) return
+        if (!isSelfHealingInProgress.compareAndSet(false, true)) return
+        try {
+            val serverIds = playlistDao.getDistinctServerIdsForInactiveReason(InactiveReason.SERVER_UNREACHABLE.name)
+            if (serverIds.isEmpty()) return
+
+            coroutineScope {
+                serverIds
+                    .map { serverId ->
+                        async {
+                            val server = serverRepository.getServerById(serverId)
+                            if (server != null && server.url.isNotBlank()) {
+                                val result =
+                                    try {
+                                        webDavClient.testConnection(server)
+                                    } catch (_: Throwable) {
+                                        ConnectionResult.Failure("Reachability probe failed")
+                                    }
+                                if (result is ConnectionResult.Success) {
+                                    playlistDao.clearServerUnreachableStatus(serverId, InactiveReason.SERVER_UNREACHABLE.name)
+                                    _inactiveTracksFlow.update { current ->
+                                        current.filterNot { it.key.serverId == serverId && it.value == InactiveReason.SERVER_UNREACHABLE }
+                                    }
+                                }
+                            }
+                        }
+                    }.awaitAll()
+            }
+        } catch (_: Throwable) {
+            // Ignore transient errors during reachability probe
+        } finally {
+            isSelfHealingInProgress.set(false)
+        }
+    }
 }

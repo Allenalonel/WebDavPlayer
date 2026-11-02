@@ -2,6 +2,7 @@ package com.webdav.player.di
 
 import com.webdav.player.data.remote.OkHttpWebDavClient
 import com.webdav.player.domain.cue.CueSheetResolver
+import com.webdav.player.domain.network.NetworkConnectivityObserver
 import com.webdav.player.domain.player.AudioPlayerEngine
 import com.webdav.player.domain.repository.DirectoryRepository
 import com.webdav.player.domain.repository.LibrarySearchRepository
@@ -26,4 +27,5 @@ interface AppContainer {
     val musicPlayerAppSession: MusicPlayerAppSession
     val sessionStore: PlaybackSessionStore
     val webDavClient: OkHttpWebDavClient
+    val networkConnectivityObserver: NetworkConnectivityObserver
 }

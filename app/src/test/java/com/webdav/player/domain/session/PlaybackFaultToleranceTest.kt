@@ -253,4 +253,84 @@ class PlaybackFaultToleranceTest {
         // Premature EOF: cut off at 50%
         assertTrue(faultTolerance.isPrematureEof(currentPos = 100_000L, duration = 200_000L))
     }
+
+    @Test
+    fun onNetworkRestored_whenSuspendedInWeakNetwork_triggersAutoResumeAndClearsFlags() {
+        sessionStateFlow.update {
+            it.copy(
+                isWeakNetwork = true,
+                canManualRetry = true,
+                isReconnecting = true,
+                errorMessage = "Network timed out",
+            )
+        }
+        var autoResumeCalled = false
+        val result =
+            faultTolerance.onNetworkRestored {
+                autoResumeCalled = true
+            }
+
+        assertTrue(result)
+        assertTrue(autoResumeCalled)
+        assertFalse(sessionStateFlow.value.isWeakNetwork)
+        assertFalse(sessionStateFlow.value.canManualRetry)
+        assertFalse(sessionStateFlow.value.isReconnecting)
+        assertEquals(null, sessionStateFlow.value.errorMessage)
+    }
+
+    @Test
+    fun onNetworkRestored_whenUserPaused_suppressesAutoResume() {
+        sessionStateFlow.update {
+            it.copy(
+                playbackState = PlaybackState.Paused,
+                isWeakNetwork = false,
+                canManualRetry = false,
+            )
+        }
+        var autoResumeCalled = false
+        val result =
+            faultTolerance.onNetworkRestored {
+                autoResumeCalled = true
+            }
+
+        assertFalse(result)
+        assertFalse(autoResumeCalled)
+    }
+
+    @Test
+    fun onNetworkRestored_whenNoTrackInQueue_suppressesAutoResume() {
+        sessionStateFlow.update {
+            it.copy(
+                queue = PlaybackQueue.EMPTY,
+                isWeakNetwork = true,
+                canManualRetry = true,
+            )
+        }
+        var autoResumeCalled = false
+        val result =
+            faultTolerance.onNetworkRestored {
+                autoResumeCalled = true
+            }
+
+        assertFalse(result)
+        assertFalse(autoResumeCalled)
+    }
+
+    @Test
+    fun onNetworkRestored_whenWeakNetworkWithoutRetry_suppressesAutoResume() {
+        sessionStateFlow.update {
+            it.copy(
+                isWeakNetwork = true,
+                canManualRetry = false,
+            )
+        }
+        var autoResumeCalled = false
+        val result =
+            faultTolerance.onNetworkRestored {
+                autoResumeCalled = true
+            }
+
+        assertFalse(result)
+        assertFalse(autoResumeCalled)
+    }
 }

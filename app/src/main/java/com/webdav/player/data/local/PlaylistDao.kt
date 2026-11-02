@@ -101,14 +101,28 @@ interface PlaylistDao {
     suspend fun deleteTracksByIds(ids: List<Long>): Int
 
     @Query("UPDATE playlist_tracks SET coverThumbnailPath = :coverThumbnailPath WHERE id = :trackEntryId")
-    suspend fun updateTrackCover(trackEntryId: Long, coverThumbnailPath: String?): Int
+    suspend fun updateTrackCover(
+        trackEntryId: Long,
+        coverThumbnailPath: String?,
+    ): Int
 
-    @Query("UPDATE playlist_tracks SET isInactive = :isInactive, inactiveReason = :reason WHERE serverId = :serverId AND remotePath = :remotePath")
+    @Query(
+        "UPDATE playlist_tracks SET isInactive = :isInactive, inactiveReason = :reason WHERE serverId = :serverId AND remotePath = :remotePath",
+    )
     suspend fun updateTrackInactiveStatus(
         serverId: Long,
         remotePath: String,
         isInactive: Boolean,
         reason: String?,
+    ): Int
+
+    @Query("SELECT DISTINCT serverId FROM playlist_tracks WHERE isInactive = 1 AND inactiveReason = :reason")
+    suspend fun getDistinctServerIdsForInactiveReason(reason: String): List<Long>
+
+    @Query("UPDATE playlist_tracks SET isInactive = 0, inactiveReason = NULL WHERE serverId = :serverId AND inactiveReason = :reason")
+    suspend fun clearServerUnreachableStatus(
+        serverId: Long,
+        reason: String = "SERVER_UNREACHABLE",
     ): Int
 
     @Query("SELECT * FROM playlist_tracks WHERE id = :trackEntryId LIMIT 1")
