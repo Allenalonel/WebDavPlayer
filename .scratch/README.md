@@ -14,9 +14,7 @@
 
 ## 活跃任务 (Active)
 
-| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
-| :--- | :--- | :---: | :---: | :--- |
-| `playback-engine-and-cross-server-resilience` | 播放引擎内核深化、跨服务器凭据原子同步与前台服务生命周期硬化 | 4 | Ready for Agent | [`playback-engine-and-cross-server-resilience/spec.md`](playback-engine-and-cross-server-resilience/spec.md) |
+> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
 
 ---
 
@@ -26,6 +24,7 @@
 
 | 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 归档路径 |
 | :--- | :--- | :---: | :---: | :--- |
+| `playback-engine-and-cross-server-resilience` | 播放引擎内核深化、跨服务器凭据原子同步与前台服务生命周期硬化 | 4 | Completed | [`archive/playback-engine-and-cross-server-resilience/`](archive/playback-engine-and-cross-server-resilience/) |
 | `webdav-protocol-and-artwork-resilience` | WebDAV 路径 RFC 3986 百分号解码、外置封面内存预过滤与 Digest 认证加速 | 4 | Completed | [`archive/webdav-protocol-and-artwork-resilience/`](archive/webdav-protocol-and-artwork-resilience/) |
 | `core-webdav-music-player` | 基础 WebDAV 音乐播放器核心架构与播放链路 | 10 | Completed | [`archive/core-webdav-music-player/`](archive/core-webdav-music-player/) |
 | `modern-md3-player-ui` | Modern Material Design 3 UI 与导航框架 | 5 | Completed | [`archive/modern-md3-player-ui/`](archive/modern-md3-player-ui/) |
