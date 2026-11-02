@@ -36,7 +36,7 @@
 ---
 
 ## Tickets Breakdown
-1. `01-system-network-connectivity-observer.md`: 系统级网络连通性响应式观察者与防抖 (Status: ready-for-agent, Blocked by: None)
+1. `01-system-network-connectivity-observer.md`: 系统级网络连通性响应式观察者与防抖 (Status: resolved, Blocked by: None)
 2. `02-ghost-proof-transparent-playback-auto-resumption.md`: 防鬼畜误播透明断点无感续播 (Status: ready-for-agent, Blocked by: 01)
 3. `03-offline-playlist-reachability-self-healing.md`: 离线歌单网络恢复静默自愈 (Status: ready-for-agent, Blocked by: 01)
 4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: ready-for-agent, Blocked by: 02, 03)
@@ -45,3 +45,4 @@
 
 ## Decisions-so-far
 - **Task Graph Initialized**: 建立集成分支 `feature/network-awareness-and-auto-resumption`，确定 4 个任务的拓扑关系与依赖图谱。
+- **Ticket 01 Resolved**: 实现 `NetworkStatus` 领域不可变模型与 `NetworkConnectivityObserver` 接口契约；实现基于原生 `ConnectivityManager.NetworkCallback` 的 `DefaultNetworkConnectivityObserver`，内置 500ms 协程防抖以阻断高频信号颠簸；在 `AppContainer` 与 `WebDavApplication` 中完成单例托管生命周期注入；提供 `FakeNetworkConnectivityObserver` 测试桩并通过 `NetworkConnectivityObserverTest` 验证 Wi-Fi、蜂窝、断网及防抖全部 9 项测试。
