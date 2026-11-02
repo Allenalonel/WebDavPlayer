@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Capsule shape is specified as a full pill geometry (`CapsuleCornerRadius >= 28.dp`, `CircleShape`) in component defaults.
 - [ ] Center-to-center touch clearance between the Play/Pause button and the Queue Music button is verified to be at least 48.dp adhering to MD3 touch guidelines.
