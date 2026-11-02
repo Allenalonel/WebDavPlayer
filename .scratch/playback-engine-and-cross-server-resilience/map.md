@@ -28,7 +28,7 @@
 ---
 
 ## Tickets Breakdown
-1. `01-cross-server-gapless-credential-synchronization.md`: 跨服务器切歌凭据原子同步 (Status: ready-for-agent, Blocked by: None)
+1. `01-cross-server-gapless-credential-synchronization.md`: 跨服务器切歌凭据原子同步 (Status: resolved, Blocked by: None)
 2. `02-bounded-retry-and-thread-release-in-data-source.md`: 流媒体数据源有界重试与线程释放 (Status: ready-for-agent, Blocked by: None)
 3. `03-foreground-service-elevation-and-recovery.md`: 前台服务同步提权与容错恢复 (Status: ready-for-agent, Blocked by: None)
 4. `04-end-to-end-pipeline-and-packaging-budget-gate.md`: 全量回归与二进制体积预算门禁 (Status: ready-for-agent, Blocked by: 01, 02, 03)
@@ -37,3 +37,4 @@
 
 ## Decisions-so-far
 - **Task Graph Initialized**: 明确了四项工单的拓扑依赖与设计规范，建立集成分支 `feature/playback-engine-and-cross-server-resilience`。
+- **Ticket 01 Resolved**: 在 `AudioPlayerEngine` 中扩展 `setActiveServer(server: WebDavServer)`，在 `Media3AudioPlayerEngine` 中通过应用 Looper 更新 `activeServerRef`；在 `PlaybackTimelineCoordinator` 中于曲目过渡时检测跨服务器变更并异步解析新服务器实体，原子同步 `sessionStateFlow.activeServer` 与 `playerEngine.setActiveServer`；完成 `PlaybackTimelineCoordinatorTest` 与 `MusicPlayerAppSessionTest` 验证。

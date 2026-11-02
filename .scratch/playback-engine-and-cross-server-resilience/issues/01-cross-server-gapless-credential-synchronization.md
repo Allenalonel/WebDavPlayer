@@ -4,10 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Audio player engine domain interface and implementations provide `setActiveServer(server: WebDavServer)`
-- [ ] Timeline coordinator observes engine track transitions and checks if the new track belongs to a different server
-- [ ] Upon cross-server transition, timeline coordinator asynchronously resolves the new server and atomically updates `sessionStateFlow.activeServer` and `playerEngine.setActiveServer`
-- [ ] Subsequent range reconnections and seeking actions use the correct server credentials
-- [ ] Unit tests in `PlaybackTimelineCoordinatorTest` and `MusicPlayerAppSessionTest` verify cross-server natural track transitions atomically update session and engine active server contexts
+- [x] Audio player engine domain interface and implementations provide `setActiveServer(server: WebDavServer)`
+- [x] Timeline coordinator observes engine track transitions and checks if the new track belongs to a different server
+- [x] Upon cross-server transition, timeline coordinator asynchronously resolves the new server and atomically updates `sessionStateFlow.activeServer` and `playerEngine.setActiveServer`
+- [x] Subsequent range reconnections and seeking actions use the correct server credentials
+- [x] Unit tests in `PlaybackTimelineCoordinatorTest` and `MusicPlayerAppSessionTest` verify cross-server natural track transitions atomically update session and engine active server contexts
+
+## Answer
+1. 在 `AudioPlayerEngine` 中新增 `setActiveServer(server: WebDavServer)` 接口契约，并在 `Media3AudioPlayerEngine` 中通过应用 Looper 更新 `activeServerRef`，确保 `delegatingDataSourceFactory` 后续创建的数据源与 Range 断点续传自动继承目标服务器凭据。
+2. 在 `PlaybackTimelineCoordinator.startTrackTransitionsObservation` 中，当收到引擎自然切歌事件时，比对下一曲目的 `serverId` 与当前激活服务器：若所属服务器变更，异步从 `ServerRepository` 解析最新服务器实体，并原子更新 `sessionStateFlow.activeServer` 与 `playerEngine.setActiveServer`。
+3. 新增 `PlaybackTimelineCoordinatorTest` 与 `MusicPlayerAppSessionTest.seamlessPreroll_crossServerTrackTransition_atomicallyUpdatesSessionAndEngineActiveServer`，全面覆盖跨服务器自然过渡时会话与引擎凭据上下文的原子同步。

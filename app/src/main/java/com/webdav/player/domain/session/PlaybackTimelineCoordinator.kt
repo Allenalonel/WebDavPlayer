@@ -334,8 +334,27 @@ internal class PlaybackTimelineCoordinator(
                     if (!queue.isEmpty) {
                         val nextIndex = queueManager.calculateNextQueueIndex(queue, sessionStateFlow.value.playbackMode)
                         val nextTrack = queue.tracks[nextIndex]
+                        val currentServer = sessionStateFlow.value.activeServer
+                        val resolvedServer =
+                            if (serverRepository != null && (currentServer == null || nextTrack.serverId != currentServer.id)) {
+                                try {
+                                    serverRepository.getServerById(nextTrack.serverId)?.also {
+                                        playerEngine.setActiveServer(it)
+                                    }
+                                } catch (_: Throwable) {
+                                    null
+                                }
+                            } else {
+                                null
+                            }
                         playbackProgressFlow.value = PlaybackProgress(0L, nextTrack.durationMs, 0L)
-                        sessionStateFlow.update { it.copy(queue = queue.copy(currentIndex = nextIndex), durationMs = nextTrack.durationMs) }
+                        sessionStateFlow.update {
+                            it.copy(
+                                queue = queue.copy(currentIndex = nextIndex),
+                                durationMs = nextTrack.durationMs,
+                                activeServer = resolvedServer ?: it.activeServer,
+                            )
+                        }
                         persistenceCoordinator.flushSession()
                     }
                 }

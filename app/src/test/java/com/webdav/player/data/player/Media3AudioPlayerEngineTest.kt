@@ -356,6 +356,22 @@ class Media3AudioPlayerEngineTest {
     }
 
     @Test
+    fun setActiveServer_updatesActiveServerAndDelegatingDataSource() {
+        val server1 = testServer
+        val server2 = testServer.copy(id = 2L, name = "Server 2", url = "http://server2.test/webdav")
+        engine.loadTrack(server1, track1)
+        assertEquals(server1, engine.activeServer)
+
+        engine.setActiveServer(server2)
+        assertEquals(server2, engine.activeServer)
+        val dataSource = engine.delegatingDataSourceFactory.createDataSource()
+        assertTrue(
+            "Expected ResilientWebDavDataSource when activeServer is set, but was ${dataSource::class.java.name}",
+            dataSource is ResilientWebDavDataSource,
+        )
+    }
+
+    @Test
     fun loadControl_bufferThresholds_andBackBuffer_verified() {
         val defaultConfig = engine.loadControlConfig
         assertEquals(10_000, defaultConfig.backBufferDurationMs)
