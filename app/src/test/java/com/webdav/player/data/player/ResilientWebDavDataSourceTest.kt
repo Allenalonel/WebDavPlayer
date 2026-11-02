@@ -363,7 +363,8 @@ class ResilientWebDavDataSourceTest {
             ResilientWebDavDataSource(
                 underlyingFactory = baseHttpDataSourceFactory,
             )
-        val ex = UnsupportedRangeReconnectionException("Remote server does not support partial content (HTTP 200 returned on Range request)")
+        val ex =
+            UnsupportedRangeReconnectionException("Remote server does not support partial content (HTTP 200 returned on Range request)")
         assertTrue("Direct UnsupportedRangeReconnectionException must be non-retryable", resilientSource.isNonRetryable(ex))
 
         val wrappedEx = IOException("Wrapper exception", ex)
@@ -396,7 +397,8 @@ class ResilientWebDavDataSourceTest {
             )
 
         val dataSpec =
-            DataSpec.Builder()
+            DataSpec
+                .Builder()
                 .setUri(mockWebServer.url("/stream.mp3").toString())
                 .build()
 
@@ -438,7 +440,8 @@ class ResilientWebDavDataSourceTest {
             )
 
         val dataSpec =
-            DataSpec.Builder()
+            DataSpec
+                .Builder()
                 .setUri(mockWebServer.url("/stream.mp3").toString())
                 .build()
 
@@ -477,7 +480,8 @@ class ResilientWebDavDataSourceTest {
             )
 
         val dataSpec =
-            DataSpec.Builder()
+            DataSpec
+                .Builder()
                 .setUri(mockWebServer.url("/stream.mp3").toString())
                 .build()
 

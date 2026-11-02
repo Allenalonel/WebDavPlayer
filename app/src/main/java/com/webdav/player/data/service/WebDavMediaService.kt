@@ -76,7 +76,8 @@ class WebDavMediaService : MediaSessionService() {
             WebDavNotificationProvider.ACTION_PLAY,
             WebDavNotificationProvider.ACTION_NEXT,
             WebDavNotificationProvider.ACTION_PREVIOUS,
-            Intent.ACTION_MEDIA_BUTTON -> {
+            Intent.ACTION_MEDIA_BUTTON,
+            -> {
                 val notification = host.buildCurrentNotification()
                 if (startForegroundSafely(notification, host.notificationProvider.notificationId)) {
                     host.attachService(this)

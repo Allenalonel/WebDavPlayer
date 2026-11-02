@@ -14,7 +14,9 @@
 
 ## 活跃任务 (Active)
 
-> 当前无进行中的活跃任务。工作区处于 Clean 状态，可直接通过 `/to-spec`、`/wayfinder` 或 `/to-tickets` 发起新特性开发。
+| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
+| :--- | :--- | :---: | :---: | :--- |
+| `network-awareness-and-auto-resumption` | 系统级网络连通性感知、弱网挂起断点无感自愈续播与离线曲目静默健康恢复 | 4 | Ready for Agent | [`network-awareness-and-auto-resumption/spec.md`](network-awareness-and-auto-resumption/spec.md) |
 
 ---
 

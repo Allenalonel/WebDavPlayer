@@ -210,7 +210,9 @@ class PlaybackSessionHost(
     var isForegroundActive: Boolean = false
         private set
 
-    private val isElevationPendingRef = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val isElevationPendingRef =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
 
     @get:VisibleForTesting
     val isElevationPending: Boolean
