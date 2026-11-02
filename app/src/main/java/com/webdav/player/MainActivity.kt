@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -35,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +58,7 @@ import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.MiniPlayer
+import com.webdav.player.ui.player.PlaybackQueueBottomSheet
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
 import com.webdav.player.ui.playlist.PlaylistDetailViewModel
@@ -90,6 +93,7 @@ class MainActivity : ComponentActivity() {
         AppViewModelFactory(appContainer)
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -127,6 +131,7 @@ class MainActivity : ComponentActivity() {
                 val navState by coordinator.uiState.collectAsStateWithLifecycle()
 
                 var tracksToAddToPlaylist by remember { mutableStateOf<List<AudioTrack>?>(null) }
+                var showQueueSheet by remember { mutableStateOf(false) }
 
                 LaunchedEffect(serverState.activeServer, serverState.isLoading) {
                     if (!serverState.isLoading) {
@@ -143,88 +148,61 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                // Hoisted Docked Mini-Player floating above navigation bar
-                                AnimatedVisibility(
-                                    visible = navState.isMiniPlayerVisible,
-                                    enter =
-                                        slideInVertically(
-                                            initialOffsetY = { it },
-                                            animationSpec = tween(250),
-                                        ) + fadeIn(animationSpec = tween(250)),
-                                    exit =
-                                        slideOutVertically(
-                                            targetOffsetY = { it },
-                                            animationSpec = tween(200),
-                                        ) + fadeOut(animationSpec = tween(200)),
-                                ) {
-                                    MiniPlayer(
-                                        sessionState = playerSessionState,
-                                        playbackActions = playbackActions,
-                                        playbackProgress = playbackProgress,
-                                        onMiniPlayerClick = { coordinator.expandFullPlayer() },
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                                    )
-                                }
-
-                                // Persistent Primary Navigation Bar
-                                NavigationBar(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                    tonalElevation = 3.dp,
-                                ) {
-                                    NavigationBarItem(
-                                        selected = navState.currentDestination == AppDestination.PLAYLISTS,
-                                        onClick = { coordinator.selectDestination(AppDestination.PLAYLISTS) },
-                                        icon = {
-                                            Icon(
-                                                imageVector = AppIcons.QueueMusic,
-                                                contentDescription = "歌单",
-                                            )
-                                        },
-                                        label = { Text("歌单") },
-                                    )
-                                    NavigationBarItem(
-                                        selected = navState.currentDestination == AppDestination.DIRECTORY_BROWSER,
-                                        onClick = { coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER) },
-                                        icon = {
-                                            Icon(
-                                                imageVector =
-                                                    if (navState.currentDestination == AppDestination.DIRECTORY_BROWSER) {
-                                                        AppIcons.FolderOpen
-                                                    } else {
-                                                        AppIcons.Folder
-                                                    },
-                                                contentDescription = "媒体库",
-                                            )
-                                        },
-                                        label = { Text("媒体库") },
-                                    )
-                                    NavigationBarItem(
-                                        selected = navState.currentDestination == AppDestination.SERVER_LIST,
-                                        onClick = { coordinator.selectDestination(AppDestination.SERVER_LIST) },
-                                        icon = {
-                                            Icon(
-                                                imageVector = AppIcons.Storage,
-                                                contentDescription = "服务器",
-                                            )
-                                        },
-                                        label = { Text("服务器") },
-                                    )
-                                }
+                            // Persistent Primary Navigation Bar
+                            NavigationBar(
+                                modifier = Modifier.fillMaxWidth(),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                tonalElevation = 3.dp,
+                            ) {
+                                NavigationBarItem(
+                                    selected = navState.currentDestination == AppDestination.PLAYLISTS,
+                                    onClick = { coordinator.selectDestination(AppDestination.PLAYLISTS) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = AppIcons.QueueMusic,
+                                            contentDescription = "歌单",
+                                        )
+                                    },
+                                    label = { Text("歌单") },
+                                )
+                                NavigationBarItem(
+                                    selected = navState.currentDestination == AppDestination.DIRECTORY_BROWSER,
+                                    onClick = { coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER) },
+                                    icon = {
+                                        Icon(
+                                            imageVector =
+                                                if (navState.currentDestination == AppDestination.DIRECTORY_BROWSER) {
+                                                    AppIcons.FolderOpen
+                                                } else {
+                                                    AppIcons.Folder
+                                                },
+                                            contentDescription = "媒体库",
+                                        )
+                                    },
+                                    label = { Text("媒体库") },
+                                )
+                                NavigationBarItem(
+                                    selected = navState.currentDestination == AppDestination.SERVER_LIST,
+                                    onClick = { coordinator.selectDestination(AppDestination.SERVER_LIST) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = AppIcons.Storage,
+                                            contentDescription = "服务器",
+                                        )
+                                    },
+                                    label = { Text("服务器") },
+                                )
                             }
                         },
                     ) { innerPadding ->
-                        // Preserved view hierarchy across tab transitions
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(bottom = innerPadding.calculateBottomPadding()),
-                        ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // Preserved view hierarchy across tab transitions
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .padding(bottom = innerPadding.calculateBottomPadding()),
+                            ) {
                             val isBrowser = navState.currentDestination == AppDestination.DIRECTORY_BROWSER
                             Box(
                                 modifier =
@@ -316,6 +294,56 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+
+                        // Independent Floating Capsule MiniPlayer Overlay
+                        AnimatedVisibility(
+                            visible = navState.isMiniPlayerVisible,
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = innerPadding.calculateBottomPadding() + 8.dp)
+                                    .padding(horizontal = 14.dp),
+                            enter =
+                                slideInVertically(
+                                    initialOffsetY = { it },
+                                    animationSpec = tween(250),
+                                ) + fadeIn(animationSpec = tween(250)),
+                            exit =
+                                slideOutVertically(
+                                    targetOffsetY = { it },
+                                    animationSpec = tween(200),
+                                ) + fadeOut(animationSpec = tween(200)),
+                        ) {
+                            MiniPlayer(
+                                sessionState = playerSessionState,
+                                playbackActions = playbackActions,
+                                playbackProgress = playbackProgress,
+                                onMiniPlayerClick = { coordinator.expandFullPlayer() },
+                                onOpenQueue = { showQueueSheet = true },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+
+                    if (showQueueSheet) {
+                        PlaybackQueueBottomSheet(
+                            queue = playerSessionState.queue,
+                            playbackMode = playerSessionState.playbackMode,
+                            playbackProgress = playbackProgress,
+                            isPlaying = playerSessionState.isPlaying,
+                            onTrackClick = { index ->
+                                playbackActions.playQueueIndex(index)
+                            },
+                            onRemoveTrack = { index ->
+                                playbackActions.removeQueueTrack(index)
+                            },
+                            onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+                            onDismissRequest = { showQueueSheet = false },
+                            onAddToPlaylist = { track ->
+                                tracksToAddToPlaylist = listOf(track)
+                            },
+                        )
                     }
 
                     // Hoisted Full Player View Overlay
