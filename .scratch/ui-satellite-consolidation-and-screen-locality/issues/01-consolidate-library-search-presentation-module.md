@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `SearchHistorySection.kt`, `SearchDirectoriesSection.kt`, and `SearchTrackItem.kt` are deleted
-- [ ] History chips rendering, directory match rows, and track match items are integrated into `SearchResultsViews.kt` as internal collaborators
-- [ ] `SearchResultsContent` composable signature and external presentation behavior remain 100% identical
-- [ ] Internal subtitle formatting helper `resolveSearchTrackSubtitle` is preserved in the package
-- [ ] `SearchTrackItemTest` passes with zero regressions, verifying subtitle formatting for standard and CUE virtual tracks
+- [x] `SearchHistorySection.kt`, `SearchDirectoriesSection.kt`, and `SearchTrackItem.kt` are deleted
+- [x] History chips rendering, directory match rows, and track match items are integrated into `SearchResultsViews.kt` as internal collaborators
+- [x] `SearchResultsContent` composable signature and external presentation behavior remain 100% identical
+- [x] Internal subtitle formatting helper `resolveSearchTrackSubtitle` is preserved in the package
+- [x] `SearchTrackItemTest` passes with zero regressions, verifying subtitle formatting for standard and CUE virtual tracks
