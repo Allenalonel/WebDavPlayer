@@ -131,15 +131,7 @@ class DefaultCueSheetResolver(
                                 audioFiles = audioFiles,
                                 referencedFileNames = referencedFiles,
                                 totalCueFilesCount = cueFiles.size,
-                            ) ?: if (referencedFiles.isEmpty()) {
-                                findMatchingAudioFile(
-                                    cueFile = cueFile,
-                                    audioFiles = audioFiles,
-                                    totalCueFilesCount = cueFiles.size,
-                                )
-                            } else {
-                                null
-                            }
+                            )
 
                         if (matchedAudio == null) {
                             CueAlbumItem(

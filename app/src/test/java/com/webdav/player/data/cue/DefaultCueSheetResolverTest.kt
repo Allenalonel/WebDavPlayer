@@ -514,15 +514,29 @@ class DefaultCueSheetResolverTest {
                   INDEX 01 00:00:00
                 """.trimIndent()
 
-            val cueFile = RemoteFile(name = "Hotel_California.cue", path = "/Music/Hotel_California.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val matchingAudio = RemoteFile(name = "Hotel_California.flac", path = "/Music/Hotel_California.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
-            val otherAudio = RemoteFile(name = "Bonus_Track.mp3", path = "/Music/Bonus_Track.mp3", size = 5_000_000L, fileType = RemoteFileType.Audio(AudioFormat.MP3))
+            val cueFile =
+                RemoteFile(name = "Hotel_California.cue", path = "/Music/Hotel_California.cue", size = 200L, fileType = RemoteFileType.Cue)
+            val matchingAudio =
+                RemoteFile(
+                    name = "Hotel_California.flac",
+                    path = "/Music/Hotel_California.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
+            val otherAudio =
+                RemoteFile(
+                    name = "Bonus_Track.mp3",
+                    path = "/Music/Bonus_Track.mp3",
+                    size = 5_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.MP3),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, matchingAudio, otherAudio),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, matchingAudio, otherAudio),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -543,13 +557,20 @@ class DefaultCueSheetResolverTest {
                 """.trimIndent()
 
             val cueFile = RemoteFile(name = "ALBUM.CUE", path = "/Music/ALBUM.CUE", size = 200L, fileType = RemoteFileType.Cue)
-            val audioFile = RemoteFile(name = "album.flac", path = "/Music/album.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val audioFile =
+                RemoteFile(
+                    name = "album.flac",
+                    path = "/Music/album.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, audioFile),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, audioFile),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -570,14 +591,27 @@ class DefaultCueSheetResolverTest {
                 """.trimIndent()
 
             val cueFile = RemoteFile(name = "disc1.cue", path = "/Music/disc1.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val cd1Audio = RemoteFile(name = "The_Wall_CD1.flac", path = "/Music/The_Wall_CD1.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
-            val cd2Audio = RemoteFile(name = "The_Wall_CD2.flac", path = "/Music/The_Wall_CD2.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val cd1Audio =
+                RemoteFile(
+                    name = "The_Wall_CD1.flac",
+                    path = "/Music/The_Wall_CD1.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
+            val cd2Audio =
+                RemoteFile(
+                    name = "The_Wall_CD2.flac",
+                    path = "/Music/The_Wall_CD2.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, cd1Audio, cd2Audio),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, cd1Audio, cd2Audio),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -598,13 +632,20 @@ class DefaultCueSheetResolverTest {
                 """.trimIndent()
 
             val cueFile = RemoteFile(name = "CDImage.cue", path = "/Music/CDImage.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val audioFile = RemoteFile(name = "CDImage.flac", path = "/Music/CDImage.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val audioFile =
+                RemoteFile(
+                    name = "CDImage.flac",
+                    path = "/Music/CDImage.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, audioFile),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, audioFile),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -625,13 +666,20 @@ class DefaultCueSheetResolverTest {
                 """.trimIndent()
 
             val cueFile = RemoteFile(name = "Album.cue", path = "/Music/Album.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val audioFile = RemoteFile(name = "SideA.flac", path = "/Music/SideA.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val audioFile =
+                RemoteFile(
+                    name = "SideA.flac",
+                    path = "/Music/SideA.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, audioFile),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, audioFile),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -651,14 +699,27 @@ class DefaultCueSheetResolverTest {
                   INDEX 01 00:00:00
                 """.trimIndent()
 
-            val cueFile = RemoteFile(name = "Beethoven_Sym5_Part1.cue", path = "/Music/Beethoven_Sym5_Part1.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val audioFile = RemoteFile(name = "Beethoven_Sym5.flac", path = "/Music/Beethoven_Sym5.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val cueFile =
+                RemoteFile(
+                    name = "Beethoven_Sym5_Part1.cue",
+                    path = "/Music/Beethoven_Sym5_Part1.cue",
+                    size = 200L,
+                    fileType = RemoteFileType.Cue,
+                )
+            val audioFile =
+                RemoteFile(
+                    name = "Beethoven_Sym5.flac",
+                    path = "/Music/Beethoven_Sym5.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, audioFile),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, audioFile),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -677,14 +738,22 @@ class DefaultCueSheetResolverTest {
                   INDEX 01 00:00:00
                 """.trimIndent()
 
-            val cueFile = RemoteFile(name = "Beethoven_Sym9.cue", path = "/Music/Beethoven_Sym9.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val audioFile = RemoteFile(name = "Beethoven_Sym9.ape", path = "/Music/Beethoven_Sym9.ape", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.APE))
+            val cueFile =
+                RemoteFile(name = "Beethoven_Sym9.cue", path = "/Music/Beethoven_Sym9.cue", size = 200L, fileType = RemoteFileType.Cue)
+            val audioFile =
+                RemoteFile(
+                    name = "Beethoven_Sym9.ape",
+                    path = "/Music/Beethoven_Sym9.ape",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.APE),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, audioFile),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, audioFile),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -706,13 +775,20 @@ class DefaultCueSheetResolverTest {
                 """.trimIndent()
 
             val cueFile = RemoteFile(name = "Orphan.cue", path = "/Music/Orphan.cue", size = 200L, fileType = RemoteFileType.Cue)
-            val unrelatedAudio = RemoteFile(name = "Unrelated.flac", path = "/Music/Unrelated.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+            val unrelatedAudio =
+                RemoteFile(
+                    name = "Unrelated.flac",
+                    path = "/Music/Unrelated.flac",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+                )
 
-            val dir = RemoteDirectory(
-                path = "/Music/",
-                name = "Music",
-                files = listOf(cueFile, unrelatedAudio),
-            )
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, unrelatedAudio),
+                )
             fakeWebDavClient.textResponses[cueFile.path] = cueContent
 
             val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
@@ -725,13 +801,20 @@ class DefaultCueSheetResolverTest {
     @Test
     fun resolveInitialCueAlbums_matchesAudioByBaseName() {
         val cueFile = RemoteFile(name = "Album.cue", path = "/Music/Album.cue", size = 200L, fileType = RemoteFileType.Cue)
-        val audioFile = RemoteFile(name = "Album.flac", path = "/Music/Album.flac", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.FLAC))
+        val audioFile =
+            RemoteFile(
+                name = "Album.flac",
+                path = "/Music/Album.flac",
+                size = 50_000_000L,
+                fileType = RemoteFileType.Audio(AudioFormat.FLAC),
+            )
 
-        val dir = RemoteDirectory(
-            path = "/Music/",
-            name = "Music",
-            files = listOf(cueFile, audioFile),
-        )
+        val dir =
+            RemoteDirectory(
+                path = "/Music/",
+                name = "Music",
+                files = listOf(cueFile, audioFile),
+            )
 
         val albums = resolver.resolveInitialCueAlbums(dir)
 
@@ -743,17 +826,64 @@ class DefaultCueSheetResolverTest {
     @Test
     fun resolveInitialCueAlbums_singlePairFallback_associatesWhenOnlyOneCueAndAudio() {
         val cueFile = RemoteFile(name = "playlist.cue", path = "/Music/playlist.cue", size = 200L, fileType = RemoteFileType.Cue)
-        val audioFile = RemoteFile(name = "entire_concert.wav", path = "/Music/entire_concert.wav", size = 50_000_000L, fileType = RemoteFileType.Audio(AudioFormat.WAV))
+        val audioFile =
+            RemoteFile(
+                name = "entire_concert.wav",
+                path = "/Music/entire_concert.wav",
+                size = 50_000_000L,
+                fileType = RemoteFileType.Audio(AudioFormat.WAV),
+            )
 
-        val dir = RemoteDirectory(
-            path = "/Music/",
-            name = "Music",
-            files = listOf(cueFile, audioFile),
-        )
+        val dir =
+            RemoteDirectory(
+                path = "/Music/",
+                name = "Music",
+                files = listOf(cueFile, audioFile),
+            )
 
         val albums = resolver.resolveInitialCueAlbums(dir)
 
         assertEquals(1, albums.size)
         assertEquals("entire_concert.wav", albums[0].audioFile?.name)
     }
+
+    @Test
+    fun resolveDirectoryCueAlbums_singlePairFallback_associatesWhenDifferentNamesAndNoReference() =
+        runTest(testDispatcher) {
+            val cueContent =
+                """
+                TRACK 01 AUDIO
+                  TITLE "Concert Part 1"
+                  INDEX 01 00:00:00
+                """.trimIndent()
+
+            val cueFile =
+                RemoteFile(
+                    name = "playlist.cue",
+                    path = "/Music/playlist.cue",
+                    size = 200L,
+                    fileType = RemoteFileType.Cue,
+                )
+            val audioFile =
+                RemoteFile(
+                    name = "entire_concert.wav",
+                    path = "/Music/entire_concert.wav",
+                    size = 50_000_000L,
+                    fileType = RemoteFileType.Audio(AudioFormat.WAV),
+                )
+
+            val dir =
+                RemoteDirectory(
+                    path = "/Music/",
+                    name = "Music",
+                    files = listOf(cueFile, audioFile),
+                )
+            fakeWebDavClient.textResponses[cueFile.path] = cueContent
+
+            val albums = resolver.resolveDirectoryCueAlbums(sampleServer, dir)
+
+            assertEquals(1, albums.size)
+            assertEquals("entire_concert.wav", albums[0].audioFile?.name)
+            assertEquals(1, albums[0].tracks.size)
+        }
 }
