@@ -2,7 +2,7 @@ package com.webdav.player.domain.model
 
 data class Lyrics(
     val lines: List<LyricLine> = emptyList(),
-    val isSynchronized: Boolean = true
+    val isSynchronized: Boolean = true,
 ) {
     val isEmpty: Boolean get() = lines.isEmpty()
     val isNotEmpty: Boolean get() = lines.isNotEmpty()
