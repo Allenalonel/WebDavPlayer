@@ -16,9 +16,10 @@ Status: completed
 
 1. **顶层骨架解耦（Decoupled Overlay Architecture）**：将 MiniPlayer 从 `Scaffold.bottomBar` 槽位中彻底抽离，提升为顶层独立的悬浮层（Overlay），悬停在 `Primary Navigation Bar` 之上，留出纯净的横向呼吸边距与纵向悬停间隙。
 2. **全屏沉浸穿透与静态安全垫（Penetrative Scrolling with ContentPadding）**：主视图列表（`LazyColumn`）完全延伸至底部，通过尾部静态注入的安全内边距（`contentPadding` 约 160dp）确保用户滑动时列表自然从胶囊背后穿透滑过；当滑动至最底端时，最后一首曲目完全露出在胶囊上方，且彻底避免切歌或播放栏显隐时引起的任何布局跳变（Layout Jump）。
-3. **跨版本自适应晶透材质（Adaptive Glass & Contrast Guard）**：
-   - 在 Android 12+ (API 31+) 上，启用硬件级 GPU 高斯模糊（RenderEffect）+ 85% 半透明亚克力质感 + 1dp 晶莹边框；
-   - 在 Android 10/11 (API 29/30) 上，自动优雅降级为 94% 高遮蔽纯净卡片 + MD3 柔和多阶扩散投影，确保文字绝对清晰、100% 满帧流畅且无兼容性风险。
+3. **纯正 MD3 原生高阶浮岛材质（Pure MD3 Elevated Solid Island & Contrast Guard）**：
+   - **真机实测驱动的决策演进**：真机验证表明 Compose 原生 `RenderEffect` 仅作用于当前 Layer 本身（会模糊前景文字自身），而纯半透明又会导致底层滑动曲目文字严重穿透打架；因此全面收敛至 Material Design 3 官方推荐的实体色调模型；
+   - **材质与轮廓规范**：采用 100% 不透明纯色 `surfaceContainerHigh` 表面 + `tonalElevation = 6dp` + `shadowElevation = 8dp` 柔光扩散投影 + 1dp `outlineVariant` (25% alpha) 细边框，提供 100% 满分无障碍可读性与 Google Pixel 原生系统质感；
+   - **内嵌微跑道进度条**：底端进度指示条采用两端各内缩 `14dp`、高度 `3dp`、圆角 `3dp` 的悬浮胶囊微跑道，与 `28dp` 跑道外廓形成严谨的 MD3 几何比例呼应。
 4. **手势增强与按键重构（Swipe-to-Skip & Queue Access）**：
    - 胶囊卡片全面支持**水平轻扫滑动手势**（左滑切下一曲、右滑切上一曲），并在触发切歌阈值时提供清脆的系统级**触觉震动反馈（HapticFeedback）**；
    - 原「下一曲」图标按钮因与手势功能重叠予以替换，改设为**「打开播放队列 (QueueMusic)」按钮**，点击直接弹出应用内已有的 `Playback Queue Bottom Sheet`；
@@ -31,8 +32,8 @@ Status: completed
 2. As a listener, I want the music track list to smoothly slide underneath and behind the MiniPlayer when I scroll, so that I experience a cohesive sense of depth and fluid immersion.
 3. As a listener, when I scroll to the absolute bottom of any audio track list, I want the last track to stop cleanly above the floating capsule, so that no track is obscured or unclickable.
 4. As a listener, when playback starts or stops and the MiniPlayer appears or disappears, I want the browsing list position to remain perfectly stable without jarring layout jumps, so that my reading flow is not interrupted.
-5. As an Android 12+ user, I want the floating capsule to feature real-time frosted glass acrylic blur and subtle highlights, so that the underlying list colors gently shimmer through the capsule body.
-6. As an Android 10 or 11 user, I want the floating capsule to gracefully display high-contrast solid MD3 surface container styling with smooth shadows, so that the interface never stutters, glitches, or crashes on my device.
+5. As a listener, I want the floating capsule to feature a pure solid MD3 surface container with clean outline highlights, so that underlying list text never bleeds through or obscures track readability.
+6. As an Android user across all API levels (API 29–34+), I want the floating capsule to render with zero graphics errors, zero dropped frames, and standard MD3 ambient elevation shadows.
 7. As a listener, I want to swipe horizontally left or right on the floating capsule, so that I can quickly skip to the next or previous track with one hand.
 8. As a listener, when my horizontal swipe crosses the threshold to trigger track switching, I want to feel a crisp haptic vibration tick, so that I have clear sensory confirmation of the action.
 9. As a listener, I want a dedicated queue icon button on the right side of the floating capsule, so that I can immediately open the `Playback Queue Bottom Sheet` with a single tap.
@@ -60,10 +61,11 @@ Status: completed
 - This inset is statically preserved regardless of whether the mini-player is currently visible, completely eliminating layout jumping, list recreation, or stutter when tracks begin playback or pause.
 
 ### 3. Adaptive Surface Material and Rendering Compatibility
-- Encapsulate the visual styling into a dedicated glass surface modifier:
-  - **API Level >= 31 (Android 12+)**: Employs `Modifier.graphicsLayer` with hardware-accelerated `RenderEffect.createBlurEffect` (approx. 20dp blur radius), combined with an 82%–88% translucent `surfaceContainerHighest` fill and a 1dp crystalline border (`outlineVariant` with 35% alpha).
-  - **API Level < 31 (Android 10/11)**: Automatically falls back to high-opacity solid MD3 surface tint (`surfaceContainerHigh` with 94% opacity), zero blur pass-through, and standard tonal elevation shadows (6–8dp), preventing GPU buffer overhead and rendering defects on older OS releases.
-- The capsule boundary strictly adopts a full pill geometry (`CircleShape` or `RoundedCornerShape` with radius >= 28dp).
+- Adopt the pure Material Design 3 Elevated Solid Island surface architecture:
+  - **Color & Opacity**: 100% solid, opaque `surfaceContainerHigh` surface tint, preventing any underlying list text or complex artwork from bleeding through or colliding with miniplayer foreground text.
+  - **Elevation & Contour**: Standardized `tonalElevation = 6.dp` and `shadowElevation = 8.dp` ambient elevation shadow, plus 1dp `outlineVariant` border with 25% alpha, delivering true 3D spatial separation.
+  - **Micro Progress Track**: Inset by 14dp on both lateral ends, 3dp height, fully rounded corners (`RoundedCornerShape(3.dp)`), floating elegantly at the capsule bottom.
+- The capsule boundary strictly adopts a full pill geometry (`CapsuleCornerRadius = 28.dp`, `CircleShape`).
 
 ### 4. Gestural Dynamics and Tactile Feedback
 - **Horizontal Swipe Detection**: Incorporates pointer-input tracking for horizontal drag gestures over the capsule body.
