@@ -380,7 +380,9 @@ class PlaybackSessionResumptionTest {
             assertEquals(1L, saved?.activeServerId)
             assertEquals("/Music/Jazz/", saved?.currentDirectoryPath)
             assertEquals(2, saved?.queueTracks?.size)
-            assertEquals(1, saved?.currentTrackIndex)
+            // Under ADR-0026 explicit shuffled queue, active track is pinned to index 0
+            assertEquals(0, saved?.currentTrackIndex)
+            assertEquals("1:/Music/Jazz/track2.flac", saved?.queueTracks?.get(0)?.id)
             assertEquals(42000L, saved?.positionMs)
             assertEquals(PlaybackMode.SHUFFLE, saved?.playbackMode)
         }
