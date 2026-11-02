@@ -1,6 +1,6 @@
 # Spec: Floating Capsule Docked Mini-Player
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 

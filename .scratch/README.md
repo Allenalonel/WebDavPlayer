@@ -24,6 +24,7 @@
 
 | 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 归档路径 |
 | :--- | :--- | :---: | :---: | :--- |
+| `floating-capsule-miniplayer` | 独立动态原色晶透悬浮胶囊播控栏与沉浸穿透滑动规范 (ADR-0007) | 5 | Completed | [`archive/floating-capsule-miniplayer/`](archive/floating-capsule-miniplayer/) |
 | `batch-playlist-multi-select` | 批量添加到歌单与媒体库/全局搜索上下文多选模式 (ADR-0027) | 0 | Completed | [`archive/batch-playlist-multi-select/`](archive/batch-playlist-multi-select/) |
 | `ui-satellite-consolidation-and-screen-locality` | UI 表现层单调用方卫星碎片清零与屏幕模块深度内聚 | 4 | Completed | [`archive/ui-satellite-consolidation-and-screen-locality/`](archive/ui-satellite-consolidation-and-screen-locality/) |
 | `consolidate-satellites-and-deepen-domain-locality` | 消除卫星碎片文件、收敛测试表面与深化领域模型局部性 | 5 | Completed | [`archive/consolidate-satellites-and-deepen-domain-locality/`](archive/consolidate-satellites-and-deepen-domain-locality/) |
