@@ -35,3 +35,12 @@ data class Lyrics(
         val EMPTY = Lyrics(lines = emptyList(), isSynchronized = false)
     }
 }
+
+data class LyricLine(
+    val timestampMs: Long,
+    val text: String,
+    val translation: String? = null,
+) {
+    val mainText: String get() = text
+    val hasTranslation: Boolean get() = !translation.isNullOrBlank()
+}
