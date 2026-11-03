@@ -1,4 +1,4 @@
-# WebDavPlayer
+# WebDAVPlayer
 
 本项目是一个 Android WebDAV 音乐播放器应用，询问我需求和意见时使用中文。
 
@@ -23,6 +23,7 @@ Architectural and code-review standards live in `CODING_STANDARDS.md`.
 ### Subagent execution & concurrency
 
 When running `implement-spec` or multi-agent workflows with implementer subagents:
+
 - **Concurrency ceiling**: Run up to **2–4 subagents in parallel** in isolated worktrees (`worktree: true`) to balance execution speed and Gradle daemon memory footprint.
 - **Targeted verification**: Subagents in their worktrees must run targeted module tests (`--tests "*<TestClass>*"`), reserving full `./gradlew testDebugUnitTest` and release packaging verification (`verifyReleasePackaging`) for the final integration branch gate.
 
@@ -31,4 +32,10 @@ When running `implement-spec` or multi-agent workflows with implementer subagent
 - **严格区分“讨论态”与“执行态”**：当指令或提示词中包含“讨论”、“方案”、“评估”、“分析”、“对比”、“Grill”、“思考”等探索/协商性词汇时，智能体处于只读思考与交流模式，**严禁调用任何写入工具（`edit` / `write`）修改业务代码**。
 - **强制等待明确授权**：只有在用户明确发出指令（如“开始实施”、“执行”、“确认修改”、“开写”）后，方可进入执行态并执行文件变更。
 
+### UI visual sanity check (UI 真机自检铁律)
 
+- **主动截图审查闭环**：凡涉及核心布局、导航底栏、悬浮播放器、全屏播放器或歌词等表现层的改动，在交付用户前，智能体必须主动执行 `adb exec-out screencap -p > .tmp/screen.png` 截屏并使用 `read` 工具读取图片进行像素级自查（验证居中度、内外边距、字体对比度及手势避让），自证渲染合格后方可交付。
+
+### Release automation (版本发布工具契约)
+
+- **优先使用官方 GitHub CLI**：系统已安装官方 `gh` CLI（v2.103.3+）。后续发布版本时，统一使用 `gh release create <tag> <apk_path> --notes "..."`（必要时注入环境变量 `GH_TOKEN` 与 `HTTPS_PROXY`），杜绝即兴编写易受平台差异干扰的临时脚本。
