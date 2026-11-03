@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -45,27 +47,27 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.ui.theme.AppIcons
 
 object LyricsViewDefaults {
-    val ActiveMainFontSize: TextUnit = 26.sp
-    val InactiveMainFontSize: TextUnit = 19.sp
-    val ActiveTranslationFontSize: TextUnit = 16.sp
-    val InactiveTranslationFontSize: TextUnit = 14.sp
+    val ActiveMainFontSize: TextUnit = 22.sp
+    val InactiveMainFontSize: TextUnit = 17.sp
+    val ActiveTranslationFontSize: TextUnit = 14.sp
+    val InactiveTranslationFontSize: TextUnit = 12.sp
 
-    val ActiveMainFontWeight: FontWeight = FontWeight.Bold
-    val InactiveMainFontWeight: FontWeight = FontWeight.Normal
-    val ActiveTranslationFontWeight: FontWeight = FontWeight.Medium
-    val InactiveTranslationFontWeight: FontWeight = FontWeight.Normal
+    val ActiveMainFontWeight: FontWeight = FontWeight.ExtraBold
+    val InactiveMainFontWeight: FontWeight = FontWeight.Bold
+    val ActiveTranslationFontWeight: FontWeight = FontWeight.SemiBold
+    val InactiveTranslationFontWeight: FontWeight = FontWeight.Medium
 
     const val ActiveMainAlpha: Float = 1.0f
-    const val ActiveTranslationAlpha: Float = 0.75f
-    const val InactiveMainAlpha: Float = 0.55f
-    const val InactiveTranslationAlpha: Float = 0.38f
+    const val ActiveTranslationAlpha: Float = 0.88f
+    const val InactiveMainAlpha: Float = 0.38f
+    const val InactiveTranslationAlpha: Float = 0.30f
     const val UnsyncedMainAlpha: Float = 1.0f
     const val UnsyncedTranslationAlpha: Float = 0.70f
 
     val BilingualSpacing: Dp = 4.dp
-    val ItemVerticalPadding: Dp = 6.dp
-    val ItemHorizontalPadding: Dp = 16.dp
-    val LineSpacing: Dp = 18.dp
+    val ItemVerticalPadding: Dp = 8.dp
+    val ItemHorizontalPadding: Dp = 12.dp
+    val LineSpacing: Dp = 16.dp
 
     fun resolveMainAlpha(
         isActive: Boolean,
@@ -245,7 +247,7 @@ internal fun LyricLineItem(
     val activeBackgroundColor by animateColorAsState(
         targetValue =
             if (isActive) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
             } else {
                 Color.Transparent
             },
@@ -253,11 +255,11 @@ internal fun LyricLineItem(
         label = "LyricActiveBackground",
     )
 
-    Column(
+    Row(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(activeBackgroundColor)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -265,31 +267,48 @@ internal fun LyricLineItem(
                     onClick = onClick,
                 ).padding(
                     vertical = LyricsViewDefaults.ItemVerticalPadding,
-                    horizontal = 8.dp,
+                    horizontal = LyricsViewDefaults.ItemHorizontalPadding,
                 ),
-        horizontalAlignment = Alignment.Start,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = line.mainText,
-            color = mainTextColor,
-            fontSize = mainFontSize,
-            fontWeight = mainFontWeight,
-            textAlign = TextAlign.Start,
-            lineHeight = if (isActive) 34.sp else 26.sp,
-            modifier = Modifier.fillMaxWidth().testTag("lyric_main_text"),
-        )
-
-        if (line.hasTranslation && !line.translation.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(LyricsViewDefaults.BilingualSpacing))
-            Text(
-                text = line.translation,
-                color = translationTextColor,
-                fontSize = translationFontSize,
-                fontWeight = translationFontWeight,
-                textAlign = TextAlign.Start,
-                lineHeight = if (isActive) 20.sp else 18.sp,
-                modifier = Modifier.fillMaxWidth().testTag("lyric_translation_text"),
+        if (isActive) {
+            Box(
+                modifier =
+                    Modifier
+                        .width(3.5.dp)
+                        .height(26.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.primary),
             )
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(
+                text = line.mainText,
+                color = mainTextColor,
+                fontSize = mainFontSize,
+                fontWeight = mainFontWeight,
+                textAlign = TextAlign.Start,
+                lineHeight = if (isActive) 30.sp else 24.sp,
+                modifier = Modifier.fillMaxWidth().testTag("lyric_main_text"),
+            )
+
+            if (line.hasTranslation && !line.translation.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(LyricsViewDefaults.BilingualSpacing))
+                Text(
+                    text = line.translation,
+                    color = translationTextColor,
+                    fontSize = translationFontSize,
+                    fontWeight = translationFontWeight,
+                    textAlign = TextAlign.Start,
+                    lineHeight = if (isActive) 20.sp else 18.sp,
+                    modifier = Modifier.fillMaxWidth().testTag("lyric_translation_text"),
+                )
+            }
         }
     }
 }

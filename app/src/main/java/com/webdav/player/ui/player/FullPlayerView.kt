@@ -201,14 +201,17 @@ fun FullPlayerView(
                         style =
                             MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
+                                letterSpacing = 0.8.sp,
                             ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                     )
+                    val trackTitle = currentTrack?.title ?: "WebDAV 曲库"
+                    val artist = currentTrack?.artist?.takeIf { it.isNotBlank() }
+                    val displaySubtitle = if (artist != null) "$trackTitle · $artist" else trackTitle
                     Text(
-                        text = currentTrack?.album?.takeIf { it.isNotBlank() } ?: "WebDAV 曲库",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        text = displaySubtitle,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -445,40 +448,10 @@ private fun LyricsPage(
     onReturnToArtwork: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentTrack = sessionState.currentTrack
-
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize(),
-        horizontalAlignment = Alignment.Start,
+    Box(
+        modifier = modifier.fillMaxSize(),
     ) {
-        // Song Header in lyrics view
-        Text(
-            text = currentTrack?.title ?: "无正在播放曲目",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Start,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .basicMarquee(),
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = currentTrack?.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Start,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Synchronized, smooth-scrolling Lyrics View with Tap-to-Seek
+        // M3 Expressive Synchronized, smooth-scrolling Lyrics View with Tap-to-Seek
         LyricsView(
             lyrics = sessionState.lyrics,
             isLoading = sessionState.isLoadingLyrics,
@@ -486,7 +459,7 @@ private fun LyricsPage(
             currentPositionMs = currentPositionMs,
             onSeekTo = onSeekTo,
             onToggleCover = onReturnToArtwork,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }

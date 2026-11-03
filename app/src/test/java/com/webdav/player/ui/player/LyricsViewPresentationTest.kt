@@ -15,21 +15,21 @@ class LyricsViewPresentationTest {
     fun lyricsViewDefaults_typographyHierarchy_differentiatesMainAndTranslation() {
         // Main text sizes
         assertTrue(LyricsViewDefaults.ActiveMainFontSize > LyricsViewDefaults.InactiveMainFontSize)
-        assertEquals(26.sp, LyricsViewDefaults.ActiveMainFontSize)
-        assertEquals(19.sp, LyricsViewDefaults.InactiveMainFontSize)
+        assertEquals(22.sp, LyricsViewDefaults.ActiveMainFontSize)
+        assertEquals(17.sp, LyricsViewDefaults.InactiveMainFontSize)
 
         // Translation text sizes (subordinate to main)
         assertTrue(LyricsViewDefaults.ActiveTranslationFontSize < LyricsViewDefaults.ActiveMainFontSize)
         assertTrue(LyricsViewDefaults.InactiveTranslationFontSize < LyricsViewDefaults.InactiveMainFontSize)
         assertTrue(LyricsViewDefaults.ActiveTranslationFontSize > LyricsViewDefaults.InactiveTranslationFontSize)
-        assertEquals(16.sp, LyricsViewDefaults.ActiveTranslationFontSize)
-        assertEquals(14.sp, LyricsViewDefaults.InactiveTranslationFontSize)
+        assertEquals(14.sp, LyricsViewDefaults.ActiveTranslationFontSize)
+        assertEquals(12.sp, LyricsViewDefaults.InactiveTranslationFontSize)
 
         // Font weights
-        assertEquals(FontWeight.Bold, LyricsViewDefaults.ActiveMainFontWeight)
-        assertEquals(FontWeight.Normal, LyricsViewDefaults.InactiveMainFontWeight)
-        assertEquals(FontWeight.Medium, LyricsViewDefaults.ActiveTranslationFontWeight)
-        assertEquals(FontWeight.Normal, LyricsViewDefaults.InactiveTranslationFontWeight)
+        assertEquals(FontWeight.ExtraBold, LyricsViewDefaults.ActiveMainFontWeight)
+        assertEquals(FontWeight.Bold, LyricsViewDefaults.InactiveMainFontWeight)
+        assertEquals(FontWeight.SemiBold, LyricsViewDefaults.ActiveTranslationFontWeight)
+        assertEquals(FontWeight.Medium, LyricsViewDefaults.InactiveTranslationFontWeight)
     }
 
     @Test
@@ -37,13 +37,13 @@ class LyricsViewPresentationTest {
         val activeMainAlpha = LyricsViewDefaults.resolveMainAlpha(isActive = true, isSynchronized = true)
         val activeTransAlpha = LyricsViewDefaults.resolveTranslationAlpha(isActive = true, isSynchronized = true)
         assertEquals(1.0f, activeMainAlpha, 0.001f)
-        assertEquals(0.75f, activeTransAlpha, 0.001f)
+        assertEquals(0.88f, activeTransAlpha, 0.001f)
         assertTrue("Active main must be higher contrast than active translation", activeMainAlpha > activeTransAlpha)
 
         val inactiveMainAlpha = LyricsViewDefaults.resolveMainAlpha(isActive = false, isSynchronized = true)
         val inactiveTransAlpha = LyricsViewDefaults.resolveTranslationAlpha(isActive = false, isSynchronized = true)
-        assertEquals(0.55f, inactiveMainAlpha, 0.001f)
-        assertEquals(0.38f, inactiveTransAlpha, 0.001f)
+        assertEquals(0.38f, inactiveMainAlpha, 0.001f)
+        assertEquals(0.30f, inactiveTransAlpha, 0.001f)
         assertTrue("Inactive main must be higher contrast than inactive translation", inactiveMainAlpha > inactiveTransAlpha)
 
         val unsyncedMainAlpha = LyricsViewDefaults.resolveMainAlpha(isActive = false, isSynchronized = false)
@@ -56,9 +56,9 @@ class LyricsViewPresentationTest {
     @Test
     fun lyricsViewDefaults_spacingAndPadding_matchDesignSpecs() {
         assertEquals(4.dp, LyricsViewDefaults.BilingualSpacing)
-        assertEquals(6.dp, LyricsViewDefaults.ItemVerticalPadding)
-        assertEquals(16.dp, LyricsViewDefaults.ItemHorizontalPadding)
-        assertEquals(18.dp, LyricsViewDefaults.LineSpacing)
+        assertEquals(8.dp, LyricsViewDefaults.ItemVerticalPadding)
+        assertEquals(12.dp, LyricsViewDefaults.ItemHorizontalPadding)
+        assertEquals(16.dp, LyricsViewDefaults.LineSpacing)
     }
 
     @Test
