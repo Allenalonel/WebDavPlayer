@@ -5,7 +5,7 @@
 
 **Blocked by:** 01: 品牌名称规范化与全天候全域音轨动态取色主题系统
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 顶栏折叠机制必须严格遵守 Compose 嵌套滚动协议：基于官方组件封装或在测量时正确配置 `heightOffsetLimit`，折叠完成后立即释放滑动分量，**绝对保证下层 LazyColumn 上下滑动 100% 畅通无阻**
 - [ ] 凡不需要大标题折叠的视窗（如歌单详情页），绝对严禁在外层 Scaffold 挂载 `scrollBehavior.nestedScrollConnection`，杜绝任何误拦截手势

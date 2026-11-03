@@ -5,7 +5,7 @@
 
 **Blocked by:** 01: 品牌名称规范化与全天候全域音轨动态取色主题系统
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] NavigationBar 高度由默认 80dp 压缩至 58dp，图标与文字内边距收敛紧凑，各页面底部内边距随之更新
 - [ ] MiniPlayer 胶囊高度收窄为 52dp，四角采用 26dp 饱满圆角，内嵌微型封面与紧凑播控键
