@@ -9,9 +9,11 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,12 +21,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,7 +49,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
@@ -53,7 +60,23 @@ import com.webdav.player.ui.player.components.PlayerTransportControls
 import com.webdav.player.ui.player.components.PlayerVinylArtwork
 import com.webdav.player.ui.player.components.isFullPlayerRetryBannerVisible
 import com.webdav.player.ui.player.components.rememberArtworkBackgroundBrush
+import com.webdav.player.ui.theme.AppIcons
 import kotlinx.coroutines.launch
+
+object FullPlayerDefaults {
+    val TabletWideBreakpoint: Dp = 660.dp
+    val ArtworkSquircleRadius: Dp = 28.dp
+    val ArtworkSquircleShape = RoundedCornerShape(ArtworkSquircleRadius)
+
+    val PlayButtonSize: Dp = 68.dp
+    val PlayButtonSquircleRadius: Dp = 26.dp
+    val PlayButtonSquircleShape = RoundedCornerShape(PlayButtonSquircleRadius)
+
+    val SkipButtonSize: Dp = 48.dp
+    val SkipButtonShape = RoundedCornerShape(16.dp)
+
+    fun isDualPaneLayout(widthDp: Dp): Boolean = widthDp >= TabletWideBreakpoint
+}
 
 /**
  * Expanded full player view displaying artwork, playback controls, and lyrics.
@@ -141,26 +164,74 @@ fun FullPlayerView(
                     .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Minimalist Centered Drag Handle Zone: width 36dp, height 4dp, rounded corners 2dp
-            Box(
+            // Top lightweight bar: collapse handle / chevron, "正在播放自 WebDAV", album/source, and options
+            Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = 8.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onCollapse,
-                        ).then(downwardSwipeModifier),
-                contentAlignment = Alignment.Center,
+                        .height(56.dp)
+                        .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
+                IconButton(
+                    onClick = onCollapse,
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = AppIcons.KeyboardArrowDown,
+                        contentDescription = "收起",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                Column(
                     modifier =
                         Modifier
-                            .size(width = 36.dp, height = 4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
-                )
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onCollapse,
+                            ).then(downwardSwipeModifier),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(width = 36.dp, height = 4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "正在播放自 WebDAV",
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                            ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = currentTrack?.album?.takeIf { it.isNotBlank() } ?: "WebDAV 曲库",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                IconButton(
+                    onClick = { currentTrack?.let(onAddToPlaylist) },
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = AppIcons.MoreVert,
+                        contentDescription = "添加到歌单",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             BatteryWhitelistBanner(
@@ -176,98 +247,179 @@ fun FullPlayerView(
                 )
             }
 
-            // Upper Main Area: Horizontal Pager between Artwork and Lyrics
-            HorizontalPager(
-                state = pagerState,
+            // Upper Main Area: Responsive Dual-Pane (660dp+) or Horizontal Pager
+            BoxWithConstraints(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .weight(1f),
-            ) { page ->
-                when (page) {
-                    0 -> {
-                        // Page 0: Cover Artwork & Metadata view
-                        PlayerVinylArtwork(
-                            currentTrack = currentTrack,
-                            sessionState = sessionState,
-                            onArtworkClick = {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(1)
-                                }
-                            },
-                            modifier = downwardSwipeModifier,
-                        )
-                    }
-
-                    1 -> {
-                        // Page 1: Synchronized Lyrics view with Tap-to-Seek
-                        LyricsPage(
-                            sessionState = sessionState,
-                            playbackProgress = playbackProgress,
-                            currentPositionMs = displayPositionMs,
-                            onSeekTo = { playbackActions.seekTo(it) },
-                            onReturnToArtwork = {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(0)
-                                }
-                            },
-                        )
-                    }
-                }
-            }
-
-            // Page Indicator Dots (Pill indicators)
-            Row(
-                modifier =
-                    Modifier
-                        .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                repeat(2) { index ->
-                    val isSelected = pagerState.currentPage == index
-                    Box(
+                val isWideScreen = FullPlayerDefaults.isDualPaneLayout(maxWidth)
+                if (isWideScreen) {
+                    Row(
                         modifier =
                             Modifier
-                                .size(
-                                    width = if (isSelected) 18.dp else 6.dp,
-                                    height = 6.dp,
-                                ).clip(CircleShape)
-                                .background(
-                                    if (isSelected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                    },
-                                ).clickable {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(index)
-                                    }
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Left Pane: Square Artwork & Transport Controls
+                        Column(
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                PlayerVinylArtwork(
+                                    currentTrack = currentTrack,
+                                    sessionState = sessionState,
+                                    onArtworkClick = {},
+                                    modifier = downwardSwipeModifier,
+                                )
+                            }
+
+                            PlayerTransportControls(
+                                sessionState = sessionState,
+                                playbackProgress = playbackProgress,
+                                isScrubbing = isScrubbing,
+                                displayPositionMs = displayPositionMs,
+                                onScrubbingChange = { scrubbing, pos ->
+                                    isScrubbing = scrubbing
+                                    scrubbedPositionMs = pos
                                 },
-                    )
+                                onSeek = { playbackActions.seekTo(it) },
+                                onTogglePlayPause = { playbackActions.togglePlayPause() },
+                                onRetryPlayback = { playbackActions.retryPlayback() },
+                                onSkipToNext = { playbackActions.skipToNext() },
+                                onSkipToPrevious = { playbackActions.skipToPrevious() },
+                                onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+                                onOpenQueue = { showQueueSheet = true },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(24.dp))
+
+                        // Right Pane: Immersive Synchronized Lyrics
+                        Box(
+                            modifier =
+                                Modifier
+                                    .weight(1.2f)
+                                    .fillMaxHeight(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            LyricsPage(
+                                sessionState = sessionState,
+                                playbackProgress = playbackProgress,
+                                currentPositionMs = displayPositionMs,
+                                onSeekTo = { playbackActions.seekTo(it) },
+                                onReturnToArtwork = {},
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                        ) { page ->
+                            when (page) {
+                                0 -> {
+                                    // Page 0: Cover Artwork & Metadata view
+                                    PlayerVinylArtwork(
+                                        currentTrack = currentTrack,
+                                        sessionState = sessionState,
+                                        onArtworkClick = {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(1)
+                                            }
+                                        },
+                                        modifier = downwardSwipeModifier,
+                                    )
+                                }
+
+                                1 -> {
+                                    // Page 1: Synchronized Lyrics view with Tap-to-Seek
+                                    LyricsPage(
+                                        sessionState = sessionState,
+                                        playbackProgress = playbackProgress,
+                                        currentPositionMs = displayPositionMs,
+                                        onSeekTo = { playbackActions.seekTo(it) },
+                                        onReturnToArtwork = {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(0)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Page Indicator Dots (Pill indicators)
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            repeat(2) { index ->
+                                val isSelected = pagerState.currentPage == index
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .size(
+                                                width = if (isSelected) 18.dp else 6.dp,
+                                                height = 6.dp,
+                                            ).clip(CircleShape)
+                                            .background(
+                                                if (isSelected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                                },
+                                            ).clickable {
+                                                coroutineScope.launch {
+                                                    pagerState.animateScrollToPage(index)
+                                                }
+                                            },
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Transport Controls: Progress Slider, Elapsed/Remaining Time, and Expressive Control Buttons
+                        PlayerTransportControls(
+                            sessionState = sessionState,
+                            playbackProgress = playbackProgress,
+                            isScrubbing = isScrubbing,
+                            displayPositionMs = displayPositionMs,
+                            onScrubbingChange = { scrubbing, pos ->
+                                isScrubbing = scrubbing
+                                scrubbedPositionMs = pos
+                            },
+                            onSeek = { playbackActions.seekTo(it) },
+                            onTogglePlayPause = { playbackActions.togglePlayPause() },
+                            onRetryPlayback = { playbackActions.retryPlayback() },
+                            onSkipToNext = { playbackActions.skipToNext() },
+                            onSkipToPrevious = { playbackActions.skipToPrevious() },
+                            onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+                            onOpenQueue = { showQueueSheet = true },
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Transport Controls: Progress Slider, Elapsed/Remaining Time, and Expressive Control Buttons
-            PlayerTransportControls(
-                sessionState = sessionState,
-                playbackProgress = playbackProgress,
-                isScrubbing = isScrubbing,
-                displayPositionMs = displayPositionMs,
-                onScrubbingChange = { scrubbing, pos ->
-                    isScrubbing = scrubbing
-                    scrubbedPositionMs = pos
-                },
-                onSeek = { playbackActions.seekTo(it) },
-                onTogglePlayPause = { playbackActions.togglePlayPause() },
-                onRetryPlayback = { playbackActions.retryPlayback() },
-                onSkipToNext = { playbackActions.skipToNext() },
-                onSkipToPrevious = { playbackActions.skipToPrevious() },
-                onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
-                onOpenQueue = { showQueueSheet = true },
-            )
         }
     }
 

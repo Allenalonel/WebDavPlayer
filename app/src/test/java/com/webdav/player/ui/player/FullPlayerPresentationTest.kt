@@ -3,6 +3,8 @@ package com.webdav.player.ui.player
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
@@ -334,6 +336,31 @@ class FullPlayerPresentationTest {
         )
         assertEquals(2, fakeSession.sessionState.value.queue.tracks.size)
         assertEquals(75_000L, fakeSession.playbackProgress.value.currentPositionMs)
+    }
+
+    @Test
+    fun fullPlayerResponsiveLayout_breakpointMatchesM3Specification() {
+        assertFalse(FullPlayerDefaults.isDualPaneLayout(360.dp))
+        assertFalse(FullPlayerDefaults.isDualPaneLayout(392.dp))
+        assertFalse(FullPlayerDefaults.isDualPaneLayout(430.dp))
+        assertTrue(FullPlayerDefaults.isDualPaneLayout(660.dp))
+        assertTrue(FullPlayerDefaults.isDualPaneLayout(840.dp))
+        assertEquals(660.dp, FullPlayerDefaults.TabletWideBreakpoint)
+    }
+
+    @Test
+    fun fullPlayerArtworkSquircle_matches28dpSpecification() {
+        assertEquals(28.dp, FullPlayerDefaults.ArtworkSquircleRadius)
+        assertEquals(RoundedCornerShape(28.dp), FullPlayerDefaults.ArtworkSquircleShape)
+    }
+
+    @Test
+    fun fullPlayerControls_playButtonAndSkipButtonSizes_matchM3ESpecification() {
+        assertEquals(68.dp, FullPlayerDefaults.PlayButtonSize)
+        assertEquals(26.dp, FullPlayerDefaults.PlayButtonSquircleRadius)
+        assertEquals(RoundedCornerShape(26.dp), FullPlayerDefaults.PlayButtonSquircleShape)
+        assertEquals(48.dp, FullPlayerDefaults.SkipButtonSize)
+        assertEquals(RoundedCornerShape(16.dp), FullPlayerDefaults.SkipButtonShape)
     }
 }
 

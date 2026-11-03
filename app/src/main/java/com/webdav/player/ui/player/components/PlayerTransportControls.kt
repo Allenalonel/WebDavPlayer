@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,6 +41,7 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlaybackState
 import com.webdav.player.domain.model.PlayerSessionState
+import com.webdav.player.ui.player.FullPlayerDefaults
 import com.webdav.player.ui.theme.AppIcons
 
 /**
@@ -150,32 +153,42 @@ internal fun PlayerPlaybackControls(
             onClick = onCyclePlaybackMode,
         )
 
-        // Previous Track Button
-        IconButton(
+        // Previous Track Button: FilledTonal Pill Button
+        FilledTonalIconButton(
             onClick = onSkipToPrevious,
             enabled = sessionState.queue.isNotEmpty,
-            modifier = Modifier.size(52.dp),
+            modifier = Modifier.size(FullPlayerDefaults.SkipButtonSize),
+            shape = FullPlayerDefaults.SkipButtonShape,
+            colors =
+                IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.outlineVariant,
+                ),
         ) {
             Icon(
                 imageVector = AppIcons.SkipPrevious,
                 contentDescription = "上一首",
-                modifier = Modifier.size(36.dp),
-                tint =
-                    if (sessionState.queue.isNotEmpty) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant
-                    },
+                modifier = Modifier.size(24.dp),
             )
         }
 
-        // Expressive Prominent Play / Pause / Buffering Toggle Button
+        // Expressive Prominent Play / Pause / Buffering Toggle Button: 68dp Squircle (26dp rounded corner)
         FilledIconButton(
             onClick = {
                 if (sessionState.isSuspendedRetry) onRetryPlayback() else onTogglePlayPause()
             },
-            modifier = Modifier.size(72.dp),
-            shape = CircleShape,
+            modifier =
+                Modifier
+                    .size(FullPlayerDefaults.PlayButtonSize)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = FullPlayerDefaults.PlayButtonSquircleShape,
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                    ),
+            shape = FullPlayerDefaults.PlayButtonSquircleShape,
             colors =
                 IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -193,7 +206,7 @@ internal fun PlayerPlaybackControls(
                             Icon(
                                 imageVector = AppIcons.Refresh,
                                 contentDescription = "重试",
-                                modifier = Modifier.size(38.dp),
+                                modifier = Modifier.size(32.dp),
                             )
                         } else {
                             CircularProgressIndicator(
@@ -208,7 +221,7 @@ internal fun PlayerPlaybackControls(
                         Icon(
                             imageVector = AppIcons.Pause,
                             contentDescription = "暂停",
-                            modifier = Modifier.size(38.dp),
+                            modifier = Modifier.size(32.dp),
                         )
                     }
 
@@ -216,29 +229,31 @@ internal fun PlayerPlaybackControls(
                         Icon(
                             imageVector = AppIcons.PlayArrow,
                             contentDescription = "播放",
-                            modifier = Modifier.size(38.dp),
+                            modifier = Modifier.size(32.dp),
                         )
                     }
                 }
             }
         }
 
-        // Next Track Button
-        IconButton(
+        // Next Track Button: FilledTonal Pill Button
+        FilledTonalIconButton(
             onClick = onSkipToNext,
             enabled = sessionState.queue.isNotEmpty,
-            modifier = Modifier.size(52.dp),
+            modifier = Modifier.size(FullPlayerDefaults.SkipButtonSize),
+            shape = FullPlayerDefaults.SkipButtonShape,
+            colors =
+                IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.38f),
+                    disabledContentColor = MaterialTheme.colorScheme.outlineVariant,
+                ),
         ) {
             Icon(
                 imageVector = AppIcons.SkipNext,
                 contentDescription = "下一首",
-                modifier = Modifier.size(36.dp),
-                tint =
-                    if (sessionState.queue.isNotEmpty) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant
-                    },
+                modifier = Modifier.size(24.dp),
             )
         }
 

@@ -2,6 +2,7 @@ package com.webdav.player.ui.player
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -237,10 +240,23 @@ internal fun LyricLineItem(
     val translationFontSize = if (isActive) LyricsViewDefaults.ActiveTranslationFontSize else LyricsViewDefaults.InactiveTranslationFontSize
     val translationFontWeight = if (isActive) LyricsViewDefaults.ActiveTranslationFontWeight else LyricsViewDefaults.InactiveTranslationFontWeight
 
+    val activeBackgroundColor by animateColorAsState(
+        targetValue =
+            if (isActive) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            } else {
+                Color.Transparent
+            },
+        animationSpec = tween(durationMillis = 250),
+        label = "LyricActiveBackground",
+    )
+
     Column(
         modifier =
             modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(activeBackgroundColor)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,

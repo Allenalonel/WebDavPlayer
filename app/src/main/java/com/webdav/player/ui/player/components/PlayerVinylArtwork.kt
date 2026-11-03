@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.CoverThumbnailImage
+import com.webdav.player.ui.player.FullPlayerDefaults
 import com.webdav.player.ui.player.rememberArtworkColors
 import com.webdav.player.ui.theme.AppIcons
 
@@ -91,14 +93,20 @@ internal fun PlayerVinylArtwork(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        // Large Album Artwork Card with Soft Shadow
+        // Large Album Artwork Card with 28dp Squircle & Ambient Glow
         Box(
             modifier =
                 Modifier
-                    .fillMaxWidth(0.88f)
+                    .fillMaxWidth(0.85f)
+                    .sizeIn(minWidth = 190.dp, minHeight = 190.dp, maxWidth = 280.dp, maxHeight = 280.dp)
                     .aspectRatio(1f)
-                    .shadow(elevation = 20.dp, shape = MaterialTheme.shapes.extraLarge)
-                    .clip(MaterialTheme.shapes.extraLarge)
+                    .shadow(
+                        elevation = 24.dp,
+                        shape = FullPlayerDefaults.ArtworkSquircleShape,
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                    )
+                    .clip(FullPlayerDefaults.ArtworkSquircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onArtworkClick() },
             contentAlignment = Alignment.Center,
