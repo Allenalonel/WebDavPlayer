@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,15 +55,20 @@ import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
-    val CapsuleCornerRadius: Dp = 28.dp
+    val CapsuleHeight: Dp = 52.dp
+    val MiniPlayerCapsuleHeight: Dp = CapsuleHeight
+    val CapsuleCornerRadius: Dp = 26.dp
+    val MiniPlayerCornerRadius: Dp = CapsuleCornerRadius
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
     val MicroBarHeight: Dp = 3.dp
     val ProgressMicroBarShape = RoundedCornerShape(MicroBarHeight)
+    val MiniPlayerCoverSize: Dp = 36.dp
+    val MiniPlayerButtonSize: Dp = 36.dp
     val PlayPauseButtonSize: Dp = 42.dp
     val QueueMusicButtonSize: Dp = 38.dp
     val ButtonSpacing: Dp = 8.dp
     val MicroBarHorizontalPadding: Dp = 14.dp
-    val MicroBarBottomPadding: Dp = 6.dp
+    val MicroBarBottomPadding: Dp = 4.dp
     val SwipeSkipThreshold: Dp = 40.dp
     val VerticalDragThreshold: Float = -20f
 
@@ -71,8 +77,14 @@ object MiniPlayerDefaults {
     const val SurfaceBorderAlpha: Float = 0.25f
 
     // Penetrative scroll content bottom padding contract
-    val PenetrativeContentBottomPadding: Dp = 160.dp
+    val PenetrativeContentBottomPadding: Dp = 114.dp
 }
+
+val MiniPlayerCapsuleHeight: Dp = MiniPlayerDefaults.MiniPlayerCapsuleHeight
+val MiniPlayerCornerRadius: Dp = MiniPlayerDefaults.MiniPlayerCornerRadius
+val MiniPlayerCoverSize: Dp = MiniPlayerDefaults.MiniPlayerCoverSize
+val MiniPlayerButtonSize: Dp = MiniPlayerDefaults.MiniPlayerButtonSize
+val PlayPauseButtonSize: Dp = MiniPlayerDefaults.PlayPauseButtonSize
 
 enum class MiniPlayerGestureAction {
     NONE,
@@ -123,6 +135,7 @@ fun MiniPlayer(
         modifier =
             modifier
                 .fillMaxWidth()
+                .heightIn(min = MiniPlayerDefaults.CapsuleHeight)
                 .clip(MiniPlayerDefaults.CapsuleShape)
                 .pointerInput(playbackActions, onMiniPlayerClick, swipeThresholdPx) {
                     var totalDragX = 0f
@@ -193,28 +206,28 @@ fun MiniPlayer(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Album Art / Audio Icon Box
                 Box(
                     modifier =
                         Modifier
-                            .size(44.dp)
-                            .clip(MaterialTheme.shapes.small)
+                            .size(MiniPlayerDefaults.MiniPlayerCoverSize)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     CoverThumbnailImage(
                         thumbnailPath = currentTrack.coverThumbnailPath,
                         contentDescription = "封面",
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(MiniPlayerDefaults.MiniPlayerCoverSize),
                     ) {
                         Icon(
                             imageVector = AppIcons.Audiotrack,
                             contentDescription = "音轨",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }

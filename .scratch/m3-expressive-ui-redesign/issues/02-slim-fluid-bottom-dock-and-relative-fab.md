@@ -5,13 +5,19 @@
 
 **Blocked by:** 01: 品牌名称规范化与全天候全域音轨动态取色主题系统
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] NavigationBar 高度由默认 80dp 压缩至 58dp，图标与文字内边距收敛紧凑，各页面底部内边距随之更新
-- [ ] MiniPlayer 胶囊高度收窄为 52dp，四角采用 26dp 饱满圆角，内嵌微型封面与紧凑播控键
-- [ ] 底部总占屏高度严格控制在 114dp，页面内容浏览视野增加约 32% 纵向空间
-- [ ] 彻底废除写死绝对像素坐标，FAB 接入 Scaffold 相对流体布局体系
-- [ ] MiniPlayer 存在时 FAB 相对下方保持 24dp 净空呼吸间距，MiniPlayer 隐藏时 FAB 平滑回落至导航栏上方
-- [ ] 在 Compact（360dp）、Standard（392dp）及 Expanded（430dp）设备上验证底栏与 FAB 的间距稳定性与手势可达性
-- [ ] 确保底栏与 MiniPlayer 的区域之外没有任何透明手势拦截层阻断底层页面的上下滑动
-- [ ] 严格保证既有播控功能零破坏：MiniPlayer 点击展开、上滑展开、横滑切歌手势（Swipe-to-skip）、队列按钮唤起 `HoistedPlaybackQueueSheet`、重试回放横幅及导航栏三大目的地切换逻辑 100% 完整保留
+- [x] NavigationBar 高度由默认 80dp 压缩至 58dp，图标与文字内边距收敛紧凑，各页面底部内边距随之更新
+- [x] MiniPlayer 胶囊高度收窄为 52dp，四角采用 26dp 饱满圆角，内嵌微型封面与紧凑播控键
+- [x] 底部总占屏高度严格控制在 114dp，页面内容浏览视野增加约 32% 纵向空间
+- [x] 彻底废除写死绝对像素坐标，FAB 接入 Scaffold 相对流体布局体系
+- [x] MiniPlayer 存在时 FAB 相对下方保持 24dp 净空呼吸间距，MiniPlayer 隐藏时 FAB 平滑回落至导航栏上方
+- [x] 在 Compact（360dp）、Standard（392dp）及 Expanded（430dp）设备上验证底栏与 FAB 的间距稳定性与手势可达性
+- [x] 确保底栏与 MiniPlayer 的区域之外没有任何透明手势拦截层阻断底层页面的上下滑动
+- [x] 严格保证既有播控功能零破坏：MiniPlayer 点击展开、上滑展开、横滑切歌手势（Swipe-to-skip）、队列按钮唤起 `HoistedPlaybackQueueSheet`、重试回放横幅及导航栏三大目的地切换逻辑 100% 完整保留
+
+## Answer
+- 在 `MiniPlayerDefaults` 中将 `CapsuleHeight` 与 `MiniPlayerCapsuleHeight` 设为 `52.dp`，`CapsuleCornerRadius` 与 `MiniPlayerCornerRadius` 收敛至 `26.dp`，`PenetrativeContentBottomPadding` 降至 `114.dp`，`MicroBarBottomPadding` 调整为 `4.dp`。
+- `MiniPlayer` 微调内部布局，微缩封面 `MiniPlayerCoverSize` 设为 `36.dp`，`MiniPlayerButtonSize` 设为 `36.dp`，配合紧凑内边距使整体饱满嵌入 52dp 胶囊。
+- 在 `MainActivity.kt` 中将 `NavigationBar` 高度压缩至 `58.dp`，MiniPlayer 底部留白 `4.dp`，形成稳定的 `58 + 4 + 52 = 114dp` 底部基准；FAB 接入 Scaffold 相对流体弹性布局，在 MiniPlayer 出现时维持 `114dp + 24dp = 138dp` 相对高度，收起时平滑回落至 `74dp`。
+- 更新并通过 `MiniPlayerPresentationTest` 相关几何、避让与垫底规范测试。
