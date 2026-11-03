@@ -78,15 +78,15 @@ class FluidTopAppBarTest {
 
     @Test
     fun leftAlignmentContract_strictConsistencyWithoutCenterJump() {
-        // Without navigation icon: compact row starts at 4dp row padding + 12dp spacer = 16dp
-        val compactStartNoNav = 4.dp + 12.dp
+        // Without navigation icon: compact row starts at 16dp
+        val compactStartNoNav = 16.dp
         val expandedStartNoNav = FluidTopAppBarDefaults.calculateLeftPadding(hasNavigationIcon = false)
         assertEquals(FluidTopAppBarDefaults.LeftBaselineNoNav, compactStartNoNav)
         assertEquals(FluidTopAppBarDefaults.LeftBaselineNoNav, expandedStartNoNav)
         assertEquals(0.dp, compactStartNoNav - expandedStartNoNav)
 
-        // With navigation icon: compact row starts at 4dp row padding + 48dp icon + 4dp box start padding = 56dp
-        val compactStartWithNav = 4.dp + 48.dp + 4.dp
+        // With navigation icon: compact row starts at 16dp row padding + 38dp icon + 12dp spacer = 66dp
+        val compactStartWithNav = 16.dp + 38.dp + 12.dp
         val expandedStartWithNav = FluidTopAppBarDefaults.calculateLeftPadding(hasNavigationIcon = true)
         assertEquals(FluidTopAppBarDefaults.LeftBaselineWithNav, compactStartWithNav)
         assertEquals(FluidTopAppBarDefaults.LeftBaselineWithNav, expandedStartWithNav)

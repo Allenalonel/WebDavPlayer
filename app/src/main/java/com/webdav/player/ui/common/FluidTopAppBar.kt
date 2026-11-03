@@ -44,7 +44,7 @@ object FluidTopAppBarDefaults {
     val ExpandedHeight: Dp = 64.dp
     val CollapsedHeight: Dp = 56.dp
     val LeftBaselineNoNav: Dp = 16.dp
-    val LeftBaselineWithNav: Dp = 56.dp
+    val LeftBaselineWithNav: Dp = 66.dp
 
     fun calculateHeightOffsetLimit(expandedHeightPx: Float): Float = if (expandedHeightPx > 0f) -expandedHeightPx else 0f
 
@@ -150,21 +150,20 @@ fun FluidTopAppBar(
                     Modifier
                         .fillMaxWidth()
                         .height(FluidTopAppBarDefaults.CollapsedHeight)
-                        .padding(start = 4.dp, end = 16.dp),
+                        .padding(start = 16.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (navigationIcon != null) {
                     navigationIcon()
-                } else {
                     Spacer(modifier = Modifier.width(12.dp))
                 }
 
-                // Compact Title (Strictly left-aligned to 16dp baseline without nav icon, 56dp with nav icon)
+                // Compact Title
                 Box(
                     modifier =
                         Modifier
                             .weight(1f)
-                            .padding(start = if (navigationIcon != null) 4.dp else 0.dp, end = 8.dp),
+                            .padding(end = 8.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
