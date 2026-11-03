@@ -5,7 +5,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 应用在 Android 启动器、系统任务切换器、通知栏及所有对外呈现位置的名称规范校准为 `WebDAVPlayer`（DAV 全部大写）
 - [ ] 彻底解绑 Android 12+ Monét 系统壁纸色（`dynamicColor = false`），默认锁定应用原生深邃暗紫曜石黑（`#141022`）与柔和浅底，杜绝系统壁纸色冲淡覆盖
