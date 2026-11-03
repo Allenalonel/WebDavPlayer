@@ -14,39 +14,7 @@
 
 ## 活跃任务 (Active)
 
-| 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
-| :--- | :--- | :---: | :---: | :--- |
-| `m3-expressive-ui-redesign` | Material 3 Expressive 界面重构、全天候全域动态取色与流体交互 (ADR-0028) | 6 | Completed | [`m3-expressive-ui-redesign/spec.md`](m3-expressive-ui-redesign/spec.md) |
-
-### `m3-expressive-ui-redesign` 工单列表与依赖图
-
-```
-        ┌──────────────┐
-        │  Ticket 01   │ (Brand & Global Dynamic Theme)
-        └──────┬───────┘
-         ┌─────┴───────────────┬────────────────────────┐
-         ▼                     ▼                        ▼
-  ┌──────────────┐      ┌──────────────┐         ┌──────────────┐
-  │  Ticket 02   │      │  Ticket 03   │         │  Ticket 04   │
-  │  (Dock 114dp │      │(Playlist Row │         │(Fluid TopBar │
-  │  & FAB 24dp) │      │& In-Playback)│         │& Left-align) │
-  └──────┬───────┘      └──────────────┘         └──────┬───────┘
-         │                                              │
-         ├──────────────────────┬───────────────────────┘
-         ▼                      ▼
-  ┌──────────────┐       ┌──────────────┐
-  │  Ticket 05   │       │  Ticket 06   │
-  │(Search Pill  │       │(Square Cover,│
-  │& MultiSelect)│       │Lyrics & Pane)│
-  └──────────────┘       └──────────────┘
-```
-
-- [x] [`01-brand-normalization-and-global-dynamic-theming.md`](m3-expressive-ui-redesign/issues/01-brand-normalization-and-global-dynamic-theming.md) (Blocked by: None)
-- [x] [`02-slim-fluid-bottom-dock-and-relative-fab.md`](m3-expressive-ui-redesign/issues/02-slim-fluid-bottom-dock-and-relative-fab.md) (Blocked by: 01)
-- [x] [`03-playlist-in-playback-indicator-and-single-column-row.md`](m3-expressive-ui-redesign/issues/03-playlist-in-playback-indicator-and-single-column-row.md) (Blocked by: 01)
-- [x] [`04-continuous-fluid-left-aligned-top-app-bar.md`](m3-expressive-ui-redesign/issues/04-continuous-fluid-left-aligned-top-app-bar.md) (Blocked by: 01)
-- [x] [`05-floating-search-pill-capsule-and-multi-select.md`](m3-expressive-ui-redesign/issues/05-floating-search-pill-capsule-and-multi-select.md) (Blocked by: 02, 04)
-- [x] [`06-square-cover-artwork-lyrics-and-responsive-dual-pane.md`](m3-expressive-ui-redesign/issues/06-square-cover-artwork-lyrics-and-responsive-dual-pane.md) (Blocked by: 01, 02)
+当前暂无进行中的活跃特性任务。
 
 ---
 
@@ -56,6 +24,7 @@
 
 | 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 归档路径 |
 | :--- | :--- | :---: | :---: | :--- |
+| `m3-expressive-ui-redesign` | Material 3 Expressive 界面重构、全天候全域动态取色与流体交互 (ADR-0028) | 6 | Completed | [`archive/m3-expressive-ui-redesign/`](archive/m3-expressive-ui-redesign/) |
 | `floating-capsule-miniplayer` | 独立动态原色晶透悬浮胶囊播控栏与沉浸穿透滑动规范 (ADR-0007) | 5 | Completed | [`archive/floating-capsule-miniplayer/`](archive/floating-capsule-miniplayer/) |
 | `batch-playlist-multi-select` | 批量添加到歌单与媒体库/全局搜索上下文多选模式 (ADR-0027) | 0 | Completed | [`archive/batch-playlist-multi-select/`](archive/batch-playlist-multi-select/) |
 | `ui-satellite-consolidation-and-screen-locality` | UI 表现层单调用方卫星碎片清零与屏幕模块深度内聚 | 4 | Completed | [`archive/ui-satellite-consolidation-and-screen-locality/`](archive/ui-satellite-consolidation-and-screen-locality/) |
