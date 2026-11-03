@@ -21,10 +21,10 @@
 
 ## Answer
 
-- **轻量顶部纯净栏**：落地“正在播放自 WebDAV”轻量纯净顶栏，集成折叠返回按钮把手（`AppIcons.KeyboardArrowDown`）、当前专辑信息与添加到歌单更多操作按键，向下拖拽或点击把手均可平滑收起。
+- **轻量顶部纯净栏与动态服务器名**：落地顶栏，动态绑定当前活跃服务器名称（`正在播放自 $serverName`，如 `Openlist` / `Synology NAS`）与曲目信息，移除顶栏中间多余的灰色小横条把手，避免与左上角收起键功能重叠；完全剔除歌词内页重复占位的歌名大字横条。
 - **28dp 方形圆角大卡片与环境光晕**：`PlayerVinylArtwork` 升级为 28dp Squircle（`FullPlayerDefaults.ArtworkSquircleShape`），加入 24dp 柔和环境光晕投影（联动主题主色），并以 `sizeIn(minWidth = 190.dp, maxWidth = 280.dp)` 响应式伸缩自适应黄金居中留白。
 - **68dp Squircle 播控与 FilledTonal 药丸切歌按键**：主播放/暂停键升级为 68dp Squircle（26dp 圆角，8dp 环境光晕阴影），左右伴随 48dp FilledTonal 药丸切歌键（`FullPlayerDefaults.SkipButtonShape`），完全对齐 `.tmp/prototype_m3_expressive.html` 交互原型。
-- **双语动感歌词发光与精准 Seek**：当前播唱句放大加粗（20sp Bold）、着色 Primary 并添加环境发光背景胶囊，非当前句微透渐隐；点击任意歌词行精准 Seek 跳转。
+- **流体氛围聚焦流歌词（Scheme 1: Fluid Ambient Focus）**：当前播唱句通过视口半高内边距动态锚定在屏幕正中央，字号放大至 22sp ExtraBold 并带有 16dp 柔和底舱与左侧 **3.5dp Primary 饱满圆角垂直强调条**，非当前句靠左平滑微透渐隐；点击任意歌词行精准 Seek 跳转。
 - **660dp+ 响应式双分栏**：在 `FullPlayerDefaults.TabletWideBreakpoint`（660dp+）下，自动自适应为左右并排双分栏（左侧：方形封面、歌曲元数据与播控控件；右侧：沉浸式双语动感歌词），小屏自动切换为横向 Pager 与分页圆点。
 - **核心守护功能零破坏**：完整保留厂商电池优化白名单横幅、弱网重试横幅、单曲/列表/随机模式轮转、滑块 Seek 与播放队列抽屉。
 - **定向测试验证**：`FullPlayerPresentationTest` 与 `LyricsViewPresentationTest` 覆盖 68dp 主播放键、28dp 封面圆角、660dp 响应式断点及动感歌词排版验证，测试 100% 通过。

@@ -17,6 +17,7 @@
 - [x] 必须与 `.tmp/prototype_m3_expressive.html` 交互原型进行像素级视觉保真度核验，卡片质感与留白完全吻合
 - [x] 验证歌单曲目列表与歌单列表界面的 `LazyColumn` 上下滑动绝对顺畅无卡顿、无死锁
 - [x] 严格保证既有歌单交互功能零破坏：歌单曲目双向滑动（`SwipeToDismissBox` 左滑下一首播放、右滑删除，带 50% 物理阈值与触感震动）、自定义拖拽排序模式（`isCustomReorderMode` 拖拽手柄、位移浮起与保存）、曲目溢出菜单（属性详情一键起播、清理失效歌曲、五大排序菜单）及虚拟分轨（CUE tags）逻辑 100% 完整保留
+- [x] 歌单列表行内部内容（52dp 封面、歌名与曲目数胶囊、更多操作按键）采用原生 Flexbox 绝对纵向几何对称居中，彻底消除传统 `ListItem` 偏心上移缺陷
 - [x] 针对歌单视图模型播放状态订阅与在播指示进行针对性单元测试验证
 
 ## Answer
@@ -24,5 +25,6 @@
 - `PlaylistTrackRow` 及内部 `PlaylistTrackLeadingContent` 接收 `isActive` 与 `isPlaying` 并在底层 `AudioTrackRow` / `TrackThumbnailLeading` 驱动 `EqualizerTrackIndicator`（播放时动效跳动，暂停时静止），标题使用 Primary 主题色加粗高亮。
 - 歌单详情页落地 80dp 渐变大封面 Hero Header（`PlaylistHeaderArea`，`Brush.linearGradient` 主题渐变与微圆角大封面、加粗标题及 Primary 胶囊「播放全部」与随机播放按键）。
 - 歌单列表与歌单曲目列表彻底拔除所有旧版 `HorizontalDivider` 灰线，重构为 16dp/18dp 独立悬浮圆角卡片项（`surfaceContainer`），曲目数量采用 `primaryContainer` 底配深色高对比加粗字胶囊 Pill（WCAG AAA >= 8.5:1），副标题与更新日期严格单行截断（`maxLines = 1, overflow = Ellipsis, softWrap = false`）。
+- 歌单列表卡片（`PlaylistItemRow`）摒弃有基准线偏差的 `ListItem` 槽位，重构为原生 `Row(verticalAlignment = Alignment.CenterVertically)`，52dp 封面、标题、胶囊与更多操作在卡片内实现**绝对垂直居中**。
 - 既有手势与交互零破坏：50% 物理阈值双向滑动（`SwipeToDismissBox`）、自定义拖拽排序（`isCustomReorderMode`）、曲目溢出菜单及虚拟分轨逻辑 100% 完整保留。
 - 编写并通过 `PlaylistDetailViewModelTest` 定向单元测试。

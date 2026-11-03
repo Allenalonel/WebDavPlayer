@@ -229,7 +229,7 @@ _Avoid_: Orphan Data, Server Wipe, Manual Cache Delete
 ### UI & Navigation
 
 **Primary Navigation Bar**:
-应用底部的顶层导航容器，以「歌单」（Playlists）—「媒体库」（Directory Browser）—「服务器」（Server Management）有序承载应用三大一级视窗，高度由默认 80dp 收敛精炼至 58dp 紧凑高度，并具备持久化记忆能力，应用冷启动时精准恢复至上次退出时停留的底栏目的地。
+应用底部的顶层导航容器，以「歌单」（Playlists）—「媒体库」（Directory Browser）—「服务器」（Server Management）有序承载应用三大一级视窗。采用 60dp 紧凑交互区 + 边缘到边缘（Edge-to-Edge）手势区无感浸润，内部以 52dp x 28dp M3 药丸指示舱（圆角 14dp）搭配 20dp 图标与 11sp 标签文字，在 60dp 交互区内绝对垂直居中，具备持久化记忆能力，应用冷启动时精准恢复至上次退出时停留的底栏目的地。
 _Avoid_: Bottom Bar, Tab Bar, Footer Menu
 
 **Global Dynamic Artwork Palette**:
@@ -257,8 +257,20 @@ _Avoid_: Fast Swipe Delete, Unidirectional Dismiss, Immediate Trigger, Sensitive
 _Avoid_: File Info Activity, Song Property Window
 
 **Docked Mini-Player**:
-悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊。在 Material 3 Expressive 体系下高度瘦身为 52dp（与 58dp 导航栏组合为 114dp 紧凑底座，立省 32% 屏幕空间），具备曲目摘要、播放控制与上滑/点击以容器形变（Container Morphing）平滑展开全屏播放器的能力，在应用内任何页面导航切换时均不中断。
+悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊。在 Material 3 Expressive 体系下高度为 60dp（30dp 饱满圆角），内嵌 42dp 正圆黑胶唱片封面（CircleShape），融入「方案三：流体微光背景填充 (Liquid Fill)」，内部组件 100% 垂直居中且无挤压。具备曲目摘要、播放控制与上滑/点击以容器形变（Container Morphing）平滑展开全屏播放器的能力，在应用内任何页面导航切换时均不中断。
 _Avoid_: Bottom Player, Small Player, Playback Bar
+
+**Liquid Fill MiniPlayer**:
+MiniPlayer 胶囊背景自带进度流动的无侵入进度展示规范。彻底移除了胶囊底部的独立进度指示线，已播部分从左向右带有半透明的主题色微光流体浸润与 1.5dp 前导微光线，内部组件（封面、歌名、播控）在胶囊内 100% 绝对垂直居中。
+_Avoid_: Progress Strip, Bottom Bar Line, Squished MiniPlayer
+
+**Coordinated Pull-to-Refresh**:
+针对折叠顶栏与下拉刷新共存视窗（如 `DirectoryBrowserScreen`）的手势协同仲裁机制。向上滑动收起顶栏后，向下回滑优先全额消费手势展开顶栏；仅当顶栏 100% 完全展开且列表位于最顶端时，才触发下拉刷新指示器，彻底根除手势抢占死锁。
+_Avoid_: Direct PullRefresh, Gesture Conflict, Swallowed Scroll
+
+**Fluid Ambient Lyrics**:
+Material 3 Expressive 规范下的流体氛围聚焦流歌词体系。全屏沉浸于专辑氛围微光，顶栏整合展示服务与曲目，歌词充盈全屏并以视口半高内边距动态锚定，当前在播行精准锁定屏幕正中央，放大至 22sp 粗体并带有柔和底舱与 3.5dp 左侧垂直原色强调条，非在播行靠左微透渐隐，支持毫秒级精准点击 Seek 跳转。
+_Avoid_: Centered Rigid Lyrics, Duplicated Header Lyrics
 
 **Full Player Sheet**:
 全屏沉浸式大播放器视图，采用极致纯净留白顶栏与自适应封面全域环境光晕背景。核心告别圆形黑胶唱片，升级为 28dp 方形圆角大封面卡片（Squircle 250x250，具备 clamp 流体宽高比），集成流体进度拖拽、Squircle 圆角方块播控键与无损规格胶囊，通过轻量顶部拖拽条及下滑手势收起，支持左右滑动切换至逐行同步高亮双语歌词页，并在平板/折叠大屏模式下自动自适应为左右双栏分屏。

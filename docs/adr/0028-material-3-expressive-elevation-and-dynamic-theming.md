@@ -32,12 +32,15 @@ Accepted (Supersedes ADR-0007 elevation constants)
 
 ### 2. 底栏高度流体瘦身与 FAB 相对避让（全面修正 ADR-0007 契约）
 - **废止 ADR-0007 的 160dp 绝对测绘参数**，全面实施底栏精炼流体规范：
-  - `Primary Navigation Bar` 高度由 80dp 压缩至 **58dp**（优化图标内边距与字体间距）；
-  - `MiniPlayer` 胶囊高度由 64dp 精炼至 **52dp**（26dp 饱满圆角，内嵌微型封面与紧凑播控）；
-  - 底部总占屏高度由原本的 168dp 骤降至 **114dp**（立减 32% 纵向占用，扩增 54dp 可视内容区）。
-- **Scaffold 相对流体堆叠（Intrinsic Relative Stack）**：
+  - `Primary Navigation Bar`：采用 **60dp 紧凑交互区 + 边缘到边缘（Edge-to-Edge）手势区无感浸润**，内部以 52dp x 28dp M3 药丸指示舱（圆角 14dp）搭配 20dp 图标与 11sp 标签文字，在 60dp 视口内**绝对垂直居中**，彻底根除 80dp/112dp 巨型底栏的笨重挤压感与按钮偏心缺陷；
+  - `MiniPlayer` 胶囊：升级为 **60dp 饱满独立大胶囊（30dp 饱满圆角）**，采用 `surfaceContainerHighest` 质感容器与 **42dp 正圆形黑胶唱片封面（CircleShape）**，与半圆封头形成同轴同心圆环；
+  - **流体微光背景进度填充（Liquid Fill）**：彻底拔除胶囊底部的独立进度条（解决底部条形组件导致的内部组件上浮挤占），将胶囊背景本身作为进度载体，随着播放平滑向右浸润半透明主题微光与 1.5dp 前导微光线，内部组件（封面、歌名、播控）在 60dp 胶囊内 **100% 绝对垂直居中**；
+  - 底部总占屏高度优化为 $60\text{dp} + 8\text{dp} + 60\text{dp} = 128\text{dp}$（较旧版 168dp 释放 40dp 可视曲目区）。
+- **Scaffold 相对流体堆叠（Intrinsic Relative Stack）与动态避让**：
   - 彻底废除 FAB 的写死绝对定位，将 FAB 融入 Scaffold 底部流体堆叠流；
-  - 当 MiniPlayer 存在时，FAB 动态相对顶升，严格保持 **24dp 黄金律动呼吸间距**，彻底杜绝元素遮挡与局促感。
+  - 采用全机型自适应动态公式：
+    $$\text{Target} = \begin{cases} \text{innerPadding} + 8\text{dp} + \text{MiniPlayerHeight}(60\text{dp}) + 24\text{dp} - 16\text{dp}, & \text{MiniPlayer 可见} \\ \text{innerPadding}, & \text{MiniPlayer 隐藏} \end{cases}$$
+    在任意机型手势条高度下，FAB 相对下方容器均**严格维持 24dp 黄金律动呼吸净空**，绝不遮挡重叠。
 
 ### 3. 全天候（深色/浅色）全域音轨动态取色系统 (`Global Dynamic Artwork Palette`)
 - **双模色阶推导引擎 (`ArtworkColorExtractor`)**：
@@ -51,11 +54,13 @@ Accepted (Supersedes ADR-0007 elevation constants)
 ### 4. M3 Expressive 连续流体折叠顶栏 (`Continuous Fluid Top App Bar`)
 - **原生连续高度坍缩**：
   - 接入 `TopAppBarDefaults.exitUntilCollapsedScrollBehavior()`，大标题容器在滑动时高度平滑坍缩至 0，无任何空白悬空占位。
-- **全程严格左对齐（Consistent Left Alignment）**：
+- **全程严格左对齐（Consistent Left Alignment）与 16dp 对称边距**：
+  - 顶栏左右两侧统一校准为 **标准 16dp 呼吸外边距**（`padding(start = 16.dp, end = 16.dp)`），左侧返回键、右侧搜索键与下方卡片边缘严格共享统一网格基准线，消除贴边局促感；
   - 展开时大标题与收起后紧凑小标题统一锁定左侧垂直基准线，滚动时文字仅垂直上浮微缩淡入，**绝对不发生横向突兀居中跳跃**。
 - **24px 毛玻璃雾化弥散与顶栏纯净化**：
   - 未滚动时顶栏纯透融入背景，滚动时呈现 `24px` 柔和毛玻璃雾化；
-  - 彻底移除顶栏右侧冗余的“加号（+）”，仅保留圆形 Tonal 搜索与更多操作。
+  - 彻底移除顶栏右侧冗余的“加号（+）”及与“面包屑”冲突的重复刷新/返回键，仅保留圆形 Tonal 搜索与更多操作；
+  - **手势协同仲裁（`Coordinated Pull-to-Refresh`）**：构建 `coordinatedRefreshConnection`，向下回滑时优先消费滑动手势全额展开顶栏；仅当顶栏 100% 完全展开且列表位于最顶端时，才触发下拉刷新指示器，彻底根除手势抢占死锁。
 
 ### 5. 纯正 M3E 独立药丸搜索系统 (`Floating Search Pill Capsule`)
 - **剔除通栏大横条**：
@@ -66,8 +71,9 @@ Accepted (Supersedes ADR-0007 elevation constants)
   - 集成历史搜索胶囊 Chips、热门标签、即打即搜实时过滤与一键点击切歌。
 
 ### 6. 歌单单列行规范与长按多选胶囊体系
-- **单列歌单列表行（M3E Linear Rows）**：
-  - 摒弃大块状网格，采用 52dp 微圆角卡片封面 + 粗体歌单名 + 数量胶囊 Pill；
+- **单列歌单列表行（M3E Linear Rows）与绝对内部垂直居中**：
+  - 摒弃大块状网格及带有槽位偏心偏差的传统 `ListItem`，以原生 `Row(verticalAlignment = Alignment.CenterVertically)` 重构；
+  - 52dp 微圆角封面 + 粗体歌单名 + 数量胶囊 Pill + 右侧更多按键在 18dp 卡片内实现**绝对纵向几何居中**；
   - 严格单行防折行：`white-space: nowrap` 与 `text-overflow: ellipsis`，任何分辨率绝不折成两行。
 - **在播状态双向贯通**：
   - `PlaylistDetailViewModel` 与 `PlaylistTrackRow` 接入播放器 `sessionState`；
@@ -77,14 +83,19 @@ Accepted (Supersedes ADR-0007 elevation constants)
   - 底部弹出 28dp 悬浮多选操作胶囊（`下一首播放` + `添加到歌单`）；
   - 顶栏平滑转换为 `已选 X 项` 上下文模式。
 
-### 7. 全屏方形大封面与动感歌词 (`WindowSizeClass Fluid Viewport`)
+### 7. 全屏方形大封面与流体氛围动感歌词 (`WindowSizeClass Fluid Viewport`)
 - **28dp 方形圆角大封面 (250x250 Squircle)**：
   - 全屏播放器核心告别黑胶唱片，回归高质感方形圆角大卡片，外带环境光晕柔和投影；
+- **顶栏去重与动态服务器名称**：
+  - 移除中央多余的 36dp x 4dp 小横条把手，避免与左上角收起按键功能重叠；
+  - 顶栏动态展示当前活跃服务器名称（`正在播放自 $serverName`，如 `Openlist` / `Synology NAS`）与曲目信息，完全剔除歌词界面内部原先重复占位的歌名大横条。
+- **流体氛围聚焦流歌词（Scheme 1: Fluid Ambient Focus）**：
+  - 视口半高（`viewportHeight / 2`）动态内边距锚定，切行时当前在播句**精准锁定在屏幕垂直正中央**；
+  - 在播歌词放大至 22sp 特粗字号，配备 16dp 柔和圆角底舱与左侧 **3.5dp Primary 饱满圆角垂直强调条**；
+  - 未唱行采用靠左对齐并施加平滑对数灰度渐隐，阅读层次极具呼吸感。
 - **流体比例与平板双分栏**：
   - 彻底废除写死像素，采用 `clamp()` 与百分比宽高比流体布局；
-  - 在大屏/折叠屏（`660dp+`）下自动触发**左右双分栏（左侧大封面，右侧沉浸歌词）**；
-- **逐行双语动感歌词**：
-  - 当前播唱句放大加粗并带有 Primary 发光高亮，非当前句微透渐隐，支持点击任意歌词即刻 Seek 跳转。
+  - 在大屏/折叠屏（`660dp+`）下自动触发**左右双分栏（左侧大封面，右侧沉浸歌词）**。
 
 ## Consequences
 
