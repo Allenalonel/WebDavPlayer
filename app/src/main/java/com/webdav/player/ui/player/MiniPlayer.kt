@@ -56,14 +56,12 @@ import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
     val CapsuleHeight: Dp = 52.dp
-    val MiniPlayerCapsuleHeight: Dp = CapsuleHeight
     val CapsuleCornerRadius: Dp = 26.dp
-    val MiniPlayerCornerRadius: Dp = CapsuleCornerRadius
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
     val MicroBarHeight: Dp = 3.dp
     val ProgressMicroBarShape = RoundedCornerShape(MicroBarHeight)
-    val MiniPlayerCoverSize: Dp = 36.dp
-    val MiniPlayerButtonSize: Dp = 36.dp
+    val CoverSize: Dp = 36.dp
+    val ButtonSize: Dp = 36.dp
     val PlayPauseButtonSize: Dp = 42.dp
     val QueueMusicButtonSize: Dp = 38.dp
     val ButtonSpacing: Dp = 8.dp
@@ -79,12 +77,6 @@ object MiniPlayerDefaults {
     // Penetrative scroll content bottom padding contract
     val PenetrativeContentBottomPadding: Dp = 114.dp
 }
-
-val MiniPlayerCapsuleHeight: Dp = MiniPlayerDefaults.MiniPlayerCapsuleHeight
-val MiniPlayerCornerRadius: Dp = MiniPlayerDefaults.MiniPlayerCornerRadius
-val MiniPlayerCoverSize: Dp = MiniPlayerDefaults.MiniPlayerCoverSize
-val MiniPlayerButtonSize: Dp = MiniPlayerDefaults.MiniPlayerButtonSize
-val PlayPauseButtonSize: Dp = MiniPlayerDefaults.PlayPauseButtonSize
 
 enum class MiniPlayerGestureAction {
     NONE,
@@ -170,26 +162,28 @@ fun MiniPlayer(
                                     change.consume()
                                     onMiniPlayerClick()
                                 }
+
                                 MiniPlayerGestureAction.SKIP_TO_NEXT -> {
                                     actionTriggered = true
                                     change.consume()
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     playbackActions.skipToNext()
                                 }
+
                                 MiniPlayerGestureAction.SKIP_TO_PREVIOUS -> {
                                     actionTriggered = true
                                     change.consume()
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     playbackActions.skipToPrevious()
                                 }
+
                                 MiniPlayerGestureAction.NONE -> {
                                     // Keep accumulating drag
                                 }
                             }
                         },
                     )
-                }
-                .clickable { onMiniPlayerClick() },
+                }.clickable { onMiniPlayerClick() },
         shape = MiniPlayerDefaults.CapsuleShape,
         color = surfaceColor,
         border = borderStroke,
@@ -213,7 +207,7 @@ fun MiniPlayer(
                 Box(
                     modifier =
                         Modifier
-                            .size(MiniPlayerDefaults.MiniPlayerCoverSize)
+                            .size(MiniPlayerDefaults.CoverSize)
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
@@ -221,7 +215,7 @@ fun MiniPlayer(
                     CoverThumbnailImage(
                         thumbnailPath = currentTrack.coverThumbnailPath,
                         contentDescription = "封面",
-                        modifier = Modifier.size(MiniPlayerDefaults.MiniPlayerCoverSize),
+                        modifier = Modifier.size(MiniPlayerDefaults.CoverSize),
                     ) {
                         Icon(
                             imageVector = AppIcons.Audiotrack,

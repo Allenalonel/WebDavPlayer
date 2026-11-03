@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -68,7 +67,6 @@ fun AudioTrackRow(
     actionsMenu: (@Composable (dismiss: () -> Unit) -> Unit)? = null,
     tagContent: (@Composable () -> Unit)? = null,
     containerColor: Color? = null,
-    showDivider: Boolean = false,
 ) {
     val clickModifier =
         if (onLongClick != null) {
@@ -161,17 +159,6 @@ fun AudioTrackRow(
                     containerColor = resolvedContainerColor,
                 ),
         )
-        if (showDivider) {
-            HorizontalDivider(
-                modifier =
-                    Modifier.padding(
-                        start = AudioTrackRowDefaults.DividerInsetStart,
-                        end = AudioTrackRowDefaults.DividerInsetEnd,
-                    ),
-                thickness = AudioTrackRowDefaults.DividerThickness,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-            )
-        }
     }
 }
 

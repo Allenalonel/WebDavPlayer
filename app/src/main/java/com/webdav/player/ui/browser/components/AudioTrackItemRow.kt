@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -86,53 +86,67 @@ fun AudioTrackItemRow(
                     null
                 }
             }
-        AudioTrackRow(
-            title = displayTitle,
-            subtitle = subtitle,
-            modifier = modifier,
-            durationText = durationStr,
-            coverThumbnailPath = metadata?.coverThumbnailPath,
-            audioQualityBadge = badgeInfo,
-            isActive = isActive,
-            isPlaying = isPlaying,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            isSelectionMode = isSelectionMode,
-            isSelected = isSelected,
-            showDivider = true,
-            actionsMenu = { dismiss ->
-                DropdownMenuItem(
-                    text = { Text("下一首播放") },
-                    leadingIcon = {
-                        Icon(AppIcons.QueueMusic, contentDescription = null, modifier = Modifier.size(20.dp))
-                    },
-                    onClick = {
-                        dismiss()
-                        onPlayNext()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("添加到歌单") },
-                    leadingIcon = {
-                        Icon(AppIcons.PlaylistAdd, contentDescription = null, modifier = Modifier.size(20.dp))
-                    },
-                    onClick = {
-                        dismiss()
-                        onAddToPlaylist()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("查看详细信息") },
-                    leadingIcon = {
-                        Icon(AppIcons.Info, contentDescription = null, modifier = Modifier.size(20.dp))
-                    },
-                    onClick = {
-                        dismiss()
-                        showInfoDialog = true
-                    },
-                )
-            },
-        )
+        val surfaceColor =
+            if (isActive) {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            }
+        Surface(
+            modifier =
+                modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 3.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = surfaceColor,
+        ) {
+            AudioTrackRow(
+                title = displayTitle,
+                subtitle = subtitle,
+                durationText = durationStr,
+                coverThumbnailPath = metadata?.coverThumbnailPath,
+                audioQualityBadge = badgeInfo,
+                isActive = isActive,
+                isPlaying = isPlaying,
+                containerColor = Color.Transparent,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                isSelectionMode = isSelectionMode,
+                isSelected = isSelected,
+                actionsMenu = { dismiss ->
+                    DropdownMenuItem(
+                        text = { Text("下一首播放") },
+                        leadingIcon = {
+                            Icon(AppIcons.QueueMusic, contentDescription = null, modifier = Modifier.size(20.dp))
+                        },
+                        onClick = {
+                            dismiss()
+                            onPlayNext()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("添加到歌单") },
+                        leadingIcon = {
+                            Icon(AppIcons.PlaylistAdd, contentDescription = null, modifier = Modifier.size(20.dp))
+                        },
+                        onClick = {
+                            dismiss()
+                            onAddToPlaylist()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("查看详细信息") },
+                        leadingIcon = {
+                            Icon(AppIcons.Info, contentDescription = null, modifier = Modifier.size(20.dp))
+                        },
+                        onClick = {
+                            dismiss()
+                            showInfoDialog = true
+                        },
+                    )
+                },
+            )
+        }
     } else {
         NonAudioFileRow(file = file, badgeInfo = badgeInfo, modifier = modifier)
     }
@@ -156,51 +170,51 @@ private fun NonAudioFileRow(
         } else {
             MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
         }
-    ListItem(
-        modifier = modifier.fillMaxWidth().alpha(if (file.isLyrics || file.isCue) 1f else 0.5f),
-        leadingContent = {
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = containerColor,
-                modifier = Modifier.size(AudioTrackRowDefaults.ThumbnailSize),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        icon,
-                        contentDescription = label,
-                        tint = contentColor,
-                        modifier = Modifier.size(AudioTrackRowDefaults.LeadingIconSize),
+    Surface(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 3.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        ListItem(
+            modifier = Modifier.fillMaxWidth().alpha(if (file.isLyrics || file.isCue) 1f else 0.5f),
+            leadingContent = {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = containerColor,
+                    modifier = Modifier.size(AudioTrackRowDefaults.ThumbnailSize),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            icon,
+                            contentDescription = label,
+                            tint = contentColor,
+                            modifier = Modifier.size(AudioTrackRowDefaults.LeadingIconSize),
+                        )
+                    }
+                }
+            },
+            headlineContent = {
+                Text(file.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            },
+            supportingContent = {
+                val sub = if (file.size > 0) formatFileSize(file.size) else file.lastModified
+                if (!sub.isNullOrBlank()) {
+                    Text(
+                        sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-        },
-        headlineContent = {
-            Text(file.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        },
-        supportingContent = {
-            val sub = if (file.size > 0) formatFileSize(file.size) else file.lastModified
-            if (!sub.isNullOrBlank()) {
-                Text(
-                    sub,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
-        trailingContent = { badgeInfo?.let { AudioQualityBadgePill(it) } },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-    )
-    HorizontalDivider(
-        modifier =
-            Modifier.padding(
-                start = AudioTrackRowDefaults.DividerInsetStart,
-                end = AudioTrackRowDefaults.DividerInsetEnd,
-            ),
-        thickness = AudioTrackRowDefaults.DividerThickness,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-    )
+            },
+            trailingContent = { badgeInfo?.let { AudioQualityBadgePill(it) } },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        )
+    }
 }
 
 @Composable

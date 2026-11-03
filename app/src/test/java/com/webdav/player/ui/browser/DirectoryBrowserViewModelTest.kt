@@ -1494,7 +1494,7 @@ class DirectoryBrowserViewModelTest {
                     emit(DirectoryContent(directory = cached, isEnriching = true))
                 }
 
-                val result = listDirectory(server, path, forceRefresh)
+                val result = listDirectory(path, forceRefresh)
                 when (result) {
                     is ListDirectoryResult.Success -> {
                         val dir = result.directory
@@ -1562,7 +1562,6 @@ class DirectoryBrowserViewModelTest {
         ): RemoteDirectory? = cachedDirectories[path]
 
         suspend fun listDirectory(
-            server: WebDavServer,
             path: String,
             forceRefresh: Boolean = false,
         ): ListDirectoryResult {
@@ -1591,7 +1590,7 @@ class DirectoryBrowserViewModelTest {
                         emit(ListDirectoryResult.Success(cached))
                     }
                 }
-                val result = listDirectory(server, path, forceRefresh)
+                val result = listDirectory(path, forceRefresh)
                 when (result) {
                     is ListDirectoryResult.Success -> {
                         if (cached == null || result.directory != cached) {
@@ -2024,7 +2023,7 @@ class DirectoryBrowserViewModelTest {
 
             // Multi-select batch enqueue: tracks.reversed().forEach { playNext(it) }
             selectedTracks.reversed().forEach { track ->
-                viewModel.musicPlayerAppSession?.playNext(track)
+                viewModel.playNext(track)
             }
             advanceUntilIdle()
 

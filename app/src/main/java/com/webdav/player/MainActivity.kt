@@ -206,7 +206,7 @@ class MainActivity : ComponentActivity() {
                         },
                     ) { innerPadding ->
                         val fabBottomPadding by animateDpAsState(
-                            targetValue = if (navState.isMiniPlayerVisible) 138.dp else (innerPadding.calculateBottomPadding() + 16.dp),
+                            targetValue = if (navState.isMiniPlayerVisible) 64.dp else 0.dp,
                             label = "fab_bottom_padding",
                         )
 

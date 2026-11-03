@@ -255,6 +255,27 @@ fun FullPlayerView(
                         .weight(1f),
             ) {
                 val isWideScreen = FullPlayerDefaults.isDualPaneLayout(maxWidth)
+                val transportControls = @Composable { modifier: Modifier ->
+                    PlayerTransportControls(
+                        sessionState = sessionState,
+                        playbackProgress = playbackProgress,
+                        isScrubbing = isScrubbing,
+                        displayPositionMs = displayPositionMs,
+                        onScrubbingChange = { scrubbing, pos ->
+                            isScrubbing = scrubbing
+                            scrubbedPositionMs = pos
+                        },
+                        onSeek = { playbackActions.seekTo(it) },
+                        onTogglePlayPause = { playbackActions.togglePlayPause() },
+                        onRetryPlayback = { playbackActions.retryPlayback() },
+                        onSkipToNext = { playbackActions.skipToNext() },
+                        onSkipToPrevious = { playbackActions.skipToPrevious() },
+                        onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
+                        onOpenQueue = { showQueueSheet = true },
+                        modifier = modifier,
+                    )
+                }
+
                 if (isWideScreen) {
                     Row(
                         modifier =
@@ -284,24 +305,7 @@ fun FullPlayerView(
                                 )
                             }
 
-                            PlayerTransportControls(
-                                sessionState = sessionState,
-                                playbackProgress = playbackProgress,
-                                isScrubbing = isScrubbing,
-                                displayPositionMs = displayPositionMs,
-                                onScrubbingChange = { scrubbing, pos ->
-                                    isScrubbing = scrubbing
-                                    scrubbedPositionMs = pos
-                                },
-                                onSeek = { playbackActions.seekTo(it) },
-                                onTogglePlayPause = { playbackActions.togglePlayPause() },
-                                onRetryPlayback = { playbackActions.retryPlayback() },
-                                onSkipToNext = { playbackActions.skipToNext() },
-                                onSkipToPrevious = { playbackActions.skipToPrevious() },
-                                onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
-                                onOpenQueue = { showQueueSheet = true },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                            )
+                            transportControls(Modifier.fillMaxWidth().padding(horizontal = 12.dp))
                         }
 
                         Spacer(modifier = Modifier.width(24.dp))
@@ -400,23 +404,7 @@ fun FullPlayerView(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         // Transport Controls: Progress Slider, Elapsed/Remaining Time, and Expressive Control Buttons
-                        PlayerTransportControls(
-                            sessionState = sessionState,
-                            playbackProgress = playbackProgress,
-                            isScrubbing = isScrubbing,
-                            displayPositionMs = displayPositionMs,
-                            onScrubbingChange = { scrubbing, pos ->
-                                isScrubbing = scrubbing
-                                scrubbedPositionMs = pos
-                            },
-                            onSeek = { playbackActions.seekTo(it) },
-                            onTogglePlayPause = { playbackActions.togglePlayPause() },
-                            onRetryPlayback = { playbackActions.retryPlayback() },
-                            onSkipToNext = { playbackActions.skipToNext() },
-                            onSkipToPrevious = { playbackActions.skipToPrevious() },
-                            onCyclePlaybackMode = { playbackActions.cyclePlaybackMode() },
-                            onOpenQueue = { showQueueSheet = true },
-                        )
+                        transportControls(Modifier)
                     }
                 }
             }

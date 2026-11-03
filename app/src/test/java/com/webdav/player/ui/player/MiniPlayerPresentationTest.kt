@@ -99,11 +99,9 @@ class MiniPlayerPresentationTest {
     @Test
     fun miniPlayerGeometry_capsuleAndMicroBarDimensions_matchSpecification() {
         assertEquals(52.dp, MiniPlayerDefaults.CapsuleHeight)
-        assertEquals(52.dp, MiniPlayerDefaults.MiniPlayerCapsuleHeight)
         assertEquals(26.dp, MiniPlayerDefaults.CapsuleCornerRadius)
-        assertEquals(26.dp, MiniPlayerDefaults.MiniPlayerCornerRadius)
-        assertEquals(36.dp, MiniPlayerDefaults.MiniPlayerCoverSize)
-        assertEquals(36.dp, MiniPlayerDefaults.MiniPlayerButtonSize)
+        assertEquals(36.dp, MiniPlayerDefaults.CoverSize)
+        assertEquals(36.dp, MiniPlayerDefaults.ButtonSize)
         assertEquals(42.dp, MiniPlayerDefaults.PlayPauseButtonSize)
         assertTrue(
             "Capsule corner radius must be 26.dp for fluid pill geometry",
@@ -125,9 +123,13 @@ class MiniPlayerPresentationTest {
         assertEquals(114.dp, totalDockHeight)
         assertEquals(totalDockHeight, MiniPlayerDefaults.PenetrativeContentBottomPadding)
 
+        val scaffoldFabMargin = 16.dp
         val fabClearance = 24.dp
-        val fabBottomPaddingWithMiniPlayer = totalDockHeight + fabClearance
-        assertEquals(138.dp, fabBottomPaddingWithMiniPlayer)
+        val totalFabBottomDistance = totalDockHeight + fabClearance
+        assertEquals(138.dp, totalFabBottomDistance)
+
+        val additionalFabPadding = totalFabBottomDistance - navBarHeight - scaffoldFabMargin
+        assertEquals(64.dp, additionalFabPadding)
     }
 
     @Test

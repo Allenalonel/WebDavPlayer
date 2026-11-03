@@ -264,54 +264,6 @@ internal fun SearchHistorySection(
                 }
             }
         }
-
-        // Hot tags
-        item(key = "header_hot_tags") {
-            Text(
-                text = "热门标签",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp),
-            )
-        }
-
-        item(key = "hot_tag_chips") {
-            val hotTags = listOf("Hi-Res 96kHz", "华语经典", "纯音乐", "FLAC", "无损")
-            FlowRow(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                hotTags.forEach { tag ->
-                    Surface(
-                        shape = RoundedCornerShape(100.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.clickable { onSelectQuery(tag.substringBefore(" ")) },
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "🔥",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = tag,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
