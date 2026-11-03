@@ -14,11 +14,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MiniPlayerPresentationTest {
-
     private fun createTrack(
         title: String = "Song A",
         artist: String? = "Artist A",
-        format: AudioFormat = AudioFormat.FLAC
+        format: AudioFormat = AudioFormat.FLAC,
     ) = AudioTrack(
         id = "1:/song.flac",
         serverId = 1L,
@@ -26,16 +25,15 @@ class MiniPlayerPresentationTest {
         title = title,
         artist = artist,
         album = "Album A",
-        format = format
+        format = format,
     )
 
-    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState {
-        return if (track == null) {
+    private fun sessionWithTrack(track: AudioTrack?): PlayerSessionState =
+        if (track == null) {
             PlayerSessionState()
         } else {
             PlayerSessionState(queue = PlaybackQueue(listOf(track), 0))
         }
-    }
 
     @Test
     fun formatSubtitle_withArtistAndFormat_returnsCombinedString() {
@@ -46,14 +44,15 @@ class MiniPlayerPresentationTest {
 
     @Test
     fun formatSubtitle_withArtistOnly_whenFormatIsUnavailable() {
-        val track = AudioTrack(
-            id = "1:/song.mp3",
-            serverId = 1L,
-            remotePath = "/song.mp3",
-            title = "Acoustic",
-            artist = "Eric Clapton",
-            format = AudioFormat.MP3
-        )
+        val track =
+            AudioTrack(
+                id = "1:/song.mp3",
+                serverId = 1L,
+                remotePath = "/song.mp3",
+                title = "Acoustic",
+                artist = "Eric Clapton",
+                format = AudioFormat.MP3,
+            )
         val session = sessionWithTrack(track)
         val subtitle = formatMiniPlayerSubtitle(session)
         assertEquals("Eric Clapton · MP3", subtitle)
@@ -61,14 +60,15 @@ class MiniPlayerPresentationTest {
 
     @Test
     fun formatSubtitle_withNoArtist_returnsFormatOnly() {
-        val track = AudioTrack(
-            id = "1:/track01.wav",
-            serverId = 1L,
-            remotePath = "/track01.wav",
-            title = "Track 01",
-            artist = null,
-            format = AudioFormat.WAV
-        )
+        val track =
+            AudioTrack(
+                id = "1:/track01.wav",
+                serverId = 1L,
+                remotePath = "/track01.wav",
+                title = "Track 01",
+                artist = null,
+                format = AudioFormat.WAV,
+            )
         val session = sessionWithTrack(track)
         val subtitle = formatMiniPlayerSubtitle(session)
         assertEquals("WAV", subtitle)
@@ -83,14 +83,15 @@ class MiniPlayerPresentationTest {
 
     @Test
     fun formatSubtitle_blankArtist_returnsFormatOnly() {
-        val track = AudioTrack(
-            id = "1:/track04.wma",
-            serverId = 1L,
-            remotePath = "/track04.wma",
-            title = "Track 04",
-            artist = "   ",
-            format = AudioFormat.WMA
-        )
+        val track =
+            AudioTrack(
+                id = "1:/track04.wma",
+                serverId = 1L,
+                remotePath = "/track04.wma",
+                title = "Track 04",
+                artist = "   ",
+                format = AudioFormat.WMA,
+            )
         val session = sessionWithTrack(track)
         val subtitle = formatMiniPlayerSubtitle(session)
         assertEquals("WMA", subtitle)
@@ -105,7 +106,7 @@ class MiniPlayerPresentationTest {
         assertEquals(42.dp, MiniPlayerDefaults.PlayPauseButtonSize)
         assertTrue(
             "Capsule corner radius must be 28.dp for fluid pill geometry",
-            MiniPlayerDefaults.CapsuleCornerRadius >= 28.dp
+            MiniPlayerDefaults.CapsuleCornerRadius >= 28.dp,
         )
         assertEquals(2.5.dp, MiniPlayerDefaults.MicroBarHeight)
         assertEquals(16.dp, MiniPlayerDefaults.MicroBarHorizontalPadding)
@@ -137,16 +138,17 @@ class MiniPlayerPresentationTest {
         assertEquals(38.dp, MiniPlayerDefaults.QueueMusicButtonSize)
         assertEquals(8.dp, MiniPlayerDefaults.ButtonSpacing)
 
-        val centerDistanceQueue = (MiniPlayerDefaults.PlayPauseButtonSize / 2) +
-            MiniPlayerDefaults.ButtonSpacing +
-            (MiniPlayerDefaults.QueueMusicButtonSize / 2)
+        val centerDistanceQueue =
+            (MiniPlayerDefaults.PlayPauseButtonSize / 2) +
+                MiniPlayerDefaults.ButtonSpacing +
+                (MiniPlayerDefaults.QueueMusicButtonSize / 2)
 
         // Material Design 3 minimum interactive component dimension is 48.dp
         val md3MinimumInteractiveSize = 48.dp
 
         assertTrue(
             "Queue Music center-to-center distance ($centerDistanceQueue) must be at least $md3MinimumInteractiveSize to avoid touch overlap",
-            centerDistanceQueue >= md3MinimumInteractiveSize
+            centerDistanceQueue >= md3MinimumInteractiveSize,
         )
         assertEquals(48.dp, centerDistanceQueue)
     }
@@ -253,31 +255,56 @@ class MiniPlayerPresentationTest {
         // Left swipe beyond threshold -> next track
         assertEquals(
             MiniPlayerGestureAction.SKIP_TO_NEXT,
-            resolveMiniPlayerGesture(dragX = -90f, dragY = 0f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+            resolveMiniPlayerGesture(
+                dragX = -90f,
+                dragY = 0f,
+                swipeThresholdPx = swipeThreshold,
+                verticalDragThresholdPx = verticalThreshold,
+            ),
         )
 
         // Right swipe beyond threshold -> previous track
         assertEquals(
             MiniPlayerGestureAction.SKIP_TO_PREVIOUS,
-            resolveMiniPlayerGesture(dragX = 90f, dragY = 0f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+            resolveMiniPlayerGesture(
+                dragX = 90f,
+                dragY = 0f,
+                swipeThresholdPx = swipeThreshold,
+                verticalDragThresholdPx = verticalThreshold,
+            ),
         )
 
         // Upward drag beyond vertical threshold -> expand full player
         assertEquals(
             MiniPlayerGestureAction.EXPAND_FULL_PLAYER,
-            resolveMiniPlayerGesture(dragX = 0f, dragY = -35f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+            resolveMiniPlayerGesture(
+                dragX = 0f,
+                dragY = -35f,
+                swipeThresholdPx = swipeThreshold,
+                verticalDragThresholdPx = verticalThreshold,
+            ),
         )
 
         // Subtle drags below thresholds -> NONE
         assertEquals(
             MiniPlayerGestureAction.NONE,
-            resolveMiniPlayerGesture(dragX = 15f, dragY = -10f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+            resolveMiniPlayerGesture(
+                dragX = 15f,
+                dragY = -10f,
+                swipeThresholdPx = swipeThreshold,
+                verticalDragThresholdPx = verticalThreshold,
+            ),
         )
 
         // Downward drag -> NONE
         assertEquals(
             MiniPlayerGestureAction.NONE,
-            resolveMiniPlayerGesture(dragX = 0f, dragY = 50f, swipeThresholdPx = swipeThreshold, verticalDragThresholdPx = verticalThreshold)
+            resolveMiniPlayerGesture(
+                dragX = 0f,
+                dragY = 50f,
+                swipeThresholdPx = swipeThreshold,
+                verticalDragThresholdPx = verticalThreshold,
+            ),
         )
     }
 

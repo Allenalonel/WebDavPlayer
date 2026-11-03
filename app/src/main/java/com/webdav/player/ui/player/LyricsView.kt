@@ -173,7 +173,7 @@ fun LyricsView(
                 LazyColumn(
                     state = lazyListState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 160.dp, bottom = 220.dp, start = 20.dp, end = 20.dp),
+                    contentPadding = PaddingValues(top = 28.dp, bottom = 48.dp, start = 0.dp, end = 0.dp),
                     horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.spacedBy(LyricsViewDefaults.LineSpacing),
                 ) {
@@ -263,7 +263,7 @@ internal fun LyricLineItem(
                     onClick = onClick,
                 ).padding(
                     vertical = LyricsViewDefaults.ItemVerticalPadding,
-                    horizontal = LyricsViewDefaults.ItemHorizontalPadding,
+                    horizontal = 8.dp,
                 ),
         horizontalAlignment = Alignment.Start,
     ) {

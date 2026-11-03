@@ -449,9 +449,8 @@ private fun LyricsPage(
     Column(
         modifier =
             modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+                .fillMaxSize(),
+        horizontalAlignment = Alignment.Start,
     ) {
         // Song Header in lyrics view
         Text(
@@ -459,7 +458,7 @@ private fun LyricsPage(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Start,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier =
@@ -472,7 +471,7 @@ private fun LyricsPage(
             text = currentTrack?.artist?.ifBlank { "未知艺术家" } ?: "未知艺术家",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Start,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

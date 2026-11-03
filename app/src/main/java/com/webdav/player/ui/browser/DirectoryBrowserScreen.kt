@@ -48,14 +48,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.AudioTrack
@@ -397,6 +401,43 @@ fun DirectoryBrowserScreen(
             scrollBehavior.state.heightOffset = 0f
             scrollBehavior.state.contentOffset = 0f
         }
+        val coordinatedRefreshConnection =
+            remember(pullRefreshState, scrollBehavior) {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        // When dragging down while top bar is collapsed, prioritize expanding top bar over pull refresh
+                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                            return Offset.Zero
+                        }
+                        return pullRefreshState.nestedScrollConnection.onPreScroll(available, source)
+                    }
+
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource,
+                    ): Offset {
+                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                            return Offset.Zero
+                        }
+                        return pullRefreshState.nestedScrollConnection.onPostScroll(consumed, available, source)
+                    }
+
+                    override suspend fun onPreFling(available: Velocity): Velocity {
+                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                            return Velocity.Zero
+                        }
+                        return pullRefreshState.nestedScrollConnection.onPreFling(available)
+                    }
+
+                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                            return Velocity.Zero
+                        }
+                        return pullRefreshState.nestedScrollConnection.onPostFling(consumed, available)
+                    }
+                }
+            }
         Scaffold(
             modifier = modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
@@ -457,29 +498,7 @@ fun DirectoryBrowserScreen(
                     FluidTopAppBar(
                         title = uiState.headerTitle,
                         subtitle = uiState.activeServer?.name?.let { "当前活跃节点: $it" } ?: "未连接服务器",
-                        navigationIcon =
-                            if (uiState.canNavigateUp) {
-                                {
-                                    FilledTonalIconButton(
-                                        onClick = { viewModel.onNavigateUp() },
-                                        modifier = Modifier.size(38.dp),
-                                        shape = CircleShape,
-                                        colors =
-                                            IconButtonDefaults.filledTonalIconButtonColors(
-                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                                contentColor = MaterialTheme.colorScheme.onSurface,
-                                            ),
-                                    ) {
-                                        Icon(
-                                            imageVector = AppIcons.ArrowBack,
-                                            contentDescription = "返回上一级",
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                            } else {
-                                null
-                            },
+                        navigationIcon = null,
                         actions = {
                             if (!uiState.isInitializing && uiState.activeServer != null) {
                                 FilledTonalIconButton(
@@ -495,29 +514,6 @@ fun DirectoryBrowserScreen(
                                     Icon(
                                         imageVector = AppIcons.Search,
                                         contentDescription = "搜索曲库",
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                            }
-                            if (!uiState.isInitializing) {
-                                FilledTonalIconButton(
-                                    onClick = {
-                                        isUserInitiatedRefresh.value = true
-                                        Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
-                                        viewModel.onRefresh()
-                                    },
-                                    modifier = Modifier.size(38.dp),
-                                    shape = CircleShape,
-                                    colors =
-                                        IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                            contentColor = MaterialTheme.colorScheme.onSurface,
-                                        ),
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.Refresh,
-                                        contentDescription = "刷新目录",
                                         modifier = Modifier.size(20.dp),
                                     )
                                 }
@@ -549,7 +545,7 @@ fun DirectoryBrowserScreen(
                     modifier =
                         Modifier
                             .fillMaxSize()
-                            .nestedScroll(pullRefreshState.nestedScrollConnection)
+                            .nestedScroll(coordinatedRefreshConnection)
                             .clipToBounds(),
                 ) {
                     when {
