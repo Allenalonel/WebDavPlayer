@@ -150,7 +150,7 @@ fun FluidTopAppBar(
                     Modifier
                         .fillMaxWidth()
                         .height(FluidTopAppBarDefaults.CollapsedHeight)
-                        .padding(horizontal = 4.dp),
+                        .padding(start = 4.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (navigationIcon != null) {

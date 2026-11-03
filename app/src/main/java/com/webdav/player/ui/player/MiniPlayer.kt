@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -192,117 +194,133 @@ fun MiniPlayer(
         tonalElevation = 6.dp,
         shadowElevation = 10.dp,
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            if (isMiniPlayerRetryBannerVisible(sessionState)) {
-                MiniPlayerRetryBanner(
-                    onRetryPlayback = { playbackActions.retryPlayback() },
-                )
-            }
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 10.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Circular Album Art Disc (CircleShape matching capsule geometry)
+        Box(
+            modifier = Modifier.fillMaxWidth().height(MiniPlayerDefaults.CapsuleHeight),
+        ) {
+            // Scheme 3: Liquid Fill Fluid Background Progress
+            val progressFraction = playbackProgress.progressFraction.coerceIn(0f, 1f)
+            if (progressFraction > 0f) {
                 Box(
                     modifier =
                         Modifier
-                            .size(MiniPlayerDefaults.CoverSize)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
+                            .fillMaxHeight()
+                            .fillMaxWidth(progressFraction)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                    ),
+                                ),
+                            ),
                 ) {
-                    CoverThumbnailImage(
-                        thumbnailPath = currentTrack.coverThumbnailPath,
-                        contentDescription = "封面",
-                        modifier = Modifier.fillMaxSize().clip(CircleShape),
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.Audiotrack,
-                            contentDescription = "音轨",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Title and State Column
-                Column(
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(
-                        text = currentTrack.title,
-                        modifier = Modifier.basicMarquee(),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    PlaybackStateIndicator(
-                        sessionState = sessionState,
-                        playbackProgress = playbackProgress,
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
-
-                // Play / Pause / Buffering Toggle Button
-                PlayPauseToggleButton(
-                    sessionState = sessionState,
-                    onTogglePlayPause = {
-                        if (sessionState.isSuspendedRetry) {
-                            playbackActions.retryPlayback()
-                        } else {
-                            playbackActions.togglePlayPause()
-                        }
-                    },
-                )
-
-                Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
-
-                // Queue Music Button
-                FilledTonalIconButton(
-                    onClick = onOpenQueue,
-                    modifier =
-                        Modifier
-                            .size(MiniPlayerDefaults.QueueMusicButtonSize),
-                    colors =
-                        IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                ) {
-                    Icon(
-                        imageVector = AppIcons.QueueMusic,
-                        contentDescription = "播放队列",
-                        modifier = Modifier.size(20.dp),
+                    Box(
+                        modifier =
+                            Modifier
+                                .align(Alignment.CenterEnd)
+                                .width(1.5.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.60f)),
                     )
                 }
             }
 
-            // Inset micro progress track (MD3 Elevated Solid Island)
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = MiniPlayerDefaults.MicroBarHorizontalPadding)
-                        .padding(bottom = MiniPlayerDefaults.MicroBarBottomPadding),
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
             ) {
-                LinearProgressIndicator(
-                    progress = { playbackProgress.progressFraction },
+                if (isMiniPlayerRetryBannerVisible(sessionState)) {
+                    MiniPlayerRetryBanner(
+                        onRetryPlayback = { playbackActions.retryPlayback() },
+                    )
+                }
+                Row(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(MiniPlayerDefaults.MicroBarHeight)
-                            .clip(MiniPlayerDefaults.ProgressMicroBarShape),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                )
+                            .padding(start = 10.dp, end = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Circular Album Art Disc (CircleShape matching capsule geometry)
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(MiniPlayerDefaults.CoverSize)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CoverThumbnailImage(
+                            thumbnailPath = currentTrack.coverThumbnailPath,
+                            contentDescription = "封面",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Audiotrack,
+                                contentDescription = "音轨",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Title and State Column
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            text = currentTrack.title,
+                            modifier = Modifier.basicMarquee(),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        PlaybackStateIndicator(
+                            sessionState = sessionState,
+                            playbackProgress = playbackProgress,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
+
+                    // Play / Pause / Buffering Toggle Button
+                    PlayPauseToggleButton(
+                        sessionState = sessionState,
+                        onTogglePlayPause = {
+                            if (sessionState.isSuspendedRetry) {
+                                playbackActions.retryPlayback()
+                            } else {
+                                playbackActions.togglePlayPause()
+                            }
+                        },
+                    )
+
+                    Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
+
+                    // Queue Music Button
+                    FilledTonalIconButton(
+                        onClick = onOpenQueue,
+                        modifier =
+                            Modifier
+                                .size(MiniPlayerDefaults.QueueMusicButtonSize),
+                        colors =
+                            IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.QueueMusic,
+                            contentDescription = "播放队列",
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
             }
         }
     }

@@ -195,8 +195,9 @@ fun FullPlayerView(
                             ).then(downwardSwipeModifier),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    val serverName = sessionState.activeServer?.name?.takeIf { it.isNotBlank() } ?: "WebDAV"
                     Text(
-                        text = "正在播放自 WebDAV",
+                        text = "正在播放自 $serverName",
                         style =
                             MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
