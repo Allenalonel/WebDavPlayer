@@ -13,9 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,6 +35,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -65,6 +66,8 @@ internal fun PlaylistTrackRow(
     index: Int,
     dragDropState: DragDropState,
     showDragHandle: Boolean = false,
+    isActive: Boolean = false,
+    isPlaying: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     onPlayNext: () -> Unit,
@@ -121,6 +124,7 @@ internal fun PlaylistTrackRow(
         modifier =
             modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
                 .onSizeChanged { itemWidthPx.floatValue = it.width.toFloat() }
                 .zIndex(if (isDragging) 2f else 1f)
                 .graphicsLayer {
@@ -134,51 +138,54 @@ internal fun PlaylistTrackRow(
             )
         },
     ) {
-        val surfaceColor = if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface
-        Surface(modifier = Modifier.fillMaxWidth(), color = surfaceColor) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                AudioTrackRow(
-                    title = track.title,
-                    subtitle = subtitle,
-                    modifier = Modifier.alpha(if (track.isInactive) PlaylistTrackRowDefaults.InactiveAlpha else 1f),
-                    durationText = null,
-                    audioQualityBadge = qualityBadge,
-                    onClick = onClick,
-                    leadingContent = {
-                        PlaylistTrackLeadingContent(
-                            index = index,
-                            track = track,
-                            showDragHandle = showDragHandle,
-                            dragDropState = dragDropState,
-                            onDragStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
-                        )
-                    },
-                    tagContent =
-                        if (track.isVirtualTrack) {
-                            { PlaylistVirtualTrackTag() }
-                        } else {
-                            null
-                        },
-                    actionsMenu = { dismiss ->
-                        PlaylistTrackActionsMenu(
-                            track = track,
-                            onPlayNext = onPlayNext,
-                            onRemove = onRemove,
-                            onShowDetails = onShowDetails,
-                            dismiss = dismiss,
-                        )
-                    },
-                )
-                HorizontalDivider(
-                    modifier =
-                        Modifier.padding(
-                            start = PlaylistTrackRowDefaults.dividerStartInset(showDragHandle),
-                            end = AudioTrackRowDefaults.DividerInsetEnd,
-                        ),
-                    thickness = PlaylistTrackRowDefaults.DividerThickness,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = PlaylistTrackRowDefaults.DividerAlpha),
-                )
+        val surfaceColor =
+            when {
+                isDragging -> MaterialTheme.colorScheme.surfaceContainerHigh
+                isActive -> MaterialTheme.colorScheme.surfaceContainerHigh
+                else -> MaterialTheme.colorScheme.surfaceContainer
             }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = surfaceColor,
+        ) {
+            AudioTrackRow(
+                title = track.title,
+                subtitle = subtitle,
+                modifier = Modifier.alpha(if (track.isInactive) PlaylistTrackRowDefaults.InactiveAlpha else 1f),
+                durationText = null,
+                audioQualityBadge = qualityBadge,
+                isActive = isActive,
+                isPlaying = isPlaying,
+                containerColor = Color.Transparent,
+                onClick = onClick,
+                leadingContent = {
+                    PlaylistTrackLeadingContent(
+                        index = index,
+                        track = track,
+                        showDragHandle = showDragHandle,
+                        dragDropState = dragDropState,
+                        isActive = isActive,
+                        isPlaying = isPlaying,
+                        onDragStart = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                    )
+                },
+                tagContent =
+                    if (track.isVirtualTrack) {
+                        { PlaylistVirtualTrackTag() }
+                    } else {
+                        null
+                    },
+                actionsMenu = { dismiss ->
+                    PlaylistTrackActionsMenu(
+                        track = track,
+                        onPlayNext = onPlayNext,
+                        onRemove = onRemove,
+                        onShowDetails = onShowDetails,
+                        dismiss = dismiss,
+                    )
+                },
+            )
         }
     }
 }
@@ -303,6 +310,8 @@ internal fun PlaylistTrackLeadingContent(
     track: PlaylistTrackEntry,
     showDragHandle: Boolean,
     dragDropState: DragDropState,
+    isActive: Boolean = false,
+    isPlaying: Boolean = false,
     onDragStart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -345,7 +354,8 @@ internal fun PlaylistTrackLeadingContent(
         Text(
             text = "${index + 1}",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.width(20.dp),
             textAlign = TextAlign.Center,
         )
@@ -354,6 +364,8 @@ internal fun PlaylistTrackLeadingContent(
             coverThumbnailPath = track.coverThumbnailPath,
             size = PlaylistTrackRowDefaults.ThumbnailSize,
             fallbackIcon = if (track.isVirtualTrack) AppIcons.QueueMusic else AppIcons.Audiotrack,
+            isActive = isActive,
+            isPlaying = isPlaying,
         )
     }
 }

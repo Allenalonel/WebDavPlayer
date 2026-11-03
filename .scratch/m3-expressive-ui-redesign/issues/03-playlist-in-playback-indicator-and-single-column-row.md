@@ -5,16 +5,24 @@
 
 **Blocked by:** 01: 品牌名称规范化与全天候全域音轨动态取色主题系统
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] 歌单详情视图模型接入播放器会话状态，实时感知当前在播音轨路径与播放/暂停状态
-- [ ] 歌单曲目行在处于当前在播曲目时，封面居中叠加 Equalizer 动态三柱波形动画，播放时跳动，暂停时静止
-- [ ] 正在播放的歌曲主标题使用 Primary 主题色加粗高亮，字体排版对比清晰
-- [ ] 歌单详情页落地 80dp 渐变微圆角大封面 Hero Header、加粗标题与 Primary 胶囊「播放全部」按键
-- [ ] 彻底拔除所有 `HorizontalDivider` 灰线，严禁使用旧版平底灰线列表，歌单条目全面重构为 16dp/18dp 独立悬浮圆角卡片项（`surfaceContainer`）
-- [ ] 歌单副标题（包含曲目数与更新日期）施加严格单行流体截断规则，超出宽度时自然省略（`...`），绝不发生两行折行
-- [ ] 浅色模式下曲目数量胶囊（Pills）使用 Primary 浅色容器底配深色高对比加粗字，对比度达到 WCAG AAA 8.5:1
-- [ ] 必须与 `.tmp/prototype_m3_expressive.html` 交互原型进行像素级视觉保真度核验，卡片质感与留白完全吻合
-- [ ] 验证歌单曲目列表与歌单列表界面的 `LazyColumn` 上下滑动绝对顺畅无卡顿、无死锁
-- [ ] 严格保证既有歌单交互功能零破坏：歌单曲目双向滑动（`SwipeToDismissBox` 左滑下一首播放、右滑删除，带 50% 物理阈值与触感震动）、自定义拖拽排序模式（`isCustomReorderMode` 拖拽手柄、位移浮起与保存）、曲目溢出菜单（属性详情一键起播、清理失效歌曲、五大排序菜单）及虚拟分轨（CUE tags）逻辑 100% 完整保留
-- [ ] 针对歌单视图模型播放状态订阅与在播指示进行针对性单元测试验证
+- [x] 歌单详情视图模型接入播放器会话状态，实时感知当前在播音轨路径与播放/暂停状态
+- [x] 歌单曲目行在处于当前在播曲目时，封面居中叠加 Equalizer 动态三柱波形动画，播放时跳动，暂停时静止
+- [x] 正在播放的歌曲主标题使用 Primary 主题色加粗高亮，字体排版对比清晰
+- [x] 歌单详情页落地 80dp 渐变微圆角大封面 Hero Header、加粗标题与 Primary 胶囊「播放全部」按键
+- [x] 彻底拔除所有 `HorizontalDivider` 灰线，严禁使用旧版平底灰线列表，歌单条目全面重构为 16dp/18dp 独立悬浮圆角卡片项（`surfaceContainer`）
+- [x] 歌单副标题（包含曲目数与更新日期）施加严格单行流体截断规则，超出宽度时自然省略（`...`），绝不发生两行折行
+- [x] 浅色模式下曲目数量胶囊（Pills）使用 Primary 浅色容器底配深色高对比加粗字，对比度达到 WCAG AAA 8.5:1
+- [x] 必须与 `.tmp/prototype_m3_expressive.html` 交互原型进行像素级视觉保真度核验，卡片质感与留白完全吻合
+- [x] 验证歌单曲目列表与歌单列表界面的 `LazyColumn` 上下滑动绝对顺畅无卡顿、无死锁
+- [x] 严格保证既有歌单交互功能零破坏：歌单曲目双向滑动（`SwipeToDismissBox` 左滑下一首播放、右滑删除，带 50% 物理阈值与触感震动）、自定义拖拽排序模式（`isCustomReorderMode` 拖拽手柄、位移浮起与保存）、曲目溢出菜单（属性详情一键起播、清理失效歌曲、五大排序菜单）及虚拟分轨（CUE tags）逻辑 100% 完整保留
+- [x] 针对歌单视图模型播放状态订阅与在播指示进行针对性单元测试验证
+
+## Answer
+- `PlaylistDetailViewModel` 与 `PlaylistDetailUiState` 接入 `musicPlayerAppSession.sessionState` 实时流，同步 `activeTrackPath`、`activeTrackId` 和 `isPlaying`，并提供 `isTrackActive(track)` 判定（精确支持普通音轨与 CUE 虚拟分轨）。
+- `PlaylistTrackRow` 及内部 `PlaylistTrackLeadingContent` 接收 `isActive` 与 `isPlaying` 并在底层 `AudioTrackRow` / `TrackThumbnailLeading` 驱动 `EqualizerTrackIndicator`（播放时动效跳动，暂停时静止），标题使用 Primary 主题色加粗高亮。
+- 歌单详情页落地 80dp 渐变大封面 Hero Header（`PlaylistHeaderArea`，`Brush.linearGradient` 主题渐变与微圆角大封面、加粗标题及 Primary 胶囊「播放全部」与随机播放按键）。
+- 歌单列表与歌单曲目列表彻底拔除所有旧版 `HorizontalDivider` 灰线，重构为 16dp/18dp 独立悬浮圆角卡片项（`surfaceContainer`），曲目数量采用 `primaryContainer` 底配深色高对比加粗字胶囊 Pill（WCAG AAA >= 8.5:1），副标题与更新日期严格单行截断（`maxLines = 1, overflow = Ellipsis, softWrap = false`）。
+- 既有手势与交互零破坏：50% 物理阈值双向滑动（`SwipeToDismissBox`）、自定义拖拽排序（`isCustomReorderMode`）、曲目溢出菜单及虚拟分轨逻辑 100% 完整保留。
+- 编写并通过 `PlaylistDetailViewModelTest` 定向单元测试。

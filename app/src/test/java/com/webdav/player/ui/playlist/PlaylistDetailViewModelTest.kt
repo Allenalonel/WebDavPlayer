@@ -611,4 +611,110 @@ class PlaylistDetailViewModelTest {
             viewModel.clearError()
             assertNull(viewModel.uiState.value.errorMessage)
         }
+
+    @Test
+    fun sessionStateSubscription_updatesActiveTrackAndIsPlaying() =
+        runTest(testDispatcher) {
+            advanceUntilIdle()
+
+            val targetTrack =
+                viewModel.uiState.value.tracks
+                    .first()
+
+            fakeSession._sessionState.value =
+                com.webdav.player.domain.model.PlayerSessionState(
+                    queue = com.webdav.player.domain.model.PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
+                    playbackState = com.webdav.player.domain.model.PlaybackState.Playing,
+                )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(targetTrack.remotePath, state.activeTrackPath)
+            assertEquals(targetTrack.toAudioTrack().id, state.activeTrackId)
+            assertTrue(state.isPlaying)
+            assertTrue(state.isTrackActive(targetTrack))
+
+            val otherTrack = viewModel.uiState.value.tracks[1]
+            assertFalse(state.isTrackActive(otherTrack))
+        }
+
+    @Test
+    fun sessionStateSubscription_pausedState_keepsActiveTrackWithIsPlayingFalse() =
+        runTest(testDispatcher) {
+            advanceUntilIdle()
+
+            val targetTrack =
+                viewModel.uiState.value.tracks
+                    .first()
+
+            fakeSession._sessionState.value =
+                com.webdav.player.domain.model.PlayerSessionState(
+                    queue = com.webdav.player.domain.model.PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
+                    playbackState = com.webdav.player.domain.model.PlaybackState.Paused,
+                )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(targetTrack.remotePath, state.activeTrackPath)
+            assertFalse(state.isPlaying)
+            assertTrue(state.isTrackActive(targetTrack))
+        }
+
+    @Test
+    fun sessionStateSubscription_nullTrack_clearsActiveTrack() =
+        runTest(testDispatcher) {
+            advanceUntilIdle()
+
+            val targetTrack = viewModel.uiState.value.tracks.first()
+            fakeSession._sessionState.value =
+                com.webdav.player.domain.model.PlayerSessionState(
+                    queue = com.webdav.player.domain.model.PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
+                    playbackState = com.webdav.player.domain.model.PlaybackState.Playing,
+                )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isTrackActive(targetTrack))
+
+            fakeSession._sessionState.value = com.webdav.player.domain.model.PlayerSessionState()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertNull(state.activeTrackPath)
+            assertNull(state.activeTrackId)
+            assertFalse(state.isPlaying)
+            assertFalse(state.isTrackActive(targetTrack))
+        }
+
+    @Test
+    fun isTrackActive_virtualTrackMatchingDistinguishesTracksSharingRemotePath() {
+        val virtualEntry1 =
+            PlaylistTrackEntry(
+                id = 101L,
+                playlistId = playlistId,
+                serverId = 1L,
+                remotePath = "/album.flac",
+                title = "Track 1",
+                sortOrder = 1,
+                virtualTrackId = "vt_1",
+            )
+        val virtualEntry2 =
+            PlaylistTrackEntry(
+                id = 102L,
+                playlistId = playlistId,
+                serverId = 1L,
+                remotePath = "/album.flac",
+                title = "Track 2",
+                sortOrder = 2,
+                virtualTrackId = "vt_2",
+            )
+
+        val stateActiveVt1 =
+            PlaylistDetailUiState(
+                activeTrackPath = "/album.flac",
+                activeTrackId = "vt_1",
+                isPlaying = true,
+            )
+
+        assertTrue(stateActiveVt1.isTrackActive(virtualEntry1))
+        assertFalse(stateActiveVt1.isTrackActive(virtualEntry2))
+    }
 }

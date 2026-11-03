@@ -2,6 +2,7 @@ package com.webdav.player.ui.playlist
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -311,7 +312,14 @@ fun PlaylistDetailScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
+                        contentPadding =
+                            PaddingValues(
+                                start = 12.dp,
+                                end = 12.dp,
+                                top = 4.dp,
+                                bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         itemsIndexed(
                             items = uiState.tracks,
@@ -323,6 +331,8 @@ fun PlaylistDetailScreen(
                                 index = index,
                                 dragDropState = dragDropState,
                                 showDragHandle = uiState.isCustomReorderMode,
+                                isActive = uiState.isTrackActive(track),
+                                isPlaying = uiState.isPlaying,
                                 onClick = { onTrackClick(track, index) },
                                 onRemove = { viewModel.removeTrack(track.id) },
                                 onPlayNext = {

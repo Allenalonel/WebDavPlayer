@@ -37,7 +37,16 @@ data class PlaylistDetailUiState(
     val isCustomReorderMode: Boolean = false,
     val activeSortOption: PlaylistSortOption = PlaylistSortOption.CUSTOM,
     val errorMessage: String? = null,
-)
+    val activeTrackPath: String? = null,
+    val activeTrackId: String? = null,
+    val isPlaying: Boolean = false,
+) {
+    fun isTrackActive(track: PlaylistTrackEntry): Boolean {
+        if (activeTrackId != null && track.toAudioTrack().id == activeTrackId) return true
+        if (activeTrackPath != null && !track.isVirtualTrack && track.remotePath == activeTrackPath) return true
+        return false
+    }
+}
 
 class PlaylistDetailViewModel(
     val playlistId: Long,
@@ -52,6 +61,23 @@ class PlaylistDetailViewModel(
 
     init {
         loadData()
+        observePlaybackSession()
+    }
+
+    private fun observePlaybackSession() {
+        val session = musicPlayerAppSession ?: return
+        viewModelScope.launch {
+            session.sessionState.collect { sessionState ->
+                val currentTrack = sessionState.currentTrack
+                _uiState.update {
+                    it.copy(
+                        activeTrackPath = currentTrack?.remotePath,
+                        activeTrackId = currentTrack?.id,
+                        isPlaying = sessionState.isPlaying,
+                    )
+                }
+            }
+        }
     }
 
     private fun loadData() {
