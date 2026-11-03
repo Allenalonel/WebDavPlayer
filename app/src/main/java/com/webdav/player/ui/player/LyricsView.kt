@@ -45,10 +45,10 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.ui.theme.AppIcons
 
 object LyricsViewDefaults {
-    val ActiveMainFontSize: TextUnit = 22.sp
-    val InactiveMainFontSize: TextUnit = 17.sp
-    val ActiveTranslationFontSize: TextUnit = 15.sp
-    val InactiveTranslationFontSize: TextUnit = 13.sp
+    val ActiveMainFontSize: TextUnit = 26.sp
+    val InactiveMainFontSize: TextUnit = 19.sp
+    val ActiveTranslationFontSize: TextUnit = 16.sp
+    val InactiveTranslationFontSize: TextUnit = 14.sp
 
     val ActiveMainFontWeight: FontWeight = FontWeight.Bold
     val InactiveMainFontWeight: FontWeight = FontWeight.Normal
@@ -275,7 +275,7 @@ internal fun LyricLineItem(
             fontSize = mainFontSize,
             fontWeight = mainFontWeight,
             textAlign = TextAlign.Start,
-            lineHeight = if (isActive) 30.sp else 24.sp,
+            lineHeight = if (isActive) 34.sp else 26.sp,
             modifier = Modifier.fillMaxWidth().testTag("lyric_main_text"),
         )
 

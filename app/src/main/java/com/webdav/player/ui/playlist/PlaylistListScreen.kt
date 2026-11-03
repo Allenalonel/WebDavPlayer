@@ -148,15 +148,23 @@ fun PlaylistListScreen(
 
                 else -> {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
                         contentPadding =
                             PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
-                                top = 12.dp,
-                                bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding,
+                                top = 16.dp,
+                                bottom = 16.dp,
                             ),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement =
+                            if (uiState.playlists.size <= 2) {
+                                Arrangement.Center
+                            } else {
+                                Arrangement.spacedBy(10.dp)
+                            },
                     ) {
                         items(uiState.playlists, key = { it.id }) { playlist ->
                             PlaylistItemRow(

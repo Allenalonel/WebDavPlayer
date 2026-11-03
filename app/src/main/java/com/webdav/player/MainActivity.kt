@@ -16,13 +16,23 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,8 +50,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -159,50 +172,85 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
-                            // Persistent Primary Navigation Bar
-                            NavigationBar(
+                            // Persistent M3 Expressive Navigation Bar
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                color = MaterialTheme.colorScheme.surfaceContainer,
                                 tonalElevation = 3.dp,
                             ) {
-                                NavigationBarItem(
-                                    selected = navState.currentDestination == AppDestination.PLAYLISTS,
-                                    onClick = { coordinator.selectDestination(AppDestination.PLAYLISTS) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = AppIcons.QueueMusic,
-                                            contentDescription = "歌单",
-                                        )
-                                    },
-                                    label = { Text("歌单") },
-                                )
-                                NavigationBarItem(
-                                    selected = navState.currentDestination == AppDestination.DIRECTORY_BROWSER,
-                                    onClick = { coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER) },
-                                    icon = {
-                                        Icon(
-                                            imageVector =
-                                                if (navState.currentDestination == AppDestination.DIRECTORY_BROWSER) {
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                                            .height(60.dp),
+                                    horizontalArrangement = Arrangement.SpaceAround,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    val destinations =
+                                        listOf(
+                                            Triple(AppDestination.PLAYLISTS, "歌单", AppIcons.QueueMusic),
+                                            Triple(
+                                                AppDestination.DIRECTORY_BROWSER,
+                                                "媒体库",
+                                                if (navState.currentDestination ==
+                                                    AppDestination.DIRECTORY_BROWSER
+                                                ) {
                                                     AppIcons.FolderOpen
                                                 } else {
                                                     AppIcons.Folder
                                                 },
-                                            contentDescription = "媒体库",
+                                            ),
+                                            Triple(AppDestination.SERVER_LIST, "服务器", AppIcons.Storage),
                                         )
-                                    },
-                                    label = { Text("媒体库") },
-                                )
-                                NavigationBarItem(
-                                    selected = navState.currentDestination == AppDestination.SERVER_LIST,
-                                    onClick = { coordinator.selectDestination(AppDestination.SERVER_LIST) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = AppIcons.Storage,
-                                            contentDescription = "服务器",
-                                        )
-                                    },
-                                    label = { Text("服务器") },
-                                )
+                                    destinations.forEach { (destination, label, icon) ->
+                                        val isSelected = navState.currentDestination == destination
+                                        Column(
+                                            modifier =
+                                                Modifier
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .clickable { coordinator.selectDestination(destination) }
+                                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            Box(
+                                                modifier =
+                                                    Modifier
+                                                        .size(width = 52.dp, height = 28.dp)
+                                                        .clip(RoundedCornerShape(14.dp))
+                                                        .background(
+                                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                                        ),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = label,
+                                                    tint =
+                                                        if (isSelected) {
+                                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                        } else {
+                                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                                        },
+                                                    modifier = Modifier.size(20.dp),
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color =
+                                                    if (isSelected) {
+                                                        MaterialTheme.colorScheme.onSurface
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    },
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         },
                     ) { innerPadding ->

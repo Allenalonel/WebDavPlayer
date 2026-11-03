@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -56,17 +57,17 @@ import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
-    val CapsuleHeight: Dp = 54.dp
-    val CapsuleCornerRadius: Dp = 27.dp
+    val CapsuleHeight: Dp = 60.dp
+    val CapsuleCornerRadius: Dp = 30.dp
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
     val MicroBarHeight: Dp = 2.dp
     val ProgressMicroBarShape = RoundedCornerShape(MicroBarHeight)
-    val CoverSize: Dp = 38.dp
-    val ButtonSize: Dp = 36.dp
-    val PlayPauseButtonSize: Dp = 38.dp
-    val QueueMusicButtonSize: Dp = 36.dp
-    val ButtonSpacing: Dp = 6.dp
-    val MicroBarHorizontalPadding: Dp = 14.dp
+    val CoverSize: Dp = 42.dp
+    val ButtonSize: Dp = 38.dp
+    val PlayPauseButtonSize: Dp = 40.dp
+    val QueueMusicButtonSize: Dp = 38.dp
+    val ButtonSpacing: Dp = 8.dp
+    val MicroBarHorizontalPadding: Dp = 16.dp
     val MicroBarBottomPadding: Dp = 3.dp
     val SwipeSkipThreshold: Dp = 40.dp
     val VerticalDragThreshold: Float = -20f
@@ -76,7 +77,7 @@ object MiniPlayerDefaults {
     const val SurfaceBorderAlpha: Float = 0.25f
 
     // Penetrative scroll content bottom padding contract
-    val PenetrativeContentBottomPadding: Dp = 140.dp
+    val PenetrativeContentBottomPadding: Dp = 150.dp
 }
 
 enum class MiniPlayerGestureAction {
@@ -201,33 +202,33 @@ fun MiniPlayer(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(start = 8.dp, end = 10.dp, top = 2.dp, bottom = 2.dp),
+                        .padding(start = 10.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Album Art / Audio Icon Box (38x38 with 10dp rounded corners matching M3E prototype)
+                // Circular Album Art Disc (CircleShape matching capsule geometry)
                 Box(
                     modifier =
                         Modifier
                             .size(MiniPlayerDefaults.CoverSize)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     CoverThumbnailImage(
                         thumbnailPath = currentTrack.coverThumbnailPath,
                         contentDescription = "封面",
-                        modifier = Modifier.size(MiniPlayerDefaults.CoverSize),
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
                     ) {
                         Icon(
                             imageVector = AppIcons.Audiotrack,
                             contentDescription = "音轨",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 // Title and State Column
                 Column(

@@ -15,15 +15,15 @@ class LyricsViewPresentationTest {
     fun lyricsViewDefaults_typographyHierarchy_differentiatesMainAndTranslation() {
         // Main text sizes
         assertTrue(LyricsViewDefaults.ActiveMainFontSize > LyricsViewDefaults.InactiveMainFontSize)
-        assertEquals(22.sp, LyricsViewDefaults.ActiveMainFontSize)
-        assertEquals(17.sp, LyricsViewDefaults.InactiveMainFontSize)
+        assertEquals(26.sp, LyricsViewDefaults.ActiveMainFontSize)
+        assertEquals(19.sp, LyricsViewDefaults.InactiveMainFontSize)
 
         // Translation text sizes (subordinate to main)
         assertTrue(LyricsViewDefaults.ActiveTranslationFontSize < LyricsViewDefaults.ActiveMainFontSize)
         assertTrue(LyricsViewDefaults.InactiveTranslationFontSize < LyricsViewDefaults.InactiveMainFontSize)
         assertTrue(LyricsViewDefaults.ActiveTranslationFontSize > LyricsViewDefaults.InactiveTranslationFontSize)
-        assertEquals(15.sp, LyricsViewDefaults.ActiveTranslationFontSize)
-        assertEquals(13.sp, LyricsViewDefaults.InactiveTranslationFontSize)
+        assertEquals(16.sp, LyricsViewDefaults.ActiveTranslationFontSize)
+        assertEquals(14.sp, LyricsViewDefaults.InactiveTranslationFontSize)
 
         // Font weights
         assertEquals(FontWeight.Bold, LyricsViewDefaults.ActiveMainFontWeight)
