@@ -16,7 +16,7 @@
 
 | 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 规范路径 |
 | :--- | :--- | :---: | :---: | :--- |
-| `m3-expressive-ui-redesign` | Material 3 Expressive 界面重构、全天候全域动态取色与流体交互 (ADR-0028) | 6 | Ready for Implementation | [`m3-expressive-ui-redesign/spec.md`](m3-expressive-ui-redesign/spec.md) |
+| `m3-expressive-ui-redesign` | Material 3 Expressive 界面重构、全天候全域动态取色与流体交互 (ADR-0028) | 6 | Completed | [`m3-expressive-ui-redesign/spec.md`](m3-expressive-ui-redesign/spec.md) |
 
 ### `m3-expressive-ui-redesign` 工单列表与依赖图
 
@@ -41,12 +41,12 @@
   └──────────────┘       └──────────────┘
 ```
 
-- [ ] [`01-brand-normalization-and-global-dynamic-theming.md`](m3-expressive-ui-redesign/issues/01-brand-normalization-and-global-dynamic-theming.md) (Blocked by: None)
-- [ ] [`02-slim-fluid-bottom-dock-and-relative-fab.md`](m3-expressive-ui-redesign/issues/02-slim-fluid-bottom-dock-and-relative-fab.md) (Blocked by: 01)
-- [ ] [`03-playlist-in-playback-indicator-and-single-column-row.md`](m3-expressive-ui-redesign/issues/03-playlist-in-playback-indicator-and-single-column-row.md) (Blocked by: 01)
-- [ ] [`04-continuous-fluid-left-aligned-top-app-bar.md`](m3-expressive-ui-redesign/issues/04-continuous-fluid-left-aligned-top-app-bar.md) (Blocked by: 01)
-- [ ] [`05-floating-search-pill-capsule-and-multi-select.md`](m3-expressive-ui-redesign/issues/05-floating-search-pill-capsule-and-multi-select.md) (Blocked by: 02, 04)
-- [ ] [`06-square-cover-artwork-lyrics-and-responsive-dual-pane.md`](m3-expressive-ui-redesign/issues/06-square-cover-artwork-lyrics-and-responsive-dual-pane.md) (Blocked by: 01, 02)
+- [x] [`01-brand-normalization-and-global-dynamic-theming.md`](m3-expressive-ui-redesign/issues/01-brand-normalization-and-global-dynamic-theming.md) (Blocked by: None)
+- [x] [`02-slim-fluid-bottom-dock-and-relative-fab.md`](m3-expressive-ui-redesign/issues/02-slim-fluid-bottom-dock-and-relative-fab.md) (Blocked by: 01)
+- [x] [`03-playlist-in-playback-indicator-and-single-column-row.md`](m3-expressive-ui-redesign/issues/03-playlist-in-playback-indicator-and-single-column-row.md) (Blocked by: 01)
+- [x] [`04-continuous-fluid-left-aligned-top-app-bar.md`](m3-expressive-ui-redesign/issues/04-continuous-fluid-left-aligned-top-app-bar.md) (Blocked by: 01)
+- [x] [`05-floating-search-pill-capsule-and-multi-select.md`](m3-expressive-ui-redesign/issues/05-floating-search-pill-capsule-and-multi-select.md) (Blocked by: 02, 04)
+- [x] [`06-square-cover-artwork-lyrics-and-responsive-dual-pane.md`](m3-expressive-ui-redesign/issues/06-square-cover-artwork-lyrics-and-responsive-dual-pane.md) (Blocked by: 01, 02)
 
 ---
 
