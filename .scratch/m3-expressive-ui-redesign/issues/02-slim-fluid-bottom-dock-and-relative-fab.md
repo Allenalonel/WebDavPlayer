@@ -14,3 +14,4 @@
 - [ ] MiniPlayer 存在时 FAB 相对下方保持 24dp 净空呼吸间距，MiniPlayer 隐藏时 FAB 平滑回落至导航栏上方
 - [ ] 在 Compact（360dp）、Standard（392dp）及 Expanded（430dp）设备上验证底栏与 FAB 的间距稳定性与手势可达性
 - [ ] 确保底栏与 MiniPlayer 的区域之外没有任何透明手势拦截层阻断底层页面的上下滑动
+- [ ] 严格保证既有播控功能零破坏：MiniPlayer 点击展开、上滑展开、横滑切歌手势（Swipe-to-skip）、队列按钮唤起 `HoistedPlaybackQueueSheet`、重试回放横幅及导航栏三大目的地切换逻辑 100% 完整保留

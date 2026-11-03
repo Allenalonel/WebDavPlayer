@@ -16,4 +16,5 @@
 - [ ] 遵循 WindowSizeClass 标准：在宽屏与折叠屏/平板模式（660dp+）下，全屏播放器自动自适应为左右双栏并排分屏
 - [ ] 必须与 `.tmp/prototype_m3_expressive.html` 交互原型进行像素级视觉保真度核验，大卡片与 68dp Squircle 播控键形态 100% 吻合
 - [ ] 确保全屏下滑收起手势与歌词 LazyColumn 上下滑动互不冲突、丝滑顺畅
+- [ ] 严格保证既有播放器核心播控与守护功能零破坏：厂商电池优化白名单常驻横幅（`BatteryWhitelistBanner`）及跳转忽略电池优化弹窗、弱网自动重试横幅（`FullPlayerRetryBanner`）、播放模式轮转（单曲/列表/随机）、进度滑块拖拽 Seek、不支持 Range 重播弹窗及 `HoistedPlaybackQueueSheet` 唤起 100% 完整保留
 - [ ] 针对歌词点击 Seek 与多端断点分屏切换进行针对性测试验收

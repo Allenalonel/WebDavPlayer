@@ -71,6 +71,34 @@ Status: ready-for-agent
 21. 作为查看系统应用列表与通知栏的用户，我希望看到的播放器名称规范大写为“WebDAVPlayer”，以便专业规范且避免缩写歧义。
 22. 作为在多选模式下改变主意的用户，当我点击左上角叉号或物理返回键时，我希望多选状态平滑解除且 MiniPlayer 自动复位，以便操作符合移动端直觉。
 
+## Existing Functional Invariants (Zero-Regression Guarantee)
+
+本次重构是**纯粹的 UI / 表现层设计重构**，绝对不是功能或业务逻辑重构。所有既有架构、领域模型、仓储层、数据流及业务操作逻辑必须 100% 原样保留，绝不允许任何功能回退。必须严格坚守的既有功能清单如下：
+
+1. **下拉刷新机制 (Pull-to-Refresh Invariant)**：
+   - `DirectoryBrowserScreen` 与歌单界面的 `pullRefreshState` 及其网络请求链路保持 100% 完整可用；
+   - 顶栏的折叠机制绝对不允许与下拉刷新手势冲突，两者协同工作，手势流畅顺滑。
+2. **歌单双向滑动手势 (Threshold-Gated Swipe Invariant)**：
+   - 歌单详情页中的 `SwipeToDismissBox`（右滑从歌单删除、左滑添加到下一首播放，带 50% 物理阈值与触感反馈）在重构为 16dp 卡片后必须 100% 正常工作。
+3. **歌单自定义拖拽排序 (Drag-and-Drop Reorder Invariant)**：
+   - 歌单详情页中的 `isCustomReorderMode` 拖拽排序手柄 `[ ≡ ]`、垂直手势监听、拖动位移反馈、卡片浮起阴影及顶栏「保存」按键完整保留，排序结果持久化机制不受任何影响。
+4. **服务器管理全生命周期 (Server Management Invariant)**：
+   - 添加服务器、编辑服务器（`ServerEditDialog`）、测试连接（`onTestConnection` 与状态反馈）、删除服务器级联确认（`DeleteConfirmationDialog`）及活跃服务器一键切换功能 100% 正常运转。
+5. **歌单全功能操作 (Playlist Operations Invariant)**：
+   - 新建歌单（`CreatePlaylistDialog`）、重命名歌单（`RenamePlaylistDialog`）、删除歌单、清理失效歌曲（`cleanInactiveTracks`）、五种排序模式切换（添加时间、标题、艺术家、自定义）及曲目属性详情（`PlaylistTrackDetailDialog`）一键起播完全保留。
+6. **CUE 虚拟分轨与外置封面 (Virtual Tracks & Artwork Invariant)**：
+   - `.cue` 虚拟分轨标签显示、分轨时长换算、分轨连续播放及同目录外置封面自愈机制完全不受 UI 重构影响。
+7. **全屏播放器核心播控与守护 (Player Guard & Controls Invariant)**：
+   - 播放/暂停、进度滑块拖拽 Seek、上一曲/下一曲、单曲/列表循环/随机洗牌模式切换完整可用；
+   - 厂商电池优化白名单常驻横幅（`BatteryWhitelistBanner`）及忽略电池优化弹窗必须完整保留；
+   - 弱网重试横幅（`FullPlayerRetryBanner`）及播放队列抽屉（`HoistedPlaybackQueueSheet`）完整保留。
+8. **跨界面多选批量操作 (Batch Addition Invariant)**：
+   - 批量添加到歌单（`AddToPlaylistDialog` 自动去重）与批量添加到下一首播放完整可用。
+9. **底层音频管道与服务生命周期 (Core Audio & Service Invariant)**：
+   - `WebDavMediaService` 前台服务提升、通知栏播控更新、硬件唤醒锁（WakeLock/WifiLock）、防意外外放（Becoming Noisy）保护及低采样率升采样管道保持零变更。
+10. **架构接缝隔离约束 (Architectural Boundary Constraint)**：
+    - 严禁重构、重写或修改 ViewModels、Repositories、DataSources、DAOs、Entities 及 AppSession 的核心业务方法；仅允许在表现层 Composable 中替换排版、注入动态主题及绑定已有状态流。
+
 ## Implementation Decisions
 
 ### 1. 架构级底栏瘦身与 Intrinsic Scaffold 堆叠流
