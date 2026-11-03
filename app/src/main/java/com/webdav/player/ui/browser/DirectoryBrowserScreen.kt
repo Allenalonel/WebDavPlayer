@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -162,29 +163,30 @@ fun DirectoryBrowserScreen(
     }
 
     if (uiState.isSearchActive) {
-        // 方案 2：全通透极简沉浸条（完全去除生硬的分割横线）
         Column(
             modifier =
                 modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .background(MaterialTheme.colorScheme.surface),
+                    .background(Color.Transparent),
         ) {
             Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (isSearchSelectionMode) {
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(26.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 2.dp,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .height(48.dp),
+                                .height(52.dp),
                     ) {
                         Row(
                             modifier =
@@ -235,25 +237,40 @@ fun DirectoryBrowserScreen(
                         }
                     }
                 } else {
+                    IconButton(
+                        onClick = { viewModel.onSearchActiveChanged(false) },
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.ArrowBack,
+                            contentDescription = "返回",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(26.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 2.dp,
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .height(52.dp),
                     ) {
                         Row(
                             modifier =
                                 Modifier
                                     .fillMaxSize()
-                                    .padding(horizontal = 12.dp),
+                                    .padding(horizontal = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 imageVector = AppIcons.Search,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp),
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -268,6 +285,7 @@ fun DirectoryBrowserScreen(
                                 textStyle =
                                     MaterialTheme.typography.bodyLarge.copy(
                                         color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.SemiBold,
                                     ),
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                 modifier =
@@ -277,7 +295,7 @@ fun DirectoryBrowserScreen(
                                 decorationBox = { innerTextField ->
                                     if (uiState.searchQuery.isEmpty()) {
                                         Text(
-                                            text = "搜索歌曲、歌手、专辑或文件夹...",
+                                            text = "搜索歌曲、歌手、专辑...",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                             maxLines = 1,
@@ -301,20 +319,6 @@ fun DirectoryBrowserScreen(
                                 }
                             }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    TextButton(
-                        onClick = { viewModel.onSearchActiveChanged(false) },
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                    ) {
-                        Text(
-                            text = "取消",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
                     }
                 }
             }
@@ -349,6 +353,7 @@ fun DirectoryBrowserScreen(
                             )
                         } else {
                             viewModel.onSearchResultTrackClicked(track)
+                            viewModel.onSearchActiveChanged(false)
                         }
                     },
                     onAddToPlaylist = onAddToPlaylist,

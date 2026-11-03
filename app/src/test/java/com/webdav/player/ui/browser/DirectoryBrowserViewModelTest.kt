@@ -1980,4 +1980,59 @@ class DirectoryBrowserViewModelTest {
             )
             assertEquals("/Music/Jazz/", viewModel.uiState.value.currentPath)
         }
+
+    @Test
+    fun batchPlayNext_preservesSelectedTrackOrderInQueue() =
+        runTest {
+            advanceUntilIdle()
+
+            val initialTrack =
+                AudioTrack(
+                    id = "1:/initial.mp3",
+                    serverId = 1L,
+                    remotePath = "/initial.mp3",
+                    title = "Initial Track",
+                    format = AudioFormat.MP3,
+                )
+            fakeMusicPlayerAppSession.playTrack(initialTrack)
+            advanceUntilIdle()
+
+            val selectedTracks =
+                listOf(
+                    AudioTrack(
+                        id = "1:/track_a.flac",
+                        serverId = 1L,
+                        remotePath = "/track_a.flac",
+                        title = "Track A",
+                        format = AudioFormat.FLAC,
+                    ),
+                    AudioTrack(
+                        id = "1:/track_b.flac",
+                        serverId = 1L,
+                        remotePath = "/track_b.flac",
+                        title = "Track B",
+                        format = AudioFormat.FLAC,
+                    ),
+                    AudioTrack(
+                        id = "1:/track_c.flac",
+                        serverId = 1L,
+                        remotePath = "/track_c.flac",
+                        title = "Track C",
+                        format = AudioFormat.FLAC,
+                    ),
+                )
+
+            // Multi-select batch enqueue: tracks.reversed().forEach { playNext(it) }
+            selectedTracks.reversed().forEach { track ->
+                viewModel.musicPlayerAppSession?.playNext(track)
+            }
+            advanceUntilIdle()
+
+            val queueTracks = fakeMusicPlayerAppSession.sessionState.value.queue.tracks
+            assertEquals(4, queueTracks.size)
+            assertEquals("1:/initial.mp3", queueTracks[0].id)
+            assertEquals("1:/track_a.flac", queueTracks[1].id)
+            assertEquals("1:/track_b.flac", queueTracks[2].id)
+            assertEquals("1:/track_c.flac", queueTracks[3].id)
+        }
 }
