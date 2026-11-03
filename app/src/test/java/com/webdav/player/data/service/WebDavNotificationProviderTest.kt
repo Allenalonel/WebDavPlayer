@@ -331,4 +331,24 @@ class WebDavNotificationProviderTest {
         assertEquals("网络受阻，正在重连...", notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString())
         assertTrue("Weak network notification should remain ongoing", notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
     }
+
+    @Test
+    fun buildNotification_whenTitleIsNull_fallsBackToBrandNameWebDAVPlayer() {
+        val mediaItem =
+            MediaItem
+                .Builder()
+                .setUri("http://example.com/audio.mp3")
+                .setMediaId("test:no_title")
+                .build()
+        player.setMediaItem(mediaItem)
+
+        val notification = provider.buildNotification(session)
+        assertEquals("WebDAVPlayer", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
+    }
+
+    @Test
+    fun brandNormalization_appNameString_isWebDAVPlayer() {
+        val appName = context.getString(R.string.app_name)
+        assertEquals("WebDAVPlayer", appName)
+    }
 }

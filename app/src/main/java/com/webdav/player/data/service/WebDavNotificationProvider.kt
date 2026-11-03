@@ -96,7 +96,7 @@ class WebDavNotificationProvider(
                         ?.title
                         ?.toString()
                 )
-                ?: if (isError) "Playback Error" else "WebDAV Player"
+                ?: if (isError) "Playback Error" else "WebDAVPlayer"
         val artist =
             if (playbackState is PlaybackState.Error) {
                 playbackState.message

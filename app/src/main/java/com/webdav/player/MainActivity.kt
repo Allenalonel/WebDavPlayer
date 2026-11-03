@@ -60,6 +60,7 @@ import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.HoistedPlaybackQueueSheet
 import com.webdav.player.ui.player.MiniPlayer
+import com.webdav.player.ui.player.rememberArtworkColors
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
 import com.webdav.player.ui.playlist.PlaylistDetailViewModel
@@ -99,12 +100,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            WebDavPlayerTheme {
+            val musicSession = appContainer.musicPlayerAppSession
+            val playerSessionState by musicSession.sessionState.collectAsStateWithLifecycle()
+            val artworkColors by rememberArtworkColors(
+                thumbnailPath = playerSessionState.currentTrack?.coverThumbnailPath,
+            )
+
+            WebDavPlayerTheme(
+                artworkColors = artworkColors,
+            ) {
                 RequestNotificationPermissionEffect()
 
-                val musicSession = appContainer.musicPlayerAppSession
                 val playbackActions = rememberPlaybackActions(musicSession)
-                val playerSessionState by musicSession.sessionState.collectAsStateWithLifecycle()
                 val playbackProgress by musicSession.playbackProgress.collectAsStateWithLifecycle()
 
                 val serverState by serverViewModel.uiState.collectAsStateWithLifecycle()

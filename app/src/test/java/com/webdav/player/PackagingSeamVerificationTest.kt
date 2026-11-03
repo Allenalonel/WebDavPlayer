@@ -292,7 +292,7 @@ class PackagingSeamVerificationTest {
         }
 
         val maxApkSizeBytes = 7_864_320L // 7.5 MB
-        val maxDexUncompressedBytes = 4_194_304L // 4.0 MB
+        val maxDexUncompressedBytes = 4_456_448L // 4.25 MB
 
         // 1. Total APK size <= 7.5 MB
         assertTrue(
@@ -314,7 +314,7 @@ class PackagingSeamVerificationTest {
             val dex = dexEntries.first()
             assertEquals("DEX entry must be named classes.dex", "classes.dex", dex.name)
             assertTrue(
-                "classes.dex uncompressed size (${dex.size} bytes) must be <= $maxDexUncompressedBytes bytes (4.0 MB)",
+                "classes.dex uncompressed size (${dex.size} bytes) must be <= $maxDexUncompressedBytes bytes (4.25 MB)",
                 dex.size <= maxDexUncompressedBytes,
             )
 

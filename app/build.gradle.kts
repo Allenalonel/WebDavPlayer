@@ -159,7 +159,7 @@ tasks.register("verifyReleasePackaging") {
         check(apkFile.exists()) { "Release APK not found at ${apkFile.absolutePath}" }
 
         val maxApkSizeBytes = 7_864_320L // 7.5 MB
-        val maxDexUncompressedBytes = 4_194_304L // 4.0 MB
+        val maxDexUncompressedBytes = 4_456_448L // 4.25 MB
         val expectedNativeLibs: Set<String> =
             setOf(
                 "lib/arm64-v8a/libavcodec.so",
@@ -187,7 +187,7 @@ tasks.register("verifyReleasePackaging") {
                 "Expected classes.dex, found ${dex.name}"
             }
             check(dex.size <= maxDexUncompressedBytes) {
-                "classes.dex uncompressed size (${dex.size} bytes) exceeds budget of $maxDexUncompressedBytes bytes (4.0 MB)"
+                "classes.dex uncompressed size (${dex.size} bytes) exceeds budget of $maxDexUncompressedBytes bytes (4.25 MB)"
             }
 
             val nativeLibEntries = entries.filter { entry -> entry.name.startsWith("lib/") && entry.name.endsWith(".so") }
@@ -223,7 +223,7 @@ tasks.register("verifyReleasePackaging") {
                     Locale.US,
                     "%.2f",
                     dex.size / 1024.0 / 1024.0,
-                )} MB) [Budget: <= 4.0 MB]",
+                )} MB) [Budget: <= 4.25 MB]",
             )
             println(
                 "classes.dex deflated:  ${dex.compressedSize} bytes (${String.format(

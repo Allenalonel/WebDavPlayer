@@ -103,6 +103,38 @@ class WebDavPlayerThemeTest {
             "onError vs error contrast must be >= 4.5:1, got $errorContrast",
             errorContrast >= 4.5
         )
+
+        // onSurfaceVariant (secondary text) is dark slate charcoal (#3A3546)
+        assertEquals(Color(0xFF3A3546), scheme.onSurfaceVariant)
+
+        // onSurfaceVariant vs background reaches WCAG AAA (>= 8.5:1)
+        val secTextBgContrast = contrastRatio(scheme.onSurfaceVariant, scheme.background)
+        assertTrue(
+            "onSurfaceVariant vs background contrast must be >= 8.5:1, got $secTextBgContrast",
+            secTextBgContrast >= 8.5
+        )
+
+        // onSurfaceVariant vs surfaceContainer reaches WCAG AAA (>= 8.5:1)
+        val secTextContainerContrast = contrastRatio(scheme.onSurfaceVariant, scheme.surfaceContainer)
+        assertTrue(
+            "onSurfaceVariant vs surfaceContainer contrast must be >= 8.5:1, got $secTextContainerContrast",
+            secTextContainerContrast >= 8.5
+        )
+
+        // onPrimaryContainer vs primaryContainer (pills) reaches WCAG AAA (>= 8.5:1)
+        val pillContrast = contrastRatio(scheme.onPrimaryContainer, scheme.primaryContainer)
+        assertTrue(
+            "onPrimaryContainer vs primaryContainer contrast must be >= 8.5:1, got $pillContrast",
+            pillContrast >= 8.5
+        )
+    }
+
+    @Test
+    fun defaultThemes_lockToObsidianDarkAndSoftLight() {
+        assertEquals(BackgroundDark, ExpressiveDarkColorScheme.background)
+        assertEquals(SurfaceDark, ExpressiveDarkColorScheme.surface)
+        assertEquals(BackgroundLight, ExpressiveLightColorScheme.background)
+        assertEquals(SurfaceLight, ExpressiveLightColorScheme.surface)
     }
 
     @Test
