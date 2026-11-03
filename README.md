@@ -1,7 +1,7 @@
-# WebDavPlayer 🎵
+# WebDAVPlayer 🎵
 
 <p align="center">
-  <img src="docs/images/logo.png" width="112" height="112" alt="WebDavPlayer Logo" />
+  <img src="docs/images/logo.png" width="112" height="112" alt="WebDAVPlayer Logo" />
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
   <a href="https://developer.android.com/about/versions/10"><img src="https://img.shields.io/badge/Platform-Android_10+_(API_29+)-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Platform" /></a>
   <a href="https://kotlinlang.org/"><img src="https://img.shields.io/badge/Kotlin-1.9+-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://isocpp.org/"><img src="https://img.shields.io/badge/C++-17_(Native_NDK)-00599C?style=flat-square&logo=c%2B%2B&logoColor=white" alt="C++17" /></a>
-  <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/UI-Jetpack_Compose_(MD3)-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white" alt="Compose" /></a>
+  <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/UI-Jetpack_Compose_(M3E)-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white" alt="Compose" /></a>
   <a href="https://developer.android.com/guide/topics/media/media3"><img src="https://img.shields.io/badge/Audio-Media3_ExoPlayer_+_FFmpeg-FF6F00?style=flat-square" alt="Media3 & FFmpeg" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square" alt="License" /></a>
 </p>
@@ -21,7 +21,7 @@
 
 ## 📖 项目简介
 
-**WebDavPlayer** 是一款遵循 **Material Design 3 (Material You)** 现代设计语言的 Android 原生流式音频播放器。
+**WebDAVPlayer** 是一款遵循 **Google Material 3 Expressive (M3E)** 最新设计语言与流体交互的 Android 原生流式音频播放器。
 
 通过标准的 WebDAV (HTTP/HTTPS) 协议，用户能够直接挂载并流式回放家庭 NAS（群晖 Synology、威联通 QNAP、TrueNAS）、路由器私有云盘或各类远程服务器上的高保真音乐资产。项目基于 **AndroidX Media3 (ExoPlayer)** 并深度集成 **FFmpeg 原生 C++ JNI 解码扩展**，提供毫秒级在线即点即播体验，无需同步下载曲目到本地永久存储，畅享轻量纯粹的云端音乐。
 
@@ -67,13 +67,15 @@
 - **在途元数据无感富化（Non-Disruptive Metadata Enrichment）**：后台解析出高清封面和标签后，仅广播更新应用会话流与系统锁屏 `MediaSession`，严禁推倒重建播放器时间线，确保流式回放无卡顿、无杂音。
 - **自签名 SSL 证书信任**：支持自签名证书一键信任，无障碍对接各类局域网私有云与家庭 NAS。
 
-### 🎨 7. 原生 Material Design 3 (Material You) 视觉规范
-- **沉浸式边到边体系（Edge-to-Edge Chrome）**：界面完整铺满至系统状态栏与手势导航条后方，随封面色调自适应微调明暗反差。
-- **自适应应用图标（Adaptive Themed Icon）**：根据 MD3 大连续超椭圆（Squircle）重新设计的极简流体云与圆角播放键，深度适配 Android 13+ 壁纸动态提取变色（Themed Icons）。
-- **全局驻留悬浮 Mini-Player 胶囊**：在页面切换与层级钻取时始终浮动驻留，提供核心播控与平滑展开入口。
-- **全屏大播放器视图（Full Player Sheet）**：自适应提取封面色彩生成柔和氛围光晕渐变背景，集成黑胶旋转律动，轻量滑动手势收起，左右滑动无缝切换至双语歌词大视窗。
-- **水平滑动自适应面包屑（Directory Breadcrumb Strip）**：MD3 胶囊 Chip 路径条，支持任意祖先层级瞬时穿梭回跳。
-- **跳动音浪状态指示器（Equalizer Track Indicator）**：目录浏览时即时呈现当前正在播放的曲目动态三柱等化器跳动脉冲。
+### 🎨 7. Material 3 Expressive 界面重构与全天候全域动态取色（M3 Expressive UI & Global Theming）
+- **全天候全域音轨动态取色（Global Dynamic Artwork Palette）**：基于专辑封面种子色通过 HCT Tonal Palette 同时推导全域暗色（`#141022` 曜石黑）与柔和浅色色阶，整机大背景与卡片随切歌动态平滑换肤；解绑系统壁纸杂色（`dynamicColor = false`）；浅色模式次级文字达到 WCAG AAA 8.5:1 超高清标准。
+- **60dp 紧凑流体底栏与绝对居中**：采用 60dp 紧凑交互区并自适应手势条，内部以 52dp x 28dp M3 药丸指示舱搭配 20dp 图标与标签文字绝对垂直居中，消除传统底栏的笨重压迫感。
+- **流体微光 Mini 播放器与圆形黑胶唱片（Liquid Fill MiniPlayer & Circle Disc）**：60dp 饱满独立胶囊搭配 42dp 正圆黑胶封面；全域落地「流体微光背景填充 (Liquid Fill)」，拔除底部挤压条，内部组件 100% 垂直居中，背景随进度平滑漫延半透明主题微光。
+- **全机型动态自适应 FAB 避让**：以自适应流体公式驱动，在 MiniPlayer 出现时维持 24dp 黄金律动净空，隐藏时优雅回落，彻底根除遮挡。
+- **FluidTopAppBar 连续流体折叠顶栏与手势协同仲裁**：16dp 对称外边距，收起过程左对齐无突兀居中跳跃，拔除冗余按键；内置 `coordinatedRefreshConnection`，向下回滑优先展开顶栏，彻底消除与下拉刷新的手势冲突。
+- **纯正 M3E 独立药丸搜索舱与悬浮多选胶囊**：26dp 饱满独立药丸搜索舱（44dp 状态栏避让），集成历史胶囊即打即搜；长按触发 16dp 卡片多选流，MiniPlayer 优雅退让，底部弹出 28dp 悬浮多选操作胶囊（`下一首播放` + `添加到歌单`）。
+- **歌单单列卡片内部绝对垂直居中与 80dp Hero Header**：原生 Flexbox 绝对纵向几何对称居中，全域拔除灰线，顶部落地 80dp 渐变微圆角大封面卡片与「播放全部」胶囊。
+- **全屏方形大封面与流体氛围聚焦歌词（Fluid Ambient Lyrics）**：28dp 方形圆角大卡片（Squircle 250x250，带环境光晕）与 68dp Squircle 播控按键；轻量顶栏动态呈现 `正在播放自 $serverName`，完全剔除歌词内页重复标题；在播歌词动态锁定屏幕正中央，22sp 特粗字号搭配 3.5dp 原色垂直强调条，未唱行靠左平滑微透渐隐；660dp+ 宽屏模式下自动自适应为左右双栏并排分屏。
 
 ### 💽 8. CUE 虚拟分轨与目录闭环流式播放（CUE Virtual Tracks & Gapless Streaming）
 - **单物理流流内无缝映射**：针对整轨 FLAC/WAV/APE 专辑，底层始终保持单条持久化网络流，无需断开重连，在会话层精确换算相对时间轴，提供 0 爆音、0 声学卡顿的纯流式 Gapless 体验。
@@ -315,6 +317,9 @@ app/src/main/
 - [ADR 0023: 播放会话内部接缝化与解构上帝类](docs/adr/0023-internal-seams-and-session-decomposition.md)
 - [ADR 0024: 下沉目录富化与搜索历史至仓储层并轻量化视图模型](docs/adr/0024-deepen-directory-and-search-repositories-and-slim-viewmodel.md)
 - [ADR 0025: 深化播放引擎与收敛仓储层](docs/adr/0025-deepen-player-engine-and-consolidate-repositories.md)
+- [ADR 0026: 显式洗牌待播队列与原序镜像](docs/adr/0026-explicit-shuffled-playback-queue-and-order-mirroring.md)
+- [ADR 0027: 批量添加到歌单与上下文多选交互](docs/adr/0027-batch-playlist-addition-and-contextual-selection.md)
+- [ADR 0028: Material 3 Expressive 界面重构、全天候全域动态取色与流体交互规范](docs/adr/0028-material-3-expressive-elevation-and-dynamic-theming.md)
 
 ---
 

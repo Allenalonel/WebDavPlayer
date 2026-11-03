@@ -4,7 +4,18 @@
 
 ---
 
-## [3.1] - 2026-11-02
+## [3.1] - 2026-11-03
+
+### 🎨 Material 3 Expressive 界面重构与全域流体交互 (M3 Expressive UI Redesign & Fluid Interaction, ADR-0028)
+- **品牌名称全局规范化 (Brand Normalization)**：应用名称全域统一为符合行业与 WebDAV 协议标准的 `WebDAVPlayer`（DAV 全部大写），统一启动器图标、多任务卡片与通知栏标题。
+- **全天候全域音轨动态取色系统 (Global Dynamic Artwork Palette)**：解绑 Android 12+ Monét 系统壁纸色（锁定 `dynamicColor = false`），默认呈现深邃暗紫曜石黑（`#141022`）与柔和浅底；基于专辑封面种子色通过 HCT Tonal Palette 同时推导全域暗色与柔和浅色色阶，整机大背景、表面容器卡片随切歌丝滑换肤；浅色模式次级文字强化为石板墨炭色（`#3A3546`），数量胶囊对比度达到 WCAG AAA 8.5:1 超高清标准。
+- **60dp 紧凑流体底栏与绝对居中 (Compact 60dp M3E Navigation Bar)**：废除机械写死高度，采用 60dp 紧凑交互区并自适应手势条，内部以 52dp x 28dp M3 药丸指示舱搭配 20dp 图标与标签文字绝对垂直居中，彻底消除传统底栏的笨重压迫感。
+- **流体微光 Mini 播放器与圆形黑胶唱片封面 (Liquid Fill MiniPlayer & Circle Disc)**：升级为 60dp 饱满独立大胶囊（30dp 饱满圆角）与 42dp 正圆形黑胶唱片封面（CircleShape）；全域落地「方案三：流体微光背景填充 (Liquid Fill)」，彻底拔除底部挤压条，内部组件 100% 垂直居中，随播放平滑漫延半透明主题色渐变微光。
+- **全机型动态自适应 FAB 避让 (Adaptive Relative FAB Clearance)**：以动态自适应流体公式驱动，在 MiniPlayer 存在时相对下方维持 24dp 黄金律动净空，隐藏时优雅回落，杜绝任何元素重叠。
+- **FluidTopAppBar 连续流体折叠顶栏与手势协同仲裁 (Continuous Fluid Top App Bar & Coordinated Pull-to-Refresh)**：展开大标题与收起小标题严格锁定左侧垂直基准线，左右校准为 16dp 标准对称外边距；滚动伴随 24px 毛玻璃雾化弥散，移除顶栏冗余加号与重复按键；构建 `coordinatedRefreshConnection`，向下回滑优先展开折叠顶栏，完全展开且到顶时方触发下拉刷新，彻底根除手势抢占死锁。
+- **纯正 M3E 独立药丸搜索舱与悬浮多选胶囊 (Floating Search Pill Capsule & Contextual Multi-Select)**：剔除生硬横条，顶部 44dp 避让悬浮 26dp 独立药丸搜索舱，集成历史胶囊填词与即打即搜；长按触发 16dp 卡片多选流，MiniPlayer 优雅退让，底部弹出 28dp 悬浮多选操作胶囊（`下一首播放` + `添加到歌单`）。
+- **歌单单列卡片内部绝对垂直居中与 80dp Hero Header**：摒弃有基准线偏差的 `ListItem` 槽位，以原生 Flexbox 实现 52dp 封面、歌名、数量胶囊与更多操作绝对垂直居中；歌单详情页落地 80dp 渐变微圆角大封面 Hero Header 与 Primary 胶囊「播放全部」。
+- **全屏方形大封面、动态服务器名与流体氛围聚焦歌词 (Square Artwork, Dynamic Server Header & Fluid Ambient Lyrics)**：全屏播放器核心升级为 28dp 方形圆角大卡片（Squircle 250x250，带环境光晕与 clamp 流体比例）与 68dp Squircle 播控按键；轻量顶栏动态呈现 `正在播放自 $serverName`，完全剔除歌词内页重复标题；歌词界面采用「流体氛围聚焦流（Scheme 1）」，在播句动态锁定屏幕正中央，22sp 特粗字号搭配 3.5dp 原色垂直强调条，未唱行靠左平滑微透渐隐；在大屏/折叠屏（660dp+）模式下自动自适应为左右双栏分屏。
 
 ### 🌐 WebDAV 协议与网络韧性加固 (WebDAV Protocol & Network Resilience)
 - **WebDAV 路径 RFC 3986 规范百分号解码与双向加号对称保真 (RFC 3986 Path Decoding & Plus Sign Resilience)**：实现专用路径百分号解码器 `WebDavXmlParser.decodeRfc3986Path`，严格保留字面量 `+`，杜绝传统表单解码器将路径中的 `+` 误替换为空格；在 URL 解析中将空格编码为 `%20`、字面量加号编码为 `%2B`，两端严格对称，彻底根除如 `1+1.mp3` 或 `AC+DC/` 等含加号文件 404 播放与目录浏览失败。
