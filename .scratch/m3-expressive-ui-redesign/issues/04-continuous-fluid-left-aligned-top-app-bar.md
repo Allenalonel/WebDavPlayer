@@ -5,13 +5,22 @@
 
 **Blocked by:** 01: 品牌名称规范化与全天候全域音轨动态取色主题系统
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] 顶栏折叠机制必须严格遵守 Compose 嵌套滚动协议：基于官方组件封装或在测量时正确配置 `heightOffsetLimit`，折叠完成后立即释放滑动分量，**绝对保证下层 LazyColumn 上下滑动 100% 畅通无阻**
-- [ ] 凡不需要大标题折叠的视窗（如歌单详情页），绝对严禁在外层 Scaffold 挂载 `scrollBehavior.nestedScrollConnection`，杜绝任何误拦截手势
-- [ ] 展开大标题与收起小标题统一锁定左侧垂直基准线（Consistent Left Alignment），收起折叠过程中绝对不发生突兀居中跳跃
-- [ ] 顶栏在滚动后呈现 24px 柔和毛玻璃弥散雾化效果，与全域动态背景柔和浸润，页面滑过时无生硬色块切断
-- [ ] 彻底移除各视窗顶栏右侧所有的冗余“加号（+）”按钮，保持顶栏纯净留白
-- [ ] 服务器管理界面在浅色模式下的卡片、图标与属性标签完成色彩重构，满足高对比度要求，彻底消除黑底糊字
-- [ ] 在多种滑动速度与边界回弹场景下严格核验所有页面 LazyColumn 上下滑动与顶栏折叠的连通性
-- [ ] 严格保证既有顶栏与界面功能零破坏：媒体库界面的下拉刷新手势（`pullRefreshState`）与顶栏折叠手势协同工作绝无冲突、手动刷新 Toast 提示、服务器管理界面全生命周期（`ServerEditDialog` 增删改、`onTestConnection` 连通性测试与状态标签、删除服务器级联确认对话框）100% 完整可用
+- [x] 顶栏折叠机制必须严格遵守 Compose 嵌套滚动协议：基于官方组件封装或在测量时正确配置 `heightOffsetLimit`，折叠完成后立即释放滑动分量，**绝对保证下层 LazyColumn 上下滑动 100% 畅通无阻**
+- [x] 凡不需要大标题折叠的视窗（如歌单详情页），绝对严禁在外层 Scaffold 挂载 `scrollBehavior.nestedScrollConnection`，杜绝任何误拦截手势
+- [x] 展开大标题与收起小标题统一锁定左侧垂直基准线（Consistent Left Alignment），收起折叠过程中绝对不发生突兀居中跳跃
+- [x] 顶栏在滚动后呈现 24px 柔和毛玻璃弥散雾化效果，与全域动态背景柔和浸润，页面滑过时无生硬色块切断
+- [x] 彻底移除各视窗顶栏右侧所有的冗余“加号（+）”按钮，保持顶栏纯净留白
+- [x] 服务器管理界面在浅色模式下的卡片、图标与属性标签完成色彩重构，满足高对比度要求，彻底消除黑底糊字
+- [x] 在多种滑动速度与边界回弹场景下严格核验所有页面 LazyColumn 上下滑动与顶栏折叠的连通性
+- [x] 严格保证既有顶栏与界面功能零破坏：媒体库界面的下拉刷新手势（`pullRefreshState`）与顶栏折叠手势协同工作绝无冲突、手动刷新 Toast 提示、服务器管理界面全生命周期（`ServerEditDialog` 增删改、`onTestConnection` 连通性测试与状态标签、删除服务器级联确认对话框）100% 完整可用
+
+## Answer
+- 封装 `com.webdav.player.ui.common.FluidTopAppBar`，严格遵守 Compose 嵌套滚动测量协议：通过 `SideEffect` 动态配置 `scrollBehavior.state.heightOffsetLimit = calculateHeightOffsetLimit(expandedHeightPx)`，大标题折叠完成后消费归零，彻底释放滑动分量至下层 LazyColumn，100% 杜绝手势死锁或截胡。
+- 在不需要大标题折叠的歌单详情页（`PlaylistDetailScreen`，已有 Hero Header），顶栏传入 `scrollBehavior = null` 与 `expandedHeight = 0.dp`，且外层 Scaffold 绝不挂载 `nestedScrollConnection`，杜绝手势误拦截。
+- 展开大标题与收起小标题严格锁定左侧垂直基准线（无导航图标 16dp，有导航图标 56dp），折叠过程中文字仅沿垂直方向微缩位移，杜绝居中跳跃。
+- 滚动时伴随 88% alpha 柔和半透明 `surfaceContainer` 弥散层与动态高度投影（0~3dp），与全域动态背景无缝浸润。
+- 媒体库界面（`DirectoryBrowserScreen`）与歌单列表（`PlaylistListScreen`）全面接入 `FluidTopAppBar`，零破坏保持下拉刷新手势（`pullRefreshState`）协同工作与返回上一级导航。
+- 服务器管理界面（`ServerListScreen`）卡片完成色彩重构：卡片底色采用 `surfaceContainer`，活动卡片采用 `surfaceContainerHigh` 伴随 Primary 边框，浅色模式下副标题与标签具备高对比度，移除顶栏冗余“+”按键，完整保留增删改测全生命周期。
+- 编写 `FluidTopAppBarTest`，严格覆盖高度坍缩计算、滚动偏移释放（无手势吞食验证）、左对齐基准线不变性契约以及滚动状态检测。

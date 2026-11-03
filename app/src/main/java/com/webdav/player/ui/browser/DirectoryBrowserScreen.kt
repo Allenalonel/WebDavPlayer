@@ -69,6 +69,7 @@ import com.webdav.player.ui.browser.components.ErrorState
 import com.webdav.player.ui.browser.components.NoActiveServerState
 import com.webdav.player.ui.browser.components.SearchResultsContent
 import com.webdav.player.ui.common.FloatingMultiSelectBottomBar
+import com.webdav.player.ui.common.FluidTopAppBar
 import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.theme.AppIcons
 
@@ -382,8 +383,13 @@ fun DirectoryBrowserScreen(
             }
         }
     } else {
+        val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        LaunchedEffect(uiState.currentPath) {
+            scrollBehavior.state.heightOffset = 0f
+            scrollBehavior.state.contentOffset = 0f
+        }
         Scaffold(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
                 if (isSelectionMode) {
                     TopAppBar(
@@ -439,17 +445,22 @@ fun DirectoryBrowserScreen(
                             ),
                     )
                 } else {
-                    TopAppBar(
-                        title = {
-                            val titleText = uiState.headerTitle
-                            Text(
-                                text = titleText,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
+                    FluidTopAppBar(
+                        title = uiState.headerTitle,
+                        subtitle = uiState.activeServer?.name,
+                        navigationIcon =
+                            if (uiState.canNavigateUp) {
+                                {
+                                    IconButton(onClick = { viewModel.onNavigateUp() }) {
+                                        Icon(
+                                            imageVector = AppIcons.ArrowBack,
+                                            contentDescription = "返回上一级",
+                                        )
+                                    }
+                                }
+                            } else {
+                                null
+                            },
                         actions = {
                             if (!uiState.isInitializing) {
                                 IconButton(onClick = {
@@ -472,10 +483,8 @@ fun DirectoryBrowserScreen(
                                 }
                             }
                         },
-                        colors =
-                            TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            ),
+                        scrollBehavior = scrollBehavior,
+                        expandedHeight = 0.dp,
                     )
                 }
             },

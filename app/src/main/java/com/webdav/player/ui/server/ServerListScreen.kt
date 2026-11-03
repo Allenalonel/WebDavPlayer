@@ -26,11 +26,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.ui.common.FluidTopAppBar
 import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.server.components.ServerCardItem
 import com.webdav.player.ui.theme.AppIcons
@@ -48,30 +50,20 @@ fun ServerListScreen(
     fabBottomPadding: Dp = 96.dp,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("WebDAV 服务器", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            text =
-                                if (uiState.activeServer != null) {
-                                    "活跃节点: ${uiState.activeServer?.name}"
-                                } else {
-                                    "未选定活跃节点"
-                                },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
+            FluidTopAppBar(
+                title = "WebDAV 服务器",
+                subtitle =
+                    if (uiState.activeServer != null) {
+                        "活跃节点: ${uiState.activeServer?.name}"
+                    } else {
+                        "未选定活跃节点"
+                    },
+                scrollBehavior = scrollBehavior,
             )
         },
         floatingActionButton = {

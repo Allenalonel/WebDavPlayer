@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.ui.common.FluidTopAppBar
 import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.playlist.components.PlaylistHeaderArea
 import com.webdav.player.ui.playlist.components.PlaylistTrackDetailDialog
@@ -145,8 +146,9 @@ fun PlaylistDetailScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { },
+            FluidTopAppBar(
+                title = uiState.playlist?.name ?: "歌单",
+                subtitle = "${uiState.tracks.size} 首歌曲",
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -244,10 +246,8 @@ fun PlaylistDetailScreen(
                         }
                     }
                 },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
+                scrollBehavior = null,
+                expandedHeight = 0.dp,
             )
         },
     ) { innerPadding ->

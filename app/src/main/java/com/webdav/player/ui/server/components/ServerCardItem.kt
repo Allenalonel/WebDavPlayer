@@ -1,6 +1,7 @@
 package com.webdav.player.ui.server.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +62,16 @@ internal fun ServerCardItem(
         modifier =
             modifier
                 .fillMaxWidth()
+                .border(
+                    width = if (isActive) 1.5.dp else 1.dp,
+                    color =
+                        if (isActive) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        },
+                    shape = MaterialTheme.shapes.medium,
+                )
                 .clickable(onClick = onCardClick),
         shape = MaterialTheme.shapes.medium,
         colors =
@@ -69,7 +80,7 @@ internal fun ServerCardItem(
                     if (isActive) {
                         MaterialTheme.colorScheme.surfaceContainerHigh
                     } else {
-                        MaterialTheme.colorScheme.surfaceContainerLow
+                        MaterialTheme.colorScheme.surfaceContainer
                     },
             ),
         elevation =
