@@ -15,12 +15,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -150,10 +153,20 @@ fun PlaylistDetailScreen(
                 title = uiState.playlist?.name ?: "歌单",
                 subtitle = "${uiState.tracks.size} 首歌曲",
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    FilledTonalIconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier.size(38.dp),
+                        shape = CircleShape,
+                        colors =
+                            IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
                         Icon(
                             imageVector = AppIcons.ArrowBack,
                             contentDescription = "返回",
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 },
@@ -171,10 +184,20 @@ fun PlaylistDetailScreen(
                         }
                     } else {
                         Box {
-                            IconButton(onClick = { showSortMenu = true }) {
+                            FilledTonalIconButton(
+                                onClick = { showSortMenu = true },
+                                modifier = Modifier.size(38.dp),
+                                shape = CircleShape,
+                                colors =
+                                    IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                            ) {
                                 Icon(
                                     imageVector = AppIcons.Sort,
                                     contentDescription = "排序",
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
 
@@ -216,11 +239,23 @@ fun PlaylistDetailScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.size(6.dp))
+
                         Box {
-                            IconButton(onClick = { showMoreMenu = true }) {
+                            FilledTonalIconButton(
+                                onClick = { showMoreMenu = true },
+                                modifier = Modifier.size(38.dp),
+                                shape = CircleShape,
+                                colors =
+                                    IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                            ) {
                                 Icon(
                                     imageVector = AppIcons.MoreVert,
                                     contentDescription = "更多操作",
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
 

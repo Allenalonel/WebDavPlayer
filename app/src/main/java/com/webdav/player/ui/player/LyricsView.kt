@@ -173,8 +173,8 @@ fun LyricsView(
                 LazyColumn(
                     state = lazyListState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 180.dp, bottom = 220.dp, start = 16.dp, end = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    contentPadding = PaddingValues(top = 160.dp, bottom = 220.dp, start = 20.dp, end = 20.dp),
+                    horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.spacedBy(LyricsViewDefaults.LineSpacing),
                 ) {
                     itemsIndexed(
@@ -265,16 +265,16 @@ internal fun LyricLineItem(
                     vertical = LyricsViewDefaults.ItemVerticalPadding,
                     horizontal = LyricsViewDefaults.ItemHorizontalPadding,
                 ),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.Start,
     ) {
         Text(
             text = line.mainText,
             color = mainTextColor,
             fontSize = mainFontSize,
             fontWeight = mainFontWeight,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Start,
             lineHeight = if (isActive) 28.sp else 24.sp,
-            modifier = Modifier.testTag("lyric_main_text"),
+            modifier = Modifier.fillMaxWidth().testTag("lyric_main_text"),
         )
 
         if (line.hasTranslation && !line.translation.isNullOrBlank()) {
@@ -284,9 +284,9 @@ internal fun LyricLineItem(
                 color = translationTextColor,
                 fontSize = translationFontSize,
                 fontWeight = translationFontWeight,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
                 lineHeight = if (isActive) 20.sp else 18.sp,
-                modifier = Modifier.testTag("lyric_translation_text"),
+                modifier = Modifier.fillMaxWidth().testTag("lyric_translation_text"),
             )
         }
     }

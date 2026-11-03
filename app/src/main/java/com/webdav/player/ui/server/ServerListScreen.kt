@@ -47,7 +47,7 @@ fun ServerListScreen(
         viewModel.onSelectActiveServer(server.id)
         onNavigateToBrowser()
     },
-    fabBottomPadding: Dp = 0.dp,
+    fabBottomPadding: Dp = 80.dp,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()

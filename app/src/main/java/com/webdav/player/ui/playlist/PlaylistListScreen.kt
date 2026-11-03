@@ -15,15 +15,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -64,7 +67,7 @@ fun PlaylistListScreen(
     viewModel: PlaylistListViewModel,
     onPlaylistClick: (Playlist) -> Unit = {},
     modifier: Modifier = Modifier,
-    fabBottomPadding: Dp = 0.dp,
+    fabBottomPadding: Dp = 80.dp,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -74,7 +77,25 @@ fun PlaylistListScreen(
         topBar = {
             FluidTopAppBar(
                 title = "歌单",
-                subtitle = "${uiState.playlists.size} 个歌单",
+                subtitle = "共 ${uiState.playlists.size} 个云端歌单",
+                actions = {
+                    FilledTonalIconButton(
+                        onClick = { viewModel.openCreateDialog() },
+                        modifier = Modifier.size(38.dp),
+                        shape = CircleShape,
+                        colors =
+                            IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Add,
+                            contentDescription = "新建歌单",
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                },
                 scrollBehavior = scrollBehavior,
             )
         },

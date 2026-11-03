@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                         bottomBar = {
                             // Persistent Primary Navigation Bar
                             NavigationBar(
-                                modifier = Modifier.fillMaxWidth().height(58.dp),
+                                modifier = Modifier.fillMaxWidth().height(80.dp),
                                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                                 tonalElevation = 3.dp,
                             ) {
@@ -206,7 +206,7 @@ class MainActivity : ComponentActivity() {
                         },
                     ) { innerPadding ->
                         val fabBottomPadding by animateDpAsState(
-                            targetValue = if (navState.isMiniPlayerVisible) 64.dp else 0.dp,
+                            targetValue = if (navState.isMiniPlayerVisible) 160.dp else 80.dp,
                             label = "fab_bottom_padding",
                         )
 
@@ -317,8 +317,8 @@ class MainActivity : ComponentActivity() {
                                 modifier =
                                     Modifier
                                         .align(Alignment.BottomCenter)
-                                        .padding(bottom = innerPadding.calculateBottomPadding() + 4.dp)
-                                        .padding(horizontal = 14.dp),
+                                        .padding(bottom = innerPadding.calculateBottomPadding() + 8.dp)
+                                        .padding(horizontal = 16.dp),
                                 enter =
                                     slideInVertically(
                                         initialOffsetY = { it },

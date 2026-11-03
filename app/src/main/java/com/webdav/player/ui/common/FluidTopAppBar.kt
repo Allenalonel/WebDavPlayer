@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.sp
 
 /**
  * Material 3 Expressive Continuous Fluid Left-Aligned Collapsing Top App Bar.
@@ -40,7 +41,7 @@ import androidx.compose.ui.unit.lerp
  * 4. Pure minimal layout with no redundant buttons.
  */
 object FluidTopAppBarDefaults {
-    val ExpandedHeight: Dp = 48.dp
+    val ExpandedHeight: Dp = 64.dp
     val CollapsedHeight: Dp = 56.dp
     val LeftBaselineNoNav: Dp = 16.dp
     val LeftBaselineWithNav: Dp = 56.dp
@@ -212,16 +213,23 @@ fun FluidTopAppBar(
                     ) {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
+                            style =
+                                MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = (-0.5).sp,
+                                ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         if (!subtitle.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                    ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

@@ -195,14 +195,6 @@ fun FullPlayerView(
                             ).then(downwardSwipeModifier),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(width = 36.dp, height = 4.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "正在播放自 WebDAV",
                         style =

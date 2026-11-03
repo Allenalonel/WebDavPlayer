@@ -98,38 +98,37 @@ class MiniPlayerPresentationTest {
 
     @Test
     fun miniPlayerGeometry_capsuleAndMicroBarDimensions_matchSpecification() {
-        assertEquals(52.dp, MiniPlayerDefaults.CapsuleHeight)
-        assertEquals(26.dp, MiniPlayerDefaults.CapsuleCornerRadius)
-        assertEquals(36.dp, MiniPlayerDefaults.CoverSize)
-        assertEquals(36.dp, MiniPlayerDefaults.ButtonSize)
+        assertEquals(64.dp, MiniPlayerDefaults.CapsuleHeight)
+        assertEquals(28.dp, MiniPlayerDefaults.CapsuleCornerRadius)
+        assertEquals(44.dp, MiniPlayerDefaults.CoverSize)
+        assertEquals(38.dp, MiniPlayerDefaults.ButtonSize)
         assertEquals(42.dp, MiniPlayerDefaults.PlayPauseButtonSize)
         assertTrue(
-            "Capsule corner radius must be 26.dp for fluid pill geometry",
-            MiniPlayerDefaults.CapsuleCornerRadius >= 26.dp
+            "Capsule corner radius must be 28.dp for fluid pill geometry",
+            MiniPlayerDefaults.CapsuleCornerRadius >= 28.dp
         )
-        assertEquals(3.dp, MiniPlayerDefaults.MicroBarHeight)
-        assertEquals(14.dp, MiniPlayerDefaults.MicroBarHorizontalPadding)
-        assertEquals(4.dp, MiniPlayerDefaults.MicroBarBottomPadding)
-        assertEquals(RoundedCornerShape(26.dp), MiniPlayerDefaults.CapsuleShape)
-        assertEquals(114.dp, MiniPlayerDefaults.PenetrativeContentBottomPadding)
+        assertEquals(2.5.dp, MiniPlayerDefaults.MicroBarHeight)
+        assertEquals(16.dp, MiniPlayerDefaults.MicroBarHorizontalPadding)
+        assertEquals(3.dp, MiniPlayerDefaults.MicroBarBottomPadding)
+        assertEquals(RoundedCornerShape(28.dp), MiniPlayerDefaults.CapsuleShape)
+        assertEquals(164.dp, MiniPlayerDefaults.PenetrativeContentBottomPadding)
     }
 
     @Test
     fun bottomDockBudget_andFabClearance_matchAdr0028() {
-        val navBarHeight = 58.dp
+        val navBarHeight = 80.dp
         val miniPlayerHeight = MiniPlayerDefaults.CapsuleHeight
-        val bottomMargin = 4.dp
+        val bottomMargin = 8.dp
         val totalDockHeight = navBarHeight + miniPlayerHeight + bottomMargin
-        assertEquals(114.dp, totalDockHeight)
-        assertEquals(totalDockHeight, MiniPlayerDefaults.PenetrativeContentBottomPadding)
+        assertEquals(152.dp, totalDockHeight)
 
         val scaffoldFabMargin = 16.dp
         val fabClearance = 24.dp
         val totalFabBottomDistance = totalDockHeight + fabClearance
-        assertEquals(138.dp, totalFabBottomDistance)
+        assertEquals(176.dp, totalFabBottomDistance)
 
-        val additionalFabPadding = totalFabBottomDistance - navBarHeight - scaffoldFabMargin
-        assertEquals(64.dp, additionalFabPadding)
+        val additionalFabPadding = totalFabBottomDistance - scaffoldFabMargin
+        assertEquals(160.dp, additionalFabPadding)
     }
 
     @Test

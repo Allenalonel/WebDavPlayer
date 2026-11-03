@@ -18,13 +18,16 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -71,6 +74,7 @@ import com.webdav.player.ui.browser.components.NoActiveServerState
 import com.webdav.player.ui.browser.components.SearchResultsContent
 import com.webdav.player.ui.common.FloatingMultiSelectBottomBar
 import com.webdav.player.ui.common.FluidTopAppBar
+import com.webdav.player.ui.common.FluidTopAppBarDefaults
 import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.theme.AppIcons
 
@@ -452,14 +456,24 @@ fun DirectoryBrowserScreen(
                 } else {
                     FluidTopAppBar(
                         title = uiState.headerTitle,
-                        subtitle = uiState.activeServer?.name,
+                        subtitle = uiState.activeServer?.name?.let { "当前活跃节点: $it" } ?: "未连接服务器",
                         navigationIcon =
                             if (uiState.canNavigateUp) {
                                 {
-                                    IconButton(onClick = { viewModel.onNavigateUp() }) {
+                                    FilledTonalIconButton(
+                                        onClick = { viewModel.onNavigateUp() },
+                                        modifier = Modifier.size(38.dp),
+                                        shape = CircleShape,
+                                        colors =
+                                            IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                            ),
+                                    ) {
                                         Icon(
                                             imageVector = AppIcons.ArrowBack,
                                             contentDescription = "返回上一级",
+                                            modifier = Modifier.size(20.dp),
                                         )
                                     }
                                 }
@@ -467,29 +481,50 @@ fun DirectoryBrowserScreen(
                                 null
                             },
                         actions = {
-                            if (!uiState.isInitializing) {
-                                IconButton(onClick = {
-                                    isUserInitiatedRefresh.value = true
-                                    Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
-                                    viewModel.onRefresh()
-                                }) {
-                                    Icon(
-                                        imageVector = AppIcons.Refresh,
-                                        contentDescription = "刷新目录",
-                                    )
-                                }
-                            }
                             if (!uiState.isInitializing && uiState.activeServer != null) {
-                                IconButton(onClick = { viewModel.onSearchActiveChanged(true) }) {
+                                FilledTonalIconButton(
+                                    onClick = { viewModel.onSearchActiveChanged(true) },
+                                    modifier = Modifier.size(38.dp),
+                                    shape = CircleShape,
+                                    colors =
+                                        IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                        ),
+                                ) {
                                     Icon(
                                         imageVector = AppIcons.Search,
                                         contentDescription = "搜索曲库",
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            if (!uiState.isInitializing) {
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        isUserInitiatedRefresh.value = true
+                                        Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
+                                        viewModel.onRefresh()
+                                    },
+                                    modifier = Modifier.size(38.dp),
+                                    shape = CircleShape,
+                                    colors =
+                                        IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                        ),
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.Refresh,
+                                        contentDescription = "刷新目录",
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 }
                             }
                         },
                         scrollBehavior = scrollBehavior,
-                        expandedHeight = 0.dp,
+                        expandedHeight = FluidTopAppBarDefaults.ExpandedHeight,
                     )
                 }
             },
@@ -507,8 +542,6 @@ fun DirectoryBrowserScreen(
                         currentPath = uiState.currentPath,
                         onBreadcrumbClicked = { viewModel.onBreadcrumbClicked(it) },
                     )
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // Content Area with Pull-to-Refresh

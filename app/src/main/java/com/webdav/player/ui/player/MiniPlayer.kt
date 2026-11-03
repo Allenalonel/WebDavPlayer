@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,18 +56,18 @@ import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
-    val CapsuleHeight: Dp = 52.dp
-    val CapsuleCornerRadius: Dp = 26.dp
+    val CapsuleHeight: Dp = 64.dp
+    val CapsuleCornerRadius: Dp = 28.dp
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
-    val MicroBarHeight: Dp = 3.dp
+    val MicroBarHeight: Dp = 2.5.dp
     val ProgressMicroBarShape = RoundedCornerShape(MicroBarHeight)
-    val CoverSize: Dp = 36.dp
-    val ButtonSize: Dp = 36.dp
+    val CoverSize: Dp = 44.dp
+    val ButtonSize: Dp = 38.dp
     val PlayPauseButtonSize: Dp = 42.dp
     val QueueMusicButtonSize: Dp = 38.dp
     val ButtonSpacing: Dp = 8.dp
-    val MicroBarHorizontalPadding: Dp = 14.dp
-    val MicroBarBottomPadding: Dp = 4.dp
+    val MicroBarHorizontalPadding: Dp = 16.dp
+    val MicroBarBottomPadding: Dp = 3.dp
     val SwipeSkipThreshold: Dp = 40.dp
     val VerticalDragThreshold: Float = -20f
 
@@ -75,7 +76,7 @@ object MiniPlayerDefaults {
     const val SurfaceBorderAlpha: Float = 0.25f
 
     // Penetrative scroll content bottom padding contract
-    val PenetrativeContentBottomPadding: Dp = 114.dp
+    val PenetrativeContentBottomPadding: Dp = 164.dp
 }
 
 enum class MiniPlayerGestureAction {
@@ -116,7 +117,7 @@ fun MiniPlayer(
     val haptic = LocalHapticFeedback.current
     val swipeThresholdPx = with(density) { MiniPlayerDefaults.SwipeSkipThreshold.toPx() }
 
-    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val borderStroke =
         BorderStroke(
             MiniPlayerDefaults.SurfaceBorderWidth,
@@ -188,7 +189,7 @@ fun MiniPlayer(
         color = surfaceColor,
         border = borderStroke,
         tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        shadowElevation = 10.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             if (isMiniPlayerRetryBannerVisible(sessionState)) {
@@ -200,7 +201,7 @@ fun MiniPlayer(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Album Art / Audio Icon Box
@@ -208,7 +209,7 @@ fun MiniPlayer(
                     modifier =
                         Modifier
                             .size(MiniPlayerDefaults.CoverSize)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -221,7 +222,7 @@ fun MiniPlayer(
                             imageVector = AppIcons.Audiotrack,
                             contentDescription = "音轨",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 }
@@ -235,9 +236,10 @@ fun MiniPlayer(
                     Text(
                         text = currentTrack.title,
                         modifier = Modifier.basicMarquee(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     PlaybackStateIndicator(
@@ -263,18 +265,21 @@ fun MiniPlayer(
                 Spacer(modifier = Modifier.width(MiniPlayerDefaults.ButtonSpacing))
 
                 // Queue Music Button
-                IconButton(
+                FilledTonalIconButton(
                     onClick = onOpenQueue,
                     modifier =
                         Modifier
-                            .size(MiniPlayerDefaults.QueueMusicButtonSize)
-                            .clip(CircleShape),
+                            .size(MiniPlayerDefaults.QueueMusicButtonSize),
+                    colors =
+                        IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
                 ) {
                     Icon(
                         imageVector = AppIcons.QueueMusic,
                         contentDescription = "播放队列",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -295,7 +300,7 @@ fun MiniPlayer(
                             .height(MiniPlayerDefaults.MicroBarHeight)
                             .clip(MiniPlayerDefaults.ProgressMicroBarShape),
                     color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 )
             }
         }
@@ -394,13 +399,13 @@ private fun PlayPauseToggleButton(
     onTogglePlayPause: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    FilledTonalIconButton(
+    FilledIconButton(
         onClick = onTogglePlayPause,
         modifier = modifier.size(MiniPlayerDefaults.PlayPauseButtonSize),
         colors =
-            IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
     ) {
         AnimatedContent(
