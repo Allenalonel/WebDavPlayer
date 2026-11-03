@@ -5,7 +5,7 @@
 
 **Blocked by:** 01: 品牌名称规范化与全天候全域音轨动态取色主题系统, 02: 紧凑流体底栏 (114dp) 与 Scaffold 相对 24dp 避让 FAB
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] 点击 MiniPlayer 时触发物理容器形变展开动效（Container Morphing），收起时原路平滑缩回 MiniPlayer 胶囊
 - [ ] 顶部落地“正在播放自 WebDAV”轻量纯净顶栏，集成返回把手与分享菜单
