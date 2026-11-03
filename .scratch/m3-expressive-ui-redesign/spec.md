@@ -82,7 +82,10 @@ Status: ready-for-agent
   - 废除绝对坐标定位，将 FAB 纳为 Scaffold 底部堆叠体系中的弹性浮动层；
   - FAB 相对下方容器维持 **24dp 垂直净空**，MiniPlayer 显隐时由状态机平滑推升或降落。
 
-### 2. 全天候双模全域动态色彩推导引擎与高效刷新
+### 2. 全天候双模全域动态色彩推导引擎与色彩解绑 (Color Decoupling)
+- **彻底解绑 Android 12+ Monét 系统壁纸色 (`dynamicColor = false`)**：
+  - 根主题默认必须将 `dynamicColor` 锁定为 `false`，彻底消灭系统强行读取手机桌面壁纸（发灰/发黄杂色）冲淡覆盖应用原生配色的隐性问题；
+  - 默认优先呈现应用专属的深邃暗紫曜石黑（`#141022`）与柔和浅底，播放时由 `ArtworkColorExtractor` 从当前音轨封面种子色进行全域自适应推导；
 - 在色彩提取模块中，由当前在播音轨封面采样种子色（Dominant Color），通过 HCT 色彩空间同时推导出：
   - **暗色全域色阶**：沉浸背景（Tone 6~8）、容器底色（Tone 12~14）、Primary（Tone 80）；
   - **浅色全域色阶**：柔和氛围浅底（Tone 96~98）、浅色容器（Tone 92~94）、Primary（Tone 40）；
@@ -106,24 +109,41 @@ Status: ready-for-agent
   - 长按触发临时多选状态机，列表项浮现勾选框，MiniPlayer 自然让位；
   - 底部以弹簧动效弹出 28dp 悬浮多选操作胶囊（`下一首播放` + `添加到歌单`），顶栏转换为上下文操作栏。
 
-### 5. 歌单单列行规范与在播状态统一
-- 歌单列表采用单列列表行（52dp 微圆角封面 + 数量胶囊 Pill + `white-space: nowrap; text-overflow: ellipsis;` 严格单行截断，绝不折行）；
-- 歌单曲目行接入播放器 `sessionState`，封面叠加 3 柱跳动音波（`EqualizerTrackIndicator`），标题 Primary 加粗高亮。
+### 5. 列表全面卡片化 (Floating Card Flow)、拔除灰线与歌单 Hero Header
+- **彻底拔除所有 `HorizontalDivider`**：
+  - 严禁惯性修补！全应用各列表彻底废除 Android 传统的 `ListItem + HorizontalDivider` 灰线平底列表（旧版系统设置风格）；
+  - 歌单列表行与音频列表行全面重构为 **16dp/18dp 独立悬浮圆角卡片项 (`surfaceContainer` 卡片容器)**，配合微外边距与触摸弹性微变，还原原型的流体卡片质感；
+- **歌单详情页 Hero Header 落地**：
+  - 顶部呈现 **80dp 渐变微圆角大封面卡片**、加粗大标题与 Primary 胶囊「播放全部」按键，与下方曲目卡片列表形成鲜明纵深层次；
+- **歌单单列行规范与严格单行截断**：
+  - 歌单列表采用 52dp 微圆角封面 + 数量胶囊 Pill + `white-space: nowrap; text-overflow: ellipsis;` 严格单行截断，任何分辨率绝不折成两行；
+- **在播状态双向贯通**：
+  - 歌单曲目行接入播放器 `sessionState`，封面叠加 3 柱跳动音波（`EqualizerTrackIndicator`），标题 Primary 加粗高亮。
 
-### 6. 全屏方形大封面与跨设备响应式断点
-- 全屏播放器采用 28dp 方形圆角大封面（Squircle 250x250，具备环境光晕与 clamp 宽高比）；
-- 动感歌词支持双语逐行发光与点击精准 Seek 跳转；
-- 遵循 `WindowSizeClass`：紧凑屏（360dp）、标准屏（392dp）、大屏（430dp）与折叠屏/平板（660dp+ 左右双栏分屏）自适应。
+### 6. 全屏大播放器专属质感、方形大封面与跨设备响应式断点
+- **全屏播放器专属 M3E 质感**：
+  - 顶部呈现“正在播放自 WebDAV”轻量纯净顶栏；
+  - 播控主按键升级为 M3E 标志性的 **68dp Squircle（26dp 圆角方块）主播放键**，左右伴随 FilledTonal 药丸切歌按键，彻底淘汰原本简陋的小圆圈键；
+  - 核心采用 **28dp 方形圆角大封面**（Squircle 250x250，具备环境光晕与 clamp 宽高比）；
+  - 动感歌词支持双语逐行发光与点击精准 Seek 跳转；
+  - 遵循 `WindowSizeClass`：紧凑屏（360dp）、标准屏（392dp）、大屏（430dp）与折叠屏/平板（660dp+ 左右双栏分屏）自适应。
 
 ## Testing Decisions
 
-- **手势与滚动连通性铁律 (Top Priority)**：
+- **视觉保真度审计 (Visual Fidelity Review - Highest Priority)**：
+  严禁仅凭“代码中存在某个参数/文字条目”而盲目打勾验收！每个组件的实现必须直接与 [`.tmp/prototype_m3_expressive.html`](../../.tmp/prototype_m3_expressive.html) 进行**像素级视觉保真度核验**：
+  1. 检查是否存在未拔除的旧版 `HorizontalDivider` 灰线；
+  2. 检查歌单和音轨是否真正呈现为独立 16dp/18dp 圆角卡片；
+  3. 检查全屏播放主按键是否为 68dp Squircle 圆角方块；
+  4. 检查歌单详情页是否真正具备 80dp 渐变大封面 Hero Header；
+  5. 检查系统桌面壁纸是否被彻底解绑（未污染原生深紫黑底）。
+- **手势与滚动连通性铁律**：
   每个界面的改造必须进行手势连通性验证：在任何情况下，用户向上/向下滑动 `LazyColumn` 必须绝对丝滑顺畅，绝不允许发生滚动被截胡、锁死或手势无效；
 - **外部行为优先**：所有测试严格断言外部呈现状态与用户意图流转，严禁绑定私有内部实现细节；
 - **核心被测模块**：
   - `PlaylistDetailViewModel`：验证在播音轨状态订阅、排序模式流转与多选批处理；
   - `DirectoryBrowserViewModel`：验证多选状态机与搜索过滤联动；
-  - `ArtworkColorExtractor`：验证深色与浅色双模色阶计算的正确性及高对比度兜底策略；
+  - `ArtworkColorExtractor`：验证深色与浅色双模色阶计算的正确性、壁纸色解绑及高对比度兜底策略；
 - **先验参考（Prior Art）**：
   - 参考已有的 `PlaylistDetailViewModelTest`、`DirectoryBrowserViewModelTest`、`ArtworkColorExtractorTest` 进行 Targeted 针对性回归。
 
