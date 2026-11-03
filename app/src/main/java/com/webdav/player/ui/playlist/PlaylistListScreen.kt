@@ -78,24 +78,6 @@ fun PlaylistListScreen(
             FluidTopAppBar(
                 title = "歌单",
                 subtitle = "共 ${uiState.playlists.size} 个云端歌单",
-                actions = {
-                    FilledTonalIconButton(
-                        onClick = { viewModel.openCreateDialog() },
-                        modifier = Modifier.size(38.dp),
-                        shape = CircleShape,
-                        colors =
-                            IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.Add,
-                            contentDescription = "新建歌单",
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                },
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -134,7 +116,8 @@ fun PlaylistListScreen(
                         modifier =
                             Modifier
                                 .fillMaxSize()
-                                .padding(24.dp),
+                                .padding(24.dp)
+                                .padding(bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -170,10 +153,10 @@ fun PlaylistListScreen(
                             PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
-                                top = 8.dp,
+                                top = 12.dp,
                                 bottom = MiniPlayerDefaults.PenetrativeContentBottomPadding,
                             ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(uiState.playlists, key = { it.id }) { playlist ->
                             PlaylistItemRow(

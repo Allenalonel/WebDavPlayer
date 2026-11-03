@@ -61,6 +61,7 @@ import com.webdav.player.ui.navigation.tabAccessibilityGuard
 import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.HoistedPlaybackQueueSheet
 import com.webdav.player.ui.player.MiniPlayer
+import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.player.rememberArtworkColors
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
@@ -160,7 +161,7 @@ class MainActivity : ComponentActivity() {
                         bottomBar = {
                             // Persistent Primary Navigation Bar
                             NavigationBar(
-                                modifier = Modifier.fillMaxWidth().height(80.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                                 tonalElevation = 3.dp,
                             ) {
@@ -206,7 +207,12 @@ class MainActivity : ComponentActivity() {
                         },
                     ) { innerPadding ->
                         val fabBottomPadding by animateDpAsState(
-                            targetValue = if (navState.isMiniPlayerVisible) 160.dp else 80.dp,
+                            targetValue =
+                                if (navState.isMiniPlayerVisible) {
+                                    innerPadding.calculateBottomPadding() + 8.dp + MiniPlayerDefaults.CapsuleHeight + 24.dp - 16.dp
+                                } else {
+                                    innerPadding.calculateBottomPadding()
+                                },
                             label = "fab_bottom_padding",
                         )
 
@@ -318,7 +324,7 @@ class MainActivity : ComponentActivity() {
                                     Modifier
                                         .align(Alignment.BottomCenter)
                                         .padding(bottom = innerPadding.calculateBottomPadding() + 8.dp)
-                                        .padding(horizontal = 16.dp),
+                                        .padding(horizontal = 14.dp),
                                 enter =
                                     slideInVertically(
                                         initialOffsetY = { it },

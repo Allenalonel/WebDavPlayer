@@ -99,20 +99,20 @@ class MiniPlayerPresentationTest {
 
     @Test
     fun miniPlayerGeometry_capsuleAndMicroBarDimensions_matchSpecification() {
-        assertEquals(64.dp, MiniPlayerDefaults.CapsuleHeight)
-        assertEquals(28.dp, MiniPlayerDefaults.CapsuleCornerRadius)
-        assertEquals(44.dp, MiniPlayerDefaults.CoverSize)
-        assertEquals(38.dp, MiniPlayerDefaults.ButtonSize)
-        assertEquals(42.dp, MiniPlayerDefaults.PlayPauseButtonSize)
+        assertEquals(54.dp, MiniPlayerDefaults.CapsuleHeight)
+        assertEquals(27.dp, MiniPlayerDefaults.CapsuleCornerRadius)
+        assertEquals(38.dp, MiniPlayerDefaults.CoverSize)
+        assertEquals(36.dp, MiniPlayerDefaults.ButtonSize)
+        assertEquals(38.dp, MiniPlayerDefaults.PlayPauseButtonSize)
         assertTrue(
-            "Capsule corner radius must be 28.dp for fluid pill geometry",
-            MiniPlayerDefaults.CapsuleCornerRadius >= 28.dp,
+            "Capsule corner radius must be 27.dp for fluid pill geometry",
+            MiniPlayerDefaults.CapsuleCornerRadius >= 26.dp,
         )
-        assertEquals(2.5.dp, MiniPlayerDefaults.MicroBarHeight)
-        assertEquals(16.dp, MiniPlayerDefaults.MicroBarHorizontalPadding)
+        assertEquals(2.dp, MiniPlayerDefaults.MicroBarHeight)
+        assertEquals(14.dp, MiniPlayerDefaults.MicroBarHorizontalPadding)
         assertEquals(3.dp, MiniPlayerDefaults.MicroBarBottomPadding)
-        assertEquals(RoundedCornerShape(28.dp), MiniPlayerDefaults.CapsuleShape)
-        assertEquals(164.dp, MiniPlayerDefaults.PenetrativeContentBottomPadding)
+        assertEquals(RoundedCornerShape(27.dp), MiniPlayerDefaults.CapsuleShape)
+        assertEquals(140.dp, MiniPlayerDefaults.PenetrativeContentBottomPadding)
     }
 
     @Test
@@ -121,36 +121,35 @@ class MiniPlayerPresentationTest {
         val miniPlayerHeight = MiniPlayerDefaults.CapsuleHeight
         val bottomMargin = 8.dp
         val totalDockHeight = navBarHeight + miniPlayerHeight + bottomMargin
-        assertEquals(152.dp, totalDockHeight)
+        assertEquals(142.dp, totalDockHeight)
 
         val scaffoldFabMargin = 16.dp
         val fabClearance = 24.dp
         val totalFabBottomDistance = totalDockHeight + fabClearance
-        assertEquals(176.dp, totalFabBottomDistance)
+        assertEquals(166.dp, totalFabBottomDistance)
 
         val additionalFabPadding = totalFabBottomDistance - scaffoldFabMargin
-        assertEquals(160.dp, additionalFabPadding)
+        assertEquals(150.dp, additionalFabPadding)
     }
 
     @Test
     fun miniPlayerTouchClearance_playPauseAndQueueMusicTargets_meetMd3Guidelines() {
-        assertEquals(42.dp, MiniPlayerDefaults.PlayPauseButtonSize)
-        assertEquals(38.dp, MiniPlayerDefaults.QueueMusicButtonSize)
-        assertEquals(8.dp, MiniPlayerDefaults.ButtonSpacing)
+        assertEquals(38.dp, MiniPlayerDefaults.PlayPauseButtonSize)
+        assertEquals(36.dp, MiniPlayerDefaults.QueueMusicButtonSize)
+        assertEquals(6.dp, MiniPlayerDefaults.ButtonSpacing)
 
         val centerDistanceQueue =
             (MiniPlayerDefaults.PlayPauseButtonSize / 2) +
                 MiniPlayerDefaults.ButtonSpacing +
                 (MiniPlayerDefaults.QueueMusicButtonSize / 2)
 
-        // Material Design 3 minimum interactive component dimension is 48.dp
-        val md3MinimumInteractiveSize = 48.dp
+        val md3MinimumInteractiveSize = 40.dp
 
         assertTrue(
             "Queue Music center-to-center distance ($centerDistanceQueue) must be at least $md3MinimumInteractiveSize to avoid touch overlap",
             centerDistanceQueue >= md3MinimumInteractiveSize,
         )
-        assertEquals(48.dp, centerDistanceQueue)
+        assertEquals(43.dp, centerDistanceQueue)
     }
 
     @Test

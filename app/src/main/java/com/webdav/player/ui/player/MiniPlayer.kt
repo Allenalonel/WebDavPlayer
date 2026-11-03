@@ -56,17 +56,17 @@ import com.webdav.player.ui.common.CoverThumbnailImage
 import com.webdav.player.ui.theme.AppIcons
 
 object MiniPlayerDefaults {
-    val CapsuleHeight: Dp = 64.dp
-    val CapsuleCornerRadius: Dp = 28.dp
+    val CapsuleHeight: Dp = 54.dp
+    val CapsuleCornerRadius: Dp = 27.dp
     val CapsuleShape = RoundedCornerShape(CapsuleCornerRadius)
-    val MicroBarHeight: Dp = 2.5.dp
+    val MicroBarHeight: Dp = 2.dp
     val ProgressMicroBarShape = RoundedCornerShape(MicroBarHeight)
-    val CoverSize: Dp = 44.dp
-    val ButtonSize: Dp = 38.dp
-    val PlayPauseButtonSize: Dp = 42.dp
-    val QueueMusicButtonSize: Dp = 38.dp
-    val ButtonSpacing: Dp = 8.dp
-    val MicroBarHorizontalPadding: Dp = 16.dp
+    val CoverSize: Dp = 38.dp
+    val ButtonSize: Dp = 36.dp
+    val PlayPauseButtonSize: Dp = 38.dp
+    val QueueMusicButtonSize: Dp = 36.dp
+    val ButtonSpacing: Dp = 6.dp
+    val MicroBarHorizontalPadding: Dp = 14.dp
     val MicroBarBottomPadding: Dp = 3.dp
     val SwipeSkipThreshold: Dp = 40.dp
     val VerticalDragThreshold: Float = -20f
@@ -76,7 +76,7 @@ object MiniPlayerDefaults {
     const val SurfaceBorderAlpha: Float = 0.25f
 
     // Penetrative scroll content bottom padding contract
-    val PenetrativeContentBottomPadding: Dp = 164.dp
+    val PenetrativeContentBottomPadding: Dp = 140.dp
 }
 
 enum class MiniPlayerGestureAction {
@@ -201,15 +201,15 @@ fun MiniPlayer(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(start = 8.dp, end = 10.dp, top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Album Art / Audio Icon Box
+                // Album Art / Audio Icon Box (38x38 with 10dp rounded corners matching M3E prototype)
                 Box(
                     modifier =
                         Modifier
                             .size(MiniPlayerDefaults.CoverSize)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -222,12 +222,12 @@ fun MiniPlayer(
                             imageVector = AppIcons.Audiotrack,
                             contentDescription = "音轨",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 // Title and State Column
                 Column(

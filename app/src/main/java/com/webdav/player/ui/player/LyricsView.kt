@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -44,9 +45,9 @@ import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.ui.theme.AppIcons
 
 object LyricsViewDefaults {
-    val ActiveMainFontSize: TextUnit = 20.sp
-    val InactiveMainFontSize: TextUnit = 16.sp
-    val ActiveTranslationFontSize: TextUnit = 14.sp
+    val ActiveMainFontSize: TextUnit = 22.sp
+    val InactiveMainFontSize: TextUnit = 17.sp
+    val ActiveTranslationFontSize: TextUnit = 15.sp
     val InactiveTranslationFontSize: TextUnit = 13.sp
 
     val ActiveMainFontWeight: FontWeight = FontWeight.Bold
@@ -104,10 +105,11 @@ fun LyricsView(
             currentPositionMs
         }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
+        val halfViewport = (maxHeight / 2) - 24.dp
         when {
             isLoading -> {
                 Column(
@@ -173,7 +175,7 @@ fun LyricsView(
                 LazyColumn(
                     state = lazyListState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 28.dp, bottom = 48.dp, start = 0.dp, end = 0.dp),
+                    contentPadding = PaddingValues(top = halfViewport, bottom = halfViewport, start = 0.dp, end = 0.dp),
                     horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.spacedBy(LyricsViewDefaults.LineSpacing),
                 ) {
@@ -273,7 +275,7 @@ internal fun LyricLineItem(
             fontSize = mainFontSize,
             fontWeight = mainFontWeight,
             textAlign = TextAlign.Start,
-            lineHeight = if (isActive) 28.sp else 24.sp,
+            lineHeight = if (isActive) 30.sp else 24.sp,
             modifier = Modifier.fillMaxWidth().testTag("lyric_main_text"),
         )
 

@@ -404,7 +404,10 @@ fun DirectoryBrowserScreen(
         val coordinatedRefreshConnection =
             remember(pullRefreshState, scrollBehavior) {
                 object : NestedScrollConnection {
-                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    override fun onPreScroll(
+                        available: Offset,
+                        source: NestedScrollSource,
+                    ): Offset {
                         // When dragging down while top bar is collapsed, prioritize expanding top bar over pull refresh
                         if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
                             return Offset.Zero
@@ -430,7 +433,10 @@ fun DirectoryBrowserScreen(
                         return pullRefreshState.nestedScrollConnection.onPreFling(available)
                     }
 
-                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    override suspend fun onPostFling(
+                        consumed: Velocity,
+                        available: Velocity,
+                    ): Velocity {
                         if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
                             return Velocity.Zero
                         }
