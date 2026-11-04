@@ -385,7 +385,7 @@ class EndToEndCacheResilienceIntegrationTest {
                 val currentMeta2 = viewModel.uiState.value.metadataMap[mp3File.path]
                 val file1Exists = currentMeta1?.coverThumbnailPath?.let { File(it).exists() } == true
                 val file2Exists = currentMeta2?.coverThumbnailPath?.let { File(it).exists() } == true
-                if (file1Exists && file2Exists) {
+                if (file1Exists && file2Exists && !viewModel.uiState.value.isRefreshing) {
                     break
                 }
                 advanceTimeBy(50L)

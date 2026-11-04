@@ -9,28 +9,22 @@
     <path
         android:fillColor="#FFFFFFFF"
         android:fillAlpha="0.75"
-        android:pathData="M38,32 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v38.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-38.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
+        android:pathData="M38,34 A3,3 0 0,1 44,34 V74 A3,3 0 0,1 38,74 Z" />
 
     <!-- 柱2 -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M47,38 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v26.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-26.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
+        android:fillAlpha="0.85"
+        android:pathData="M48,40.5 A3,3 0 0,1 54,40.5 V67.5 A3,3 0 0,1 48,67.5 Z" />
 
     <!-- 柱3 -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M56,44 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v14.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-14.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
+        android:fillAlpha="0.95"
+        android:pathData="M58,46.5 A3,3 0 0,1 64,46.5 V61.5 A3,3 0 0,1 58,61.5 Z" />
 
     <!-- 柱4 -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M65,50 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v2.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-2.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
-
-    <!-- 底部托板 -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:fillAlpha="0.45"
-        android:pathData="M34,79 h38 a2.5,2.5 0 0,1 0,5 h-38 a2.5,2.5 0 0,1 0,-5 z" />
+        android:pathData="M68,52.5 A3,3 0 0,1 74,52.5 V55.5 A3,3 0 0,1 68,55.5 Z" />
 </vector>

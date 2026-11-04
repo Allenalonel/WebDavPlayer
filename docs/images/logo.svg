@@ -18,13 +18,10 @@
 
     <!-- Foreground: 4 Equalizer Columns natural Play Arrow -->
     <g transform="translate(0, 0)">
-      <rect x="38" y="32" width="5.5" height="44" rx="2.75" fill="#CCC2DC" />
-      <rect x="47" y="38" width="5.5" height="32" rx="2.75" fill="#D0BCFF" />
-      <rect x="56" y="44" width="5.5" height="20" rx="2.75" fill="#EFB8C8" />
-      <rect x="65" y="50" width="5.5" height="8" rx="2.75" fill="#FFFFFF" />
-
-      <!-- Bottom Fluid Shelf -->
-      <path d="M34,79 h38 a2.5,2.5 0 0,1 0,5 h-38 a2.5,2.5 0 0,1 0,-5 z" fill="#4F378B" opacity="0.75" />
+      <path fill="#CCC2DC" d="M 38,34 A 3,3 0 0,1 44,34 V 74 A 3,3 0 0,1 38,74 Z" />
+      <path fill="#D0BCFF" d="M 48,40.5 A 3,3 0 0,1 54,40.5 V 67.5 A 3,3 0 0,1 48,67.5 Z" />
+      <path fill="#EFB8C8" d="M 58,46.5 A 3,3 0 0,1 64,46.5 V 61.5 A 3,3 0 0,1 58,61.5 Z" />
+      <path fill="#FFFFFF" d="M 68,52.5 A 3,3 0 0,1 74,52.5 V 55.5 A 3,3 0 0,1 68,55.5 Z" />
     </g>
   </g>
 </svg>
