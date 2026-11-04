@@ -119,6 +119,22 @@ interface PlaylistDao {
     @Query("SELECT DISTINCT serverId FROM playlist_tracks WHERE isInactive = 1 AND inactiveReason = :reason")
     suspend fun getDistinctServerIdsForInactiveReason(reason: String): List<Long>
 
+    @Query(
+        "SELECT DISTINCT serverId FROM playlist_tracks WHERE isInactive = 1 AND (inactiveReason = 'SERVER_UNREACHABLE' OR inactiveReason = 'SERVER_CREDENTIAL_INVALID')",
+    )
+    suspend fun getDistinctServerIdsForInactiveServers(): List<Long>
+
+    @Query("UPDATE playlist_tracks SET isInactive = 1, inactiveReason = :reason WHERE serverId = :serverId")
+    suspend fun markServerInactiveStatus(
+        serverId: Long,
+        reason: String = "SERVER_UNREACHABLE",
+    ): Int
+
+    @Query(
+        "UPDATE playlist_tracks SET isInactive = 0, inactiveReason = NULL WHERE serverId = :serverId AND (inactiveReason = 'SERVER_UNREACHABLE' OR inactiveReason = 'SERVER_CREDENTIAL_INVALID')",
+    )
+    suspend fun clearServerInactiveStatus(serverId: Long): Int
+
     @Query("UPDATE playlist_tracks SET isInactive = 0, inactiveReason = NULL WHERE serverId = :serverId AND inactiveReason = :reason")
     suspend fun clearServerUnreachableStatus(
         serverId: Long,

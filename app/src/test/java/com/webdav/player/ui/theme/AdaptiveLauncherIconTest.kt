@@ -15,7 +15,6 @@ import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class AdaptiveLauncherIconTest {
-
     private lateinit var context: Context
 
     @Before
@@ -25,10 +24,11 @@ class AdaptiveLauncherIconTest {
 
     @Test
     fun manifestRegistersAdaptiveAndRoundLauncherIcons() {
-        val appInfo = context.packageManager.getApplicationInfo(
-            context.packageName,
-            PackageManager.GET_META_DATA
-        )
+        val appInfo =
+            context.packageManager.getApplicationInfo(
+                context.packageName,
+                PackageManager.GET_META_DATA,
+            )
 
         assertNotEquals("App icon must not be 0", 0, appInfo.icon)
         val iconResName = context.resources.getResourceEntryName(appInfo.icon)
@@ -95,12 +95,39 @@ class AdaptiveLauncherIconTest {
 
     @Test
     fun manifestDirectlyDeclaresIconAndRoundIcon() {
-        val manifestFile = File("src/main/AndroidManifest.xml").let {
-            if (it.isFile) it else File("app/src/main/AndroidManifest.xml")
-        }
+        val manifestFile =
+            File("src/main/AndroidManifest.xml").let {
+                if (it.isFile) it else File("app/src/main/AndroidManifest.xml")
+            }
         assertTrue("AndroidManifest.xml must exist", manifestFile.isFile)
         val content = manifestFile.readText()
         assertTrue("Manifest must declare standard launcher icon", content.contains("android:icon=\"@mipmap/ic_launcher\""))
         assertTrue("Manifest must declare round launcher icon", content.contains("android:roundIcon=\"@mipmap/ic_launcher_round\""))
+    }
+
+    @Test
+    fun appNameResolvesToAoffeePlayer() {
+        val appInfo =
+            context.packageManager.getApplicationInfo(
+                context.packageName,
+                PackageManager.GET_META_DATA,
+            )
+        val appLabel = context.packageManager.getApplicationLabel(appInfo).toString()
+        assertEquals("Aoffee Player", appLabel)
+    }
+
+    @Test
+    fun legacyMipmapPngIconsArePresentAcrossAllDensities() {
+        val resDir = File("src/main/res").let { if (it.isDirectory) it else File("app/src/main/res") }
+        val densities = listOf("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi")
+
+        densities.forEach { density ->
+            val dir = File(resDir, "mipmap-$density")
+            assertTrue("mipmap-$density directory must exist", dir.isDirectory)
+            val icon = File(dir, "ic_launcher.png")
+            val iconRound = File(dir, "ic_launcher_round.png")
+            assertTrue("ic_launcher.png must exist in mipmap-$density", icon.isFile && icon.length() > 0)
+            assertTrue("ic_launcher_round.png must exist in mipmap-$density", iconRound.isFile && iconRound.length() > 0)
+        }
     }
 }

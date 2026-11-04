@@ -31,6 +31,7 @@ class AppViewModelFactory(
                 ServerManagementViewModel(
                     repository = container.serverRepository,
                     webDavClient = container.webDavClient,
+                    playlistRepository = container.playlistRepository,
                 ) as T
             }
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,14 +26,14 @@ data class ServerManagementUiState(
     val connectionTestResult: ConnectionResult? = null,
     val testingServerId: Long? = null,
     val serverConnectionResults: Map<Long, ConnectionResult> = emptyMap(),
-    val userMessage: String? = null
+    val userMessage: String? = null,
 )
 
 class ServerManagementViewModel(
     private val repository: ServerRepository,
-    private val webDavClient: WebDavClient
+    private val webDavClient: WebDavClient,
+    private val playlistRepository: PlaylistRepository? = null,
 ) : ViewModel() {
-
     private val _dialogAndActionState = MutableStateFlow(DialogAndActionState())
 
     private data class DialogAndActionState(
@@ -43,39 +44,40 @@ class ServerManagementViewModel(
         val connectionTestResult: ConnectionResult? = null,
         val testingServerId: Long? = null,
         val serverConnectionResults: Map<Long, ConnectionResult> = emptyMap(),
-        val userMessage: String? = null
+        val userMessage: String? = null,
     )
 
-    val uiState: StateFlow<ServerManagementUiState> = combine(
-        repository.getAllServers(),
-        repository.getActiveServer(),
-        _dialogAndActionState
-    ) { servers, activeServer, dialogState ->
-        ServerManagementUiState(
-            servers = servers,
-            activeServer = activeServer,
-            isLoading = false,
-            isAddEditDialogVisible = dialogState.isAddEditDialogVisible,
-            serverToEdit = dialogState.serverToEdit,
-            serverToDelete = dialogState.serverToDelete,
-            testingConnection = dialogState.testingConnection,
-            connectionTestResult = dialogState.connectionTestResult,
-            testingServerId = dialogState.testingServerId,
-            serverConnectionResults = dialogState.serverConnectionResults,
-            userMessage = dialogState.userMessage
+    val uiState: StateFlow<ServerManagementUiState> =
+        combine(
+            repository.getAllServers(),
+            repository.getActiveServer(),
+            _dialogAndActionState,
+        ) { servers, activeServer, dialogState ->
+            ServerManagementUiState(
+                servers = servers,
+                activeServer = activeServer,
+                isLoading = false,
+                isAddEditDialogVisible = dialogState.isAddEditDialogVisible,
+                serverToEdit = dialogState.serverToEdit,
+                serverToDelete = dialogState.serverToDelete,
+                testingConnection = dialogState.testingConnection,
+                connectionTestResult = dialogState.connectionTestResult,
+                testingServerId = dialogState.testingServerId,
+                serverConnectionResults = dialogState.serverConnectionResults,
+                userMessage = dialogState.userMessage,
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = ServerManagementUiState(isLoading = true),
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = ServerManagementUiState(isLoading = true)
-    )
 
     fun onAddServerClicked() {
         _dialogAndActionState.update {
             it.copy(
                 isAddEditDialogVisible = true,
                 serverToEdit = null,
-                connectionTestResult = null
+                connectionTestResult = null,
             )
         }
     }
@@ -85,7 +87,7 @@ class ServerManagementViewModel(
             it.copy(
                 isAddEditDialogVisible = true,
                 serverToEdit = server,
-                connectionTestResult = null
+                connectionTestResult = null,
             )
         }
     }
@@ -95,7 +97,7 @@ class ServerManagementViewModel(
             it.copy(
                 isAddEditDialogVisible = false,
                 serverToEdit = null,
-                connectionTestResult = null
+                connectionTestResult = null,
             )
         }
     }
@@ -119,7 +121,7 @@ class ServerManagementViewModel(
             _dialogAndActionState.update {
                 it.copy(
                     serverToDelete = null,
-                    serverConnectionResults = it.serverConnectionResults - server.id
+                    serverConnectionResults = it.serverConnectionResults - server.id,
                 )
             }
         }
@@ -138,21 +140,25 @@ class ServerManagementViewModel(
                 it.copy(
                     testingConnection = true,
                     connectionTestResult = null,
-                    testingServerId = serverId
+                    testingServerId = serverId,
                 )
             }
             val result = webDavClient.testConnection(server)
+            if (result is ConnectionResult.Success && serverId != null) {
+                playlistRepository?.clearServerUnreachableStatus(serverId)
+            }
             _dialogAndActionState.update {
-                val updatedResults = if (serverId != null) {
-                    it.serverConnectionResults + (serverId to result)
-                } else {
-                    it.serverConnectionResults
-                }
+                val updatedResults =
+                    if (serverId != null) {
+                        it.serverConnectionResults + (serverId to result)
+                    } else {
+                        it.serverConnectionResults
+                    }
                 it.copy(
                     testingConnection = false,
                     connectionTestResult = result,
                     testingServerId = null,
-                    serverConnectionResults = updatedResults
+                    serverConnectionResults = updatedResults,
                 )
             }
         }
@@ -165,7 +171,7 @@ class ServerManagementViewModel(
                 it.copy(
                     isAddEditDialogVisible = false,
                     serverToEdit = null,
-                    connectionTestResult = null
+                    connectionTestResult = null,
                 )
             }
         }

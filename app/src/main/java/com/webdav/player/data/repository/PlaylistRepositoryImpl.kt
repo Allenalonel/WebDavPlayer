@@ -397,13 +397,37 @@ class PlaylistRepositoryImpl(
         }
     }
 
+    override fun markServerInactive(
+        serverId: Long,
+        reason: InactiveReason,
+    ) {
+        _inactiveTracksFlow.update { current ->
+            current.mapValues { (key, value) ->
+                if (key.serverId == serverId) reason else value
+            }
+        }
+        coroutineScope.launch {
+            playlistDao.markServerInactiveStatus(serverId, reason.name)
+        }
+    }
+
+    override suspend fun clearServerUnreachableStatus(serverId: Long) {
+        playlistDao.clearServerInactiveStatus(serverId)
+        _inactiveTracksFlow.update { current ->
+            current.filterNot {
+                it.key.serverId == serverId &&
+                    (it.value == InactiveReason.SERVER_UNREACHABLE || it.value == InactiveReason.SERVER_CREDENTIAL_INVALID)
+            }
+        }
+    }
+
     override fun getInactiveTracksFlow(): Flow<Map<TrackKey, InactiveReason>> = _inactiveTracksFlow.asStateFlow()
 
     override suspend fun triggerReachabilitySelfHealing() {
         if (webDavClient == null || serverRepository == null) return
         if (!isSelfHealingInProgress.compareAndSet(false, true)) return
         try {
-            val serverIds = playlistDao.getDistinctServerIdsForInactiveReason(InactiveReason.SERVER_UNREACHABLE.name)
+            val serverIds = playlistDao.getDistinctServerIdsForInactiveServers()
             if (serverIds.isEmpty()) return
 
             coroutineScope {
@@ -419,10 +443,7 @@ class PlaylistRepositoryImpl(
                                         ConnectionResult.Failure("Reachability probe failed")
                                     }
                                 if (result is ConnectionResult.Success) {
-                                    playlistDao.clearServerUnreachableStatus(serverId, InactiveReason.SERVER_UNREACHABLE.name)
-                                    _inactiveTracksFlow.update { current ->
-                                        current.filterNot { it.key.serverId == serverId && it.value == InactiveReason.SERVER_UNREACHABLE }
-                                    }
+                                    clearServerUnreachableStatus(serverId)
                                 }
                             }
                         }

@@ -1,8 +1,14 @@
-# WebDAVPlayer
+# Aoffee Player
 
-Android 平台上的 WebDAV 音频流式播放器，通过 HTTP/HTTPS 协议直接访问并播放远程 WebDAV 服务器上的音频资源。
+Android 平台上的现代化高保真 WebDAV 音频流式播放器，通过 HTTP/HTTPS 协议直接访问并流式播放远程 WebDAV 服务器（NAS / 私有云）上的音频资源。
 
 ## Language
+
+### Application & Branding
+
+**Aoffee Player**:
+本播放器应用的正式官方名称，遵循 Material Design 3 Expressive (M3E) 视觉语言与纯流式零磁盘占用架构。
+_Avoid_: WebDAVPlayer, WebDavPlayer, WebDav Music Player
 
 ### Remote Storage
 
@@ -73,8 +79,16 @@ _Avoid_: Song Item, Playlist Item
 _Avoid_: Multi Song Insert, Bulk Track Dump
 
 **Inactive Playlist Track**:
-当所属 WebDAV Server 处于离线/无法连接状态，或服务器认证凭证失效（401/403），或远程文件返回 404（已被重命名、移动或删除）时，歌单中呈现为置灰减淡的音轨状态。具备显式诊断原因枚举（InactiveReason），点击触发明确 Toast 反馈，流式切歌自动静默平滑跳过。
+当所属 WebDAV Server 处于离线/无法连接状态，或服务器重启与网关初始化期间认证凭证瞬态失效（401/403），或远程文件返回 404（已被重命名、移动或删除）时，歌单中呈现为置灰减淡的音轨状态。具备显式诊断原因枚举（InactiveReason），点击触发明确 Toast 反馈，流式切歌自动静默平滑跳过。其中服务器级瞬态故障（SERVER_UNREACHABLE 与 SERVER_CREDENTIAL_INVALID）纳入自愈网络全自动恢复。
 _Avoid_: Disabled Song, Dead Link, Error Item
+
+**Reachability Self-Healing**:
+由 `PlaylistRepository` 内部自主担保的连通性与故障自愈网络：通过 PROPFIND 主动探活、服务器设置测试连接成功联动、物理播放引擎解码出声反哺（Playback Success Feedback）及系统网络恢复广播四重触发信道，全自动清除歌单中因网络断开或服务端重启认证波动而产生的置灰状态，杜绝任何交互死锁。
+_Avoid_: Manual Refresh, Re-add Song, Fixed Inactive State
+
+**Symmetric Fault Lifecycle**:
+领域与仓储层架构的对称闭环准则：凡在数据层存在持久化错误或降级标记（如 `markTrackInactive`、`markServerInactive`）的写入接缝，必须在同一领域边界内提供对等、全自动的解除与自愈信道。严禁单向累加、无法逆转的“死状态”。
+_Avoid_: One-Way State Trap, Write-Only Fault, Zombie Inactive Track
 
 **Library Search Index**:
 基于已访问目录的 SWR 镜像快照（及可选的 Wi-Fi 后台增量遍历）在本地持久层构建的即时全文索引，支持对 Remote File 与 Remote Directory 进行毫秒级多维检索。

@@ -5,13 +5,30 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- MD3 Continuous Squircle Cloud Body -->
+    <!-- 4 根等化脉冲柱：外形自然拼合构筑为指向右侧的播放大三角 (中心严格对齐 54, 54) -->
+    <!-- 柱1 (最长底边柱，H=44) -->
     <path
-        android:fillColor="#A8C7FA"
-        android:pathData="M33,68 C26,68 22,63 22,57 C22,51 26.5,46.5 32,46 C34,38 41,33 50,33 C58,33 65,37 68,43 C71,41.5 74.5,41 78,43 C84,46 87,51.5 86.5,57.5 C86,63.5 81,68 75,68 Z" />
+        android:fillColor="#CCC2DC"
+        android:pathData="M38,32 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v38.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-38.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
 
-    <!-- Centered Rounded Play Triangle (Compensated Visual Gravity) -->
+    <!-- 柱2 (次长柱，H=32) -->
     <path
-        android:fillColor="#0C1522"
-        android:pathData="M50,45.2 C50,43.6 51.8,42.6 53.1,43.4 L66.2,51.4 C67.5,52.2 67.5,54.2 66.2,55.0 L53.1,63.0 C51.8,63.8 50,62.8 50,61.2 Z" />
+        android:fillColor="#D0BCFF"
+        android:pathData="M47,38 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v26.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-26.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
+
+    <!-- 柱3 (中长柱，H=20) -->
+    <path
+        android:fillColor="#EFB8C8"
+        android:pathData="M56,44 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v14.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-14.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
+
+    <!-- 柱4 (右尖端柱，H=8) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M65,50 h5.5 a2.75,2.75 0 0,1 2.75,2.75 v2.5 a2.75,2.75 0 0,1 -2.75,2.75 h-5.5 a2.75,2.75 0 0,1 -2.75,-2.75 v-2.5 a2.75,2.75 0 0,1 2.75,-2.75 z" />
+
+    <!-- 底部流体承托板 (平稳扎实) -->
+    <path
+        android:fillColor="#4F378B"
+        android:fillAlpha="0.75"
+        android:pathData="M34,79 h38 a2.5,2.5 0 0,1 0,5 h-38 a2.5,2.5 0 0,1 0,-5 z" />
 </vector>

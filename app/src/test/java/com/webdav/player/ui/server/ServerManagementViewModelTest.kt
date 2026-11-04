@@ -3,6 +3,7 @@ package com.webdav.player.ui.server
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.data.remote.WebDavClient
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.domain.repository.PlaylistRepository
 import com.webdav.player.domain.repository.ServerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,7 +27,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServerManagementViewModelTest {
-
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeRepository: FakeServerRepository
     private lateinit var fakeClient: FakeWebDavClient
@@ -46,128 +46,213 @@ class ServerManagementViewModelTest {
     }
 
     @Test
-    fun initialState_loadsServersAndActiveServer() = runTest {
-        val server = WebDavServer(id = 1L, name = "My NAS", url = "http://nas", isDefault = true)
-        fakeRepository.addServerDirectly(server)
+    fun initialState_loadsServersAndActiveServer() =
+        runTest {
+            val server = WebDavServer(id = 1L, name = "My NAS", url = "http://nas", isDefault = true)
+            fakeRepository.addServerDirectly(server)
 
-        advanceUntilIdle()
+            advanceUntilIdle()
 
-        val state = viewModel.uiState.value
-        assertEquals(1, state.servers.size)
-        assertEquals("My NAS", state.servers.first().name)
-        assertEquals(1L, state.activeServer?.id)
-    }
-
-    @Test
-    fun openAddServerDialog_showsDialogWithNullServerToEdit() = runTest {
-        viewModel.onAddServerClicked()
-        advanceUntilIdle()
-        val state = viewModel.uiState.value
-        assertTrue(state.isAddEditDialogVisible)
-        assertNull(state.serverToEdit)
-    }
+            val state = viewModel.uiState.value
+            assertEquals(1, state.servers.size)
+            assertEquals("My NAS", state.servers.first().name)
+            assertEquals(1L, state.activeServer?.id)
+        }
 
     @Test
-    fun openEditServerDialog_showsDialogWithServerToEdit() = runTest {
-        val server = WebDavServer(id = 2L, name = "AList", url = "http://alist")
-        viewModel.onEditServerClicked(server)
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertTrue(state.isAddEditDialogVisible)
-        assertEquals(server, state.serverToEdit)
-    }
-
-    @Test
-    fun saveServer_persistsServerAndDismissesDialog() = runTest {
-        viewModel.onAddServerClicked()
-        val newServer = WebDavServer(name = "Cloud DAV", url = "https://dav.box.com", port = 443)
-
-        viewModel.onSaveServer(newServer)
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertFalse(state.isAddEditDialogVisible)
-        assertEquals(1, fakeRepository.savedServers.size)
-        assertEquals("Cloud DAV", fakeRepository.savedServers.first().name)
-    }
+    fun openAddServerDialog_showsDialogWithNullServerToEdit() =
+        runTest {
+            viewModel.onAddServerClicked()
+            advanceUntilIdle()
+            val state = viewModel.uiState.value
+            assertTrue(state.isAddEditDialogVisible)
+            assertNull(state.serverToEdit)
+        }
 
     @Test
-    fun deleteConfirmationFlow_confirmsAndDeleteServer() = runTest {
-        val server = WebDavServer(id = 5L, name = "Old Server", url = "http://old")
-        fakeRepository.addServerDirectly(server)
-        advanceUntilIdle()
+    fun openEditServerDialog_showsDialogWithServerToEdit() =
+        runTest {
+            val server = WebDavServer(id = 2L, name = "AList", url = "http://alist")
+            viewModel.onEditServerClicked(server)
+            advanceUntilIdle()
 
-        viewModel.onRequestDeleteServer(server)
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.serverToDelete == server)
-
-        viewModel.onConfirmDeleteServer()
-        advanceUntilIdle()
-
-        assertNull(viewModel.uiState.value.serverToDelete)
-        assertTrue(fakeRepository.savedServers.none { it.id == 5L })
-    }
+            val state = viewModel.uiState.value
+            assertTrue(state.isAddEditDialogVisible)
+            assertEquals(server, state.serverToEdit)
+        }
 
     @Test
-    fun selectActiveServer_updatesActiveServerInRepository() = runTest {
-        val s1 = WebDavServer(id = 10L, name = "S1", url = "http://s1", isDefault = true)
-        val s2 = WebDavServer(id = 20L, name = "S2", url = "http://s2", isDefault = false)
-        fakeRepository.addServerDirectly(s1)
-        fakeRepository.addServerDirectly(s2)
-        advanceUntilIdle()
+    fun saveServer_persistsServerAndDismissesDialog() =
+        runTest {
+            viewModel.onAddServerClicked()
+            val newServer = WebDavServer(name = "Cloud DAV", url = "https://dav.box.com", port = 443)
 
-        viewModel.onSelectActiveServer(20L)
-        advanceUntilIdle()
+            viewModel.onSaveServer(newServer)
+            advanceUntilIdle()
 
-        assertEquals(20L, viewModel.uiState.value.activeServer?.id)
-    }
-
-    @Test
-    fun testConnection_updatesTestingState_andEmitsResult() = runTest {
-        fakeClient.resultToReturn = ConnectionResult.Success
-
-        val candidate = WebDavServer(name = "Test Server", url = "http://test", port = 80)
-        viewModel.onTestConnection(candidate)
-
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertFalse(state.testingConnection)
-        assertTrue(state.connectionTestResult is ConnectionResult.Success)
-    }
+            val state = viewModel.uiState.value
+            assertFalse(state.isAddEditDialogVisible)
+            assertEquals(1, fakeRepository.savedServers.size)
+            assertEquals("Cloud DAV", fakeRepository.savedServers.first().name)
+        }
 
     @Test
-    fun testConnection_withFailure_emitsFailureResult() = runTest {
-        fakeClient.resultToReturn = ConnectionResult.Failure("401 Unauthorized", statusCode = 401)
+    fun deleteConfirmationFlow_confirmsAndDeleteServer() =
+        runTest {
+            val server = WebDavServer(id = 5L, name = "Old Server", url = "http://old")
+            fakeRepository.addServerDirectly(server)
+            advanceUntilIdle()
 
-        val candidate = WebDavServer(name = "Wrong Auth", url = "http://test", port = 80)
-        viewModel.onTestConnection(candidate)
+            viewModel.onRequestDeleteServer(server)
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.serverToDelete == server)
 
-        advanceUntilIdle()
+            viewModel.onConfirmDeleteServer()
+            advanceUntilIdle()
 
-        val state = viewModel.uiState.value
-        assertFalse(state.testingConnection)
-        assertTrue(state.connectionTestResult is ConnectionResult.Failure)
-        assertEquals(401, (state.connectionTestResult as ConnectionResult.Failure).statusCode)
-    }
+            assertNull(viewModel.uiState.value.serverToDelete)
+            assertTrue(fakeRepository.savedServers.none { it.id == 5L })
+        }
 
     @Test
-    fun testConnection_tracksTestingStateAndResultPerServer() = runTest {
-        val server1 = WebDavServer(id = 11L, name = "S11", url = "http://s11", port = 80)
-        fakeRepository.addServerDirectly(server1)
-        fakeClient.resultToReturn = ConnectionResult.Success
+    fun selectActiveServer_updatesActiveServerInRepository() =
+        runTest {
+            val s1 = WebDavServer(id = 10L, name = "S1", url = "http://s1", isDefault = true)
+            val s2 = WebDavServer(id = 20L, name = "S2", url = "http://s2", isDefault = false)
+            fakeRepository.addServerDirectly(s1)
+            fakeRepository.addServerDirectly(s2)
+            advanceUntilIdle()
 
-        viewModel.onTestConnection(server1)
-        advanceUntilIdle()
+            viewModel.onSelectActiveServer(20L)
+            advanceUntilIdle()
 
-        val state = viewModel.uiState.value
-        assertFalse(state.testingConnection)
-        assertEquals(null, state.testingServerId)
-        assertEquals(ConnectionResult.Success, state.serverConnectionResults[11L])
-    }
+            assertEquals(
+                20L,
+                viewModel.uiState.value.activeServer
+                    ?.id,
+            )
+        }
+
+    @Test
+    fun testConnection_updatesTestingState_andEmitsResult() =
+        runTest {
+            fakeClient.resultToReturn = ConnectionResult.Success
+
+            val candidate = WebDavServer(name = "Test Server", url = "http://test", port = 80)
+            viewModel.onTestConnection(candidate)
+
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.testingConnection)
+            assertTrue(state.connectionTestResult is ConnectionResult.Success)
+        }
+
+    @Test
+    fun testConnection_withFailure_emitsFailureResult() =
+        runTest {
+            fakeClient.resultToReturn = ConnectionResult.Failure("401 Unauthorized", statusCode = 401)
+
+            val candidate = WebDavServer(name = "Wrong Auth", url = "http://test", port = 80)
+            viewModel.onTestConnection(candidate)
+
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.testingConnection)
+            assertTrue(state.connectionTestResult is ConnectionResult.Failure)
+            assertEquals(401, (state.connectionTestResult as ConnectionResult.Failure).statusCode)
+        }
+
+    @Test
+    fun testConnection_tracksTestingStateAndResultPerServer() =
+        runTest {
+            val server1 = WebDavServer(id = 11L, name = "S11", url = "http://s11", port = 80)
+            fakeRepository.addServerDirectly(server1)
+            fakeClient.resultToReturn = ConnectionResult.Success
+
+            viewModel.onTestConnection(server1)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.testingConnection)
+            assertEquals(null, state.testingServerId)
+            assertEquals(ConnectionResult.Success, state.serverConnectionResults[11L])
+        }
+
+    @Test
+    fun testConnection_onSuccess_triggersPlaylistClearServerUnreachable() =
+        runTest {
+            val server1 = WebDavServer(id = 11L, name = "S11", url = "http://s11", port = 80)
+            var clearedServerId: Long? = null
+            val fakePlaylistRepo =
+                object : PlaylistRepository {
+                    override suspend fun getAllPlaylists(): List<com.webdav.player.domain.model.Playlist> = emptyList()
+
+                    override fun getAllPlaylistsFlow(): Flow<List<com.webdav.player.domain.model.Playlist>> =
+                        kotlinx.coroutines.flow.emptyFlow()
+
+                    override fun getPlaylistFlow(playlistId: Long) =
+                        kotlinx.coroutines.flow.emptyFlow<com.webdav.player.domain.model.Playlist?>()
+
+                    override suspend fun getPlaylist(playlistId: Long) = null
+
+                    override suspend fun createPlaylist(name: String): Long = 1L
+
+                    override suspend fun renamePlaylist(
+                        playlistId: Long,
+                        newName: String,
+                    ) {}
+
+                    override suspend fun deletePlaylist(playlistId: Long) {}
+
+                    override suspend fun isPlaylistNameExists(
+                        name: String,
+                        excludePlaylistId: Long?,
+                    ): Boolean = false
+
+                    override fun getTracksForPlaylistFlow(playlistId: Long) =
+                        kotlinx.coroutines.flow.emptyFlow<List<com.webdav.player.domain.model.PlaylistTrackEntry>>()
+
+                    override suspend fun getTracksForPlaylist(playlistId: Long) =
+                        emptyList<com.webdav.player.domain.model.PlaylistTrackEntry>()
+
+                    override suspend fun addTrackToPlaylist(
+                        playlistId: Long,
+                        track: com.webdav.player.domain.model.AudioTrack,
+                        cuePath: String?,
+                    ) = 1L
+
+                    override suspend fun addTracksToPlaylist(
+                        playlistId: Long,
+                        tracks: List<com.webdav.player.domain.model.AudioTrack>,
+                    ) = emptyList<Long>()
+
+                    override suspend fun removeTrackFromPlaylist(trackEntryId: Long) {}
+
+                    override suspend fun removeTracksFromPlaylist(
+                        playlistId: Long,
+                        trackEntryIds: List<Long>,
+                    ) {}
+
+                    override suspend fun updateTrackOrders(
+                        playlistId: Long,
+                        orderedTrackIds: List<Long>,
+                    ) {}
+
+                    override suspend fun clearServerUnreachableStatus(serverId: Long) {
+                        clearedServerId = serverId
+                    }
+                }
+            val vmWithPlaylist = ServerManagementViewModel(fakeRepository, fakeClient, fakePlaylistRepo)
+            fakeClient.resultToReturn = ConnectionResult.Success
+
+            vmWithPlaylist.onTestConnection(server1)
+            advanceUntilIdle()
+
+            assertEquals(11L, clearedServerId)
+        }
 }
-
 
 private class FakeServerRepository : ServerRepository {
     private val serversFlow = MutableStateFlow<List<WebDavServer>>(emptyList())
@@ -179,12 +264,12 @@ private class FakeServerRepository : ServerRepository {
 
     override fun getAllServers(): Flow<List<WebDavServer>> = serversFlow
 
-    override fun getActiveServer(): Flow<WebDavServer?> = serversFlow.map { list ->
-        list.firstOrNull { it.isDefault }
-    }
+    override fun getActiveServer(): Flow<WebDavServer?> =
+        serversFlow.map { list ->
+            list.firstOrNull { it.isDefault }
+        }
 
-    override suspend fun getServerById(id: Long): WebDavServer? =
-        serversFlow.value.firstOrNull { it.id == id }
+    override suspend fun getServerById(id: Long): WebDavServer? = serversFlow.value.firstOrNull { it.id == id }
 
     override suspend fun saveServer(server: WebDavServer): Long {
         val current = serversFlow.value.toMutableList()
@@ -213,32 +298,31 @@ private class FakeServerRepository : ServerRepository {
     }
 
     override suspend fun setActiveServer(id: Long) {
-        serversFlow.value = serversFlow.value.map {
-            it.copy(isDefault = (it.id == id))
-        }
+        serversFlow.value =
+            serversFlow.value.map {
+                it.copy(isDefault = (it.id == id))
+            }
     }
 }
 
 private class FakeWebDavClient : WebDavClient {
     var resultToReturn: ConnectionResult = ConnectionResult.Success
 
-    override suspend fun testConnection(server: WebDavServer): ConnectionResult {
-        return resultToReturn
-    }
+    override suspend fun testConnection(server: WebDavServer): ConnectionResult = resultToReturn
 
     override suspend fun listDirectory(
         server: WebDavServer,
-        path: String
-    ): com.webdav.player.domain.model.ListDirectoryResult {
-        return com.webdav.player.domain.model.ListDirectoryResult.Success(
-            com.webdav.player.domain.model.RemoteDirectory(path = path, name = "root")
+        path: String,
+    ): com.webdav.player.domain.model.ListDirectoryResult =
+        com.webdav.player.domain.model.ListDirectoryResult.Success(
+            com.webdav.player.domain.model
+                .RemoteDirectory(path = path, name = "root"),
         )
-    }
 
     override suspend fun fetchRange(
         server: WebDavServer,
         remotePath: String,
         startByte: Long,
-        endByte: Long
+        endByte: Long,
     ): ByteArray? = null
 }

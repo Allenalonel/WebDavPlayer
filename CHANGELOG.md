@@ -4,6 +4,26 @@
 
 ---
 
+## [3.2] - 2026-11-05
+
+### ☕ 品牌更名为 Aoffee Player 与全新脉冲切片自适应图标 (Rebranding & Adaptive Launcher Icon, ADR-0029)
+- **品牌全域升级为 Aoffee Player (Brand Rebranding)**：确立专为家庭 NAS、私有云高保真流式音频打造的独立品牌形象，应用名称正式由 `WebDAVPlayer` 升级为 **`Aoffee Player`**；底层 `com.webdav.player` 包名与 Room / DataStore 存储架构保持稳定向后兼容，平滑升级无缝迁移。
+- **解构主义方案 A「脉冲切片播放三角」图标落地 (Pulse Sliced Play Triangle Icon)**：彻底摒弃传统生硬图层拼贴，创新采用解构同构手法，将朝向右侧的 Play 播放大三角解构为 4 根平行等距垂直等化脉冲柱（高 44dp ~ 8dp），兼具远看纯正播放按键的明确功能属性与近看高保真声浪的欢快灵动感，底部搭配流体承托板。
+- **Android 全机型自适应居中与 66dp 安全区法则 (All-Device Adaptive Safe Zone)**：前景图案尺寸严格收拢在 32.5dp × 44dp 绝对安全区内，四周预留充足留白；背景深紫夜渐变（`#24143D` ~ `#07030C`）与前景重心 100% 同轴锁死在 `(54, 54)` 几何正中心，在原生圆形、三星方圆、MIUI/ColorOS 圆角矩形等任意遮罩下彻底消除偏心与边缘挤压。
+- **全套传统 Mipmap PNG 资产补全 (Legacy Mipmap Assets)**：在 `app/src/main/res/` 下为 `mdpi`、`hdpi`、`xhdpi`、`xxhdpi`、`xxxhdpi` 全 5 档主流屏幕密度补充预编译位图（包含方圆与圆形），消除国产 ROM 桌面重绘、近期任务与分享面板在无位图时的拉伸失真与强制加白底小方块。
+- **自动化测试防护 (Automated Verification)**：新增 `AdaptiveLauncherIconTest` 断言应用标签名称严格为 `"Aoffee Player"` 且 5 档位图资源完整有效。
+
+### 🔄 全链路服务器故障自愈与多触发恢复网络 (Full-Lifecycle Server Fault Self-Healing, ADR-0030)
+- **故障诊断域扩展与整机故障一致性 (Fault Domain Consolidation & Fleet Consistency)**：将服务端重启/网关拉起初期认证未就绪引发的瞬态 401/403（`SERVER_CREDENTIAL_INVALID`）与网络不可达（`SERVER_UNREACHABLE`）统一纳入服务器级自愈管理；在遇到服务器级连接或认证异常时，统一整机批量标记该节点全部曲目，杜绝同源歌曲“半灰半亮”的展示割裂。
+- **四重自愈与状态恢复触发网络 (Multi-Trigger Network)**：
+  - **歌单主动探活**：进入歌单详情页及点击任意服务器置灰曲目时，后台并发发起 PROPFIND 探活，服务器恢复后秒级点亮；
+  - **测试连接联动**：在服务器管理界面点击“测试连接”成功后，即时联动仓储清除该节点的不可达与凭据失效标记；
+  - **物理播放出声反哺 (Playback Success Feedback)**：当底层 ExoPlayer 成功解码出声进入 `Playing` 状态时，自动反哺清除当前服务器的所有置灰状态；
+  - **系统网络重连广播**：保留系统网络连通性广播监听作为全局兜底。
+- **UI 响应性与状态对称闭环 (Symmetric Fault Lifecycle)**：在歌单详情列表差异比对中加入 `inactiveReason` 诊断维度，确保数据库自愈后即时触发重组点亮，彻底消除置灰曲目点击拦截的交互死锁。
+
+---
+
 ## [3.1] - 2026-11-03
 
 ### 🎨 Material 3 Expressive 界面重构与全域流体交互 (M3 Expressive UI Redesign & Fluid Interaction, ADR-0028)

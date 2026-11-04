@@ -1,7 +1,7 @@
-# WebDAVPlayer 🎵
+# Aoffee Player 🎵
 
 <p align="center">
-  <img src="docs/images/logo.png" width="112" height="112" alt="WebDAVPlayer Logo" />
+  <img src="docs/images/logo.png" width="112" height="112" alt="Aoffee Player Logo" />
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 ## 📖 项目简介
 
-**WebDAVPlayer** 是一款遵循 **Google Material 3 Expressive (M3E)** 设计语言的 Android 原生流式音频播放器。
+**Aoffee Player** 是一款遵循 **Google Material 3 Expressive (M3E)** 设计语言的 Android 原生流式音频播放器。
 
 通过标准 WebDAV (HTTP/HTTPS) 协议，用户可直接挂载家庭 NAS（群晖、威联通、TrueNAS）、路由器私有云盘或各类远程服务器中的音乐资产。应用基于 **AndroidX Media3 (ExoPlayer)** 并深度集成 **FFmpeg 原生 C++ JNI 解码扩展**，提供毫秒级在线即点即播体验，无需下载曲目到手机本地，畅享轻量纯粹的云端音乐。
 
@@ -166,7 +166,7 @@ WebDAVPlayer 严格遵循 **RFC 4918** 标准 WebDAV 规范。以下为经过严
 本项目关键的技术选型与深层架构演进均通过 ADR（Architecture Decision Records）进行规范化追踪。详情请参阅 **[docs/adr/](docs/adr/)** 目录。
 
 <details>
-<summary>展开查看全部 28 项架构设计决策记录</summary>
+<summary>展开查看全部 30 项架构设计决策记录</summary>
 
 - [ADR 0001: 采用 AndroidX Media3 与 FFmpeg JNI 原生解码扩展](docs/adr/0001-use-androidx-media3-with-ffmpeg-extension.md)
 - [ADR 0002: 纯流式播放机制与无永久磁盘缓存设计](docs/adr/0002-pure-online-streaming-without-persistent-disk-cache.md)
@@ -196,6 +196,8 @@ WebDAVPlayer 严格遵循 **RFC 4918** 标准 WebDAV 规范。以下为经过严
 - [ADR 0026: 显式洗牌待播队列与原序镜像](docs/adr/0026-explicit-shuffled-playback-queue-and-order-mirroring.md)
 - [ADR 0027: 批量添加到歌单与上下文多选交互](docs/adr/0027-batch-playlist-addition-and-contextual-selection.md)
 - [ADR 0028: Material 3 Expressive 界面重构、全天候全域动态取色与流体交互规范](docs/adr/0028-material-3-expressive-elevation-and-dynamic-theming.md)
+- [ADR 0029: 品牌更名为 Aoffee Player 及自适应图标全机型工程规范](docs/adr/0029-rebranding-to-aoffee-player-and-adaptive-launcher-icon-specification.md)
+- [ADR 0030: 全链路服务器故障自愈与多触发恢复网络](docs/adr/0030-full-lifecycle-server-fault-self-healing-and-multi-trigger-recovery.md)
 
 </details>
 

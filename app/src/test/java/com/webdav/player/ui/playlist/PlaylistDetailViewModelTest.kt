@@ -204,6 +204,12 @@ class DetailFakePlaylistRepository : PlaylistRepository {
             syncTracksFlow(pId)
         }
     }
+
+    var triggerReachabilitySelfHealingCallCount = 0
+
+    override suspend fun triggerReachabilitySelfHealing() {
+        triggerReachabilitySelfHealingCallCount++
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -537,6 +543,8 @@ class PlaylistDetailViewModelTest {
             assertEquals("所属服务器无法连接", emittedToast)
             // Playback NOT started
             assertNull(fakeSession.lastPlayPlaylist)
+            // Self-healing triggered on click (initial load + 1 on click = 2)
+            assertTrue(fakeRepo.triggerReachabilitySelfHealingCallCount >= 2)
 
             // Test 404 inactive track
             val notFoundTrack =
@@ -623,7 +631,9 @@ class PlaylistDetailViewModelTest {
 
             fakeSession._sessionState.value =
                 com.webdav.player.domain.model.PlayerSessionState(
-                    queue = com.webdav.player.domain.model.PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
+                    queue =
+                        com.webdav.player.domain.model
+                            .PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
                     playbackState = com.webdav.player.domain.model.PlaybackState.Playing,
                 )
             advanceUntilIdle()
@@ -649,7 +659,9 @@ class PlaylistDetailViewModelTest {
 
             fakeSession._sessionState.value =
                 com.webdav.player.domain.model.PlayerSessionState(
-                    queue = com.webdav.player.domain.model.PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
+                    queue =
+                        com.webdav.player.domain.model
+                            .PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
                     playbackState = com.webdav.player.domain.model.PlaybackState.Paused,
                 )
             advanceUntilIdle()
@@ -665,16 +677,22 @@ class PlaylistDetailViewModelTest {
         runTest(testDispatcher) {
             advanceUntilIdle()
 
-            val targetTrack = viewModel.uiState.value.tracks.first()
+            val targetTrack =
+                viewModel.uiState.value.tracks
+                    .first()
             fakeSession._sessionState.value =
                 com.webdav.player.domain.model.PlayerSessionState(
-                    queue = com.webdav.player.domain.model.PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
+                    queue =
+                        com.webdav.player.domain.model
+                            .PlaybackQueue(listOf(targetTrack.toAudioTrack()), 0),
                     playbackState = com.webdav.player.domain.model.PlaybackState.Playing,
                 )
             advanceUntilIdle()
             assertTrue(viewModel.uiState.value.isTrackActive(targetTrack))
 
-            fakeSession._sessionState.value = com.webdav.player.domain.model.PlayerSessionState()
+            fakeSession._sessionState.value =
+                com.webdav.player.domain.model
+                    .PlayerSessionState()
             advanceUntilIdle()
 
             val state = viewModel.uiState.value

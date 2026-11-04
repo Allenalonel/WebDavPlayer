@@ -73,6 +73,13 @@ interface PlaylistRepository {
         reason: InactiveReason,
     ) {}
 
+    fun markServerInactive(
+        serverId: Long,
+        reason: InactiveReason,
+    ) {}
+
+    suspend fun clearServerUnreachableStatus(serverId: Long) {}
+
     fun getInactiveTracksFlow(): Flow<Map<TrackKey, InactiveReason>> = emptyFlow()
 
     suspend fun triggerReachabilitySelfHealing() {}

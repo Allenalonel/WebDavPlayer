@@ -78,6 +78,12 @@ internal class PlaybackFaultTolerance(
                 it.copy(isWeakNetwork = false, canManualRetry = false, isReconnecting = false)
             }
         }
+        val currentTrack = current.currentTrack
+        if (currentTrack != null && playlistRepository != null) {
+            coroutineScope.launch {
+                playlistRepository.clearServerUnreachableStatus(currentTrack.serverId)
+            }
+        }
     }
 
     fun cancelWatchdog() {
@@ -202,6 +208,7 @@ internal class PlaybackFaultTolerance(
         val queueSize = sessionStateFlow.value.queue.size
         val shouldSkip =
             if (track != null) {
+                playlistRepository?.markServerInactive(track.serverId, InactiveReason.SERVER_CREDENTIAL_INVALID)
                 playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_CREDENTIAL_INVALID)
                 queueManager.recordFailedTrack(track.id, queueSize)
             } else {
@@ -227,6 +234,7 @@ internal class PlaybackFaultTolerance(
         onSkipToNext: () -> Unit,
     ) {
         cancelWatchdog()
+        playlistRepository?.markServerInactive(track.serverId, InactiveReason.SERVER_UNREACHABLE)
         playlistRepository?.markTrackInactive(track.serverId, track.remotePath, InactiveReason.SERVER_UNREACHABLE)
         val queueSize = sessionStateFlow.value.queue.size
         if (queueManager.recordFailedTrack(track.id, queueSize)) {

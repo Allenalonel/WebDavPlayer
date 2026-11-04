@@ -66,6 +66,8 @@ class PlaybackFaultToleranceTest {
 
     private class FakePlaylistRepo : PlaylistRepository {
         val markedInactive = mutableListOf<Triple<Long, String, InactiveReason>>()
+        val markedServerInactive = mutableListOf<Pair<Long, InactiveReason>>()
+        val clearedServerIds = mutableListOf<Long>()
 
         override fun getAllPlaylistsFlow(): Flow<List<Playlist>> = emptyFlow()
 
@@ -122,6 +124,17 @@ class PlaybackFaultToleranceTest {
             reason: InactiveReason,
         ) {
             markedInactive.add(Triple(serverId, remotePath, reason))
+        }
+
+        override fun markServerInactive(
+            serverId: Long,
+            reason: InactiveReason,
+        ) {
+            markedServerInactive.add(serverId to reason)
+        }
+
+        override suspend fun clearServerUnreachableStatus(serverId: Long) {
+            clearedServerIds.add(serverId)
         }
     }
 
@@ -333,4 +346,34 @@ class PlaybackFaultToleranceTest {
         assertFalse(result)
         assertFalse(autoResumeCalled)
     }
+
+    @Test
+    fun handleServerUnavailable_marksBothTrackAndServerInactive() {
+        faultTolerance.handleServerUnavailable(t1) {}
+
+        assertEquals(1, fakePlaylistRepo.markedInactive.size)
+        assertEquals(InactiveReason.SERVER_UNREACHABLE, fakePlaylistRepo.markedInactive[0].third)
+        assertEquals(1, fakePlaylistRepo.markedServerInactive.size)
+        assertEquals(1L to InactiveReason.SERVER_UNREACHABLE, fakePlaylistRepo.markedServerInactive[0])
+    }
+
+    @Test
+    fun onPlayingStarted_clearsServerUnreachableStatusForCurrentTrack() =
+        testScope.runTest {
+            sessionStateFlow.update {
+                it.copy(
+                    queue = PlaybackQueue(listOf(t1), currentIndex = 0),
+                    isWeakNetwork = true,
+                    canManualRetry = true,
+                )
+            }
+
+            faultTolerance.onPlayingStarted()
+            testScope.testScheduler.advanceUntilIdle()
+
+            assertTrue(fakePlaylistRepo.clearedServerIds.contains(t1.serverId))
+            val current = sessionStateFlow.value
+            assertFalse(current.isWeakNetwork)
+            assertFalse(current.canManualRetry)
+        }
 }

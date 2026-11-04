@@ -53,3 +53,14 @@ These standards are enforced during `/code-review` alongside the Fowler code-sme
   If an existing design aligns with mainstream framework idioms, is cleanly structured, and reliably passes all quality/performance gates, it is solid engineering. Strictly prohibit inventing make-work, circular refactorings (endless splitting vs. merging), or aesthetic churn that delivers zero practical engineering value.
 - **Review Stopping Discipline (终止准则与收敛边界)**:
   An architectural review must converge. When an audit identifies that a subsystem adheres to mainstream standards and exhibits no real-world defects, it must definitively conclude that the architecture is production-ready, rather than perpetually digging for artificial issues.
+
+---
+
+## 6. Fault Lifecycle Symmetry & Diagnostic Parity (故障生命周期对称闭环与诊断对等)
+
+- **Symmetric Fault Lifecycle (故障对称闭环原则)**:
+  凡在仓储或持久层设计了写入持久化错误、降级或置灰标记（如 `markTrackInactive`、`markServerInactive`）的接缝，必须在同一领域边界内提供对等、全自动的解除与自愈信道（如探活自愈、成功出声反哺、测试连接联动清除）。严禁只写不销、只增不减的单向状态累积，杜绝节点交互死锁。
+- **Diagnostic Aggregation Parity (UI 诊断聚合与领域自愈对等原则)**:
+  当表现层将多个底层故障枚举（如 `SERVER_UNREACHABLE` 与瞬态 401/403 `SERVER_CREDENTIAL_INVALID`）聚合映射为同一用户提示文案时，领域自愈层与状态清除逻辑必须以相同的广度覆盖这些枚举，彻底消除“UI 展现已聚合、底层自愈漏一半”引发的认知死角。
+- **Failure Granularity Alignment (故障粒度对齐原则)**:
+  针对整机/服务级异常（如网络拒绝、超时、服务重启认证不可用），故障标记与恢复必须在服务器级批量同步，严禁仅对当前报错单曲标记而留同源排队曲目高亮，杜绝同源数据展现割裂。

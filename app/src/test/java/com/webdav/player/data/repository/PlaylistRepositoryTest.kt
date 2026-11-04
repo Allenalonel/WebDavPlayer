@@ -809,4 +809,78 @@ class PlaylistRepositoryTest {
             assertFalse(dbTrack1!!.isInactive)
             assertNull(dbTrack1.inactiveReason)
         }
+
+    @Test
+    fun markServerInactive_dimsAllTracksUnderGivenServer_andClearServerUnreachableRestoresThem() =
+        runBlocking {
+            val playlistId = repository.createPlaylist("整机不可达与恢复测试")
+            val track1 = AudioTrack(id = "99:/t1.mp3", serverId = 99L, remotePath = "/t1.mp3", title = "T1", format = AudioFormat.MP3)
+            val track2 = AudioTrack(id = "99:/t2.mp3", serverId = 99L, remotePath = "/t2.mp3", title = "T2", format = AudioFormat.MP3)
+            val trackOther =
+                AudioTrack(id = "88:/other.mp3", serverId = 88L, remotePath = "/other.mp3", title = "Other", format = AudioFormat.MP3)
+
+            val e1 = repository.addTrackToPlaylist(playlistId, track1)
+            val e2 = repository.addTrackToPlaylist(playlistId, track2)
+            val eOther = repository.addTrackToPlaylist(playlistId, trackOther)
+
+            // Mark server 99 inactive
+            repository.markServerInactive(99L, InactiveReason.SERVER_UNREACHABLE)
+
+            // Allow async DB write to complete
+            kotlinx.coroutines.delay(100)
+
+            val flowTracks = repository.getTracksForPlaylistFlow(playlistId).first()
+            val t1Entry = flowTracks.first { it.id == e1 }
+            val t2Entry = flowTracks.first { it.id == e2 }
+            val otherEntry = flowTracks.first { it.id == eOther }
+
+            assertTrue("Track 1 must be inactive", t1Entry.isInactive)
+            assertEquals(InactiveReason.SERVER_UNREACHABLE, t1Entry.inactiveReason)
+            assertTrue("Track 2 must be inactive", t2Entry.isInactive)
+            assertEquals(InactiveReason.SERVER_UNREACHABLE, t2Entry.inactiveReason)
+            assertFalse("Other server track must not be inactive", otherEntry.isInactive)
+
+            // Now clear server 99
+            repository.clearServerUnreachableStatus(99L)
+
+            val restoredTracks = repository.getTracksForPlaylistFlow(playlistId).first()
+            assertFalse("Track 1 must be restored", restoredTracks.first { it.id == e1 }.isInactive)
+            assertFalse("Track 2 must be restored", restoredTracks.first { it.id == e2 }.isInactive)
+        }
+
+    @Test
+    fun triggerReachabilitySelfHealing_restoresServerCredentialInvalidTracks() =
+        runBlocking {
+            val server1 = WebDavServer(id = 1L, name = "Online NAS", url = "http://192.168.1.100")
+            val serverRepo = TestServerRepository(listOf(server1))
+
+            val fakeWebDavClient = FakeProbeWebDavClient()
+            fakeWebDavClient.testConnectionResults[1L] = ConnectionResult.Success
+
+            val healingRepo =
+                PlaylistRepositoryImpl(
+                    playlistDao = dao,
+                    serverRepository = serverRepo,
+                    webDavClient = fakeWebDavClient,
+                    timeProvider = { simulatedTime },
+                )
+
+            val playlistId = healingRepo.createPlaylist("凭据自愈恢复测试")
+            val track1 =
+                AudioTrack(id = "1:/auth.mp3", serverId = 1L, remotePath = "/auth.mp3", title = "Auth Track", format = AudioFormat.MP3)
+            val e1 = healingRepo.addTrackToPlaylist(playlistId, track1)
+
+            healingRepo.markTrackInactive(1L, "/auth.mp3", InactiveReason.SERVER_CREDENTIAL_INVALID)
+
+            val beforeTracks = healingRepo.getTracksForPlaylistFlow(playlistId).first()
+            assertTrue(beforeTracks.first { it.id == e1 }.isInactive)
+            assertEquals(InactiveReason.SERVER_CREDENTIAL_INVALID, beforeTracks.first { it.id == e1 }.inactiveReason)
+
+            healingRepo.triggerReachabilitySelfHealing()
+
+            val afterTracks = healingRepo.getTracksForPlaylistFlow(playlistId).first()
+            val restoredTrack1 = afterTracks.first { it.id == e1 }
+            assertFalse("Track 1 must be restored", restoredTrack1.isInactive)
+            assertNull("Track 1 inactiveReason must be cleared", restoredTrack1.inactiveReason)
+        }
 }

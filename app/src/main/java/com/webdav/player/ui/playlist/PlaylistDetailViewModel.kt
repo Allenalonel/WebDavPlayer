@@ -81,6 +81,10 @@ class PlaylistDetailViewModel(
     }
 
     private fun loadData() {
+        viewModelScope.launch {
+            playlistRepository.triggerReachabilitySelfHealing()
+        }
+
         playlistRepository
             .getPlaylistFlow(playlistId)
             .onEach { playlist ->
@@ -101,7 +105,9 @@ class PlaylistDetailViewModel(
                         if (currentIds == newIds) {
                             val needsUpdate =
                                 current.tracks.zip(tracks).any { (a, b) ->
-                                    a.coverThumbnailPath != b.coverThumbnailPath || a.isInactive != b.isInactive
+                                    a.coverThumbnailPath != b.coverThumbnailPath ||
+                                        a.isInactive != b.isInactive ||
+                                        a.inactiveReason != b.inactiveReason
                                 }
                             if (needsUpdate) {
                                 current.copy(tracks = tracks, isLoading = false)
@@ -294,6 +300,13 @@ class PlaylistDetailViewModel(
                     null -> "音频文件已被重命名或删除"
                 }
             _toastEvent.tryEmit(message)
+            if (track.inactiveReason == InactiveReason.SERVER_UNREACHABLE ||
+                track.inactiveReason == InactiveReason.SERVER_CREDENTIAL_INVALID
+            ) {
+                viewModelScope.launch {
+                    playlistRepository.triggerReachabilitySelfHealing()
+                }
+            }
             return
         }
 
