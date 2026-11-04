@@ -333,7 +333,7 @@ class WebDavNotificationProviderTest {
     }
 
     @Test
-    fun buildNotification_whenTitleIsNull_fallsBackToBrandNameWebDAVPlayer() {
+    fun buildNotification_whenTitleIsNull_fallsBackToBrandNameAoffeePlayer() {
         val mediaItem =
             MediaItem
                 .Builder()
@@ -343,12 +343,12 @@ class WebDavNotificationProviderTest {
         player.setMediaItem(mediaItem)
 
         val notification = provider.buildNotification(session)
-        assertEquals("WebDAVPlayer", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
+        assertEquals("Aoffee Player", notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString())
     }
 
     @Test
-    fun brandNormalization_appNameString_isWebDAVPlayer() {
+    fun brandNormalization_appNameString_isAoffeePlayer() {
         val appName = context.getString(R.string.app_name)
-        assertEquals("WebDAVPlayer", appName)
+        assertEquals("Aoffee Player", appName)
     }
 }
