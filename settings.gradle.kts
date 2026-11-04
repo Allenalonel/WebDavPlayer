@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WebDavPlayer"
+rootProject.name = "AoffeePlayer"
 include(":app")
