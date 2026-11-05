@@ -285,9 +285,7 @@ fun Modifier.fluidIndicator(
  * Modifier for dialog windows to apply M3 Expressive gentle spring scale-in from 0.92f
  * and fade in upon presentation, collapsing immediately to 1.0f when reduceMotion is active.
  */
-fun Modifier.expressiveDialog(
-    reduceMotion: Boolean = false,
-): Modifier =
+fun Modifier.expressiveDialog(reduceMotion: Boolean = false): Modifier =
     composed(
         inspectorInfo =
             debugInspectorInfo {
