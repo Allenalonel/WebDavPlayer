@@ -8,34 +8,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -46,22 +27,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.unit.sp
 import com.webdav.player.domain.model.AudioTrack
-import com.webdav.player.domain.model.PlaybackMode
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlayerSessionState
-import com.webdav.player.ui.common.CoverThumbnailImage
-import com.webdav.player.ui.motion.MotionTokens
 import com.webdav.player.ui.motion.isReduceMotionEnabled
-import com.webdav.player.ui.player.components.PlayerProgressSlider
 import com.webdav.player.ui.player.components.rememberArtworkBackgroundBrush
-import com.webdav.player.ui.theme.AppIcons
 
 /**
  * Default dimension tokens and transition thresholds for [MorphingPlayerContainer].
@@ -127,7 +101,7 @@ object MorphingPlayerMath {
 
     /**
      * Interpolates album artwork size from [MiniPlayerDefaults.CoverSize] (42dp)
-     * to [MorphingPlayerDefaults.FullPlayerArtworkSize] (250dp).
+     * to [MorphingPlayerDefaults.FullPlayerArtworkSize] (280dp).
      */
     fun artworkSize(progress: Float): Dp {
         val p = progress.coerceIn(0f, 1f)
@@ -211,11 +185,14 @@ object MorphingPlayerMath {
  * Unified continuous morphing player container.
  *
  * Unifies [MiniPlayer] and [FullPlayerView] into a single living entity driven by [isExpanded]
- * and animated smoothly via [MotionTokens.spatialSpec].
+ * and animated smoothly via Material 3 Expressive easing curves.
  *
  * Fully respects zero UI mutation: when [isExpanded] is false (progress = 0f), 100% of
  * existing [MiniPlayer] layout, paddings, and actions are preserved. When [isExpanded] is true
  * (progress = 1f), 100% of existing [FullPlayerView] is preserved.
+ *
+ * Single living view architecture: [FullPlayerView] is the authentic full-screen view throughout
+ * expansion without any fake clones or end-state swaps, eliminating layout shift and component jitter.
  */
 @Composable
 fun MorphingPlayerContainer(
@@ -278,7 +255,6 @@ fun MorphingPlayerContainer(
         contentAlignment = Alignment.BottomCenter,
     ) {
         val screenHeight = maxHeight
-        val screenWidth = maxWidth
 
         val containerHeight = MorphingPlayerMath.containerHeight(screenHeight, expansionProgress)
         val horizontalMargin = MorphingPlayerMath.containerHorizontalMargin(expansionProgress)
@@ -339,21 +315,21 @@ fun MorphingPlayerContainer(
                             },
                         ),
             ) {
-                when {
-                    expansionProgress == 0f -> {
-                        // Preserved 100% static MiniPlayer layout and interactions
-                        MiniPlayer(
-                            sessionState = sessionState,
-                            playbackActions = playbackActions,
-                            playbackProgress = playbackProgress,
-                            onMiniPlayerClick = onExpand,
-                            onOpenQueue = onOpenQueue,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                val density = LocalDensity.current
 
-                    expansionProgress == 1f -> {
-                        // Preserved 100% static FullPlayerView layout and interactions
+                // 1. Single Living FullPlayerView (Active as container expands past 0f)
+                if (expansionProgress > 0.001f) {
+                    val fullAlpha = ((expansionProgress - 0.15f) / 0.85f).coerceIn(0f, 1f)
+                    val fullTranslationY = with(density) { 40.dp.toPx() * (1f - expansionProgress) }
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = fullAlpha
+                                    translationY = fullTranslationY
+                                },
+                    ) {
                         FullPlayerView(
                             sessionState = sessionState,
                             playbackProgress = playbackProgress,
@@ -365,345 +341,31 @@ fun MorphingPlayerContainer(
                             onAddToPlaylist = onAddToPlaylist,
                         )
                     }
+                }
 
-                    else -> {
-                        // Seamless continuous morphing layer
-                        MorphingTransitionContent(
+                // 2. MiniPlayer (Active when collapsed, smoothly fades out as container expands)
+                if (expansionProgress < 0.40f) {
+                    val miniAlpha = if (expansionProgress == 0f) 1f else ((0.40f - expansionProgress) / 0.40f).coerceIn(0f, 1f)
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .graphicsLayer {
+                                    alpha = miniAlpha
+                                },
+                    ) {
+                        MiniPlayer(
                             sessionState = sessionState,
-                            currentTrack = currentTrack,
-                            playbackProgress = playbackProgress,
                             playbackActions = playbackActions,
-                            expansionProgress = expansionProgress,
-                            containerWidth = screenWidth - horizontalMargin * 2,
-                            containerHeight = containerHeight,
-                            onCollapse = onCollapse,
+                            playbackProgress = playbackProgress,
+                            onMiniPlayerClick = onExpand,
                             onOpenQueue = onOpenQueue,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
             }
-        }
-    }
-}
-
-/**
- * Continuous geometry interpolation content rendered exclusively during transition phases
- * (0f < [expansionProgress] < 1f).
- */
-@Composable
-private fun MorphingTransitionContent(
-    sessionState: PlayerSessionState,
-    currentTrack: AudioTrack,
-    playbackProgress: PlaybackProgress,
-    playbackActions: PlaybackActions,
-    expansionProgress: Float,
-    containerWidth: Dp,
-    containerHeight: Dp,
-    onCollapse: () -> Unit,
-    onOpenQueue: () -> Unit,
-) {
-    val miniAlpha = MorphingPlayerMath.miniControlsAlpha(expansionProgress)
-    val secondaryAlpha = MorphingPlayerMath.secondaryControlsAlpha(expansionProgress)
-
-    // Artwork geometry interpolation
-    val artworkRotation = MorphingPlayerMath.artworkRotation(expansionProgress)
-
-    val miniArtX = 10.dp
-    val miniArtY = (MiniPlayerDefaults.CapsuleHeight - MiniPlayerDefaults.CoverSize) / 2
-    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val topBarHeight = 56.dp
-    val bottomControlsHeight = 250.dp
-    val availableCenterHeight =
-        (containerHeight - statusBarPadding - topBarHeight - bottomControlsHeight - navBarPadding).coerceAtLeast(
-            MorphingPlayerDefaults.FullPlayerArtworkSize,
-        )
-    val fullArtY = statusBarPadding + topBarHeight + (availableCenterHeight - MorphingPlayerDefaults.FullPlayerArtworkSize) / 2
-
-    // Dual buttons geometry interpolation
-    val playButtonSize = MorphingPlayerMath.playButtonSize(expansionProgress)
-    val playButtonRadius = MorphingPlayerMath.playButtonCornerRadius(expansionProgress)
-
-    val miniPlayX = containerWidth - 12.dp - 38.dp - 8.dp - 40.dp
-    val miniPlayY = (MiniPlayerDefaults.CapsuleHeight - 40.dp) / 2
-    val fullControlsY = (containerHeight - 56.dp - playButtonSize).coerceAtLeast(MiniPlayerDefaults.CapsuleHeight)
-    val fullPlayX = (containerWidth - playButtonSize) / 2
-
-    val playX = lerp(miniPlayX, fullPlayX, expansionProgress)
-    val playY = lerp(miniPlayY, fullControlsY, expansionProgress)
-
-    val queueButtonSize = MorphingPlayerMath.queueButtonSize(expansionProgress)
-    val miniQueueX = containerWidth - 12.dp - 38.dp
-    val miniQueueY = (MiniPlayerDefaults.CapsuleHeight - 38.dp) / 2
-    val fullQueueX = containerWidth - 28.dp - queueButtonSize
-    val fullQueueY = fullControlsY + (playButtonSize - queueButtonSize) / 2
-
-    val queueX = lerp(miniQueueX, fullQueueX, expansionProgress)
-    val queueY = lerp(miniQueueY, fullQueueY, expansionProgress)
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // --- MiniPlayer Title & State (Fades out by progress = 0.25f) ---
-        if (miniAlpha > 0f) {
-            Column(
-                modifier =
-                    Modifier
-                        .offset(x = 64.dp, y = 10.dp)
-                        .width((containerWidth - 64.dp - 108.dp).coerceAtLeast(0.dp))
-                        .height(40.dp)
-                        .graphicsLayer { alpha = miniAlpha },
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = currentTrack.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = formatMiniPlayerSubtitle(sessionState),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        // --- Secondary Controls: Top Bar (Fades in past progress = 0.35f) ---
-        if (secondaryAlpha > 0f) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .height(56.dp)
-                        .padding(horizontal = 4.dp)
-                        .graphicsLayer { alpha = secondaryAlpha },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = onCollapse,
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Icon(
-                        imageVector = AppIcons.KeyboardArrowDown,
-                        contentDescription = "收起",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    val serverName = sessionState.activeServer?.name?.takeIf { it.isNotBlank() } ?: "WebDAV"
-                    Text(
-                        text = "正在播放自 $serverName",
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp,
-                            ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = currentTrack.title,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                Spacer(modifier = Modifier.size(44.dp))
-            }
-
-            // --- Secondary Controls: Progress Slider & Controls (Fades in past progress = 0.35f) ---
-            PlayerProgressSlider(
-                playbackProgress = playbackProgress,
-                sessionDurationMs = playbackProgress.durationMs,
-                displayPositionMs = playbackProgress.currentPositionMs,
-                isScrubbing = false,
-                onScrubbingChange = { _, _ -> },
-                onSeek = { playbackActions.seekTo(it) },
-                modifier =
-                    Modifier
-                        .offset(y = (fullControlsY - 60.dp).coerceAtLeast(0.dp))
-                        .padding(horizontal = 24.dp)
-                        .fillMaxWidth()
-                        .graphicsLayer { alpha = secondaryAlpha },
-            )
-
-            // Secondary Skip and Mode buttons
-            val skipButtonSize = 48.dp
-            val skipY = fullControlsY + (playButtonSize - skipButtonSize) / 2
-
-            IconButton(
-                onClick = { playbackActions.cyclePlaybackMode() },
-                modifier =
-                    Modifier
-                        .offset(x = 24.dp, y = skipY)
-                        .size(skipButtonSize)
-                        .graphicsLayer { alpha = secondaryAlpha },
-            ) {
-                Icon(
-                    imageVector =
-                        when (sessionState.playbackMode) {
-                            PlaybackMode.LIST_LOOP -> AppIcons.Repeat
-                            PlaybackMode.SINGLE_LOOP -> AppIcons.RepeatOne
-                            PlaybackMode.SHUFFLE -> AppIcons.Shuffle
-                        },
-                    contentDescription = "播放模式",
-                    modifier = Modifier.size(26.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            FilledTonalIconButton(
-                onClick = { playbackActions.skipToPrevious() },
-                modifier =
-                    Modifier
-                        .offset(x = (containerWidth / 2) - 34.dp - 14.dp - skipButtonSize, y = skipY)
-                        .size(skipButtonSize)
-                        .graphicsLayer { alpha = secondaryAlpha },
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Icon(
-                    imageVector = AppIcons.SkipPrevious,
-                    contentDescription = "上一首",
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-
-            FilledTonalIconButton(
-                onClick = { playbackActions.skipToNext() },
-                modifier =
-                    Modifier
-                        .offset(x = (containerWidth / 2) + 34.dp + 14.dp, y = skipY)
-                        .size(skipButtonSize)
-                        .graphicsLayer { alpha = secondaryAlpha },
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Icon(
-                    imageVector = AppIcons.SkipNext,
-                    contentDescription = "下一首",
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
-
-        // --- Continuous Shared Album Artwork (Stationary at 0°, Draw phase GPU scaled) ---
-        val fullArtworkSize = MorphingPlayerDefaults.FullPlayerArtworkSize
-        val baseCenterX = fullArtworkSize / 2
-        val baseCenterY = fullArtworkSize / 2
-
-        val miniCenterX = miniArtX + (MiniPlayerDefaults.CoverSize / 2)
-        val miniCenterY = miniArtY + (MiniPlayerDefaults.CoverSize / 2)
-        val fullCenterX = containerWidth / 2
-        val fullCenterY = fullArtY + (fullArtworkSize / 2)
-
-        val minScale = MiniPlayerDefaults.CoverSize.value / fullArtworkSize.value
-        val currentScale = minScale + (1f - minScale) * expansionProgress
-        val currentCenterX = lerp(miniCenterX, fullCenterX, expansionProgress)
-        val currentCenterY = lerp(miniCenterY, fullCenterY, expansionProgress)
-        val currentCornerRadius = lerp(fullArtworkSize / 2, MorphingPlayerDefaults.FullPlayerArtworkRadius, expansionProgress)
-        val shadowElevation = lerp(0.dp, 24.dp, expansionProgress)
-
-        Box(
-            modifier =
-                Modifier
-                    .size(fullArtworkSize)
-                    .graphicsLayer {
-                        scaleX = currentScale
-                        scaleY = currentScale
-                        translationX = (currentCenterX - baseCenterX).toPx()
-                        translationY = (currentCenterY - baseCenterY).toPx()
-                        rotationZ = artworkRotation
-                        clip = true
-                        shape = RoundedCornerShape(currentCornerRadius)
-                        this.shadowElevation = shadowElevation.toPx()
-                    }
-                    .clip(RoundedCornerShape(currentCornerRadius))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            CoverThumbnailImage(
-                thumbnailPath = currentTrack.coverThumbnailPath,
-                contentDescription = "专辑封面",
-                modifier = Modifier.fillMaxSize(),
-                crossfadeDurationMs = 0,
-            ) {
-                Icon(
-                    imageVector = AppIcons.Audiotrack,
-                    contentDescription = "音轨",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(64.dp),
-                )
-            }
-        }
-
-        // --- Continuous Primary Play / Pause Button ---
-        FilledIconButton(
-            onClick = { playbackActions.togglePlayPause() },
-            modifier =
-                Modifier
-                    .offset(x = playX, y = playY)
-                    .size(playButtonSize)
-                    .graphicsLayer {
-                        shape = RoundedCornerShape(playButtonRadius)
-                        clip = true
-                    },
-            shape = RoundedCornerShape(playButtonRadius),
-            colors =
-                IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-        ) {
-            val iconSize = lerp(22.dp, 36.dp, expansionProgress)
-            if (sessionState.isBuffering) {
-                CircularProgressIndicator(
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(iconSize * 0.75f),
-                )
-            } else if (sessionState.isPlaying) {
-                Icon(
-                    imageVector = AppIcons.Pause,
-                    contentDescription = "暂停",
-                    modifier = Modifier.size(iconSize),
-                )
-            } else {
-                Icon(
-                    imageVector = AppIcons.PlayArrow,
-                    contentDescription = "播放",
-                    modifier = Modifier.size(iconSize),
-                )
-            }
-        }
-
-        // --- Continuous Secondary Queue Button ---
-        FilledTonalIconButton(
-            onClick = onOpenQueue,
-            modifier =
-                Modifier
-                    .offset(x = queueX, y = queueY)
-                    .size(queueButtonSize),
-            colors =
-                IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-        ) {
-            val iconSize = lerp(20.dp, 26.dp, expansionProgress)
-            Icon(
-                imageVector = AppIcons.QueueMusic,
-                contentDescription = "播放队列",
-                modifier = Modifier.size(iconSize),
-            )
         }
     }
 }
