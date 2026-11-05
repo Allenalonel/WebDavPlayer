@@ -10,17 +10,21 @@ import kotlinx.coroutines.flow.update
 enum class AppDestination(
     val label: String,
 ) {
-    DIRECTORY_BROWSER("媒体库"),
     PLAYLISTS("歌单"),
+    DIRECTORY_BROWSER("媒体库"),
     SERVER_LIST("服务器"),
 }
 
 data class MainNavigationUiState(
     val currentDestination: AppDestination = AppDestination.SERVER_LIST,
+    val previousDestination: AppDestination? = null,
     val isFullPlayerExpanded: Boolean = false,
     val isMiniPlayerVisible: Boolean = false,
     val selectedPlaylistId: Long? = null,
-)
+) {
+    val isForward: Boolean
+        get() = previousDestination == null || currentDestination.ordinal > previousDestination.ordinal
+}
 
 class MainNavigationCoordinator(
     initialDestination: AppDestination = AppDestination.SERVER_LIST,
@@ -43,29 +47,46 @@ class MainNavigationCoordinator(
         if (!hasCheckedInitialActiveServer) {
             hasCheckedInitialActiveServer = true
             if (activeServer != null) {
-                _uiState.update { it.copy(currentDestination = AppDestination.DIRECTORY_BROWSER) }
+                _uiState.update { current ->
+                    if (current.currentDestination == AppDestination.DIRECTORY_BROWSER) {
+                        current
+                    } else {
+                        current.copy(
+                            previousDestination = current.currentDestination,
+                            currentDestination = AppDestination.DIRECTORY_BROWSER,
+                        )
+                    }
+                }
                 onDestinationChanged?.invoke(AppDestination.DIRECTORY_BROWSER)
             }
         } else if (!hasExplicitInitialDestination &&
             activeServer == null &&
             _uiState.value.currentDestination == AppDestination.DIRECTORY_BROWSER
         ) {
-            _uiState.update { it.copy(currentDestination = AppDestination.SERVER_LIST) }
+            _uiState.update { current ->
+                current.copy(
+                    previousDestination = current.currentDestination,
+                    currentDestination = AppDestination.SERVER_LIST,
+                )
+            }
             onDestinationChanged?.invoke(AppDestination.SERVER_LIST)
         }
     }
 
     fun selectDestination(destination: AppDestination) {
-        _uiState.update {
-            if (destination == AppDestination.PLAYLISTS &&
-                it.currentDestination == AppDestination.PLAYLISTS &&
-                it.selectedPlaylistId != null
-            ) {
-                it.copy(selectedPlaylistId = null)
-            } else if (destination != AppDestination.PLAYLISTS) {
-                it.copy(currentDestination = destination, selectedPlaylistId = null)
+        _uiState.update { current ->
+            if (destination == current.currentDestination) {
+                if (destination == AppDestination.PLAYLISTS && current.selectedPlaylistId != null) {
+                    current.copy(selectedPlaylistId = null)
+                } else {
+                    current
+                }
             } else {
-                it.copy(currentDestination = destination)
+                current.copy(
+                    previousDestination = current.currentDestination,
+                    currentDestination = destination,
+                    selectedPlaylistId = if (destination != AppDestination.PLAYLISTS) null else current.selectedPlaylistId,
+                )
             }
         }
         onDestinationChanged?.invoke(destination)
