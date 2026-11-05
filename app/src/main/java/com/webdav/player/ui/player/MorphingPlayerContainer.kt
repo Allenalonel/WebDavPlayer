@@ -317,8 +317,8 @@ fun MorphingPlayerContainer(
             ) {
                 val density = LocalDensity.current
 
-                // 1. Single Living FullPlayerView (Active as container expands past 0f)
-                if (expansionProgress > 0.001f) {
+                // 1. Single Living FullPlayerView (Active as container expands past 0.15f)
+                if (expansionProgress > 0.15f) {
                     val fullAlpha = ((expansionProgress - 0.15f) / 0.85f).coerceIn(0f, 1f)
                     val fullTranslationY = with(density) { 40.dp.toPx() * (1f - expansionProgress) }
                     Box(
