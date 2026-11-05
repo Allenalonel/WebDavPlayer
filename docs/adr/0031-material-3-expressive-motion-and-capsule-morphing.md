@@ -39,26 +39,36 @@ Accepted
 
 ### 3. 胶囊至全屏连续形态蜕变体系 (Capsule-to-Fullscreen Morphing)
 
-彻底废除割裂的模态弹窗，将 MiniPlayer 药丸胶囊作为单一连续实体驱动：
-- **单一过渡进度驱动 (`expansionProgress: Float`)**：
-  - 0f 为底部 60dp 悬浮胶囊态，1f 为全屏播放器态；
+彻底废除割裂的模态弹窗，确立单一真实实体（Single Living View）形态蜕变体系：
+- **单一真实实体架构（Single Living View, No Mock Swaps）**：
+  - 严禁编写仅具备部分假 UI 的过渡期“替身克隆组件（Mock Clone）”。
+  - 展开阶段直接由真实 `FullPlayerView` 充当唯一实体，在 `expansionProgress > 0.15f` 时通过 `graphicsLayer` 的 Alpha 与 TranslationY 随容器高度平滑浮现；
+  - 动画到达 1.0f 时零组件偷换（Zero End-State Swaps），所有标题、徽章、电池横幅与进度条从始至终处于真实物理槽位，彻底根绝布局重算引发的突发抖动与跳跃。
 - **几何与轮廓连续插值**：
   - 容器尺寸从 `height: 60.dp, width: 100% - 28.dp` 平滑拉伸撑满全屏；
   - 容器圆角从 `30.dp` 药丸圆角平滑演变为屏幕顶部的 `36.dp`；
-  - 封面从左侧 `42.dp` 正圆黑胶（`CircleShape`），沿物理轨迹滑向中央放大至 `250.dp` 并变形为方圆大卡片（`RoundedCornerShape(28.dp)`），且在全屏态完全静止不自转；
-  - 双按钮连续拓扑映射：左侧 40dp 播放/暂停键（Primary）滑向中央升格为 68dp Squircle 方圆大按键；右侧 38dp 队列键（Tonal）滑向右侧槽位；
-  - 流体进度条与次级控制键随高度撑开顺势展开，收起时原路弹性收拢回胶囊。
+  - 封面从左侧 `42.dp` 正圆黑胶（`CircleShape`），沿物理轨迹滑向中央变焦为 `280.dp` 方圆大卡片（严格对齐 `PlayerVinylArtwork` 280dp 约束，消除 30dp 尺寸瞬移），且在全屏态完全静止不自转；
+  - 封面缩放位移统一在 `graphicsLayer` Draw 阶段由 GPU 硬件矩阵驱动，避免逐帧 Measure & Layout 引发的 40ms 掉帧；
+  - `CoverThumbnailImage` 命中内存缓存时采用硬绘制，消除多余的 250ms 二次渐变拖尾；
+  - `LyricsView` 内边距强制加上 `coerceAtLeast(0.dp)` 兜底，杜绝容器低高度时负数 padding 崩溃；
+  - 双按钮连续拓扑映射：左侧 40dp 播放/暂停键（Primary）滑向中央升格为 68dp Squircle 方圆大按键；右侧 38dp 队列键（Tonal）滑向右侧槽位。
 
-### 4. 队列洗牌重排与模态微动效拓展 (P0 / P1 / P2 Scope)
+### 4. 队列洗牌重排与层级交互稳定性闭环 (P0 / P1 / P2 Scope)
 
 在核心骨架之上，纳入深度触感与辅助交互动效闭环：
 - **P0 队列洗牌与增删平滑排版 (`Animated Queue Placement`)**：
   - 在 `PlaybackQueueBottomSheet.kt` 中引入 `Modifier.animateItemPlacement()`，切换随机洗牌（Shuffle）与单曲侧滑移除时，列表条目平滑滑向新槽位，杜绝瞬态跳跃；
-- **P1 底栏药丸果冻拉伸与弹窗 M3E 缩放**：
+  - 将列表自动滚动限制为仅在首次打开抽屉时触发一次（`hasScrolledOnOpen`），避免滚动事件强行截断打断洗牌排版动效。
+- **P1 媒体库下钻加载指引与残影根治**：
+  - 媒体库向未缓存目录穿梭时，`loadDirectory` 立即清理旧目录数据，新视窗推入瞬间居中展示 `CircularProgressIndicator` 与“正在加载远程目录...”，消除“显示旧目录”假象；
+  - `hierarchyPushExit` 退场父级 `targetAlpha` 彻底淡出至 `0.0f` 并增加不透光背景，根除左侧残留虚影。
+- **P2 音轨列表行高严格对齐规范 (Row Height Parity via "未知" Fallback)**：
+  - `AudioTrackRow`、`PlaylistTrackRow` 与 `AudioTrackItemRow` 在缺少歌手或专辑信息时，一律回退显示 `"未知"`，坚决不完全隐藏 `supportingContent`，确保全 App 所有音轨列表条目严格保持 72dp 双行高度对齐。
+- **P3 搜索舱 Focus 挂载时序门禁**：
+  - `FloatingSearchPillCapsule` 的 `FocusRequester.requestFocus()` 推迟至 `expansionProgress >= 0.35f` 输入框真正挂载后触发，根绝未挂载直接请求焦点引发的系统级 Crash。
+- **P4 底栏药丸果冻拉伸与弹窗 M3E 缩放**：
   - 底栏 52dp 药丸指示仓在 Tab 切换时加入横向流体拉伸回弹（Elastic Pill Stretch）；
-  - 全局 Dialogs（`AddToPlaylistDialog`、`ServerEditDialog`、`PlaylistTrackDetailDialog`）采用 M3E 弹簧缩放弹出（`scaleIn(0.92f) + fadeIn()`）；
-- **P2 全局可交互卡片与按钮触控微缩回弹 (`expressivePress`)**：
-  - 封装轻量扩展 `Modifier.expressivePress(scaleFactor = 0.97f)`，在服务器卡片、歌单封面行、音轨条目与独立按钮上手势按下时微缩至 0.97f，抬起物理弹簧回弹。
+  - 全局 Dialogs（`AddToPlaylistDialog`、`ServerEditDialog`、`PlaylistTrackDetailDialog`）采用 M3E 弹簧缩放弹出（`scaleIn(0.92f) + fadeIn()`）。
 
 ### 5. 零 UI 视觉改动承诺 (Zero UI Mutation Contract)
 

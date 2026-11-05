@@ -74,6 +74,9 @@ Status: completed
 31. As a user tapping track rows, server cards, and buttons, I want interactive surfaces to scale down slightly to 0.965f upon being pressed and bounce back with a spring upon release, so that touches feel tactile and responsive.
 32. As a user opening dialogs such as "Add to Playlist", "Edit Server", or "Track Details", I want the dialog window to pop in with a gentle spring scale-in from 0.92f and fade out smoothly upon dismissal, so that modal popups feel cohesive with the rest of the application.
 33. As an Android user who values visual consistency, I want all static layouts, padding, margins, colors, and typographic styling to remain 100% identical to the production application before and after motion, so that no UI design regressions are introduced.
+34. As a listener browsing tracks in playlists and the directory browser, I want tracks without artist or album metadata to display "未知" as their subtitle instead of completely omitting the subtitle, so that all track rows maintain a uniform 72dp height and visual alignment.
+35. As an audiophile browsing WebDAV directories, I want opening an uncached folder to immediately display a loading indicator and "正在加载远程目录..." feedback instead of silently retaining the parent folder's contents, so that my navigation context is unambiguous while waiting for slow or failing network servers.
+36. As a listener expanding the mini-player, I want the full-screen player to expand as a single authentic entity without mock layout swaps at the animation boundary, so that title, badges, battery banner, and controls never jump or jitter upon reaching full expansion.
 
 ## Implementation Decisions
 
@@ -88,19 +91,16 @@ The motion system will be structured into three internal packages under `ui/moti
 - **`MotionModifiers`**: Reusable Compose modifiers including `Modifier.expressivePress()` for 0.965f touch scaling with spring release, and `Modifier.fluidIndicator()` for bottom bar pill stretch.
 
 ### 2. Capsule-to-Fullscreen Morphing Container
-- **Single Living Entity**: Rather than mounting a disconnected `ModalBottomSheet` on top of an invisible mini-player, the application will hoist a unified `MorphingPlayerContainer` inside `MainActivity`.
-- **Interpolation Model**: A single normalized `expansionProgress: Float` (0.0f = collapsed capsule, 1.0f = full-screen player) drives all geometry via Compose `lerp()` inside `graphicsLayer` blocks to defer execution entirely to the Draw phase:
-  ```kotlin
-  // Geometry interpolation specification derived from prototype
-  val containerHeight = lerp(MiniPlayerDefaults.CapsuleHeight, screenHeight, expansionProgress)
-  val containerCornerRadius = lerp(MiniPlayerDefaults.CapsuleCornerRadius, WindowCornerRadius, expansionProgress)
-  val coverSize = lerp(MiniPlayerDefaults.CoverSize, FullPlayerDefaults.ArtworkSize, expansionProgress)
-  val coverCornerRadius = lerp(coverSize / 2f, FullPlayerDefaults.ArtworkSquircleRadius, expansionProgress)
-  val playButtonSize = lerp(MiniPlayerDefaults.PlayPauseButtonSize, FullPlayerDefaults.PlayButtonSize, expansionProgress)
-  val queueButtonSize = lerp(MiniPlayerDefaults.QueueMusicButtonSize, 48.dp, expansionProgress)
-  ```
-- **Cover Artwork Static Rendering**: The album art cover will remain strictly stationary with 0° rotation throughout the entire transition. In the collapsed mini-player, it renders within a circle clip; as it expands, the corner radius interpolates to 28dp squircle, smoothly landing at the center artwork position without spinning or tilting.
-- **Dual Buttons Handover**: The mini-player's left-positioned 40dp filled primary play button and right-positioned 38dp tonal queue button smoothly transition along curved spatial paths into the full-screen player's centered 68dp squircle play button and rightmost 48dp queue button, preserving their relative left-to-right topology without cross-overs.
+- **Single Living Entity**: Rather than mounting a disconnected `ModalBottomSheet` or an artificial mock clone that is swapped at the boundary, the application hosts `FullPlayerView` as the single authentic full-screen view inside `MorphingPlayerContainer`.
+  - As `expansionProgress > 0.15f`, `FullPlayerView` smoothly fades in with translationY in the Draw phase.
+  - MiniPlayer smoothly fades out before `expansionProgress < 0.40f`.
+  - Because no mock clone is swapped at `expansionProgress = 1.0f`, all components (title, artist, audiophile badge, battery whitelist banner, pager dots, transport controls) remain 100% stationary with zero component jitter or layout shift.
+- **Interpolation Model & Geometry Parity**:
+  - Container height: interpolates from `MiniPlayerDefaults.CapsuleHeight` (60dp) to `screenHeight`.
+  - Container corner radius: interpolates from `MiniPlayerDefaults.CapsuleCornerRadius` (30dp) to `WindowCornerRadius` (36dp).
+  - Target artwork size: accurately anchored to `280dp` (matching `FullPlayerDefaults.ArtworkSquircleShape` and `PlayerVinylArtwork` constraints).
+  - Motion easing: uses Material 3 Expressive easing curve `tween(480, CubicBezierEasing(0.18f, 0.94f, 0.28f, 1.05f))` for tactile fluid expansion.
+  - Lyrics padding safety: `LyricsView` enforces `((maxHeight / 2) - 24.dp).coerceAtLeast(0.dp)` to prevent negative `beforeContentPadding` crashes when measured under low container heights.
 
 ### 3. Bidirectional M3 Shared Axis Navigation
 - **Top-Level Tabs (Playlists / Browser / Servers)**:
@@ -110,18 +110,22 @@ The motion system will be structured into three internal packages under `ui/moti
   - Both views are actively rendered in the composition tree during the transition window with distinct animation keys to eliminate white screen flashing.
 - **Bottom Navigation Pill Stretch**: The active tab's 52dp pill indicator executes a horizontal spring bounce (`scaleX: 0.7f → 1.15f → 1.0f`) upon destination changes.
 - **Drilldown Navigation (Playlist Details & Subfolders)**:
-  - Entering a detail screen or subfolder applies a 100% horizontal push from the right edge, while the parent container retreats with a 25% to 30% parallax offset and slight dimming.
+  - Entering a detail screen or subfolder applies a 100% horizontal push from the right edge, while the parent container retreats with a 25% parallax offset and completely fades to `0.0f` (with opaque background on the child container to eliminate lingering afterimages).
   - Returning applies the exact inverse motion.
+  - **Directory Loading State Feedback**: When navigating to a new path in `loadDirectory`, stale directory data is cleared (`currentDirectory = null`, `cueAlbums = emptyList()`), and `DirectoryBrowserScreen` immediately presents a centered `CircularProgressIndicator` + "正在加载远程目录..." feedback, preventing silent display of parent folder files while waiting for slow/failing network servers.
+  - **Track Row Height Parity ("未知" Fallback)**: In `AudioTrackRow`, `PlaylistTrackRow`, and `AudioTrackItemRow`, tracks missing artist or album metadata explicitly fall back to `"未知"` in their subtitle rather than omitting `supportingContent`, guaranteeing uniform 72dp row height across all lists.
 
 ### 4. Floating Search Pill Capsule Morphing
 - When search is activated in the directory browser, the 38dp circular search button expands via container transform into the 26dp rounded `FloatingSearchPillCapsule` spanning the top area, while the collapsible top app bar title fades out.
 - The `SearchResultsContent` and search history chips slide in from underneath the search capsule.
+- Focus acquisition is guarded until the `BasicTextField` is actively composed in the hierarchy (`expansionProgress >= 0.35f`), eliminating `FocusRequester is not initialized` crashes.
 - Selecting a directory in search results dismisses the search view, shrinks the search capsule back to the 38dp circular button, and switches the directory browser to the target path with a subtle focal scale-fade transition (`scaleIn(0.96f) + fadeIn()`).
 
 ### 5. Playback Queue Mode Cycling & Placement Animation
 - In `PlaybackQueueBottomSheet`, the header displays a Material 3 `AssistChip` cycling through `PlaybackMode.LIST_LOOP` (🔁), `PlaybackMode.SINGLE_LOOP` (🔂), and `PlaybackMode.SHUFFLE` (🔀).
 - In the `LazyColumn`, the items key contract is updated from `key = { index, track -> "track_${track.id}_$index" }` to stable unique track identity `key = { _, track -> track.id }`.
 - Each queue item row is equipped with `Modifier.animateItemPlacement(spring(...))` so that transitioning into and out of shuffle mode causes the list rows to smoothly glide across each other to their new slots without recreation.
+- Programmatic auto-scroll to the current track is limited to initial sheet presentation (`hasScrolledOnOpen`) to prevent scroll interrupts from cancelling active item placement animations.
 
 ### 6. Strict Zero UI Mutation Contract
 - The static layout hierarchy, paddings, color schemes, typography, button sizes, and composable definitions of `MiniPlayer`, `FullPlayerView`, `DirectoryBrowserScreen`, and `PlaybackQueueBottomSheet` are kept 100% unchanged.

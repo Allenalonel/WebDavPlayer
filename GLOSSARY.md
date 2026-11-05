@@ -284,8 +284,16 @@ _Avoid_: File Info Activity, Song Property Window
 _Avoid_: Bottom Player, Small Player, Playback Bar
 
 **Capsule-to-Fullscreen Morphing**:
-MiniPlayer 药丸胶囊与全屏播放器之间统一由单一实体驱动的连续形态蜕变体系。彻底废除割裂的模态弹窗与生硬遮罩覆盖，通过统一进度状态驱动几何插值与物理弹簧，将胶囊边界、圆角（30dp → 0dp/36dp）、封面（42dp 正圆黑胶 → 250dp Squircle 方圆大卡片）、文字基准线与播控按键（34dp 侧置 → 64dp 居中方圆）实现 100% 物理连贯、零声学卡顿与零视觉割裂的双向形态映射。
-_Avoid_: Bottom Sheet Popup, Pop-up Overlay, Disjointed Expansion, Fake Player Resize
+MiniPlayer 药丸胶囊与全屏播放器之间统一由单一真实实体（Single Living View）驱动的连续形态蜕变体系。彻底废除割裂的模态弹窗与过渡期假替身组件（Mock Clone），在容器伸展过程中直接承载真实 `FullPlayerView`，避免动画终点的组件偷换导致排版重算抖动；通过统一进度状态在 GPU Draw 阶段驱动硬件矩阵变换，将胶囊边界、圆角（30dp → 0dp/36dp）、封面（42dp 正圆黑胶 → 280dp Squircle 方圆大卡片，严格锁定 0° 静止）、文字基准线与播控按键实现 100% 物理连贯、零声学卡顿与零视觉割裂的双向形态映射。
+_Avoid_: Bottom Sheet Popup, Pop-up Overlay, Disjointed Expansion, Fake Player Resize, Mock Transition Swap
+
+**Track Row Height Parity**:
+应用全域（歌单、媒体库、搜索、队列）音频曲目列表行严格遵循双行 72dp 对齐与未知兜底规范。当曲目缺失艺术家或专辑标签信息时，副标题必须回退显示“未知”，严禁完全隐藏导致 ListItem 塌缩为 56dp 单行，保证全列表行高严格一致。
+_Avoid_: Single Line Track Row, Collapsed Subtitle, Inconsistent Track Height
+
+**Directory Drilldown Loading State**:
+媒体库向未缓存的新目录层级下钻时的即时加载反馈体系。视窗推入时立即清空旧目录快照并居中呈现 `CircularProgressIndicator` 与“正在加载远程目录...”，彻底杜绝父级旧目录内容残留与左侧残影，失败时平滑切换为带重试指引的错误态。
+_Avoid_: Silent Directory Load, Stale Folder Reflection, Sudden Error Flash
 
 
 **Liquid Fill MiniPlayer**:

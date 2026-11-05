@@ -408,7 +408,8 @@ fun DirectoryBrowserScreen(
                                     if (targetPath == uiState.currentPath) {
                                         // Live content for current path
                                         when {
-                                            uiState.isLoading && (uiState.currentDirectory == null || uiState.currentDirectory?.path != uiState.currentPath) -> {
+                                            uiState.isLoading &&
+                                                (uiState.currentDirectory == null || uiState.currentDirectory?.path != uiState.currentPath) -> {
                                                 Box(
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentAlignment = Alignment.Center,
