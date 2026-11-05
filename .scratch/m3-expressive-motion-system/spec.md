@@ -1,6 +1,6 @@
 # Spec: Material 3 Expressive 动效系统与胶囊全屏连续形态蜕变体系
 
-Status: ready-for-agent
+Status: completed
 
 ## Problem Statement
 
