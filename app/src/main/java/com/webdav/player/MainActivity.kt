@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -47,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +70,9 @@ import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
 import com.webdav.player.ui.common.ThumbnailMemoryCache
+import com.webdav.player.ui.motion.MotionTransitions
+import com.webdav.player.ui.motion.fluidIndicator
+import com.webdav.player.ui.motion.isReduceMotionEnabled
 import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
@@ -218,6 +223,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier =
                                                     Modifier
                                                         .size(width = 52.dp, height = 28.dp)
+                                                        .fluidIndicator(isSelected)
                                                         .clip(RoundedCornerShape(14.dp))
                                                         .background(
                                                             if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
@@ -264,104 +270,95 @@ class MainActivity : ComponentActivity() {
                             label = "fab_bottom_padding",
                         )
 
+                        val saveableStateHolder = rememberSaveableStateHolder()
+                        val isReduceMotion = isReduceMotionEnabled()
+
                         Box(modifier = Modifier.fillMaxSize()) {
-                            // Preserved view hierarchy across tab transitions
-                            Box(
+                            // Preserved view hierarchy with M3 Shared Axis X horizontal transition
+                            AnimatedContent(
+                                targetState = navState.currentDestination,
+                                transitionSpec = {
+                                    val isForward = targetState.ordinal > initialState.ordinal
+                                    MotionTransitions.sharedAxisX(isForward = isForward, reduceMotion = isReduceMotion)
+                                },
+                                label = "MainSharedAxisTabTransition",
                                 modifier = Modifier.fillMaxSize(),
-                            ) {
-                                val isBrowser = navState.currentDestination == AppDestination.DIRECTORY_BROWSER
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .tabAccessibilityGuard(isBrowser)
-                                            .graphicsLayer {
-                                                alpha = if (isBrowser) 1f else 0f
-                                                translationX = if (isBrowser) 0f else 99999f
-                                            },
-                                ) {
-                                    DirectoryBrowserScreen(
-                                        viewModel = browserViewModel,
-                                        onNavigateToServerManagement = {
-                                            coordinator.selectDestination(AppDestination.SERVER_LIST)
-                                        },
-                                        isCurrentTab = isBrowser,
-                                        onOpenFullPlayer = {
-                                            coordinator.expandFullPlayer()
-                                        },
-                                        onAddToPlaylist = { track ->
-                                            tracksToAddToPlaylist = listOf(track)
-                                        },
-                                        onAddTracksToPlaylist = { tracks ->
-                                            tracksToAddToPlaylist = tracks
-                                        },
-                                        bottomBarPadding = innerPadding.calculateBottomPadding() + 8.dp,
-                                        onSelectionModeChanged = { isBrowserSelectionActive = it },
-                                    )
-                                }
+                            ) { targetDestination ->
+                                saveableStateHolder.SaveableStateProvider(targetDestination) {
+                                    val isCurrentTab = (targetDestination == navState.currentDestination)
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxSize()
+                                                .tabAccessibilityGuard(isCurrentTab),
+                                    ) {
+                                        when (targetDestination) {
+                                            AppDestination.PLAYLISTS -> {
+                                                if (navState.selectedPlaylistId != null) {
+                                                    val selectedId = navState.selectedPlaylistId!!
+                                                    val detailViewModel: PlaylistDetailViewModel =
+                                                        androidx.lifecycle.viewmodel.compose.viewModel(
+                                                            key = "playlist_detail_$selectedId",
+                                                            factory = AppViewModelFactory(appContainer, selectedId),
+                                                        )
+                                                    PlaylistDetailScreen(
+                                                        viewModel = detailViewModel,
+                                                        onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
+                                                        isCurrentTab = isCurrentTab,
+                                                        onTrackClick = { track, index ->
+                                                            detailViewModel.onTrackClick(track, index)
+                                                        },
+                                                        onPlayAll = {
+                                                            detailViewModel.playAll()
+                                                        },
+                                                    )
+                                                } else {
+                                                    PlaylistListScreen(
+                                                        viewModel = playlistViewModel,
+                                                        onPlaylistClick = { playlist ->
+                                                            coordinator.navigateToPlaylistDetail(playlist.id)
+                                                        },
+                                                        fabBottomPadding = fabBottomPadding,
+                                                    )
+                                                }
+                                            }
 
-                                val isPlaylists = navState.currentDestination == AppDestination.PLAYLISTS
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .tabAccessibilityGuard(isPlaylists)
-                                            .graphicsLayer {
-                                                alpha = if (isPlaylists) 1f else 0f
-                                                translationX = if (isPlaylists) 0f else 99999f
-                                            },
-                                ) {
-                                    if (navState.selectedPlaylistId != null) {
-                                        val selectedId = navState.selectedPlaylistId!!
-                                        val detailViewModel: PlaylistDetailViewModel =
-                                            androidx.lifecycle.viewmodel.compose.viewModel(
-                                                key = "playlist_detail_$selectedId",
-                                                factory = AppViewModelFactory(appContainer, selectedId),
-                                            )
-                                        PlaylistDetailScreen(
-                                            viewModel = detailViewModel,
-                                            onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
-                                            isCurrentTab = isPlaylists,
-                                            onTrackClick = { track, index ->
-                                                detailViewModel.onTrackClick(track, index)
-                                            },
-                                            onPlayAll = {
-                                                detailViewModel.playAll()
-                                            },
-                                        )
-                                    } else {
-                                        PlaylistListScreen(
-                                            viewModel = playlistViewModel,
-                                            onPlaylistClick = { playlist ->
-                                                coordinator.navigateToPlaylistDetail(playlist.id)
-                                            },
-                                            fabBottomPadding = fabBottomPadding,
-                                        )
+                                            AppDestination.DIRECTORY_BROWSER -> {
+                                                DirectoryBrowserScreen(
+                                                    viewModel = browserViewModel,
+                                                    onNavigateToServerManagement = {
+                                                        coordinator.selectDestination(AppDestination.SERVER_LIST)
+                                                    },
+                                                    isCurrentTab = isCurrentTab,
+                                                    onOpenFullPlayer = {
+                                                        coordinator.expandFullPlayer()
+                                                    },
+                                                    onAddToPlaylist = { track ->
+                                                        tracksToAddToPlaylist = listOf(track)
+                                                    },
+                                                    onAddTracksToPlaylist = { tracks ->
+                                                        tracksToAddToPlaylist = tracks
+                                                    },
+                                                    bottomBarPadding = innerPadding.calculateBottomPadding() + 8.dp,
+                                                    onSelectionModeChanged = { isBrowserSelectionActive = it },
+                                                )
+                                            }
+
+                                            AppDestination.SERVER_LIST -> {
+                                                ServerListScreen(
+                                                    viewModel = serverViewModel,
+                                                    onNavigateToBrowser = {
+                                                        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+                                                    },
+                                                    onSelectServerAndNavigate = { server ->
+                                                        serverViewModel.onSelectActiveServer(server.id)
+                                                        coordinator.onServerCardClicked(server)
+                                                    },
+                                                    fabBottomPadding = fabBottomPadding,
+                                                )
+                                            }
+                                        }
                                     }
-                                }
-
-                                val isServers = navState.currentDestination == AppDestination.SERVER_LIST
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .tabAccessibilityGuard(isServers)
-                                            .graphicsLayer {
-                                                alpha = if (isServers) 1f else 0f
-                                                translationX = if (isServers) 0f else 99999f
-                                            },
-                                ) {
-                                    ServerListScreen(
-                                        viewModel = serverViewModel,
-                                        onNavigateToBrowser = {
-                                            coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
-                                        },
-                                        onSelectServerAndNavigate = { server ->
-                                            serverViewModel.onSelectActiveServer(server.id)
-                                            coordinator.onServerCardClicked(server)
-                                        },
-                                        fabBottomPadding = fabBottomPadding,
-                                    )
                                 }
                             }
 

@@ -7,6 +7,7 @@ import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.domain.model.WebDavServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -242,5 +243,138 @@ class MainNavigationCoordinatorTest {
         testCoordinator.onServerCardClicked(sampleServer)
         assertEquals(AppDestination.DIRECTORY_BROWSER, testCoordinator.uiState.value.currentDestination)
         assertEquals(AppDestination.DIRECTORY_BROWSER, notifiedDestination)
+    }
+
+    @Test
+    fun destinationOrdering_conformsToM3SharedAxisLayout() {
+        assertEquals("PLAYLISTS must be index 0", 0, AppDestination.PLAYLISTS.ordinal)
+        assertEquals("DIRECTORY_BROWSER must be index 1", 1, AppDestination.DIRECTORY_BROWSER.ordinal)
+        assertEquals("SERVER_LIST must be index 2", 2, AppDestination.SERVER_LIST.ordinal)
+    }
+
+    @Test
+    fun initialState_hasNullPreviousDestination_andDefaultsToIsForwardTrue() {
+        val state = coordinator.uiState.value
+        assertEquals(AppDestination.SERVER_LIST, state.currentDestination)
+        assertNull(state.previousDestination)
+        assertTrue(state.isForward)
+    }
+
+    @Test
+    fun selectDestination_forwardNavigation_calculatesIsForwardTrue() {
+        val coordinatorFromPlaylists = MainNavigationCoordinator(initialDestination = AppDestination.PLAYLISTS)
+        assertNull(coordinatorFromPlaylists.uiState.value.previousDestination)
+
+        coordinatorFromPlaylists.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinatorFromPlaylists.uiState.value.currentDestination)
+        assertEquals(AppDestination.PLAYLISTS, coordinatorFromPlaylists.uiState.value.previousDestination)
+        assertTrue(coordinatorFromPlaylists.uiState.value.isForward)
+
+        coordinatorFromPlaylists.selectDestination(AppDestination.SERVER_LIST)
+        assertEquals(AppDestination.SERVER_LIST, coordinatorFromPlaylists.uiState.value.currentDestination)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinatorFromPlaylists.uiState.value.previousDestination)
+        assertTrue(coordinatorFromPlaylists.uiState.value.isForward)
+
+        coordinatorFromPlaylists.selectDestination(AppDestination.PLAYLISTS)
+        coordinatorFromPlaylists.selectDestination(AppDestination.SERVER_LIST)
+        assertEquals(AppDestination.SERVER_LIST, coordinatorFromPlaylists.uiState.value.currentDestination)
+        assertEquals(AppDestination.PLAYLISTS, coordinatorFromPlaylists.uiState.value.previousDestination)
+        assertTrue(coordinatorFromPlaylists.uiState.value.isForward)
+    }
+
+    @Test
+    fun selectDestination_backwardNavigation_calculatesIsForwardFalse() {
+        coordinator.selectDestination(AppDestination.SERVER_LIST)
+
+        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+
+        coordinator.selectDestination(AppDestination.SERVER_LIST)
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+    }
+
+    @Test
+    fun selectDestination_sameDestination_retainsPreviousDestinationAndDirection() {
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.previousDestination)
+        assertTrue(coordinator.uiState.value.isForward)
+
+        // Select the same destination again
+        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.previousDestination)
+        assertTrue(coordinator.uiState.value.isForward)
+    }
+
+    @Test
+    fun selectDestination_rapidSwitching_preservesStateAndDirectionConsistency() {
+        // Initial state: SERVER_LIST (2), prev = null
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.currentDestination)
+
+        // Step 1: rapid click to PLAYLISTS (0) -> backward
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+
+        // Step 2: rapid click to SERVER_LIST (2) -> forward
+        coordinator.selectDestination(AppDestination.SERVER_LIST)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.previousDestination)
+        assertTrue(coordinator.uiState.value.isForward)
+
+        // Step 3: rapid click to DIRECTORY_BROWSER (1) -> backward
+        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+
+        // Step 4: rapid click to PLAYLISTS (0) -> backward
+        coordinator.selectDestination(AppDestination.PLAYLISTS)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+
+        // Step 5: rapid click to SERVER_LIST (2) -> forward
+        coordinator.selectDestination(AppDestination.SERVER_LIST)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.PLAYLISTS, coordinator.uiState.value.previousDestination)
+        assertTrue(coordinator.uiState.value.isForward)
+
+        // Step 6: rapid click to DIRECTORY_BROWSER (1) -> backward
+        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+    }
+
+    @Test
+    fun onActiveServerLoaded_updatesPreviousDestinationAccurately() {
+        // Initially on SERVER_LIST (2)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.currentDestination)
+        assertNull(coordinator.uiState.value.previousDestination)
+
+        // Active server loaded: transitions to DIRECTORY_BROWSER (1)
+        coordinator.onActiveServerLoaded(sampleServer)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.previousDestination)
+        assertFalse(coordinator.uiState.value.isForward)
+
+        // Server removed while on DIRECTORY_BROWSER: returns to SERVER_LIST (2)
+        coordinator.onActiveServerLoaded(null)
+        assertEquals(AppDestination.SERVER_LIST, coordinator.uiState.value.currentDestination)
+        assertEquals(AppDestination.DIRECTORY_BROWSER, coordinator.uiState.value.previousDestination)
+        assertTrue(coordinator.uiState.value.isForward)
     }
 }

@@ -1,6 +1,8 @@
 package com.webdav.player.ui.motion
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.LocalIndication
@@ -11,6 +13,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -222,4 +225,57 @@ fun Modifier.bouncyClickable(
                 enabled = enabled,
                 scaleFactor = scaleFactor,
             ).then(clickModifier)
+    }
+
+/**
+ * Applies an elastic pill stretch micro-interaction on [scaleX] when [isSelected] becomes true.
+ *
+ * When newly selected, horizontal scale compresses and bounces back to 1.0f with an expressive spring,
+ * creating a tactile fluid pill sensation.
+ *
+ * @param isSelected Whether the associated tab/destination is currently selected.
+ * @param initialScale Starting horizontal scale when newly selected (default 0.7f).
+ * @param targetScale Final resting horizontal scale (default 1.0f).
+ */
+fun Modifier.fluidIndicator(
+    isSelected: Boolean,
+    initialScale: Float = 0.7f,
+    targetScale: Float = 1.0f,
+): Modifier =
+    composed(
+        inspectorInfo =
+            debugInspectorInfo {
+                name = "fluidIndicator"
+                properties["isSelected"] = isSelected
+                properties["initialScale"] = initialScale
+                properties["targetScale"] = targetScale
+            },
+    ) {
+        val isReduceMotion = isReduceMotionEnabled()
+        val scaleX = remember { Animatable(targetScale) }
+        var isInitialComposition by remember { mutableStateOf(true) }
+
+        LaunchedEffect(isSelected, isReduceMotion) {
+            if (isInitialComposition) {
+                isInitialComposition = false
+                return@LaunchedEffect
+            }
+            if (isSelected && !isReduceMotion) {
+                scaleX.snapTo(initialScale)
+                scaleX.animateTo(
+                    targetValue = targetScale,
+                    animationSpec =
+                        spring(
+                            dampingRatio = MotionTokens.FastSpatialDampingRatio,
+                            stiffness = MotionTokens.SpatialStiffness,
+                        ),
+                )
+            } else {
+                scaleX.snapTo(targetScale)
+            }
+        }
+
+        this.graphicsLayer {
+            this.scaleX = scaleX.value
+        }
     }
