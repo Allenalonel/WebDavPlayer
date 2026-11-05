@@ -39,6 +39,20 @@ class MotionTransitionsTest {
         assertEquals(0.25f, MotionTransitions.ParallaxRetreatFraction, 0.001f)
         assertEquals(0.5f, MotionTransitions.ParallaxDimmingAlpha, 0.001f)
         assertEquals(0.96f, MotionTransitions.FocalLandingScale, 0.001f)
+        assertEquals(0.92f, MotionTransitions.DialogInitialScale, 0.001f)
+    }
+
+    @Test
+    fun dialogTransitions_returnValidEnterAndExitTransitions() {
+        val enterNormal = MotionTransitions.dialogEnter(reduceMotion = false)
+        val exitNormal = MotionTransitions.dialogExit(reduceMotion = false)
+        assertNotNull(enterNormal)
+        assertNotNull(exitNormal)
+
+        val enterReduced = MotionTransitions.dialogEnter(reduceMotion = true)
+        val exitReduced = MotionTransitions.dialogExit(reduceMotion = true)
+        assertNotNull(enterReduced)
+        assertNotNull(exitReduced)
     }
 
     @Test

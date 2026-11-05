@@ -25,6 +25,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.debugInspectorInfo
 import androidx.compose.ui.semantics.Role
+import kotlinx.coroutines.launch
 
 /**
  * Material 3 Expressive tactile modifiers for interactive surfaces and buttons.
@@ -277,5 +278,51 @@ fun Modifier.fluidIndicator(
 
         this.graphicsLayer {
             this.scaleX = scaleX.value
+        }
+    }
+
+/**
+ * Modifier for dialog windows to apply M3 Expressive gentle spring scale-in from 0.92f
+ * and fade in upon presentation, collapsing immediately to 1.0f when reduceMotion is active.
+ */
+fun Modifier.expressiveDialog(
+    reduceMotion: Boolean = false,
+): Modifier =
+    composed(
+        inspectorInfo =
+            debugInspectorInfo {
+                name = "expressiveDialog"
+                properties["reduceMotion"] = reduceMotion
+            },
+    ) {
+        val systemReduceMotion = isReduceMotionEnabled()
+        val isReduceMotion = reduceMotion || systemReduceMotion
+        val scale = remember { Animatable(if (isReduceMotion) 1.0f else MotionTransitions.DialogInitialScale) }
+        val alpha = remember { Animatable(if (isReduceMotion) 1.0f else 0.0f) }
+
+        LaunchedEffect(isReduceMotion) {
+            if (isReduceMotion) {
+                scale.snapTo(1.0f)
+                alpha.snapTo(1.0f)
+            } else {
+                launch {
+                    scale.animateTo(
+                        targetValue = 1.0f,
+                        animationSpec = MotionTokens.spatialSpec(),
+                    )
+                }
+                launch {
+                    alpha.animateTo(
+                        targetValue = 1.0f,
+                        animationSpec = MotionTokens.effectsSpec(),
+                    )
+                }
+            }
+        }
+
+        this.graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+            this.alpha = alpha.value
         }
     }

@@ -51,6 +51,31 @@ object MotionTransitions {
     /** Focal landing initial scale factor (0.96f). */
     const val FocalLandingScale: Float = 0.96f
 
+    /** Dialog window initial scale factor (0.92f) for gentle spring pop-in. */
+    const val DialogInitialScale: Float = 0.92f
+
+    /**
+     * Dialog window pops in with a gentle spring scale-in from 0.92f and fade in.
+     */
+    fun dialogEnter(reduceMotion: Boolean = false): EnterTransition =
+        scaleIn(
+            initialScale = DialogInitialScale,
+            animationSpec = MotionTokens.spatialSpec(reduceMotion),
+        ) + fadeIn(
+            animationSpec = MotionTokens.effectsSpec(reduceMotion),
+        )
+
+    /**
+     * Dialog window exits with a gentle spring scale-out to 0.92f and fade out.
+     */
+    fun dialogExit(reduceMotion: Boolean = false): ExitTransition =
+        scaleOut(
+            targetScale = DialogInitialScale,
+            animationSpec = MotionTokens.spatialSpec(reduceMotion),
+        ) + fadeOut(
+            animationSpec = MotionTokens.effectsSpec(reduceMotion),
+        )
+
     /**
      * Returns a [ContentTransform] implementing M3 Shared Axis X horizontal transition for tab navigation.
      *

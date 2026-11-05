@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.PlaybackProgress
 import com.webdav.player.domain.model.PlaylistTrackEntry
+import com.webdav.player.ui.motion.expressiveDialog
 import com.webdav.player.ui.theme.AppIcons
 import java.util.Locale
 
@@ -38,6 +39,7 @@ internal fun PlaylistTrackDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.expressiveDialog(),
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
