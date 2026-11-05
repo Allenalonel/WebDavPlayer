@@ -144,12 +144,12 @@ class PlayerSheetExpansionTest {
         assertEquals(42.dp, MorphingPlayerMath.artworkSize(0.0f))
         assertEquals(21.dp, MorphingPlayerMath.artworkCornerRadius(0.0f))
 
-        // Fullscreen (250dp squircle with 28dp radius)
-        assertEquals(250.dp, MorphingPlayerMath.artworkSize(1.0f))
+        // Fullscreen (280dp squircle with 28dp radius)
+        assertEquals(280.dp, MorphingPlayerMath.artworkSize(1.0f))
         assertEquals(28.dp, MorphingPlayerMath.artworkCornerRadius(1.0f))
 
         // Midpoint
-        assertEquals(146.dp, MorphingPlayerMath.artworkSize(0.5f))
+        assertEquals(161.dp, MorphingPlayerMath.artworkSize(0.5f))
     }
 
     @Test

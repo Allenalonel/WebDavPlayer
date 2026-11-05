@@ -68,7 +68,7 @@ import com.webdav.player.ui.theme.AppIcons
  */
 object MorphingPlayerDefaults {
     val WindowCornerRadius: Dp = 36.dp
-    val FullPlayerArtworkSize: Dp = 250.dp
+    val FullPlayerArtworkSize: Dp = 280.dp
     val FullPlayerArtworkRadius: Dp = 28.dp
     val FullPlayerPlayButtonSize: Dp = 68.dp
     val FullPlayerPlayButtonRadius: Dp = 26.dp
@@ -339,12 +339,9 @@ fun MorphingPlayerContainer(
                             },
                         ),
             ) {
-                // 1. MiniPlayer (active when collapsed, cross-fades out between 0f and 0.15f)
-                if (expansionProgress <= 0.15f) {
-                    val miniAlpha = if (expansionProgress == 0f) 1f else ((0.15f - expansionProgress) / 0.15f).coerceIn(0f, 1f)
-                    Box(
-                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha },
-                    ) {
+                when {
+                    expansionProgress == 0f -> {
+                        // Preserved 100% static MiniPlayer layout and interactions
                         MiniPlayer(
                             sessionState = sessionState,
                             playbackActions = playbackActions,
@@ -354,19 +351,23 @@ fun MorphingPlayerContainer(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                }
 
-                // 2. Morphing Transition Layer (active while expanding: 0f < progress < 1f)
-                if (expansionProgress > 0f && expansionProgress < 1f) {
-                    val morphAlpha =
-                        when {
-                            expansionProgress < 0.15f -> (expansionProgress / 0.15f).coerceIn(0f, 1f)
-                            expansionProgress > 0.85f -> ((1f - expansionProgress) / 0.15f).coerceIn(0f, 1f)
-                            else -> 1f
-                        }
-                    Box(
-                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphAlpha },
-                    ) {
+                    expansionProgress == 1f -> {
+                        // Preserved 100% static FullPlayerView layout and interactions
+                        FullPlayerView(
+                            sessionState = sessionState,
+                            playbackProgress = playbackProgress,
+                            playbackActions = playbackActions,
+                            onCollapse = onCollapse,
+                            onDismissBatteryBanner = onDismissBatteryBanner,
+                            onConfirmUnsupportedRangeReplay = onConfirmUnsupportedRangeReplay,
+                            onDismissUnsupportedRange = onDismissUnsupportedRange,
+                            onAddToPlaylist = onAddToPlaylist,
+                        )
+                    }
+
+                    else -> {
+                        // Seamless continuous morphing layer
                         MorphingTransitionContent(
                             sessionState = sessionState,
                             currentTrack = currentTrack,
@@ -377,25 +378,6 @@ fun MorphingPlayerContainer(
                             containerHeight = containerHeight,
                             onCollapse = onCollapse,
                             onOpenQueue = onOpenQueue,
-                        )
-                    }
-                }
-
-                // 3. FullPlayerView (active when expanded, cross-fades in between 0.85f and 1f)
-                if (expansionProgress >= 0.85f) {
-                    val fullAlpha = if (expansionProgress == 1f) 1f else ((expansionProgress - 0.85f) / 0.15f).coerceIn(0f, 1f)
-                    Box(
-                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = fullAlpha },
-                    ) {
-                        FullPlayerView(
-                            sessionState = sessionState,
-                            playbackProgress = playbackProgress,
-                            playbackActions = playbackActions,
-                            onCollapse = onCollapse,
-                            onDismissBatteryBanner = onDismissBatteryBanner,
-                            onConfirmUnsupportedRangeReplay = onConfirmUnsupportedRangeReplay,
-                            onDismissUnsupportedRange = onDismissUnsupportedRange,
-                            onAddToPlaylist = onAddToPlaylist,
                         )
                     }
                 }
@@ -424,8 +406,6 @@ private fun MorphingTransitionContent(
     val secondaryAlpha = MorphingPlayerMath.secondaryControlsAlpha(expansionProgress)
 
     // Artwork geometry interpolation
-    val artworkSize = MorphingPlayerMath.artworkSize(expansionProgress)
-    val artworkRadius = MorphingPlayerMath.artworkCornerRadius(expansionProgress)
     val artworkRotation = MorphingPlayerMath.artworkRotation(expansionProgress)
 
     val miniArtX = 10.dp
@@ -434,12 +414,11 @@ private fun MorphingTransitionContent(
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val topBarHeight = 56.dp
     val bottomControlsHeight = 250.dp
-    val availableCenterHeight = (containerHeight - statusBarPadding - topBarHeight - bottomControlsHeight - navBarPadding).coerceAtLeast(artworkSize)
-    val fullArtX = (containerWidth - artworkSize) / 2
-    val fullArtY = statusBarPadding + topBarHeight + (availableCenterHeight - artworkSize) / 2
-
-    val artX = lerp(miniArtX, fullArtX, expansionProgress)
-    val artY = lerp(miniArtY, fullArtY, expansionProgress)
+    val availableCenterHeight =
+        (containerHeight - statusBarPadding - topBarHeight - bottomControlsHeight - navBarPadding).coerceAtLeast(
+            MorphingPlayerDefaults.FullPlayerArtworkSize,
+        )
+    val fullArtY = statusBarPadding + topBarHeight + (availableCenterHeight - MorphingPlayerDefaults.FullPlayerArtworkSize) / 2
 
     // Dual buttons geometry interpolation
     val playButtonSize = MorphingPlayerMath.playButtonSize(expansionProgress)
@@ -616,17 +595,38 @@ private fun MorphingTransitionContent(
             }
         }
 
-        // --- Continuous Shared Album Artwork (Stationary at 0°) ---
+        // --- Continuous Shared Album Artwork (Stationary at 0°, Draw phase GPU scaled) ---
+        val fullArtworkSize = MorphingPlayerDefaults.FullPlayerArtworkSize
+        val baseCenterX = fullArtworkSize / 2
+        val baseCenterY = fullArtworkSize / 2
+
+        val miniCenterX = miniArtX + (MiniPlayerDefaults.CoverSize / 2)
+        val miniCenterY = miniArtY + (MiniPlayerDefaults.CoverSize / 2)
+        val fullCenterX = containerWidth / 2
+        val fullCenterY = fullArtY + (fullArtworkSize / 2)
+
+        val minScale = MiniPlayerDefaults.CoverSize.value / fullArtworkSize.value
+        val currentScale = minScale + (1f - minScale) * expansionProgress
+        val currentCenterX = lerp(miniCenterX, fullCenterX, expansionProgress)
+        val currentCenterY = lerp(miniCenterY, fullCenterY, expansionProgress)
+        val currentCornerRadius = lerp(fullArtworkSize / 2, MorphingPlayerDefaults.FullPlayerArtworkRadius, expansionProgress)
+        val shadowElevation = lerp(0.dp, 24.dp, expansionProgress)
+
         Box(
             modifier =
                 Modifier
-                    .offset(x = artX, y = artY)
-                    .size(artworkSize)
+                    .size(fullArtworkSize)
                     .graphicsLayer {
+                        scaleX = currentScale
+                        scaleY = currentScale
+                        translationX = (currentCenterX - baseCenterX).toPx()
+                        translationY = (currentCenterY - baseCenterY).toPx()
                         rotationZ = artworkRotation
                         clip = true
-                        shape = RoundedCornerShape(artworkRadius)
-                    }.clip(RoundedCornerShape(artworkRadius))
+                        shape = RoundedCornerShape(currentCornerRadius)
+                        this.shadowElevation = shadowElevation.toPx()
+                    }
+                    .clip(RoundedCornerShape(currentCornerRadius))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -634,12 +634,13 @@ private fun MorphingTransitionContent(
                 thumbnailPath = currentTrack.coverThumbnailPath,
                 contentDescription = "专辑封面",
                 modifier = Modifier.fillMaxSize(),
+                crossfadeDurationMs = 0,
             ) {
                 Icon(
                     imageVector = AppIcons.Audiotrack,
                     contentDescription = "音轨",
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(lerp(22.dp, 64.dp, expansionProgress)),
+                    modifier = Modifier.size(64.dp),
                 )
             }
         }

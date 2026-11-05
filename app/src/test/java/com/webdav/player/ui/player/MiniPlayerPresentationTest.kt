@@ -333,7 +333,7 @@ class MiniPlayerPresentationTest {
     @Test
     fun morphingPlayerDefaults_alignsWithCapsuleAndFullscreenSpecs() {
         assertEquals(36.dp, MorphingPlayerDefaults.WindowCornerRadius)
-        assertEquals(250.dp, MorphingPlayerDefaults.FullPlayerArtworkSize)
+        assertEquals(280.dp, MorphingPlayerDefaults.FullPlayerArtworkSize)
         assertEquals(28.dp, MorphingPlayerDefaults.FullPlayerArtworkRadius)
         assertEquals(68.dp, MorphingPlayerDefaults.FullPlayerPlayButtonSize)
         assertEquals(26.dp, MorphingPlayerDefaults.FullPlayerPlayButtonRadius)

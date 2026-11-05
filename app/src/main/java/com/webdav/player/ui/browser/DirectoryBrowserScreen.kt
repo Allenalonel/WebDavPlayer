@@ -406,66 +406,101 @@ fun DirectoryBrowserScreen(
                                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
                                 ) {
                                     if (targetPath == uiState.currentPath) {
-                                    // Live content for current path
-                                    when {
-                                        uiState.isLoading && uiState.currentDirectory == null -> {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center,
-                                            ) {
-                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    CircularProgressIndicator()
-                                                    Spacer(modifier = Modifier.height(16.dp))
-                                                    Text(
-                                                        text = "正在加载远程目录...",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    )
+                                        // Live content for current path
+                                        when {
+                                            uiState.isLoading && uiState.currentDirectory == null -> {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        CircularProgressIndicator()
+                                                        Spacer(modifier = Modifier.height(16.dp))
+                                                        Text(
+                                                            text = "正在加载远程目录...",
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        )
+                                                    }
                                                 }
                                             }
-                                        }
 
-                                        uiState.errorMessage != null -> {
-                                            ErrorState(
-                                                message = uiState.errorMessage ?: "加载失败",
-                                                onRetry = { viewModel.onRetry() },
-                                                onGoBack = { viewModel.onNavigateUp() },
-                                                canGoBack = uiState.canNavigateUp,
-                                            )
-                                        }
+                                            uiState.errorMessage != null -> {
+                                                ErrorState(
+                                                    message = uiState.errorMessage ?: "加载失败",
+                                                    onRetry = { viewModel.onRetry() },
+                                                    onGoBack = { viewModel.onNavigateUp() },
+                                                    canGoBack = uiState.canNavigateUp,
+                                                )
+                                            }
 
-                                        uiState.isEmpty -> {
-                                            EmptyFolderState(onRefresh = {
-                                                isUserInitiatedRefresh.value = true
-                                                Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
-                                                viewModel.onRefresh()
-                                            })
-                                        }
+                                            uiState.isEmpty -> {
+                                                EmptyFolderState(onRefresh = {
+                                                    isUserInitiatedRefresh.value = true
+                                                    Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
+                                                    viewModel.onRefresh()
+                                                })
+                                            }
 
-                                        else -> {
+                                            else -> {
+                                                DirectoryContentList(
+                                                    directories = uiState.subDirectories,
+                                                    files = uiState.files,
+                                                    metadataMap = uiState.metadataMap,
+                                                    activeTrackPath = uiState.activeTrackPath,
+                                                    activeTrackId = uiState.activeTrackId,
+                                                    cueAlbums = uiState.cueAlbums,
+                                                    isPlaying = uiState.isPlaying,
+                                                    activeServer = uiState.activeServer,
+                                                    onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
+                                                    onFileClicked = { file ->
+                                                        if (isSelectionMode && file.isAudio) {
+                                                            setSelectedFilePaths(
+                                                                if (file.path in selectedFilePaths) {
+                                                                    selectedFilePaths - file.path
+                                                                } else {
+                                                                    selectedFilePaths + file.path
+                                                                },
+                                                            )
+                                                        } else {
+                                                            onFileClicked(file)
+                                                        }
+                                                    },
+                                                    onPlayNext = { viewModel.playNext(it) },
+                                                    onAddToPlaylist = onAddToPlaylist,
+                                                    onVirtualTrackClick = {
+                                                        album,
+                                                        trackIndex,
+                                                        ->
+                                                        viewModel.playVirtualTrack(album, trackIndex)
+                                                    },
+                                                    onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
+                                                    onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
+                                                    isSelectionMode = isSelectionMode,
+                                                    selectedFilePaths = selectedFilePaths,
+                                                    onFileLongClicked = { file ->
+                                                        if (file.isAudio && !isSelectionMode) {
+                                                            setSelectedFilePaths(setOf(file.path))
+                                                        }
+                                                    },
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Outgoing content during transition: rendered from cache to eliminate flashing
+                                        val cached = directoryContentCache[targetPath]
+                                        if (cached != null) {
                                             DirectoryContentList(
-                                                directories = uiState.subDirectories,
-                                                files = uiState.files,
-                                                metadataMap = uiState.metadataMap,
+                                                directories = cached.directories,
+                                                files = cached.files,
+                                                metadataMap = cached.metadataMap,
                                                 activeTrackPath = uiState.activeTrackPath,
                                                 activeTrackId = uiState.activeTrackId,
-                                                cueAlbums = uiState.cueAlbums,
+                                                cueAlbums = cached.cueAlbums,
                                                 isPlaying = uiState.isPlaying,
                                                 activeServer = uiState.activeServer,
                                                 onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                                                onFileClicked = { file ->
-                                                    if (isSelectionMode && file.isAudio) {
-                                                        setSelectedFilePaths(
-                                                            if (file.path in selectedFilePaths) {
-                                                                selectedFilePaths - file.path
-                                                            } else {
-                                                                selectedFilePaths + file.path
-                                                            },
-                                                        )
-                                                    } else {
-                                                        onFileClicked(file)
-                                                    }
-                                                },
+                                                onFileClicked = { onFileClicked(it) },
                                                 onPlayNext = { viewModel.playNext(it) },
                                                 onAddToPlaylist = onAddToPlaylist,
                                                 onVirtualTrackClick = {
@@ -478,43 +513,13 @@ fun DirectoryBrowserScreen(
                                                 onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
                                                 isSelectionMode = isSelectionMode,
                                                 selectedFilePaths = selectedFilePaths,
-                                                onFileLongClicked = { file ->
-                                                    if (file.isAudio && !isSelectionMode) {
-                                                        setSelectedFilePaths(setOf(file.path))
-                                                    }
-                                                },
+                                                onFileLongClicked = null,
                                             )
+                                        } else {
+                                            Box(modifier = Modifier.fillMaxSize())
                                         }
                                     }
-                                } else {
-                                    // Outgoing content during transition: rendered from cache to eliminate flashing
-                                    val cached = directoryContentCache[targetPath]
-                                    if (cached != null) {
-                                        DirectoryContentList(
-                                            directories = cached.directories,
-                                            files = cached.files,
-                                            metadataMap = cached.metadataMap,
-                                            activeTrackPath = uiState.activeTrackPath,
-                                            activeTrackId = uiState.activeTrackId,
-                                            cueAlbums = cached.cueAlbums,
-                                            isPlaying = uiState.isPlaying,
-                                            activeServer = uiState.activeServer,
-                                            onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                                            onFileClicked = { onFileClicked(it) },
-                                            onPlayNext = { viewModel.playNext(it) },
-                                            onAddToPlaylist = onAddToPlaylist,
-                                            onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
-                                            onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
-                                            onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
-                                            isSelectionMode = isSelectionMode,
-                                            selectedFilePaths = selectedFilePaths,
-                                            onFileLongClicked = null,
-                                        )
-                                    } else {
-                                        Box(modifier = Modifier.fillMaxSize())
-                                    }
                                 }
-                            }
                             }
                         }
                     }
