@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: M3E 动效基础设施与触控微缩修饰符
 
-**Status:** completed
+**Status:** resolved
 
 ## Acceptance criteria
 

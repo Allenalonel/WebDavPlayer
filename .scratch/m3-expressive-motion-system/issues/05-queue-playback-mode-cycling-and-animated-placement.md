@@ -4,13 +4,13 @@
 
 **Blocked by:** 01: M3E 动效基础设施与触控微缩修饰符
 
-**Status:** claimed
+**Status:** resolved
 
 ## Acceptance criteria
 
-- [ ] 在 `PlaybackQueueBottomSheet.kt` 顶栏右上角实现规范的 MD3 `AssistChip`，正确展示图标与文案，点击按 `LIST_LOOP` → `SINGLE_LOOP` → `SHUFFLE` 循环流转。
-- [ ] 优化 `LazyColumn` 的 `itemsIndexed` 声明，将 `key = { index, track -> "track_${track.id}_$index" }` 重构为稳定键 `key = { _, track -> track.id }`，确保 Compose 正确追踪条目实体跨槽位移动。
-- [ ] 为队列曲目条目挂载 `Modifier.animateItemPlacement(spring(stiffness = StiffnessMediumLow, dampingRatio = DampingRatioLowBouncy))`，实现底层硬件加速平滑排版。
-- [ ] 切换至随机播放（`SHUFFLE`）时，当前在播曲目严格置顶保持第 1 行静止，后续待播曲目平滑滑行就位；切回列表循环时条目平滑滑回原序镜像。
-- [ ] 侧滑移除单曲时，下方曲目平滑上浮填补空缺，杜绝生硬吸附。
-- [ ] 更新并执行 `PlaybackQueueBottomSheetTest`，验证稳定 Key 契约与播放模式循环状态机。
+- [x] 在 `PlaybackQueueBottomSheet.kt` 顶栏右上角实现规范的 MD3 `AssistChip`，正确展示图标与文案，点击按 `LIST_LOOP` → `SINGLE_LOOP` → `SHUFFLE` 循环流转。
+- [x] 优化 `LazyColumn` 的 `itemsIndexed` 声明，将 `key = { index, track -> "track_${track.id}_$index" }` 重构为稳定键 `key = { _, track -> track.id }`，确保 Compose 正确追踪条目实体跨槽位移动。
+- [x] 为队列曲目条目挂载 `Modifier.animateItemPlacement(spring(stiffness = StiffnessMediumLow, dampingRatio = DampingRatioLowBouncy))`，实现底层硬件加速平滑排版。
+- [x] 切换至随机播放（`SHUFFLE`）时，当前在播曲目严格置顶保持第 1 行静止，后续待播曲目平滑滑行就位；切回列表循环时条目平滑滑回原序镜像。
+- [x] 侧滑移除单曲时，下方曲目平滑上浮填补空缺，杜绝生硬吸附。
+- [x] 更新并执行 `PlaybackQueueBottomSheetTest`，验证稳定 Key 契约与播放模式循环状态机。
