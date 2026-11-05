@@ -264,12 +264,17 @@ class DirectoryBrowserViewModel(
 
         val previousJob = currentLoadJob
 
+        val isNavigatingToNewDirectory = _uiState.value.currentDirectory?.path != normalizedPath
+
         _uiState.update { current ->
             current.copy(
                 currentPath = normalizedPath,
+                currentDirectory = if (isNavigatingToNewDirectory) null else current.currentDirectory,
+                cueAlbums = if (isNavigatingToNewDirectory) emptyList() else current.cueAlbums,
+                metadataMap = if (isNavigatingToNewDirectory) emptyMap() else current.metadataMap,
                 breadcrumbs = RemoteDirectory.buildBreadcrumbs(server, normalizedPath),
                 canNavigateUp = normalizedPath != "/",
-                isLoading = (current.currentDirectory == null || current.currentPath != normalizedPath) && !forceRefresh,
+                isLoading = !forceRefresh,
                 isRefreshing = forceRefresh,
                 errorMessage = null,
             )

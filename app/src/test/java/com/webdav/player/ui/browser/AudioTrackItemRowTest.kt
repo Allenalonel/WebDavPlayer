@@ -56,14 +56,14 @@ class AudioTrackItemRowTest {
     }
 
     @Test
-    fun resolveAudioSubtitle_withoutMetadata_fallbackToFileSize() {
+    fun resolveAudioSubtitle_withoutMetadata_returnsUnknown() {
         val file = RemoteFile(name = "Unknown.flac", path = "/Music/Unknown.flac", size = 15_728_640L)
         val subtitle = resolveAudioSubtitle(file, null)
-        assertEquals("15.0 MB", subtitle)
+        assertEquals("未知", subtitle)
     }
 
     @Test
-    fun resolveAudioSubtitle_withoutMetadataOrSize_fallbackToLastModified() {
+    fun resolveAudioSubtitle_withoutMetadataOrSize_returnsUnknown() {
         val file =
             RemoteFile(
                 name = "Unknown.flac",
@@ -72,14 +72,14 @@ class AudioTrackItemRowTest {
                 lastModified = "2024-01-15 12:00",
             )
         val subtitle = resolveAudioSubtitle(file, null)
-        assertEquals("2024-01-15 12:00", subtitle)
+        assertEquals("未知", subtitle)
     }
 
     @Test
-    fun resolveAudioSubtitle_completelyEmpty_returnsFallbackLabel() {
+    fun resolveAudioSubtitle_completelyEmpty_returnsUnknown() {
         val file = RemoteFile(name = "Track.flac", path = "/Music/Track.flac", size = 0L)
         val subtitle = resolveAudioSubtitle(file, null)
-        assertEquals("音频文件", subtitle)
+        assertEquals("未知", subtitle)
     }
 
     @Test

@@ -323,8 +323,7 @@ internal fun resolveAudioSubtitle(
     val album = metadata?.album?.takeIf { it.isNotBlank() }
     val formatted = AudioTrackRowDefaults.formatSubtitle(artist = artist, album = album)
     if (!formatted.isNullOrBlank()) return formatted
-    if (file.size > 0) return formatFileSize(file.size)
-    return file.lastModified?.takeIf { it.isNotBlank() } ?: "音频文件"
+    return "未知"
 }
 
 private fun formatFileSize(bytes: Long): String {
