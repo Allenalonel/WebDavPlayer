@@ -24,6 +24,7 @@
 
 | 特性 / 优化项 Slug | 描述 / 规范主题 | 工单数 | 状态 | 归档路径 |
 | :--- | :--- | :---: | :---: | :--- |
+| `m3-expressive-motion-system` | Material 3 Expressive 动效系统、单一真实实体胶囊全屏蜕变与层级穿梭 (ADR-0031) | 7 | Completed | [`archive/m3-expressive-motion-system/`](archive/m3-expressive-motion-system/) |
 | `m3-expressive-ui-redesign` | Material 3 Expressive 界面重构、全天候全域动态取色与流体交互 (ADR-0028) | 6 | Completed | [`archive/m3-expressive-ui-redesign/`](archive/m3-expressive-ui-redesign/) |
 | `floating-capsule-miniplayer` | 独立动态原色晶透悬浮胶囊播控栏与沉浸穿透滑动规范 (ADR-0007) | 5 | Completed | [`archive/floating-capsule-miniplayer/`](archive/floating-capsule-miniplayer/) |
 | `batch-playlist-multi-select` | 批量添加到歌单与媒体库/全局搜索上下文多选模式 (ADR-0027) | 0 | Completed | [`archive/batch-playlist-multi-select/`](archive/batch-playlist-multi-select/) |

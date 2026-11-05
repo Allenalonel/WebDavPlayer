@@ -111,7 +111,7 @@ fun LyricsView(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        val halfViewport = (maxHeight / 2) - 24.dp
+        val halfViewport = ((maxHeight / 2) - 24.dp).coerceAtLeast(0.dp)
         when {
             isLoading -> {
                 Column(

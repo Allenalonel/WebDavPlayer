@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioQualityBadge
 import com.webdav.player.domain.model.AudioQualityLevel
+import com.webdav.player.ui.motion.bouncyClickable
+import com.webdav.player.ui.motion.expressivePress
 import com.webdav.player.ui.theme.AppIcons
 import com.webdav.player.ui.theme.WebDavPlayerTheme
 
@@ -69,14 +71,10 @@ fun AudioTrackRow(
     containerColor: Color? = null,
 ) {
     val clickModifier =
-        if (onLongClick != null) {
-            Modifier.combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            )
-        } else {
-            Modifier.clickable(onClick = onClick)
-        }
+        Modifier.bouncyClickable(
+            onLongClick = onLongClick,
+            onClick = onClick,
+        )
 
     val resolvedContainerColor =
         when {
@@ -135,16 +133,15 @@ fun AudioTrackRow(
                 }
             },
             supportingContent = {
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
+                val displaySubtitle = subtitle?.takeIf { it.isNotBlank() } ?: "未知"
+                Text(
+                    text = displaySubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             },
             trailingContent =
                 trailingContent ?: {
@@ -331,7 +328,10 @@ fun AudioTrackTrailing(
             Box {
                 IconButton(
                     onClick = { showMenu = true },
-                    modifier = Modifier.size(AudioTrackRowDefaults.OverflowButtonSize),
+                    modifier =
+                        Modifier
+                            .size(AudioTrackRowDefaults.OverflowButtonSize)
+                            .expressivePress(),
                 ) {
                     Icon(
                         imageVector = AppIcons.MoreVert,

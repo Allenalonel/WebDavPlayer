@@ -2,12 +2,13 @@ package com.webdav.player.ui.browser
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,22 +16,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,12 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -74,13 +67,29 @@ import com.webdav.player.ui.browser.components.DirectoryBreadcrumbStrip
 import com.webdav.player.ui.browser.components.DirectoryItemRow
 import com.webdav.player.ui.browser.components.EmptyFolderState
 import com.webdav.player.ui.browser.components.ErrorState
+import com.webdav.player.ui.browser.components.FloatingSearchPillCapsule
 import com.webdav.player.ui.browser.components.NoActiveServerState
 import com.webdav.player.ui.browser.components.SearchResultsContent
 import com.webdav.player.ui.common.FloatingMultiSelectBottomBar
 import com.webdav.player.ui.common.FluidTopAppBar
 import com.webdav.player.ui.common.FluidTopAppBarDefaults
+import com.webdav.player.ui.motion.MotionTokens
+import com.webdav.player.ui.motion.MotionTransitions
+import com.webdav.player.ui.motion.isReduceMotionEnabled
 import com.webdav.player.ui.player.MiniPlayerDefaults
 import com.webdav.player.ui.theme.AppIcons
+
+/**
+ * Snapshot of directory items used to preserve the outgoing screen's exact content
+ * during hierarchy drilldown transitions.
+ */
+private data class CachedDirectoryContent(
+    val directories: List<RemoteDirectory>,
+    val files: List<RemoteFile>,
+    val metadataMap: Map<String, TrackMetadata>,
+    val cueAlbums: List<CueAlbumItem>,
+    val isEmpty: Boolean,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,6 +106,7 @@ fun DirectoryBrowserScreen(
     onSelectionModeChanged: (Boolean) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isReduceMotion = isReduceMotionEnabled()
 
     val (selectedFilePaths, setSelectedFilePaths) = remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode = selectedFilePaths.isNotEmpty()
@@ -170,282 +180,86 @@ fun DirectoryBrowserScreen(
         }
     }
 
-    if (uiState.isSearchActive) {
-        Column(
-            modifier =
-                modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .background(Color.Transparent),
-        ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (isSearchSelectionMode) {
-                    Surface(
-                        shape = RoundedCornerShape(26.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        tonalElevation = 4.dp,
-                        shadowElevation = 2.dp,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(52.dp),
-                    ) {
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = { setSelectedSearchTrackIds(emptySet()) },
-                                    modifier = Modifier.size(36.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.Close,
-                                        contentDescription = "退出多选",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "已选 ${selectedSearchTrackIds.size} 项",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                            val selectableTracks = uiState.searchResult.matchedTracks
-                            val isAllSelected = selectableTracks.isNotEmpty() && selectedSearchTrackIds.size == selectableTracks.size
-                            TextButton(
-                                onClick = {
-                                    setSelectedSearchTrackIds(
-                                        if (isAllSelected) {
-                                            emptySet()
-                                        } else {
-                                            selectableTracks.map { it.id }.toSet()
-                                        },
-                                    )
-                                },
-                            ) {
-                                Text(
-                                    text = if (isAllSelected) "取消全选" else "全选",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    IconButton(
-                        onClick = { viewModel.onSearchActiveChanged(false) },
-                        modifier = Modifier.size(40.dp),
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.ArrowBack,
-                            contentDescription = "返回",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
+    // Flag indicating if upcoming path navigation is a focal landing from search results
+    val isSearchLanding = remember { mutableStateOf(false) }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+    // Directory content cache to guarantee solid double-layer transitions without flashing
+    val directoryContentCache = remember { mutableMapOf<String, CachedDirectoryContent>() }
 
-                    Surface(
-                        shape = RoundedCornerShape(26.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        tonalElevation = 4.dp,
-                        shadowElevation = 2.dp,
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .height(52.dp),
-                    ) {
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = AppIcons.Search,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val focusRequester = remember { FocusRequester() }
-                            LaunchedEffect(Unit) {
-                                focusRequester.requestFocus()
-                            }
-                            BasicTextField(
-                                value = uiState.searchQuery,
-                                onValueChange = { viewModel.onSearchQueryChanged(it) },
-                                singleLine = true,
-                                textStyle =
-                                    MaterialTheme.typography.bodyLarge.copy(
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.SemiBold,
-                                    ),
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                modifier =
-                                    Modifier
-                                        .weight(1f)
-                                        .focusRequester(focusRequester),
-                                decorationBox = { innerTextField ->
-                                    if (uiState.searchQuery.isEmpty()) {
-                                        Text(
-                                            text = "搜索歌曲、歌手、专辑...",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    innerTextField()
-                                },
-                            )
-                            if (uiState.searchQuery.isNotEmpty()) {
-                                IconButton(
-                                    onClick = { viewModel.onClearSearchQuery() },
-                                    modifier = Modifier.size(28.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.Close,
-                                        contentDescription = "清空输入",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                }
-                            }
-                        }
+    LaunchedEffect(uiState.currentPath, uiState.subDirectories, uiState.files, uiState.metadataMap, uiState.cueAlbums) {
+        if (uiState.currentDirectory != null && uiState.currentDirectory?.path == uiState.currentPath) {
+            directoryContentCache[uiState.currentPath] =
+                CachedDirectoryContent(
+                    directories = uiState.subDirectories,
+                    files = uiState.files,
+                    metadataMap = uiState.metadataMap,
+                    cueAlbums = uiState.cueAlbums,
+                    isEmpty = uiState.isEmpty,
+                )
+        }
+    }
+
+    // Search capsule morphing progress: drives smooth top bar title fade-out and pill growth
+    val searchExpansionProgress by animateFloatAsState(
+        targetValue = if (uiState.isSearchActive) 1f else 0f,
+        animationSpec = MotionTokens.spatialSpec(isReduceMotion),
+        label = "search_expansion_progress",
+    )
+    val topBarTitleAlpha = (1f - searchExpansionProgress).coerceIn(0f, 1f)
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    LaunchedEffect(uiState.currentPath) {
+        scrollBehavior.state.heightOffset = 0f
+        scrollBehavior.state.contentOffset = 0f
+    }
+
+    val coordinatedRefreshConnection =
+        remember(pullRefreshState, scrollBehavior) {
+            object : NestedScrollConnection {
+                override fun onPreScroll(
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                        return Offset.Zero
                     }
+                    return pullRefreshState.nestedScrollConnection.onPreScroll(available, source)
+                }
+
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                        return Offset.Zero
+                    }
+                    return pullRefreshState.nestedScrollConnection.onPostScroll(consumed, available, source)
+                }
+
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                        return Velocity.Zero
+                    }
+                    return pullRefreshState.nestedScrollConnection.onPreFling(available)
+                }
+
+                override suspend fun onPostFling(
+                    consumed: Velocity,
+                    available: Velocity,
+                ): Velocity {
+                    if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
+                        return Velocity.Zero
+                    }
+                    return pullRefreshState.nestedScrollConnection.onPostFling(consumed, available)
                 }
             }
-
-            // 下方搜索内容区域，无任何生硬分割横线
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-            ) {
-                SearchResultsContent(
-                    query = uiState.searchQuery,
-                    isSearching = uiState.isSearching,
-                    searchResult = uiState.searchResult,
-                    searchHistory = uiState.searchHistory,
-                    onSelectHistoryQuery = {
-                        viewModel.onSearchQueryChanged(it)
-                        viewModel.onSearchSubmitted(it)
-                    },
-                    onClearHistory = { viewModel.onClearSearchHistory() },
-                    onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
-                    onDirectoryClick = { viewModel.onSearchResultDirectoryClicked(it) },
-                    onTrackClick = { track ->
-                        if (isSearchSelectionMode) {
-                            setSelectedSearchTrackIds(
-                                if (track.id in selectedSearchTrackIds) {
-                                    selectedSearchTrackIds - track.id
-                                } else {
-                                    selectedSearchTrackIds + track.id
-                                },
-                            )
-                        } else {
-                            viewModel.onSearchResultTrackClicked(track)
-                            viewModel.onSearchActiveChanged(false)
-                        }
-                    },
-                    onAddToPlaylist = onAddToPlaylist,
-                    isSelectionMode = isSearchSelectionMode,
-                    selectedTrackIds = selectedSearchTrackIds,
-                    onTrackLongClick = { track ->
-                        if (!isSearchSelectionMode) {
-                            setSelectedSearchTrackIds(setOf(track.id))
-                        }
-                    },
-                )
-
-                FloatingMultiSelectBottomBar(
-                    selectedCount = selectedSearchTrackIds.size,
-                    onPlayNext = {
-                        val tracks = uiState.searchResult.matchedTracks.filter { it.id in selectedSearchTrackIds }
-                        tracks.reversed().forEach { track ->
-                            viewModel.musicPlayerAppSession?.playNext(track)
-                        }
-                        Toast.makeText(context, "已将 ${tracks.size} 首歌曲添加至下一首播放", Toast.LENGTH_SHORT).show()
-                        setSelectedSearchTrackIds(emptySet())
-                    },
-                    onAddToPlaylist = {
-                        val tracks = uiState.searchResult.matchedTracks.filter { it.id in selectedSearchTrackIds }
-                        if (tracks.isNotEmpty()) {
-                            onAddTracksToPlaylist(tracks)
-                            setSelectedSearchTrackIds(emptySet())
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarPadding),
-                )
-            }
         }
-    } else {
-        val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-        LaunchedEffect(uiState.currentPath) {
-            scrollBehavior.state.heightOffset = 0f
-            scrollBehavior.state.contentOffset = 0f
-        }
-        val coordinatedRefreshConnection =
-            remember(pullRefreshState, scrollBehavior) {
-                object : NestedScrollConnection {
-                    override fun onPreScroll(
-                        available: Offset,
-                        source: NestedScrollSource,
-                    ): Offset {
-                        // When dragging down while top bar is collapsed, prioritize expanding top bar over pull refresh
-                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
-                            return Offset.Zero
-                        }
-                        return pullRefreshState.nestedScrollConnection.onPreScroll(available, source)
-                    }
 
-                    override fun onPostScroll(
-                        consumed: Offset,
-                        available: Offset,
-                        source: NestedScrollSource,
-                    ): Offset {
-                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
-                            return Offset.Zero
-                        }
-                        return pullRefreshState.nestedScrollConnection.onPostScroll(consumed, available, source)
-                    }
-
-                    override suspend fun onPreFling(available: Velocity): Velocity {
-                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
-                            return Velocity.Zero
-                        }
-                        return pullRefreshState.nestedScrollConnection.onPreFling(available)
-                    }
-
-                    override suspend fun onPostFling(
-                        consumed: Velocity,
-                        available: Velocity,
-                    ): Velocity {
-                        if (available.y > 0f && scrollBehavior.state.collapsedFraction > 0f) {
-                            return Velocity.Zero
-                        }
-                        return pullRefreshState.nestedScrollConnection.onPostFling(consumed, available)
-                    }
-                }
-            }
+    Box(modifier = modifier.fillMaxSize()) {
+        // --- Layer 1: Base Directory Browser Scaffold ---
         Scaffold(
-            modifier = modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+            modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
                 if (isSelectionMode) {
                     TopAppBar(
@@ -509,7 +323,10 @@ fun DirectoryBrowserScreen(
                             if (!uiState.isInitializing && uiState.activeServer != null) {
                                 FilledTonalIconButton(
                                     onClick = { viewModel.onSearchActiveChanged(true) },
-                                    modifier = Modifier.size(38.dp),
+                                    modifier =
+                                        Modifier
+                                            .size(38.dp)
+                                            .alpha(if (searchExpansionProgress > 0f) 0f else 1f),
                                     shape = CircleShape,
                                     colors =
                                         IconButtonDefaults.filledTonalIconButtonColors(
@@ -527,6 +344,7 @@ fun DirectoryBrowserScreen(
                         },
                         scrollBehavior = scrollBehavior,
                         expandedHeight = FluidTopAppBarDefaults.ExpandedHeight,
+                        modifier = Modifier.alpha(topBarTitleAlpha),
                     )
                 }
             },
@@ -538,7 +356,7 @@ fun DirectoryBrowserScreen(
                         .padding(innerPadding),
             ) {
                 if (!uiState.isInitializing && uiState.activeServer != null) {
-                    // Breadcrumb navigation bar (MD3 AssistChip Strip)
+                    // Breadcrumb navigation bar (MD3 AssistChip Strip with dynamic tail growth)
                     DirectoryBreadcrumbStrip(
                         breadcrumbs = uiState.breadcrumbs,
                         currentPath = uiState.currentPath,
@@ -546,7 +364,7 @@ fun DirectoryBrowserScreen(
                     )
                 }
 
-                // Content Area with Pull-to-Refresh
+                // Content Area with Hierarchy Drilldown AnimatedContent
                 Box(
                     modifier =
                         Modifier
@@ -556,90 +374,154 @@ fun DirectoryBrowserScreen(
                 ) {
                     when {
                         uiState.isInitializing -> {
-                            // Cold-start initialization in progress: wait quietly without flashing NoActiveServerState
                             Box(
                                 modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                // Clean background during the brief cold-start initialization
-                            }
+                            )
                         }
 
                         uiState.activeServer == null -> {
                             NoActiveServerState(onNavigateToServerManagement = onNavigateToServerManagement)
                         }
 
-                        uiState.isLoading -> {
-                            Box(
+                        else -> {
+                            AnimatedContent(
+                                targetState = uiState.currentPath,
+                                transitionSpec = {
+                                    val landing = isSearchLanding.value
+                                    val direction =
+                                        MotionTransitions.resolveHierarchyDirection(
+                                            initialPath = initialState,
+                                            targetPath = targetState,
+                                            isFocalLanding = landing,
+                                        )
+                                    if (landing) {
+                                        isSearchLanding.value = false
+                                    }
+                                    MotionTransitions.hierarchyContentTransform(direction, isReduceMotion)
+                                },
+                                label = "hierarchy_drilldown_transition",
                                 modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator()
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = "正在加载远程目录...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                            ) { targetPath ->
+                                Box(
+                                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                                ) {
+                                    if (targetPath == uiState.currentPath) {
+                                        // Live content for current path
+                                        when {
+                                            uiState.isLoading &&
+                                                (uiState.currentDirectory == null || uiState.currentDirectory?.path != uiState.currentPath) -> {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        CircularProgressIndicator()
+                                                        Spacer(modifier = Modifier.height(16.dp))
+                                                        Text(
+                                                            text = "正在加载远程目录...",
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            uiState.errorMessage != null -> {
+                                                ErrorState(
+                                                    message = uiState.errorMessage ?: "加载失败",
+                                                    onRetry = { viewModel.onRetry() },
+                                                    onGoBack = { viewModel.onNavigateUp() },
+                                                    canGoBack = uiState.canNavigateUp,
+                                                )
+                                            }
+
+                                            uiState.isEmpty -> {
+                                                EmptyFolderState(onRefresh = {
+                                                    isUserInitiatedRefresh.value = true
+                                                    Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
+                                                    viewModel.onRefresh()
+                                                })
+                                            }
+
+                                            else -> {
+                                                DirectoryContentList(
+                                                    directories = uiState.subDirectories,
+                                                    files = uiState.files,
+                                                    metadataMap = uiState.metadataMap,
+                                                    activeTrackPath = uiState.activeTrackPath,
+                                                    activeTrackId = uiState.activeTrackId,
+                                                    cueAlbums = uiState.cueAlbums,
+                                                    isPlaying = uiState.isPlaying,
+                                                    activeServer = uiState.activeServer,
+                                                    onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
+                                                    onFileClicked = { file ->
+                                                        if (isSelectionMode && file.isAudio) {
+                                                            setSelectedFilePaths(
+                                                                if (file.path in selectedFilePaths) {
+                                                                    selectedFilePaths - file.path
+                                                                } else {
+                                                                    selectedFilePaths + file.path
+                                                                },
+                                                            )
+                                                        } else {
+                                                            onFileClicked(file)
+                                                        }
+                                                    },
+                                                    onPlayNext = { viewModel.playNext(it) },
+                                                    onAddToPlaylist = onAddToPlaylist,
+                                                    onVirtualTrackClick = {
+                                                        album,
+                                                        trackIndex,
+                                                        ->
+                                                        viewModel.playVirtualTrack(album, trackIndex)
+                                                    },
+                                                    onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
+                                                    onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
+                                                    isSelectionMode = isSelectionMode,
+                                                    selectedFilePaths = selectedFilePaths,
+                                                    onFileLongClicked = { file ->
+                                                        if (file.isAudio && !isSelectionMode) {
+                                                            setSelectedFilePaths(setOf(file.path))
+                                                        }
+                                                    },
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        // Outgoing content during transition: rendered from cache to eliminate flashing
+                                        val cached = directoryContentCache[targetPath]
+                                        if (cached != null) {
+                                            DirectoryContentList(
+                                                directories = cached.directories,
+                                                files = cached.files,
+                                                metadataMap = cached.metadataMap,
+                                                activeTrackPath = uiState.activeTrackPath,
+                                                activeTrackId = uiState.activeTrackId,
+                                                cueAlbums = cached.cueAlbums,
+                                                isPlaying = uiState.isPlaying,
+                                                activeServer = uiState.activeServer,
+                                                onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
+                                                onFileClicked = { onFileClicked(it) },
+                                                onPlayNext = { viewModel.playNext(it) },
+                                                onAddToPlaylist = onAddToPlaylist,
+                                                onVirtualTrackClick = {
+                                                    album,
+                                                    trackIndex,
+                                                    ->
+                                                    viewModel.playVirtualTrack(album, trackIndex)
+                                                },
+                                                onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
+                                                onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
+                                                isSelectionMode = isSelectionMode,
+                                                selectedFilePaths = selectedFilePaths,
+                                                onFileLongClicked = null,
+                                            )
+                                        } else {
+                                            Box(modifier = Modifier.fillMaxSize())
+                                        }
+                                    }
                                 }
                             }
-                        }
-
-                        uiState.errorMessage != null -> {
-                            ErrorState(
-                                message = uiState.errorMessage ?: "加载失败",
-                                onRetry = { viewModel.onRetry() },
-                                onGoBack = { viewModel.onNavigateUp() },
-                                canGoBack = uiState.canNavigateUp,
-                            )
-                        }
-
-                        uiState.isEmpty -> {
-                            EmptyFolderState(onRefresh = {
-                                isUserInitiatedRefresh.value = true
-                                Toast.makeText(context, "正在刷新目录...", Toast.LENGTH_SHORT).show()
-                                viewModel.onRefresh()
-                            })
-                        }
-
-                        else -> {
-                            DirectoryContentList(
-                                directories = uiState.subDirectories,
-                                files = uiState.files,
-                                metadataMap = uiState.metadataMap,
-                                activeTrackPath = uiState.activeTrackPath,
-                                activeTrackId = uiState.activeTrackId,
-                                cueAlbums = uiState.cueAlbums,
-                                isPlaying = uiState.isPlaying,
-                                activeServer = uiState.activeServer,
-                                onDirectoryClicked = { viewModel.onDirectoryClicked(it) },
-                                onFileClicked = { file ->
-                                    if (isSelectionMode && file.isAudio) {
-                                        setSelectedFilePaths(
-                                            if (file.path in selectedFilePaths) {
-                                                selectedFilePaths - file.path
-                                            } else {
-                                                selectedFilePaths + file.path
-                                            },
-                                        )
-                                    } else {
-                                        onFileClicked(file)
-                                    }
-                                },
-                                onPlayNext = { viewModel.playNext(it) },
-                                onAddToPlaylist = onAddToPlaylist,
-                                onVirtualTrackClick = { album, trackIndex -> viewModel.playVirtualTrack(album, trackIndex) },
-                                onPlayCueAlbum = { album -> viewModel.playCueAlbum(album) },
-                                onToggleCueAlbumExpanded = { cuePath -> viewModel.toggleCueAlbumExpanded(cuePath) },
-                                isSelectionMode = isSelectionMode,
-                                selectedFilePaths = selectedFilePaths,
-                                onFileLongClicked = { file ->
-                                    if (file.isAudio && !isSelectionMode) {
-                                        setSelectedFilePaths(setOf(file.path))
-                                    }
-                                },
-                            )
                         }
                     }
 
@@ -682,6 +564,110 @@ fun DirectoryBrowserScreen(
                 }
             }
         }
+
+        // --- Layer 2: Search View Overlay (Slides down from underneath search pill) ---
+        AnimatedVisibility(
+            visible = uiState.isSearchActive,
+            enter = MotionTransitions.searchOverlayEnter(isReduceMotion),
+            exit = MotionTransitions.searchOverlayExit(isReduceMotion),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(top = 56.dp),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface),
+            ) {
+                SearchResultsContent(
+                    query = uiState.searchQuery,
+                    isSearching = uiState.isSearching,
+                    searchResult = uiState.searchResult,
+                    searchHistory = uiState.searchHistory,
+                    onSelectHistoryQuery = {
+                        viewModel.onSearchQueryChanged(it)
+                        viewModel.onSearchSubmitted(it)
+                    },
+                    onClearHistory = { viewModel.onClearSearchHistory() },
+                    onRemoveHistoryItem = { viewModel.onRemoveSearchHistoryItem(it) },
+                    onDirectoryClick = { dir ->
+                        isSearchLanding.value = true
+                        viewModel.onSearchResultDirectoryClicked(dir)
+                    },
+                    onTrackClick = { track ->
+                        if (isSearchSelectionMode) {
+                            setSelectedSearchTrackIds(
+                                if (track.id in selectedSearchTrackIds) {
+                                    selectedSearchTrackIds - track.id
+                                } else {
+                                    selectedSearchTrackIds + track.id
+                                },
+                            )
+                        } else {
+                            viewModel.onSearchResultTrackClicked(track)
+                            viewModel.onSearchActiveChanged(false)
+                        }
+                    },
+                    onAddToPlaylist = onAddToPlaylist,
+                    isSelectionMode = isSearchSelectionMode,
+                    selectedTrackIds = selectedSearchTrackIds,
+                    onTrackLongClick = { track ->
+                        if (!isSearchSelectionMode) {
+                            setSelectedSearchTrackIds(setOf(track.id))
+                        }
+                    },
+                )
+
+                FloatingMultiSelectBottomBar(
+                    selectedCount = selectedSearchTrackIds.size,
+                    onPlayNext = {
+                        val tracks = uiState.searchResult.matchedTracks.filter { it.id in selectedSearchTrackIds }
+                        tracks.reversed().forEach { track ->
+                            viewModel.musicPlayerAppSession?.playNext(track)
+                        }
+                        Toast.makeText(context, "已将 ${tracks.size} 首歌曲添加至下一首播放", Toast.LENGTH_SHORT).show()
+                        setSelectedSearchTrackIds(emptySet())
+                    },
+                    onAddToPlaylist = {
+                        val tracks = uiState.searchResult.matchedTracks.filter { it.id in selectedSearchTrackIds }
+                        if (tracks.isNotEmpty()) {
+                            onAddTracksToPlaylist(tracks)
+                            setSelectedSearchTrackIds(emptySet())
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarPadding),
+                )
+            }
+        }
+
+        // --- Layer 3: Floating Search Pill Capsule (Morphs between 38dp circle and 26dp rounded pill) ---
+        FloatingSearchPillCapsule(
+            isExpanded = uiState.isSearchActive,
+            onExpand = { viewModel.onSearchActiveChanged(true) },
+            onBackClick = { viewModel.onSearchActiveChanged(false) },
+            searchQuery = uiState.searchQuery,
+            onQueryChange = { viewModel.onSearchQueryChanged(it) },
+            onClearQuery = { viewModel.onClearSearchQuery() },
+            isSearchSelectionMode = isSearchSelectionMode,
+            selectedCount = selectedSearchTrackIds.size,
+            isAllSelected =
+                uiState.searchResult.matchedTracks.isNotEmpty() && selectedSearchTrackIds.size == uiState.searchResult.matchedTracks.size,
+            onClearSelection = { setSelectedSearchTrackIds(emptySet()) },
+            onToggleSelectAll = {
+                val selectableTracks = uiState.searchResult.matchedTracks
+                val isAllSelected = selectableTracks.isNotEmpty() && selectedSearchTrackIds.size == selectableTracks.size
+                setSelectedSearchTrackIds(
+                    if (isAllSelected) {
+                        emptySet()
+                    } else {
+                        selectableTracks.map { it.id }.toSet()
+                    },
+                )
+            },
+        )
     }
 }
 

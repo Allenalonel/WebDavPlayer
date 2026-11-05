@@ -5,9 +5,11 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -15,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +72,9 @@ import com.webdav.player.ui.browser.DirectoryBrowserScreen
 import com.webdav.player.ui.browser.DirectoryBrowserViewModel
 import com.webdav.player.ui.common.RequestNotificationPermissionEffect
 import com.webdav.player.ui.common.ThumbnailMemoryCache
+import com.webdav.player.ui.motion.MotionTransitions
+import com.webdav.player.ui.motion.fluidIndicator
+import com.webdav.player.ui.motion.isReduceMotionEnabled
 import com.webdav.player.ui.navigation.AppDestination
 import com.webdav.player.ui.navigation.MainNavigationCoordinator
 import com.webdav.player.ui.navigation.tabAccessibilityGuard
@@ -75,6 +82,7 @@ import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.HoistedPlaybackQueueSheet
 import com.webdav.player.ui.player.MiniPlayer
 import com.webdav.player.ui.player.MiniPlayerDefaults
+import com.webdav.player.ui.player.MorphingPlayerContainer
 import com.webdav.player.ui.player.rememberArtworkColors
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
@@ -156,6 +164,7 @@ class MainActivity : ComponentActivity() {
                 var tracksToAddToPlaylist by remember { mutableStateOf<List<AudioTrack>?>(null) }
                 var showQueueSheet by remember { mutableStateOf(false) }
                 var isBrowserSelectionActive by remember { mutableStateOf(false) }
+                var scaffoldBottomPadding by remember { mutableStateOf(0.dp) }
 
                 LaunchedEffect(serverState.activeServer, serverState.isLoading) {
                     if (!serverState.isLoading) {
@@ -218,6 +227,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier =
                                                     Modifier
                                                         .size(width = 52.dp, height = 28.dp)
+                                                        .fluidIndicator(isSelected)
                                                         .clip(RoundedCornerShape(14.dp))
                                                         .background(
                                                             if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
@@ -254,6 +264,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                     ) { innerPadding ->
+                        scaffoldBottomPadding = innerPadding.calculateBottomPadding()
                         val fabBottomPadding by animateDpAsState(
                             targetValue =
                                 if (navState.isMiniPlayerVisible) {
@@ -264,136 +275,153 @@ class MainActivity : ComponentActivity() {
                             label = "fab_bottom_padding",
                         )
 
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            // Preserved view hierarchy across tab transitions
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                            ) {
-                                val isBrowser = navState.currentDestination == AppDestination.DIRECTORY_BROWSER
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .tabAccessibilityGuard(isBrowser)
-                                            .graphicsLayer {
-                                                alpha = if (isBrowser) 1f else 0f
-                                                translationX = if (isBrowser) 0f else 99999f
-                                            },
-                                ) {
-                                    DirectoryBrowserScreen(
-                                        viewModel = browserViewModel,
-                                        onNavigateToServerManagement = {
-                                            coordinator.selectDestination(AppDestination.SERVER_LIST)
-                                        },
-                                        isCurrentTab = isBrowser,
-                                        onOpenFullPlayer = {
-                                            coordinator.expandFullPlayer()
-                                        },
-                                        onAddToPlaylist = { track ->
-                                            tracksToAddToPlaylist = listOf(track)
-                                        },
-                                        onAddTracksToPlaylist = { tracks ->
-                                            tracksToAddToPlaylist = tracks
-                                        },
-                                        bottomBarPadding = innerPadding.calculateBottomPadding() + 8.dp,
-                                        onSelectionModeChanged = { isBrowserSelectionActive = it },
-                                    )
-                                }
+                        val saveableStateHolder = rememberSaveableStateHolder()
+                        val isReduceMotion = isReduceMotionEnabled()
 
-                                val isPlaylists = navState.currentDestination == AppDestination.PLAYLISTS
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .tabAccessibilityGuard(isPlaylists)
-                                            .graphicsLayer {
-                                                alpha = if (isPlaylists) 1f else 0f
-                                                translationX = if (isPlaylists) 0f else 99999f
-                                            },
-                                ) {
-                                    if (navState.selectedPlaylistId != null) {
-                                        val selectedId = navState.selectedPlaylistId!!
-                                        val detailViewModel: PlaylistDetailViewModel =
-                                            androidx.lifecycle.viewmodel.compose.viewModel(
-                                                key = "playlist_detail_$selectedId",
-                                                factory = AppViewModelFactory(appContainer, selectedId),
-                                            )
-                                        PlaylistDetailScreen(
-                                            viewModel = detailViewModel,
-                                            onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
-                                            isCurrentTab = isPlaylists,
-                                            onTrackClick = { track, index ->
-                                                detailViewModel.onTrackClick(track, index)
-                                            },
-                                            onPlayAll = {
-                                                detailViewModel.playAll()
-                                            },
-                                        )
-                                    } else {
-                                        PlaylistListScreen(
-                                            viewModel = playlistViewModel,
-                                            onPlaylistClick = { playlist ->
-                                                coordinator.navigateToPlaylistDetail(playlist.id)
-                                            },
-                                            fabBottomPadding = fabBottomPadding,
-                                        )
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // Preserved view hierarchy with M3 Shared Axis X horizontal transition
+                            AnimatedContent(
+                                targetState = navState.currentDestination,
+                                transitionSpec = {
+                                    val isForward = targetState.ordinal > initialState.ordinal
+                                    MotionTransitions.sharedAxisX(isForward = isForward, reduceMotion = isReduceMotion)
+                                },
+                                label = "MainSharedAxisTabTransition",
+                                modifier = Modifier.fillMaxSize(),
+                            ) { targetDestination ->
+                                saveableStateHolder.SaveableStateProvider(targetDestination) {
+                                    val isCurrentTab = (targetDestination == navState.currentDestination)
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxSize()
+                                                .tabAccessibilityGuard(isCurrentTab),
+                                    ) {
+                                        when (targetDestination) {
+                                            AppDestination.PLAYLISTS -> {
+                                                AnimatedContent(
+                                                    targetState = navState.selectedPlaylistId,
+                                                    transitionSpec = {
+                                                        if (targetState != null) {
+                                                            MotionTransitions.hierarchyPushEnter(isReduceMotion) togetherWith
+                                                                MotionTransitions.hierarchyPushExit(isReduceMotion)
+                                                        } else {
+                                                            MotionTransitions.hierarchyPopEnter(isReduceMotion) togetherWith
+                                                                MotionTransitions.hierarchyPopExit(isReduceMotion)
+                                                        }
+                                                    },
+                                                    label = "PlaylistDrilldownTransition",
+                                                ) { targetPlaylistId ->
+                                                    if (targetPlaylistId != null) {
+                                                        val selectedId = targetPlaylistId
+                                                        val detailViewModel: PlaylistDetailViewModel =
+                                                            androidx.lifecycle.viewmodel.compose.viewModel(
+                                                                key = "playlist_detail_$selectedId",
+                                                                factory = AppViewModelFactory(appContainer, selectedId),
+                                                            )
+                                                        PlaylistDetailScreen(
+                                                            viewModel = detailViewModel,
+                                                            onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
+                                                            isCurrentTab = isCurrentTab,
+                                                            onTrackClick = { track, index ->
+                                                                detailViewModel.onTrackClick(track, index)
+                                                            },
+                                                            onPlayAll = {
+                                                                detailViewModel.playAll()
+                                                            },
+                                                        )
+                                                    } else {
+                                                        PlaylistListScreen(
+                                                            viewModel = playlistViewModel,
+                                                            onPlaylistClick = { playlist ->
+                                                                coordinator.navigateToPlaylistDetail(playlist.id)
+                                                            },
+                                                            fabBottomPadding = fabBottomPadding,
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            AppDestination.DIRECTORY_BROWSER -> {
+                                                DirectoryBrowserScreen(
+                                                    viewModel = browserViewModel,
+                                                    onNavigateToServerManagement = {
+                                                        coordinator.selectDestination(AppDestination.SERVER_LIST)
+                                                    },
+                                                    isCurrentTab = isCurrentTab,
+                                                    onOpenFullPlayer = {
+                                                        coordinator.expandFullPlayer()
+                                                    },
+                                                    onAddToPlaylist = { track ->
+                                                        tracksToAddToPlaylist = listOf(track)
+                                                    },
+                                                    onAddTracksToPlaylist = { tracks ->
+                                                        tracksToAddToPlaylist = tracks
+                                                    },
+                                                    bottomBarPadding = innerPadding.calculateBottomPadding() + 8.dp,
+                                                    onSelectionModeChanged = { isBrowserSelectionActive = it },
+                                                )
+                                            }
+
+                                            AppDestination.SERVER_LIST -> {
+                                                ServerListScreen(
+                                                    viewModel = serverViewModel,
+                                                    onNavigateToBrowser = {
+                                                        coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
+                                                    },
+                                                    onSelectServerAndNavigate = { server ->
+                                                        serverViewModel.onSelectActiveServer(server.id)
+                                                        coordinator.onServerCardClicked(server)
+                                                    },
+                                                    fabBottomPadding = fabBottomPadding,
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-
-                                val isServers = navState.currentDestination == AppDestination.SERVER_LIST
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .tabAccessibilityGuard(isServers)
-                                            .graphicsLayer {
-                                                alpha = if (isServers) 1f else 0f
-                                                translationX = if (isServers) 0f else 99999f
-                                            },
-                                ) {
-                                    ServerListScreen(
-                                        viewModel = serverViewModel,
-                                        onNavigateToBrowser = {
-                                            coordinator.selectDestination(AppDestination.DIRECTORY_BROWSER)
-                                        },
-                                        onSelectServerAndNavigate = { server ->
-                                            serverViewModel.onSelectActiveServer(server.id)
-                                            coordinator.onServerCardClicked(server)
-                                        },
-                                        fabBottomPadding = fabBottomPadding,
-                                    )
-                                }
-                            }
-
-                            // Independent Floating Capsule MiniPlayer Overlay
-                            AnimatedVisibility(
-                                visible = navState.isMiniPlayerVisible && !isBrowserSelectionActive,
-                                modifier =
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = innerPadding.calculateBottomPadding() + 8.dp)
-                                        .padding(horizontal = 14.dp),
-                                enter =
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250),
-                                    ) + fadeIn(animationSpec = tween(250)),
-                                exit =
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(200),
-                                    ) + fadeOut(animationSpec = tween(200)),
-                            ) {
-                                MiniPlayer(
-                                    sessionState = playerSessionState,
-                                    playbackActions = playbackActions,
-                                    playbackProgress = playbackProgress,
-                                    onMiniPlayerClick = { coordinator.expandFullPlayer() },
-                                    onOpenQueue = { showQueueSheet = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
                             }
                         }
+                    }
+
+                    // Maintain BackHandler to collapse player when expanded or dismiss queue sheet
+                    BackHandler(enabled = navState.isFullPlayerExpanded || showQueueSheet) {
+                        if (showQueueSheet) {
+                            showQueueSheet = false
+                        } else {
+                            coordinator.collapseFullPlayer()
+                        }
+                    }
+
+                    // Unified Continuous Morphing Player Container
+                    AnimatedVisibility(
+                        visible = (navState.isMiniPlayerVisible && !isBrowserSelectionActive) || navState.isFullPlayerExpanded,
+                        enter =
+                            slideInVertically(
+                                initialOffsetY = { it },
+                                animationSpec = tween(250),
+                            ) + fadeIn(animationSpec = tween(250)),
+                        exit =
+                            slideOutVertically(
+                                targetOffsetY = { it },
+                                animationSpec = tween(200),
+                            ) + fadeOut(animationSpec = tween(200)),
+                    ) {
+                        MorphingPlayerContainer(
+                            sessionState = playerSessionState,
+                            playbackProgress = playbackProgress,
+                            playbackActions = playbackActions,
+                            isExpanded = navState.isFullPlayerExpanded,
+                            onExpand = { coordinator.expandFullPlayer() },
+                            onCollapse = { coordinator.collapseFullPlayer() },
+                            collapsedBottomPadding = scaffoldBottomPadding + 8.dp,
+                            onOpenQueue = { showQueueSheet = true },
+                            onAddToPlaylist = { track: AudioTrack ->
+                                tracksToAddToPlaylist = listOf(track)
+                            },
+                            onDismissBatteryBanner = { musicSession.clearKilledBySystemFlag() },
+                            onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
+                            onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
+                        )
                     }
 
                     if (showQueueSheet) {
@@ -402,34 +430,6 @@ class MainActivity : ComponentActivity() {
                             playbackProgress = playbackProgress,
                             playbackActions = playbackActions,
                             onDismissRequest = { showQueueSheet = false },
-                            onAddToPlaylist = { track ->
-                                tracksToAddToPlaylist = listOf(track)
-                            },
-                        )
-                    }
-
-                    // Hoisted Full Player View Overlay
-                    AnimatedVisibility(
-                        visible = navState.isFullPlayerExpanded && playerSessionState.hasTrack,
-                        enter =
-                            slideInVertically(
-                                initialOffsetY = { it },
-                                animationSpec = tween(300),
-                            ) + fadeIn(animationSpec = tween(300)),
-                        exit =
-                            slideOutVertically(
-                                targetOffsetY = { it },
-                                animationSpec = tween(300),
-                            ) + fadeOut(animationSpec = tween(300)),
-                    ) {
-                        FullPlayerView(
-                            sessionState = playerSessionState,
-                            playbackProgress = playbackProgress,
-                            playbackActions = playbackActions,
-                            onCollapse = { coordinator.collapseFullPlayer() },
-                            onDismissBatteryBanner = { musicSession.clearKilledBySystemFlag() },
-                            onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
-                            onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
                             onAddToPlaylist = { track ->
                                 tracksToAddToPlaylist = listOf(track)
                             },

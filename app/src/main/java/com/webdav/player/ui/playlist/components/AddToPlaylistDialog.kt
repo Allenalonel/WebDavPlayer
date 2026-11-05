@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.Playlist
+import com.webdav.player.ui.motion.expressiveDialog
 import com.webdav.player.ui.theme.AppIcons
 
 @Composable
@@ -73,7 +74,7 @@ fun AddToPlaylistDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().expressiveDialog(),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),

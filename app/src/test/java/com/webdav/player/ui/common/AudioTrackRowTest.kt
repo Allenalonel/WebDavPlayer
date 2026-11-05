@@ -63,6 +63,16 @@ class AudioTrackRowTest {
     }
 
     @Test
+    fun formatSubtitle_withNullArtistAndAlbum_returnsNullFallback() {
+        val result =
+            AudioTrackRowDefaults.formatSubtitle(
+                artist = null,
+                album = null,
+            )
+        assertNull(result)
+    }
+
+    @Test
     fun badgeColors_mapsQualityLevelsToMaterialTokensCorrectly() {
         val testScheme =
             darkColorScheme(

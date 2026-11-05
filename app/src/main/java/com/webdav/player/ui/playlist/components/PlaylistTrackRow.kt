@@ -83,7 +83,7 @@ internal fun PlaylistTrackRow(
 
     val subtitle =
         remember(track.artist, track.album) {
-            AudioTrackRowDefaults.formatSubtitle(track.artist, track.album)
+            AudioTrackRowDefaults.formatSubtitle(track.artist, track.album) ?: "未知"
         }
     val qualityBadge = remember(track) { track.toAudioTrack().qualityBadge }
 

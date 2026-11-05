@@ -350,7 +350,7 @@ fun VirtualTrackItemRow(
 
     AudioTrackRow(
         title = track.title,
-        subtitle = track.performer,
+        subtitle = track.performer?.takeIf { it.isNotBlank() } ?: "未知",
         durationText = durationText,
         isActive = isActive,
         isPlaying = isPlaying,

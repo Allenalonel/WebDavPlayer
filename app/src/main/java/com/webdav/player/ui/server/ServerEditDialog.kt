@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.ui.motion.expressiveDialog
 import com.webdav.player.ui.theme.AppIcons
 
 @Composable
@@ -77,6 +78,7 @@ fun ServerEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.expressiveDialog(),
         title = {
             Text(
                 text = if (serverToEdit == null) "添加 WebDAV 服务器" else "编辑 WebDAV 服务器",

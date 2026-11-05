@@ -329,4 +329,18 @@ class MiniPlayerPresentationTest {
         assertFalse("DockedMiniPlayer must be eliminated", methodNames.any { it.startsWith("DockedMiniPlayer") })
         assertTrue("MiniPlayer must exist", methodNames.any { it.startsWith("MiniPlayer") })
     }
+
+    @Test
+    fun morphingPlayerDefaults_alignsWithCapsuleAndFullscreenSpecs() {
+        assertEquals(36.dp, MorphingPlayerDefaults.WindowCornerRadius)
+        assertEquals(280.dp, MorphingPlayerDefaults.FullPlayerArtworkSize)
+        assertEquals(28.dp, MorphingPlayerDefaults.FullPlayerArtworkRadius)
+        assertEquals(68.dp, MorphingPlayerDefaults.FullPlayerPlayButtonSize)
+        assertEquals(26.dp, MorphingPlayerDefaults.FullPlayerPlayButtonRadius)
+        assertEquals(48.dp, MorphingPlayerDefaults.FullPlayerQueueButtonSize)
+        assertEquals(14.dp, MorphingPlayerDefaults.CapsuleHorizontalMargin)
+
+        assertEquals(0.35f, MorphingPlayerDefaults.SecondaryControlsFadeStartProgress, 0.0001f)
+        assertEquals(0.25f, MorphingPlayerDefaults.MiniControlsFadeEndProgress, 0.0001f)
+    }
 }

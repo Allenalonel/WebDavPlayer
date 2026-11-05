@@ -64,3 +64,13 @@ These standards are enforced during `/code-review` alongside the Fowler code-sme
   当表现层将多个底层故障枚举（如 `SERVER_UNREACHABLE` 与瞬态 401/403 `SERVER_CREDENTIAL_INVALID`）聚合映射为同一用户提示文案时，领域自愈层与状态清除逻辑必须以相同的广度覆盖这些枚举，彻底消除“UI 展现已聚合、底层自愈漏一半”引发的认知死角。
 - **Failure Granularity Alignment (故障粒度对齐原则)**:
   针对整机/服务级异常（如网络拒绝、超时、服务重启认证不可用），故障标记与恢复必须在服务器级批量同步，严禁仅对当前报错单曲标记而留同源排队曲目高亮，杜绝同源数据展现割裂。
+
+---
+
+## 7. Motion & Container Morphing Architecture (动效系统与容器形变工程准则)
+
+- **Single Living Entity Principle (单一真实实体原则，严禁过渡替身偷换)**:
+  在容器连续形态蜕变（Morphing Container）与多阶界面过渡中，严禁编写仅具备部分假 UI 的过渡期“替身克隆组件（Mock Clone）”。展开或切换的目标界面必须自始至终由其真实组件充当唯一实体，通过 `graphicsLayer` 的 Alpha 与 Translation 随容器几何伸展平滑浮现并微移归位。禁止在动画终点执行“替身到真实视图”的偷换（End-State Swap），彻底从物理根源上消灭排版重算导致的界面突发抖动与组件跳跃。
+- **Draw Phase Animation Rule (GPU 绘制阶段渲染原则)**:
+  在 60/120fps 连续高频形变中，严禁逐帧修改 `Modifier.size()` 与 `Modifier.offset()`（这会强迫 Compose 逐帧回退至 CPU Measure & Layout 测量重排与图片重采样，引发掉帧卡顿）；必须以固定目标尺寸为基底，统一在 `Modifier.graphicsLayer { scaleX/Y = ...; translationX/Y = ...; shape = ...; clip = true }` 内通过 GPU 矩阵变换完成缩放位移，保障 CPU 零重新测算与 120Hz 硬件加速。
+

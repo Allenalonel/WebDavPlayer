@@ -104,23 +104,23 @@ fun CoverThumbnailImage(
         }
     }
 
-    if (crossfadeDurationMs > 0) {
+    if (crossfadeDurationMs > 0 && initialCached == null) {
         Crossfade(
             targetState = imageBitmap,
             animationSpec = tween(durationMillis = crossfadeDurationMs),
             label = "CoverThumbnailCrossfade",
-            modifier = modifier
+            modifier = modifier,
         ) { currentBitmap ->
             Box(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 if (currentBitmap != null) {
                     Image(
                         bitmap = currentBitmap,
                         contentDescription = contentDescription,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
                     )
                 } else {
                     fallback()
@@ -130,15 +130,15 @@ fun CoverThumbnailImage(
     } else {
         Box(
             modifier = modifier,
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
-            val currentBitmap = imageBitmap
+            val currentBitmap = imageBitmap ?: initialCached
             if (currentBitmap != null) {
                 Image(
                     bitmap = currentBitmap,
                     contentDescription = contentDescription,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
                 )
             } else {
                 fallback()

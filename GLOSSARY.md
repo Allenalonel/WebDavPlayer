@@ -246,6 +246,15 @@ _Avoid_: Orphan Data, Server Wipe, Manual Cache Delete
 应用底部的顶层导航容器，以「歌单」（Playlists）—「媒体库」（Directory Browser）—「服务器」（Server Management）有序承载应用三大一级视窗。采用 60dp 紧凑交互区 + 边缘到边缘（Edge-to-Edge）手势区无感浸润，内部以 52dp x 28dp M3 药丸指示舱（圆角 14dp）搭配 20dp 图标与 11sp 标签文字，在 60dp 交互区内绝对垂直居中，具备持久化记忆能力，应用冷启动时精准恢复至上次退出时停留的底栏目的地。
 _Avoid_: Bottom Bar, Tab Bar, Footer Menu
 
+**Shared Axis Navigation Transition**:
+应用全域遵循 Material 3 空间层级规范的共享轴向导航过渡体系。一级底栏目的地切换严格沿水平 X 轴执行 15%~25% 短距方向性推移与交叉淡化（右切自右入、左切自左入），彻底根除全距平移眩晕与瞬态跳变；二级层级下钻（歌单详情、目录子路径）采用 100% 右侧推入伴随父级 30% 视差后退（Parallax Retreat），返回时对等逆向，建立确定性的物理空间心智模型。
+_Avoid_: Instant Tab Swap, Disoriented Jump, Full Width Tab Slide
+
+**Expressive Spring Micro-Interactions**:
+全域可交互组件（卡片、行条目、独立按钮）在手势触按时的物理微缩（按下微缩至 0.97f，抬起果冻回弹）与底栏指示药丸切换时的流体弹性拉伸（Elastic Pill Stretch）微动效体系，杜绝生硬变色与静态死板。
+_Avoid_: Rigid Tap, Static Indicator Jump, Instant Click
+
+
 **Global Dynamic Artwork Palette**:
 全天候全域音轨动态取色系统。在音频回放流转时，由 `ArtworkColorExtractor` 从当前音轨封面提取种子色（Dominant Color），基于 HCT Tonal Palette 算法在深色模式与浅色模式下分别自适应推导整机大背景（Background）、表面容器色（SurfaceContainer）、底栏指示器、顶栏折叠雾化层及在播高亮，实现应用全局大背景与核心组件 100% 随当前在播专辑平滑换肤。
 _Avoid_: Static Theme, Dark Only Ambient, Wallpaper Color Only
@@ -273,6 +282,19 @@ _Avoid_: File Info Activity, Song Property Window
 **Docked Mini-Player**:
 悬浮驻留在 Primary Navigation Bar 之上（或屏幕底部安全区之上）的全局持久化浮动卡片播控胶囊。在 Material 3 Expressive 体系下高度为 60dp（30dp 饱满圆角），内嵌 42dp 正圆黑胶唱片封面（CircleShape），融入「方案三：流体微光背景填充 (Liquid Fill)」，内部组件 100% 垂直居中且无挤压。具备曲目摘要、播放控制与上滑/点击以容器形变（Container Morphing）平滑展开全屏播放器的能力，在应用内任何页面导航切换时均不中断。
 _Avoid_: Bottom Player, Small Player, Playback Bar
+
+**Capsule-to-Fullscreen Morphing**:
+MiniPlayer 药丸胶囊与全屏播放器之间统一由单一真实实体（Single Living View）驱动的连续形态蜕变体系。彻底废除割裂的模态弹窗与过渡期假替身组件（Mock Clone），在容器伸展过程中直接承载真实 `FullPlayerView`，避免动画终点的组件偷换导致排版重算抖动；通过统一进度状态在 GPU Draw 阶段驱动硬件矩阵变换，将胶囊边界、圆角（30dp → 0dp/36dp）、封面（42dp 正圆黑胶 → 280dp Squircle 方圆大卡片，严格锁定 0° 静止）、文字基准线与播控按键实现 100% 物理连贯、零声学卡顿与零视觉割裂的双向形态映射。
+_Avoid_: Bottom Sheet Popup, Pop-up Overlay, Disjointed Expansion, Fake Player Resize, Mock Transition Swap
+
+**Track Row Height Parity**:
+应用全域（歌单、媒体库、搜索、队列）音频曲目列表行严格遵循双行 72dp 对齐与未知兜底规范。当曲目缺失艺术家或专辑标签信息时，副标题必须回退显示“未知”，严禁完全隐藏导致 ListItem 塌缩为 56dp 单行，保证全列表行高严格一致。
+_Avoid_: Single Line Track Row, Collapsed Subtitle, Inconsistent Track Height
+
+**Directory Drilldown Loading State**:
+媒体库向未缓存的新目录层级下钻时的即时加载反馈体系。视窗推入时立即清空旧目录快照并居中呈现 `CircularProgressIndicator` 与“正在加载远程目录...”，彻底杜绝父级旧目录内容残留与左侧残影，失败时平滑切换为带重试指引的错误态。
+_Avoid_: Silent Directory Load, Stale Folder Reflection, Sudden Error Flash
+
 
 **Liquid Fill MiniPlayer**:
 MiniPlayer 胶囊背景自带进度流动的无侵入进度展示规范。彻底移除了胶囊底部的独立进度指示线，已播部分从左向右带有半透明的主题色微光流体浸润与 1.5dp 前导微光线，内部组件（封面、歌名、播控）在胶囊内 100% 绝对垂直居中。
@@ -321,6 +343,11 @@ _Avoid_: App Logo, Static Icon
 **Playback Queue Bottom Sheet**:
 由应用底部弹出的全高/半高播放队列管理模态抽屉，支持平滑滚动定位当前播放曲目、点选秒级切歌、显示曲目来源及播放模式切换。
 _Avoid_: Queue Dialog, Playlist Popup, Track Selector
+
+**Animated Queue Placement**:
+播放队列在切换随机洗牌（Shuffle）或移除曲目时，由排版插值器驱动全列表音轨平滑滑向新物理槽位的连续重排与缝隙吸附动效体系。
+_Avoid_: Abrupt Reorder, Instant Queue Shuffle, Flash Placement
+
 
 **Bilingual Lyrics View**:
 集成在 Full Player Sheet 内支持主译双语平行排版、单时间戳高亮对齐、逐行平滑滚动及点击精准 Seek 交互的沉浸式歌词呈现容器。

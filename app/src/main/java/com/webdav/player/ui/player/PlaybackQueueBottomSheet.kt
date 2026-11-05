@@ -1,5 +1,6 @@
 package com.webdav.player.ui.player
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +51,7 @@ import com.webdav.player.domain.model.PlaybackQueue
 import com.webdav.player.domain.model.PlayerSessionState
 import com.webdav.player.ui.common.AudioTrackRow
 import com.webdav.player.ui.common.TrackThumbnailLeading
+import com.webdav.player.ui.motion.MotionTokens
 import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,7 +78,7 @@ fun HoistedPlaybackQueueSheet(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlaybackQueueBottomSheet(
     queue: PlaybackQueue,
@@ -134,14 +138,8 @@ fun PlaybackQueueBottomSheet(
                             )
                         },
                         leadingIcon = {
-                            val icon =
-                                when (playbackMode) {
-                                    PlaybackMode.LIST_LOOP -> AppIcons.Repeat
-                                    PlaybackMode.SINGLE_LOOP -> AppIcons.RepeatOne
-                                    PlaybackMode.SHUFFLE -> AppIcons.Shuffle
-                                }
                             Icon(
-                                imageVector = icon,
+                                imageVector = resolvePlaybackModeIcon(playbackMode),
                                 contentDescription = playbackMode.label,
                                 modifier = Modifier.size(16.dp),
                             )
@@ -183,10 +181,11 @@ fun PlaybackQueueBottomSheet(
             } else {
                 val listState = rememberLazyListState()
 
-                // Auto-scroll to active track on open
-                LaunchedEffect(queue.currentIndex) {
-                    if (queue.currentIndex in queue.tracks.indices) {
-                        listState.animateScrollToItem(queue.currentIndex.coerceAtLeast(0))
+                val hasScrolledOnOpen = remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    if (!hasScrolledOnOpen.value && queue.currentIndex in queue.tracks.indices) {
+                        hasScrolledOnOpen.value = true
+                        listState.scrollToItem(queue.currentIndex.coerceAtLeast(0))
                     }
                 }
 
@@ -200,7 +199,7 @@ fun PlaybackQueueBottomSheet(
                 ) {
                     itemsIndexed(
                         items = queue.tracks,
-                        key = { index, track -> "track_${track.id}_$index" },
+                        key = { _, track -> track.id },
                     ) { index, track ->
                         val isActive = index == queue.currentIndex
 
@@ -213,6 +212,7 @@ fun PlaybackQueueBottomSheet(
                             onClick = { onTrackClick(index) },
                             onRemove = { onRemoveTrack(index) },
                             onAddToPlaylist = onAddToPlaylist,
+                            modifier = Modifier.animateItemPlacement(MotionTokens.spatialSpring()),
                         )
                     }
                 }
@@ -220,6 +220,28 @@ fun PlaybackQueueBottomSheet(
         }
     }
 }
+
+/**
+ * Stable key contract for playback queue items. Uses track ID independent of list index
+ * so Compose can track items across reordering, shuffle transitions, and dismiss animations.
+ */
+internal fun resolveQueueItemKey(track: AudioTrack): String = track.id
+
+/**
+ * Resolves the appropriate icon for the given playback mode.
+ */
+internal fun resolvePlaybackModeIcon(playbackMode: PlaybackMode) =
+    when (playbackMode) {
+        PlaybackMode.LIST_LOOP -> AppIcons.Repeat
+        PlaybackMode.SINGLE_LOOP -> AppIcons.RepeatOne
+        PlaybackMode.SHUFFLE -> AppIcons.Shuffle
+    }
+
+/**
+ * Cycles to the next playback mode in the standard sequence:
+ * LIST_LOOP -> SINGLE_LOOP -> SHUFFLE -> LIST_LOOP.
+ */
+internal fun cyclePlaybackMode(current: PlaybackMode): PlaybackMode = current.next()
 
 internal fun resolveQueueTrackSubtitle(
     track: AudioTrack,

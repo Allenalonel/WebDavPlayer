@@ -41,6 +41,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.webdav.player.data.remote.ConnectionResult
 import com.webdav.player.domain.model.WebDavServer
+import com.webdav.player.ui.motion.bouncyClickable
+import com.webdav.player.ui.motion.expressivePress
 import com.webdav.player.ui.theme.AppIcons
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -72,7 +74,7 @@ internal fun ServerCardItem(
                         },
                     shape = MaterialTheme.shapes.medium,
                 )
-                .clickable(onClick = onCardClick),
+                .bouncyClickable(onClick = onCardClick),
         shape = MaterialTheme.shapes.medium,
         colors =
             CardDefaults.elevatedCardColors(
@@ -407,7 +409,10 @@ internal fun ServerCardItem(
                         FilledTonalIconButton(
                             onClick = onTestConnection,
                             enabled = !isTestingConnection,
-                            modifier = Modifier.size(36.dp),
+                            modifier =
+                                Modifier
+                                    .size(36.dp)
+                                    .expressivePress(enabled = !isTestingConnection),
                         ) {
                             Icon(
                                 imageVector = AppIcons.NetworkCheck,
@@ -420,7 +425,10 @@ internal fun ServerCardItem(
                         Box {
                             IconButton(
                                 onClick = { showMenu = true },
-                                modifier = Modifier.size(36.dp),
+                                modifier =
+                                    Modifier
+                                        .size(36.dp)
+                                        .expressivePress(),
                             ) {
                                 Icon(
                                     imageVector = AppIcons.MoreVert,
