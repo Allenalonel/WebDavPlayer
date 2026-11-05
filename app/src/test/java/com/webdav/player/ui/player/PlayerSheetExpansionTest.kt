@@ -1,5 +1,6 @@
 package com.webdav.player.ui.player
 
+import androidx.compose.ui.unit.dp
 import com.webdav.player.domain.model.AudioFormat
 import com.webdav.player.domain.model.AudioTrack
 import com.webdav.player.domain.model.PlaybackQueue
@@ -100,5 +101,99 @@ class PlayerSheetExpansionTest {
     fun formatTrackArtistAndFormat_withNullTrack_returnsDefault() {
         val formatted = formatTrackArtistAndFormat(null)
         assertEquals("未知艺术家", formatted)
+    }
+
+    // --- Morphing Interpolation Math Tests ---
+
+    @Test
+    fun morphingMath_containerHeight_interpolatesSmoothly() {
+        val screenHeight = 840.dp
+        assertEquals(60.dp, MorphingPlayerMath.containerHeight(screenHeight, 0.0f))
+        assertEquals(840.dp, MorphingPlayerMath.containerHeight(screenHeight, 1.0f))
+        assertEquals(450.dp, MorphingPlayerMath.containerHeight(screenHeight, 0.5f))
+
+        // Clamping check
+        assertEquals(60.dp, MorphingPlayerMath.containerHeight(screenHeight, -0.2f))
+        assertEquals(840.dp, MorphingPlayerMath.containerHeight(screenHeight, 1.5f))
+    }
+
+    @Test
+    fun morphingMath_containerMargins_interpolatesFromCapsuleToEdgeToEdge() {
+        val collapsedBottomPadding = 68.dp
+        // Horizontal margins
+        assertEquals(14.dp, MorphingPlayerMath.containerHorizontalMargin(0.0f))
+        assertEquals(0.dp, MorphingPlayerMath.containerHorizontalMargin(1.0f))
+        assertEquals(7.dp, MorphingPlayerMath.containerHorizontalMargin(0.5f))
+
+        // Bottom padding
+        assertEquals(68.dp, MorphingPlayerMath.containerBottomMargin(collapsedBottomPadding, 0.0f))
+        assertEquals(0.dp, MorphingPlayerMath.containerBottomMargin(collapsedBottomPadding, 1.0f))
+        assertEquals(34.dp, MorphingPlayerMath.containerBottomMargin(collapsedBottomPadding, 0.5f))
+    }
+
+    @Test
+    fun morphingMath_containerCornerRadius_interpolatesFromCapsuleToTopWindowRadius() {
+        assertEquals(30.dp, MorphingPlayerMath.containerCornerRadius(0.0f))
+        assertEquals(36.dp, MorphingPlayerMath.containerCornerRadius(1.0f))
+        assertEquals(33.dp, MorphingPlayerMath.containerCornerRadius(0.5f))
+    }
+
+    @Test
+    fun morphingMath_artworkSizeAndRadius_interpolatesToSquircleCard() {
+        // Collapsed (42dp circle)
+        assertEquals(42.dp, MorphingPlayerMath.artworkSize(0.0f))
+        assertEquals(21.dp, MorphingPlayerMath.artworkCornerRadius(0.0f))
+
+        // Fullscreen (250dp squircle with 28dp radius)
+        assertEquals(250.dp, MorphingPlayerMath.artworkSize(1.0f))
+        assertEquals(28.dp, MorphingPlayerMath.artworkCornerRadius(1.0f))
+
+        // Midpoint
+        assertEquals(146.dp, MorphingPlayerMath.artworkSize(0.5f))
+    }
+
+    @Test
+    fun morphingMath_artworkRotation_remainsStationaryZeroDegrees() {
+        assertEquals(0f, MorphingPlayerMath.artworkRotation(0.0f), 0.0001f)
+        assertEquals(0f, MorphingPlayerMath.artworkRotation(0.25f), 0.0001f)
+        assertEquals(0f, MorphingPlayerMath.artworkRotation(0.5f), 0.0001f)
+        assertEquals(0f, MorphingPlayerMath.artworkRotation(0.75f), 0.0001f)
+        assertEquals(0f, MorphingPlayerMath.artworkRotation(1.0f), 0.0001f)
+    }
+
+    @Test
+    fun morphingMath_dualButtons_interpolateProperly() {
+        // Play / Pause button: 40dp -> 68dp squircle (26dp radius)
+        assertEquals(40.dp, MorphingPlayerMath.playButtonSize(0.0f))
+        assertEquals(20.dp, MorphingPlayerMath.playButtonCornerRadius(0.0f))
+        assertEquals(68.dp, MorphingPlayerMath.playButtonSize(1.0f))
+        assertEquals(26.dp, MorphingPlayerMath.playButtonCornerRadius(1.0f))
+
+        // Queue button: 38dp -> 48dp
+        assertEquals(38.dp, MorphingPlayerMath.queueButtonSize(0.0f))
+        assertEquals(48.dp, MorphingPlayerMath.queueButtonSize(1.0f))
+        assertEquals(43.dp, MorphingPlayerMath.queueButtonSize(0.5f))
+    }
+
+    @Test
+    fun morphingMath_secondaryControlsAlpha_fadesInPastThreshold() {
+        assertEquals(0.0f, MorphingPlayerMath.secondaryControlsAlpha(0.0f), 0.0001f)
+        assertEquals(0.0f, MorphingPlayerMath.secondaryControlsAlpha(0.20f), 0.0001f)
+        assertEquals(0.0f, MorphingPlayerMath.secondaryControlsAlpha(0.35f), 0.0001f)
+
+        // Midpoint between 0.35 and 1.0 (0.675) -> ~0.5
+        assertEquals(0.5f, MorphingPlayerMath.secondaryControlsAlpha(0.675f), 0.01f)
+
+        // Fully expanded
+        assertEquals(1.0f, MorphingPlayerMath.secondaryControlsAlpha(1.0f), 0.0001f)
+    }
+
+    @Test
+    fun morphingMath_miniControlsAlpha_fadesOutBeforeThreshold() {
+        assertEquals(1.0f, MorphingPlayerMath.miniControlsAlpha(0.0f), 0.0001f)
+        assertEquals(0.5f, MorphingPlayerMath.miniControlsAlpha(0.125f), 0.0001f)
+        assertEquals(0.0f, MorphingPlayerMath.miniControlsAlpha(0.25f), 0.0001f)
+        assertEquals(0.0f, MorphingPlayerMath.miniControlsAlpha(0.5f), 0.0001f)
+        assertEquals(0.0f, MorphingPlayerMath.miniControlsAlpha(1.0f), 0.0001f)
     }
 }

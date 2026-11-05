@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -80,6 +81,7 @@ import com.webdav.player.ui.player.FullPlayerView
 import com.webdav.player.ui.player.HoistedPlaybackQueueSheet
 import com.webdav.player.ui.player.MiniPlayer
 import com.webdav.player.ui.player.MiniPlayerDefaults
+import com.webdav.player.ui.player.MorphingPlayerContainer
 import com.webdav.player.ui.player.rememberArtworkColors
 import com.webdav.player.ui.player.rememberPlaybackActions
 import com.webdav.player.ui.playlist.PlaylistDetailScreen
@@ -161,6 +163,7 @@ class MainActivity : ComponentActivity() {
                 var tracksToAddToPlaylist by remember { mutableStateOf<List<AudioTrack>?>(null) }
                 var showQueueSheet by remember { mutableStateOf(false) }
                 var isBrowserSelectionActive by remember { mutableStateOf(false) }
+                var scaffoldBottomPadding by remember { mutableStateOf(0.dp) }
 
                 LaunchedEffect(serverState.activeServer, serverState.isLoading) {
                     if (!serverState.isLoading) {
@@ -260,6 +263,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                     ) { innerPadding ->
+                        scaffoldBottomPadding = innerPadding.calculateBottomPadding()
                         val fabBottomPadding by animateDpAsState(
                             targetValue =
                                 if (navState.isMiniPlayerVisible) {
@@ -361,36 +365,48 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-
-                            // Independent Floating Capsule MiniPlayer Overlay
-                            AnimatedVisibility(
-                                visible = navState.isMiniPlayerVisible && !isBrowserSelectionActive,
-                                modifier =
-                                    Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = innerPadding.calculateBottomPadding() + 8.dp)
-                                        .padding(horizontal = 14.dp),
-                                enter =
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250),
-                                    ) + fadeIn(animationSpec = tween(250)),
-                                exit =
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(200),
-                                    ) + fadeOut(animationSpec = tween(200)),
-                            ) {
-                                MiniPlayer(
-                                    sessionState = playerSessionState,
-                                    playbackActions = playbackActions,
-                                    playbackProgress = playbackProgress,
-                                    onMiniPlayerClick = { coordinator.expandFullPlayer() },
-                                    onOpenQueue = { showQueueSheet = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
                         }
+                    }
+
+                    // Maintain BackHandler to collapse player when expanded or dismiss queue sheet
+                    BackHandler(enabled = navState.isFullPlayerExpanded || showQueueSheet) {
+                        if (showQueueSheet) {
+                            showQueueSheet = false
+                        } else {
+                            coordinator.collapseFullPlayer()
+                        }
+                    }
+
+                    // Unified Continuous Morphing Player Container
+                    AnimatedVisibility(
+                        visible = (navState.isMiniPlayerVisible && !isBrowserSelectionActive) || navState.isFullPlayerExpanded,
+                        enter =
+                            slideInVertically(
+                                initialOffsetY = { it },
+                                animationSpec = tween(250),
+                            ) + fadeIn(animationSpec = tween(250)),
+                        exit =
+                            slideOutVertically(
+                                targetOffsetY = { it },
+                                animationSpec = tween(200),
+                            ) + fadeOut(animationSpec = tween(200)),
+                    ) {
+                        MorphingPlayerContainer(
+                            sessionState = playerSessionState,
+                            playbackProgress = playbackProgress,
+                            playbackActions = playbackActions,
+                            isExpanded = navState.isFullPlayerExpanded,
+                            onExpand = { coordinator.expandFullPlayer() },
+                            onCollapse = { coordinator.collapseFullPlayer() },
+                            collapsedBottomPadding = scaffoldBottomPadding + 8.dp,
+                            onOpenQueue = { showQueueSheet = true },
+                            onAddToPlaylist = { track: AudioTrack ->
+                                tracksToAddToPlaylist = listOf(track)
+                            },
+                            onDismissBatteryBanner = { musicSession.clearKilledBySystemFlag() },
+                            onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
+                            onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
+                        )
                     }
 
                     if (showQueueSheet) {
@@ -399,34 +415,6 @@ class MainActivity : ComponentActivity() {
                             playbackProgress = playbackProgress,
                             playbackActions = playbackActions,
                             onDismissRequest = { showQueueSheet = false },
-                            onAddToPlaylist = { track ->
-                                tracksToAddToPlaylist = listOf(track)
-                            },
-                        )
-                    }
-
-                    // Hoisted Full Player View Overlay
-                    AnimatedVisibility(
-                        visible = navState.isFullPlayerExpanded && playerSessionState.hasTrack,
-                        enter =
-                            slideInVertically(
-                                initialOffsetY = { it },
-                                animationSpec = tween(300),
-                            ) + fadeIn(animationSpec = tween(300)),
-                        exit =
-                            slideOutVertically(
-                                targetOffsetY = { it },
-                                animationSpec = tween(300),
-                            ) + fadeOut(animationSpec = tween(300)),
-                    ) {
-                        FullPlayerView(
-                            sessionState = playerSessionState,
-                            playbackProgress = playbackProgress,
-                            playbackActions = playbackActions,
-                            onCollapse = { coordinator.collapseFullPlayer() },
-                            onDismissBatteryBanner = { musicSession.clearKilledBySystemFlag() },
-                            onConfirmUnsupportedRangeReplay = { musicSession.confirmUnsupportedRangeReplay() },
-                            onDismissUnsupportedRange = { musicSession.dismissUnsupportedRange() },
                             onAddToPlaylist = { track ->
                                 tracksToAddToPlaylist = listOf(track)
                             },
