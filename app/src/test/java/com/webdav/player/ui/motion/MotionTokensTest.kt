@@ -5,6 +5,7 @@ import android.provider.Settings
 import androidx.compose.animation.core.SnapSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Modifier
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
@@ -206,5 +207,14 @@ class MotionTokensTest {
                 onClick = { /* click */ },
             )
         assertNotNull(modifierWithBoth)
+
+        val interactionSource = MutableInteractionSource()
+        val modifierWithExplicitSource =
+            Modifier.bouncyClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { /* click */ },
+            )
+        assertNotNull(modifierWithExplicitSource)
     }
 }

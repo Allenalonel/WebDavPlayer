@@ -55,7 +55,14 @@ object MotionTransitions {
     const val DialogInitialScale: Float = 0.92f
 
     /**
-     * Dialog window pops in with a gentle spring scale-in from 0.92f and fade in.
+     * Canonical Material 3 Expressive dialog enter transition specification.
+     *
+     * Scales in from [DialogInitialScale] (0.92f) using [MotionTokens.spatialSpec] and fades in
+     * using [MotionTokens.effectsSpec]. Used as the canonical transition specification for
+     * [androidx.compose.animation.AnimatedVisibility] dialog containers alongside [expressiveDialog]
+     * (which provides equivalent spring scaling for window-level dialogs like [androidx.compose.material3.AlertDialog]).
+     *
+     * @param reduceMotion Whether reduce-motion accessibility preference is active.
      */
     fun dialogEnter(reduceMotion: Boolean = false): EnterTransition =
         scaleIn(
@@ -67,7 +74,14 @@ object MotionTransitions {
             )
 
     /**
-     * Dialog window exits with a gentle spring scale-out to 0.92f and fade out.
+     * Canonical Material 3 Expressive dialog exit transition specification.
+     *
+     * Scales out to [DialogInitialScale] (0.92f) using [MotionTokens.spatialSpec] and fades out
+     * using [MotionTokens.effectsSpec]. Used as the canonical transition specification for
+     * [androidx.compose.animation.AnimatedVisibility] dialog containers alongside [expressiveDialog]
+     * (which provides equivalent spring scaling for window-level dialogs like [androidx.compose.material3.AlertDialog]).
+     *
+     * @param reduceMotion Whether reduce-motion accessibility preference is active.
      */
     fun dialogExit(reduceMotion: Boolean = false): ExitTransition =
         scaleOut(

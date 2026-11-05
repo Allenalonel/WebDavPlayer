@@ -79,15 +79,8 @@ fun Modifier.expressivePress(
         )
 
         val pointerMod =
-            if (interactionSource == null && enabled) {
-                Modifier.pointerInput(Unit) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                        isPointerPressed = true
-                        waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                        isPointerPressed = false
-                    }
-                }
+            if (interactionSource == null) {
+                Modifier.pointerPressTracker(enabled = enabled) { isPointerPressed = it }
             } else {
                 Modifier
             }
@@ -98,6 +91,27 @@ fun Modifier.expressivePress(
                 scaleX = scale
                 scaleY = scale
             }
+    }
+
+/**
+ * Observes pointer gestures on [PointerEventPass.Initial] without consuming touch events,
+ * updating [onPressedChange] when a pointer touches down and releases or cancels.
+ */
+private fun Modifier.pointerPressTracker(
+    enabled: Boolean,
+    onPressedChange: (Boolean) -> Unit,
+): Modifier =
+    if (enabled) {
+        pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                onPressedChange(true)
+                waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                onPressedChange(false)
+            }
+        }
+    } else {
+        this
     }
 
 /**
@@ -136,37 +150,18 @@ fun Modifier.bouncyClickable(
             },
     ) {
         val interactionSource = remember { MutableInteractionSource() }
-
-        val clickModifier =
-            if (onLongClick != null || onDoubleClick != null) {
-                Modifier.combinedClickable(
-                    interactionSource = interactionSource,
-                    indication = LocalIndication.current,
-                    enabled = enabled,
-                    onClickLabel = onClickLabel,
-                    role = role,
-                    onLongClickLabel = onLongClickLabel,
-                    onLongClick = onLongClick,
-                    onDoubleClick = onDoubleClick,
-                    onClick = onClick,
-                )
-            } else {
-                Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = LocalIndication.current,
-                    enabled = enabled,
-                    onClickLabel = onClickLabel,
-                    role = role,
-                    onClick = onClick,
-                )
-            }
-
-        this
-            .expressivePress(
-                interactionSource = interactionSource,
-                enabled = enabled,
-                scaleFactor = scaleFactor,
-            ).then(clickModifier)
+        bouncyClickable(
+            interactionSource = interactionSource,
+            indication = LocalIndication.current,
+            enabled = enabled,
+            scaleFactor = scaleFactor,
+            onClickLabel = onClickLabel,
+            role = role,
+            onLongClickLabel = onLongClickLabel,
+            onLongClick = onLongClick,
+            onDoubleClick = onDoubleClick,
+            onClick = onClick,
+        )
     }
 
 /**
@@ -197,28 +192,17 @@ fun Modifier.bouncyClickable(
             },
     ) {
         val clickModifier =
-            if (onLongClick != null || onDoubleClick != null) {
-                Modifier.combinedClickable(
-                    interactionSource = interactionSource,
-                    indication = indication,
-                    enabled = enabled,
-                    onClickLabel = onClickLabel,
-                    role = role,
-                    onLongClickLabel = onLongClickLabel,
-                    onLongClick = onLongClick,
-                    onDoubleClick = onDoubleClick,
-                    onClick = onClick,
-                )
-            } else {
-                Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = indication,
-                    enabled = enabled,
-                    onClickLabel = onClickLabel,
-                    role = role,
-                    onClick = onClick,
-                )
-            }
+            Modifier.clickableWithSupport(
+                interactionSource = interactionSource,
+                indication = indication,
+                enabled = enabled,
+                onClickLabel = onClickLabel,
+                role = role,
+                onLongClickLabel = onLongClickLabel,
+                onLongClick = onLongClick,
+                onDoubleClick = onDoubleClick,
+                onClick = onClick,
+            )
 
         this
             .expressivePress(
@@ -226,6 +210,41 @@ fun Modifier.bouncyClickable(
                 enabled = enabled,
                 scaleFactor = scaleFactor,
             ).then(clickModifier)
+    }
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun Modifier.clickableWithSupport(
+    interactionSource: MutableInteractionSource,
+    indication: Indication?,
+    enabled: Boolean,
+    onClickLabel: String?,
+    role: Role?,
+    onLongClickLabel: String?,
+    onLongClick: (() -> Unit)?,
+    onDoubleClick: (() -> Unit)?,
+    onClick: () -> Unit,
+): Modifier =
+    if (onLongClick != null || onDoubleClick != null) {
+        combinedClickable(
+            interactionSource = interactionSource,
+            indication = indication,
+            enabled = enabled,
+            onClickLabel = onClickLabel,
+            role = role,
+            onLongClickLabel = onLongClickLabel,
+            onLongClick = onLongClick,
+            onDoubleClick = onDoubleClick,
+            onClick = onClick,
+        )
+    } else {
+        clickable(
+            interactionSource = interactionSource,
+            indication = indication,
+            enabled = enabled,
+            onClickLabel = onClickLabel,
+            role = role,
+            onClick = onClick,
+        )
     }
 
 /**

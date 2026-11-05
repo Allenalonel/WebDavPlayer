@@ -1,5 +1,6 @@
 package com.webdav.player.ui.motion
 
+import androidx.compose.animation.togetherWith
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -208,5 +209,28 @@ class MotionTransitionsTest {
         assertNotNull(focalExit)
         assertNotNull(searchEnter)
         assertNotNull(searchExit)
+    }
+
+    @Test
+    fun playlistDrilldownTransitions_composeValidContentTransforms() {
+        val pushDrilldown =
+            MotionTransitions.hierarchyPushEnter(reduceMotion = false) togetherWith
+                MotionTransitions.hierarchyPushExit(reduceMotion = false)
+        assertNotNull(pushDrilldown)
+
+        val popDrilldown =
+            MotionTransitions.hierarchyPopEnter(reduceMotion = false) togetherWith
+                MotionTransitions.hierarchyPopExit(reduceMotion = false)
+        assertNotNull(popDrilldown)
+
+        val pushReduced =
+            MotionTransitions.hierarchyPushEnter(reduceMotion = true) togetherWith
+                MotionTransitions.hierarchyPushExit(reduceMotion = true)
+        assertNotNull(pushReduced)
+
+        val popReduced =
+            MotionTransitions.hierarchyPopEnter(reduceMotion = true) togetherWith
+                MotionTransitions.hierarchyPopExit(reduceMotion = true)
+        assertNotNull(popReduced)
     }
 }

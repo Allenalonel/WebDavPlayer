@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -298,32 +299,46 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         when (targetDestination) {
                                             AppDestination.PLAYLISTS -> {
-                                                if (navState.selectedPlaylistId != null) {
-                                                    val selectedId = navState.selectedPlaylistId!!
-                                                    val detailViewModel: PlaylistDetailViewModel =
-                                                        androidx.lifecycle.viewmodel.compose.viewModel(
-                                                            key = "playlist_detail_$selectedId",
-                                                            factory = AppViewModelFactory(appContainer, selectedId),
+                                                AnimatedContent(
+                                                    targetState = navState.selectedPlaylistId,
+                                                    transitionSpec = {
+                                                        if (targetState != null) {
+                                                            MotionTransitions.hierarchyPushEnter(isReduceMotion) togetherWith
+                                                                MotionTransitions.hierarchyPushExit(isReduceMotion)
+                                                        } else {
+                                                            MotionTransitions.hierarchyPopEnter(isReduceMotion) togetherWith
+                                                                MotionTransitions.hierarchyPopExit(isReduceMotion)
+                                                        }
+                                                    },
+                                                    label = "PlaylistDrilldownTransition",
+                                                ) { targetPlaylistId ->
+                                                    if (targetPlaylistId != null) {
+                                                        val selectedId = targetPlaylistId
+                                                        val detailViewModel: PlaylistDetailViewModel =
+                                                            androidx.lifecycle.viewmodel.compose.viewModel(
+                                                                key = "playlist_detail_$selectedId",
+                                                                factory = AppViewModelFactory(appContainer, selectedId),
+                                                            )
+                                                        PlaylistDetailScreen(
+                                                            viewModel = detailViewModel,
+                                                            onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
+                                                            isCurrentTab = isCurrentTab,
+                                                            onTrackClick = { track, index ->
+                                                                detailViewModel.onTrackClick(track, index)
+                                                            },
+                                                            onPlayAll = {
+                                                                detailViewModel.playAll()
+                                                            },
                                                         )
-                                                    PlaylistDetailScreen(
-                                                        viewModel = detailViewModel,
-                                                        onBackClick = { coordinator.navigateBackFromPlaylistDetail() },
-                                                        isCurrentTab = isCurrentTab,
-                                                        onTrackClick = { track, index ->
-                                                            detailViewModel.onTrackClick(track, index)
-                                                        },
-                                                        onPlayAll = {
-                                                            detailViewModel.playAll()
-                                                        },
-                                                    )
-                                                } else {
-                                                    PlaylistListScreen(
-                                                        viewModel = playlistViewModel,
-                                                        onPlaylistClick = { playlist ->
-                                                            coordinator.navigateToPlaylistDetail(playlist.id)
-                                                        },
-                                                        fabBottomPadding = fabBottomPadding,
-                                                    )
+                                                    } else {
+                                                        PlaylistListScreen(
+                                                            viewModel = playlistViewModel,
+                                                            onPlaylistClick = { playlist ->
+                                                                coordinator.navigateToPlaylistDetail(playlist.id)
+                                                            },
+                                                            fabBottomPadding = fabBottomPadding,
+                                                        )
+                                                    }
                                                 }
                                             }
 
