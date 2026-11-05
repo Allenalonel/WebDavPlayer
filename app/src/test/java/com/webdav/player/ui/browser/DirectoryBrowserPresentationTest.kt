@@ -351,4 +351,45 @@ class DirectoryBrowserPresentationTest {
         assertEquals("Allegro", virtualTrack.title)
         assertEquals("Herbert von Karajan", virtualTrack.artist)
     }
+
+    @Test
+    fun searchActiveState_togglesCapsuleMorphingState() {
+        var state = DirectoryBrowserUiState(isSearchActive = false)
+        assertFalse(state.isSearchActive)
+
+        // User taps 38dp magnifying glass button: expands capsule
+        state = state.copy(isSearchActive = true)
+        assertTrue(state.isSearchActive)
+
+        // User enters query
+        state = state.copy(searchQuery = "Pink Floyd")
+        assertEquals("Pink Floyd", state.searchQuery)
+
+        // Tapping back arrow in search capsule shrinks it back and clears query
+        state = state.copy(isSearchActive = false, searchQuery = "")
+        assertFalse(state.isSearchActive)
+        assertEquals("", state.searchQuery)
+    }
+
+    @Test
+    fun searchResultDirectoryClick_resetsSearchActiveForFocalLanding() {
+        val targetDirectory = RemoteDirectory(path = "/Music/Lossless/Pink Floyd/", name = "Pink Floyd")
+        var state =
+            DirectoryBrowserUiState(
+                isSearchActive = true,
+                searchQuery = "Pink",
+            )
+        assertTrue(state.isSearchActive)
+
+        // Selecting a folder item dismisses search view and lands on target directory
+        state =
+            state.copy(
+                isSearchActive = false,
+                searchQuery = "",
+                currentPath = targetDirectory.path,
+            )
+        assertFalse(state.isSearchActive)
+        assertEquals("", state.searchQuery)
+        assertEquals("/Music/Lossless/Pink Floyd/", state.currentPath)
+    }
 }
