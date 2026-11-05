@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** resolved
 
 ## Acceptance criteria
 
-- [ ] 创建 `com.webdav.player.ui.motion.MotionTokens`，统一定义 `SpatialSpring`（`StiffnessMediumLow`, `DampingRatioLowBouncy`）、`EffectsSpring`（`StiffnessMedium`, `DampingRatioNoBouncy`）与 `FastSpatialSpring`（`StiffnessMedium`, `DampingRatioMediumBouncy`）。
-- [ ] 在 `MotionTokens` 中实现无障碍合规：当系统设置开启“减少动态效果（Reduce Motion）”时，所有动画时长自动折叠为 0ms，提供即时切换降级。
-- [ ] 创建 `com.webdav.player.ui.motion.MotionModifiers`，封装 `Modifier.expressivePress(scaleFactor = 0.965f)` 与 `Modifier.bouncyClickable()`，通过 `graphicsLayer` 消费交互状态并实现松手弹簧回弹。
-- [ ] 将 `expressivePress` 与 `bouncyClickable` 应用于音轨列表行（`AudioTrackRow`）、服务器卡片（`ServerCardItem`）及核心独立按钮，赋予全局实体触控质感。
-- [ ] 编写并执行单元测试 `MotionTokensTest`，验证刚度阻尼参数符合 M3E 规范，且无障碍模式下正确返回零时长。
+- [x] 创建 `com.webdav.player.ui.motion.MotionTokens`，统一定义 `SpatialSpring`（`StiffnessMediumLow`, `DampingRatioLowBouncy`）、`EffectsSpring`（`StiffnessMedium`, `DampingRatioNoBouncy`）与 `FastSpatialSpring`（`StiffnessMedium`, `DampingRatioMediumBouncy`）。
+- [x] 在 `MotionTokens` 中实现无障碍合规：当系统设置开启“减少动态效果（Reduce Motion）”时，所有动画时长自动折叠为 0ms，提供即时切换降级。
+- [x] 创建 `com.webdav.player.ui.motion.MotionModifiers`，封装 `Modifier.expressivePress(scaleFactor = 0.965f)` 与 `Modifier.bouncyClickable()`，通过 `graphicsLayer` 消费交互状态并实现松手弹簧回弹。
+- [x] 将 `expressivePress` 与 `bouncyClickable` 应用于音轨列表行（`AudioTrackRow`）、服务器卡片（`ServerCardItem`）及核心独立按钮，赋予全局实体触控质感。
+- [x] 编写并执行单元测试 `MotionTokensTest`，验证刚度阻尼参数符合 M3E 规范，且无障碍模式下正确返回零时长。
