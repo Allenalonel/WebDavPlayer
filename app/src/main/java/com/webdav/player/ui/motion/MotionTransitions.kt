@@ -156,7 +156,8 @@ object MotionTransitions {
             )
 
     /**
-     * Parent list retreats to the left with 25% parallax offset and slight dimming.
+     * Parent list retreats to the left with 25% parallax offset and completely fades out,
+     * preventing any residual ghost/afterimage from lingering on the left side.
      */
     fun hierarchyPushExit(reduceMotion: Boolean = false): ExitTransition =
         slideOutHorizontally(
@@ -165,7 +166,7 @@ object MotionTransitions {
         ) +
             fadeOut(
                 animationSpec = MotionTokens.effectsSpec(reduceMotion),
-                targetAlpha = ParallaxDimmingAlpha,
+                targetAlpha = 0.0f,
             )
 
     // --- Hierarchy Pop (Back / Reverse) ---

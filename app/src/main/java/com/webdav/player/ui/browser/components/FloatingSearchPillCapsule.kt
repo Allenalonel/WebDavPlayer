@@ -99,9 +99,9 @@ fun FloatingSearchPillCapsule(
 
         val focusRequester = remember { FocusRequester() }
 
-        LaunchedEffect(isExpanded, isSearchSelectionMode) {
-            if (isExpanded && !isSearchSelectionMode) {
-                focusRequester.requestFocus()
+        LaunchedEffect(isExpanded, isSearchSelectionMode, expansionProgress >= 0.35f) {
+            if (isExpanded && !isSearchSelectionMode && expansionProgress >= 0.35f) {
+                runCatching { focusRequester.requestFocus() }
             }
         }
 

@@ -400,8 +400,12 @@ fun DirectoryBrowserScreen(
                                     MotionTransitions.hierarchyContentTransform(direction, isReduceMotion)
                                 },
                                 label = "hierarchy_drilldown_transition",
+                                modifier = Modifier.fillMaxSize(),
                             ) { targetPath ->
-                                if (targetPath == uiState.currentPath) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                                ) {
+                                    if (targetPath == uiState.currentPath) {
                                     // Live content for current path
                                     when {
                                         uiState.isLoading && uiState.currentDirectory == null -> {
@@ -510,6 +514,7 @@ fun DirectoryBrowserScreen(
                                         Box(modifier = Modifier.fillMaxSize())
                                     }
                                 }
+                            }
                             }
                         }
                     }

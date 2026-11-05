@@ -1,6 +1,9 @@
 package com.webdav.player.ui.player
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,12 +14,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -229,9 +236,21 @@ fun MorphingPlayerContainer(
     val currentTrack = sessionState.currentTrack ?: return
     val isReduceMotion = isReduceMotionEnabled()
 
+    val morphingSpec =
+        remember(isReduceMotion) {
+            if (isReduceMotion) {
+                snap()
+            } else {
+                tween<Float>(
+                    durationMillis = 480,
+                    easing = CubicBezierEasing(0.18f, 0.94f, 0.28f, 1.05f),
+                )
+            }
+        }
+
     val expansionProgress by animateFloatAsState(
         targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = MotionTokens.spatialSpec(isReduceMotion),
+        animationSpec = morphingSpec,
         label = "PlayerMorphingProgress",
     )
 
@@ -320,9 +339,12 @@ fun MorphingPlayerContainer(
                             },
                         ),
             ) {
-                when {
-                    expansionProgress == 0f -> {
-                        // Preserved 100% static MiniPlayer layout and interactions
+                // 1. MiniPlayer (active when collapsed, cross-fades out between 0f and 0.15f)
+                if (expansionProgress <= 0.15f) {
+                    val miniAlpha = if (expansionProgress == 0f) 1f else ((0.15f - expansionProgress) / 0.15f).coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = miniAlpha },
+                    ) {
                         MiniPlayer(
                             sessionState = sessionState,
                             playbackActions = playbackActions,
@@ -332,23 +354,19 @@ fun MorphingPlayerContainer(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
+                }
 
-                    expansionProgress == 1f -> {
-                        // Preserved 100% static FullPlayerView layout and interactions
-                        FullPlayerView(
-                            sessionState = sessionState,
-                            playbackProgress = playbackProgress,
-                            playbackActions = playbackActions,
-                            onCollapse = onCollapse,
-                            onDismissBatteryBanner = onDismissBatteryBanner,
-                            onConfirmUnsupportedRangeReplay = onConfirmUnsupportedRangeReplay,
-                            onDismissUnsupportedRange = onDismissUnsupportedRange,
-                            onAddToPlaylist = onAddToPlaylist,
-                        )
-                    }
-
-                    else -> {
-                        // Seamless continuous morphing layer
+                // 2. Morphing Transition Layer (active while expanding: 0f < progress < 1f)
+                if (expansionProgress > 0f && expansionProgress < 1f) {
+                    val morphAlpha =
+                        when {
+                            expansionProgress < 0.15f -> (expansionProgress / 0.15f).coerceIn(0f, 1f)
+                            expansionProgress > 0.85f -> ((1f - expansionProgress) / 0.15f).coerceIn(0f, 1f)
+                            else -> 1f
+                        }
+                    Box(
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = morphAlpha },
+                    ) {
                         MorphingTransitionContent(
                             sessionState = sessionState,
                             currentTrack = currentTrack,
@@ -359,6 +377,25 @@ fun MorphingPlayerContainer(
                             containerHeight = containerHeight,
                             onCollapse = onCollapse,
                             onOpenQueue = onOpenQueue,
+                        )
+                    }
+                }
+
+                // 3. FullPlayerView (active when expanded, cross-fades in between 0.85f and 1f)
+                if (expansionProgress >= 0.85f) {
+                    val fullAlpha = if (expansionProgress == 1f) 1f else ((expansionProgress - 0.85f) / 0.15f).coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = fullAlpha },
+                    ) {
+                        FullPlayerView(
+                            sessionState = sessionState,
+                            playbackProgress = playbackProgress,
+                            playbackActions = playbackActions,
+                            onCollapse = onCollapse,
+                            onDismissBatteryBanner = onDismissBatteryBanner,
+                            onConfirmUnsupportedRangeReplay = onConfirmUnsupportedRangeReplay,
+                            onDismissUnsupportedRange = onDismissUnsupportedRange,
+                            onAddToPlaylist = onAddToPlaylist,
                         )
                     }
                 }
@@ -393,8 +430,13 @@ private fun MorphingTransitionContent(
 
     val miniArtX = 10.dp
     val miniArtY = (MiniPlayerDefaults.CapsuleHeight - MiniPlayerDefaults.CoverSize) / 2
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val topBarHeight = 56.dp
+    val bottomControlsHeight = 250.dp
+    val availableCenterHeight = (containerHeight - statusBarPadding - topBarHeight - bottomControlsHeight - navBarPadding).coerceAtLeast(artworkSize)
     val fullArtX = (containerWidth - artworkSize) / 2
-    val fullArtY = ((containerHeight * 0.45f) - (artworkSize / 2)).coerceAtLeast(70.dp)
+    val fullArtY = statusBarPadding + topBarHeight + (availableCenterHeight - artworkSize) / 2
 
     val artX = lerp(miniArtX, fullArtX, expansionProgress)
     val artY = lerp(miniArtY, fullArtY, expansionProgress)
