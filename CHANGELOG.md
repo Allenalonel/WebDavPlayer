@@ -4,6 +4,45 @@
 
 ---
 
+## [3.3] - 2026-11-06
+
+### 🎬 Material 3 Expressive 动效系统与连续形态蜕变体系 (M3 Expressive Motion System, ADR-0031)
+- **动效基础设施与物理修饰符 (Motion Infrastructure & Tactile Modifiers)**：
+  - 收拢统一 Material 3 Expressive 刚度与阻尼物理常量：`SpatialSpring`（空间位移/尺寸变形）、`EffectsSpring`（透明度/色彩渐变）、`FastSpatialSpring`（微交互触控回弹）；
+  - 全原生无障碍合规：当系统开启“减少动态效果（Reduce Motion）”时，所有动画时长自动折叠为 0ms 瞬间完成；
+  - 封装全局触控微缩修饰符 `Modifier.expressivePress()` 与 `Modifier.bouncyClickable()`，赋予音轨行、服务器卡片与独立按钮 0.965f 物理微缩与果冻弹簧回弹触感。
+- **单一真实实体胶囊全屏连续形态蜕变 (Single Living View, No Mock Swaps)**：
+  - 彻底废除过渡替身组件（`MorphingTransitionContent`）与终点偷换机制，确立 `FullPlayerView` 为全屏展开阶段的单一真实实体，随容器高度自底层平滑浮现并微移归位；
+  - 封面尺寸精准锚定全屏真实物理规格（`280dp`，与 `PlayerVinylArtwork` 严格一致），并在 GPU Draw 阶段通过 `Modifier.graphicsLayer` 进行矩阵变换，全程锁定 0° 绝对静止，终点零组件替换，**彻底根除了展开瞬间全屏所有控件剧烈抖动与跳跃的顽疾**；
+  - 针对内存缓存命中优化，移除多余的 250ms 二次 Crossfade 渐变，实现秒级硬绘制；
+  - 为 `LyricsView` 歌词视口内边距增加 `.coerceAtLeast(0.dp)` 保护，彻底杜绝极端低高度下 `IllegalArgumentException: invalid beforeContentPadding` 崩溃。
+- **M3 双向共享轴向 Tab 导航与流体指示器 (Bidirectional Shared Axis Navigation)**：
+  - 彻底移除 `MainActivity.kt` 中旧有的 `translationX = 99999f` 暴力离屏与硬性 alpha 切换；
+  - 在 `MainNavigationCoordinator` 中建立前后目的地索引跟踪（`PLAYLISTS: 0`, `DIRECTORY_BROWSER: 1`, `SERVER_LIST: 2`），严格沿水平 X 轴执行 20% 短距双向推移与交叉淡化，两视窗协同过渡，杜绝白屏与瞬态闪烁；
+  - 底部导航栏 52dp 药丸指示仓新增横向流体弹性拉伸微动效（`Modifier.fluidIndicator`），增强底栏动态反馈；
+  - 歌单详情层级下钻（`PlaylistDetailScreen`）全面接入 100% 右侧推入伴随父级 25% 视差后退。
+- **M3E 悬浮药丸搜索舱与层级穿梭 (Floating Search Pill Capsule & Hierarchy Drilldown)**：
+  - 顶栏 38dp 放大镜按钮以弹性弹簧向四周撑开为 26dp 饱满圆角悬浮搜索舱，全屏搜索结果与历史 Chips 柔和下展；
+  - 增加搜索框 Focus 请求挂载门禁（`expansionProgress >= 0.35f`），根除 `FocusRequester is not initialized` 闪退；
+  - 媒体库向未缓存目录穿梭时，新视窗立即呈现居中加载菊花与 `正在加载远程目录...`，彻底杜绝父级旧目录内容残留；
+  - 退场父级 `targetAlpha` 修正为彻底淡出至 0.0f 并附加不透光背景，根除左侧残留虚影。
+- **全域音轨行高严格对齐规范 (Row Height Parity via "未知" Fallback)**：
+  - 针对缺少艺术家或专辑信息的音频，副标题统一回退显示 `"未知"`，坚决不完全隐藏 `supportingContent`；
+  - 歌单、媒体库、搜索、队列所有列表项 100% 保持统一的双行 72dp 规格，视觉严整协调，消除行高跳变。
+- **播放队列模式循环与平滑洗牌排版 (Animated Queue Placement)**：
+  - MD3 AssistChip 循环流转 `列表循环 🔁` ⇄ `单曲循环 🔂` ⇄ `随机播放 🔀`；
+  - 重构 `LazyColumn` 为稳定唯一键契约（`key = { _, track -> track.id }`），条目挂载 `Modifier.animateItemPlacement()` 实现硬件级平滑交错滑行；
+  - 将列表自动滚动限制为仅在打开抽屉时触发一次（`hasScrolledOnOpen`），消除滚动打断洗牌动效的冲突。
+- **全局系统级弹窗 M3E 缩放**：
+  - 为全局 Dialogs（新建歌单、服务器编辑、音频详情）配置 `Modifier.expressiveDialog()` 0.92f 弹簧微缩淡入。
+
+### 🛡️ 架构规范与审查准则演进 (Engineering Standards & Guardrails)
+- **动效系统与容器形变工程准则**：在 `CODING_STANDARDS.md`（第 7 节）正式确立“单一真实实体原则（Single Living Entity Principle）”与“GPU 绘制阶段渲染原则（Draw Phase Animation Rule）”。
+- **动态交互冒烟巡检规范**：在 `AGENTS.md` 将 UI 真机自检由静态截图升级为包含 `adb shell input` 动态触发与 `logcat -b crash` 检查的“动态交互冒烟审查”。
+- **并行子代理公共脚手架先行隔离**：在 `AGENTS.md` 规范并行开发前由主会话在集成分支预设公共基础骨架文件，杜绝跨工单合并冲突。
+
+---
+
 ## [3.2] - 2026-11-05
 
 ### ☕ 品牌更名为 Aoffee Player 与全新脉冲切片自适应图标 (Rebranding & Adaptive Launcher Icon, ADR-0029)
