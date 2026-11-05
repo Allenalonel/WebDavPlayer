@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: 双向 M3 共享轴向 Tab 导航与底栏药丸拉伸, 03: M3E 悬浮搜索舱形变与媒体库层级穿梭, 04: 胶囊至全屏连续形态蜕变体系, 05: 队列播放模式循环与平滑洗牌重排
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 ## Acceptance criteria
 
